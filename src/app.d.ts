@@ -8,7 +8,8 @@ declare global {
 	namespace App {
 		// interface Error {}
 		interface Locals {
-			auth: Auth;
+			/** 使うときに初めて作る（ログインの設定がなくても閲覧は動く） */
+			auth: () => Auth;
 			/** ログインしていなければ null */
 			user: Auth['$Infer']['Session']['user'] | null;
 		}

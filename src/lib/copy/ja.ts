@@ -42,7 +42,8 @@ export const ja = {
 		heading: 'ログイン',
 		lead: '課題を書いたり「わかる」を付けたりするには、ログインしてください。読むだけならログインはいりません。',
 		google: 'Googleでログイン',
-		line: 'LINEでログイン'
+		line: 'LINEでログイン',
+		failed: 'ログインできませんでした。もう一度お試しください。'
 	},
 	watashi: {
 		pageTitle: 'わたしの記録｜オープンソース立法府',

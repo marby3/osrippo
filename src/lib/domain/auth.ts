@@ -23,7 +23,8 @@ export function profileToUser<P extends { sub: string }>(provider: Provider, pro
 	// 提供元から届く値なので、型を信じず確かめる。sub がないと別の人とメールが重なる
 	if (typeof profile.sub !== 'string' || !profile.sub) throw new Error(`${provider} のプロフィールに sub がありません`);
 	// Better Auth は提供元の値のあとにこれを重ねるので、image を undefined にすれば提供元の画像は残らない
-	return { name: '参加者', email: `${provider}-${profile.sub}@users.invalid`, image: undefined };
+	// メールは架空なので、提供元の「確認済み」は引き継がない
+	return { name: '参加者', email: `${provider}-${profile.sub}@users.invalid`, image: undefined, emailVerified: false };
 }
 
 /** 「参加者」＋6桁（100000〜999999）の表示名。既にあれば5回まで振り直す */

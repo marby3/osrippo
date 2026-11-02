@@ -12,6 +12,7 @@
 <main>
 	<h1>{ja.login.heading}</h1>
 	<p>{ja.login.lead}</p>
+	{#if data.failed}<p role="alert">{ja.login.failed}</p>{/if}
 	<form method="post">
 		<input type="hidden" name="next" value={data.next} />
 		<button formaction="?/google">{ja.login.google}</button>

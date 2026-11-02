@@ -20,7 +20,8 @@
 		}
 	],
 	// ログインの秘密の値（設計書 docs/spec/23.md）。本番とステージングは wrangler secret put、手元は .dev.vars。
-	// ここで名前を宣言すると、wrangler types は .dev.vars の有無で違う型を作らない
+	// ここで名前を宣言すると、wrangler types は .dev.vars の有無で違う型を作らない。
+	// BETTER_AUTH_URL は秘密ではないが、環境ごとに違い、ほかと同じく型を作りたいのでここに並べる
 	"secrets": {
 		"required": [
 			"BETTER_AUTH_URL",
