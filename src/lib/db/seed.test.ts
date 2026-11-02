@@ -44,8 +44,10 @@ function byNum(a: Row, b: Row): number {
 
 function rebuild(revisionId: string) {
 	const rows = all(VALID_AT, revisionId);
-	const children = (kind: string, parent: number) => rows.filter((r) => r.kind === kind && r.parent_id === parent).sort(byNum);
-	return rows
+	const used = new Set<Row>();
+	const children = (kind: string, parent: number) =>
+		rows.filter((r) => r.kind === kind && r.parent_id === parent && used.add(r)).sort(byNum);
+	const articles = rows
 		.filter((r) => r.kind === 'article')
 		.sort(byNum)
 		.map((a) => ({
@@ -57,6 +59,10 @@ function rebuild(revisionId: string) {
 				items: children('item', p.pid as number).map((i) => ({ num: i.num, text: i.text }))
 			}))
 		}));
+	// 親をたどって組み立てたあと、その版で有効な行がすべて使われたか（閉じ忘れた子の行がないか）を確かめる
+	rows.filter((r) => r.kind === 'article').forEach((r) => used.add(r));
+	expect(used.size, `${revisionId}：親のない有効な行`).toBe(rows.length);
+	return articles;
 }
 
 const articleAt = (revisionId: string, num: string) =>
@@ -77,6 +83,7 @@ test('基準2：全版で、DB から組み立て直した条・項・号が本�
 
 test('基準3：版をまたいで同じ内部IDになる', () => {
 	const tokusho = (date: string) => `351AC0000000057_${date}_428AC0000000060`;
+	expect(articleAt(tokusho('20170602'), '15_2')?.pid).toBeDefined();
 	expect(articleAt(tokusho('20171201'), '15_3')?.pid).toBe(articleAt(tokusho('20170602'), '15_2')?.pid);
 
 	const ids = all(
