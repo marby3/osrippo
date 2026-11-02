@@ -10,7 +10,8 @@ async function authorizeUrl(page: Page, button: string, action: string): Promise
 	await expect(page.getByRole('button', { name: button })).toBeVisible();
 	const res = await page.request.post(`/login?/${action}`, {
 		form: { next: '/' },
-		headers: { origin: 'http://localhost:4173' },
+		// ブラウザのフォームと同じく HTML を求める（そうでないと SvelteKit は JSON で返す）
+		headers: { origin: 'http://localhost:4173', accept: 'text/html' },
 		maxRedirects: 0
 	});
 	expect(res.status()).toBe(303);
