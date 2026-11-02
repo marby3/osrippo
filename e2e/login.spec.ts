@@ -15,6 +15,9 @@ async function authorizeUrl(page: Page, button: string, action: string): Promise
 		maxRedirects: 0
 	});
 	expect(res.status()).toBe(303);
+	// 提供元から戻ったときに確かめる state の Cookie が、ブラウザに届く
+	const cookies = res.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie');
+	expect(cookies.map((c) => c.value).join('\n')).toMatch(/better-auth\.state=/);
 	return new URL(res.headers()['location']);
 }
 
