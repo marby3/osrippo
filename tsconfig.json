@@ -1,0 +1,14 @@
+{
+	"extends": "$app/tsconfig",
+	"compilerOptions": {
+		"strict": true,
+		// worker-configuration.d.ts がビルド後の _worker.js を参照するので、JSは型検査しない
+		"checkJs": false,
+		"types": [
+			"$app/types",
+			"./worker-configuration.d.ts",
+			"node"
+		]
+	},
+	"include": ["src", "e2e", "vite.config.ts", "playwright*.config.ts"]
+}
