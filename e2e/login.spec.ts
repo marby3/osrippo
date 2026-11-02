@@ -1,26 +1,30 @@
 // Issue #23 ログイン
 import { expect, test, type Page } from '@playwright/test';
 
-/** 提供元までは行かない：認可の URL への移動を止めて、その URL を返す */
-async function authorizeUrl(page: Page, button: string, host: string): Promise<URL> {
-	let seen: URL | undefined;
-	await page.route(`https://${host}/**`, (route) => {
-		// 最初の要求（認可の URL）だけを見る。偽のページを返したあとの favicon.ico などで上書きしない
-		seen ??= new URL(route.request().url());
-		return route.fulfill({ status: 200, body: 'provider' });
-	});
+/**
+ * 提供元までは行かない：ログインのフォームと同じ POST を、リダイレクトを追わずに送り、行き先を返す
+ * （ブラウザで押すと 303 の先を追いかけて本物の提供元へ通信してしまい、page.route でも止められない）
+ */
+async function authorizeUrl(page: Page, button: string, action: string): Promise<URL> {
 	await page.goto('/login');
-	await page.getByRole('button', { name: button }).click();
-	await expect.poll(() => seen?.host).toBe(host);
-	return seen!;
+	await expect(page.getByRole('button', { name: button })).toBeVisible();
+	const res = await page.request.post(`/login?/${action}`, {
+		form: { next: '/' },
+		headers: { origin: 'http://localhost:4173' },
+		maxRedirects: 0
+	});
+	expect(res.status()).toBe(303);
+	return new URL(res.headers()['location']);
 }
 
 test('基準1：Google・LINE の認可の URL へ、client_id と戻り先付きで送られる', async ({ page }) => {
-	const google = await authorizeUrl(page, 'Googleでログイン', 'accounts.google.com');
+	const google = await authorizeUrl(page, 'Googleでログイン', 'google');
+	expect(google.host).toBe('accounts.google.com');
 	expect(google.searchParams.get('client_id')).toBe('test-google-client');
 	expect(google.searchParams.get('redirect_uri')).toBe('http://localhost:4173/api/auth/callback/google');
 
-	const line = await authorizeUrl(page, 'LINEでログイン', 'access.line.me');
+	const line = await authorizeUrl(page, 'LINEでログイン', 'line');
+	expect(line.host).toBe('access.line.me');
 	expect(line.searchParams.get('client_id')).toBe('test-line-client');
 	expect(line.searchParams.get('redirect_uri')).toBe('http://localhost:4173/api/auth/callback/line');
 });
