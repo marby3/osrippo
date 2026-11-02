@@ -45,3 +45,29 @@ export function articleText(article: {
 		])
 	].join('\n');
 }
+
+type HeadingTree = { title: string; articles: string[]; children: HeadingTree[] };
+
+/** 条の num → その条が属する見出しの題名（上から）。木の外の条は入らない */
+export function headingPaths(tree: HeadingTree[]): Map<string, string[]> {
+	const paths = new Map<string, string[]>();
+	const walk = (nodes: HeadingTree[], above: string[]) => {
+		for (const h of nodes) {
+			const path = [...above, h.title];
+			for (const num of h.articles) paths.set(num, path);
+			walk(h.children, path);
+		}
+	};
+	walk(tree, []);
+	return paths;
+}
+
+/** 目次：見出しごとに、その下の木で最初の条（num の順）を付ける。条のない見出しは null */
+export function tableOfContents(tree: HeadingTree[]): { title: string; first: string | null; children: ReturnType<typeof tableOfContents> }[] {
+	const all = (h: HeadingTree): string[] => [...h.articles, ...h.children.flatMap(all)];
+	return tree.map((h) => ({
+		title: h.title,
+		first: all(h).sort(compareNum)[0] ?? null,
+		children: tableOfContents(h.children)
+	}));
+}

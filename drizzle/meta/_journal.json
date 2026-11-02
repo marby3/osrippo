@@ -8,6 +8,13 @@
       "when": 1793620442440,
       "tag": "0000_laws",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793629101038,
+      "tag": "0001_headings",
+      "breakpoints": true
     }
   ]
 }

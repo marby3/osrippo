@@ -1,0 +1,1 @@
+ALTER TABLE `law_revisions` ADD `headings` text;

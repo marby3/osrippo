@@ -2,6 +2,7 @@
 import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
 import { CHANGES } from '../domain/law/history';
+import type { Heading } from '../domain/law/parse';
 
 export const laws = sqliteTable('laws', {
 	/** e-Gov の law_id */
@@ -26,7 +27,9 @@ export const lawRevisions = sqliteTable(
 		status: text('status', { enum: ['enforced', 'scheduled'] }).notNull(),
 		amendmentLawTitle: text('amendment_law_title'),
 		amendmentLawNum: text('amendment_law_num'),
-		amendmentPromulgateDate: text('amendment_promulgate_date')
+		amendmentPromulgateDate: text('amendment_promulgate_date'),
+		/** その版の本則の見出しの木（設計書 docs/spec/21.md）。NULL は見出しなしと同じ */
+		headings: text('headings', { mode: 'json' }).$type<Heading[]>()
 	},
 	(t) => [
 		unique().on(t.lawId, t.branch, t.seq),

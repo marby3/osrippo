@@ -50,3 +50,33 @@ export function parseLaw(lawFullText: EgovNode): Article[] {
 	walk(lawFullText);
 	return articles;
 }
+
+const HEADING_KINDS = { Part: 'part', Chapter: 'chapter', Section: 'section', Subsection: 'subsection', Division: 'division' } as const;
+
+/** 本則の編・章・節・款・目の見出し。articles は直下の条の num（設計書 docs/spec/21.md） */
+export type Heading = {
+	kind: (typeof HEADING_KINDS)[keyof typeof HEADING_KINDS];
+	num: string;
+	title: string;
+	articles: string[];
+	children: Heading[];
+};
+
+/** 本則の見出しの木。目次（TOC）は条番号を持たないので読まない。附則と別表も含めない */
+export function parseHeadings(lawFullText: EgovNode): Heading[] {
+	const walk = (node: EgovNode | string): Heading[] => {
+		if (typeof node === 'string' || ['SupplProvision', 'AppdxTable', 'TOC'].includes(node.tag)) return [];
+		const kind = HEADING_KINDS[node.tag as keyof typeof HEADING_KINDS];
+		if (!kind) return (node.children ?? []).flatMap(walk);
+		return [
+			{
+				kind,
+				num: node.attr?.Num ?? '',
+				title: elements(node, `${node.tag}Title`).map((t) => textOf(t)).join(''),
+				articles: elements(node, 'Article').map((a) => a.attr?.Num ?? ''),
+				children: (node.children ?? []).flatMap(walk)
+			}
+		];
+	};
+	return walk(lawFullText);
+}

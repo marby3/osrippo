@@ -1,5 +1,5 @@
 // e-Gov のデータ（今はテストデータ）から、法令と版の DB に入れる SQL を作る（設計書 docs/spec/8.md）
-import { BASELINE_DATE, buildHistory, parseLaw, type EgovNode } from '../domain/law';
+import { BASELINE_DATE, buildHistory, parseHeadings, parseLaw, type EgovNode } from '../domain/law';
 
 /** 対象3法：景品表示法、特定商取引法、消費者契約法（法令ID順） */
 export const TARGET_LAWS = ['337AC0000000134', '351AC0000000057', '412AC0000000061'];
@@ -63,7 +63,7 @@ export function seedStatements(lawIds: string[], load: (name: string) => unknown
 	const laws: Table = { name: 'laws', columns: ['id', 'title', 'title_kana', 'law_num'], rows: [] };
 	const revisions: Table = {
 		name: 'law_revisions',
-		columns: ['id', 'law_id', 'branch', 'seq', 'enforcement_date', 'status', 'amendment_law_title', 'amendment_law_num', 'amendment_promulgate_date'],
+		columns: ['id', 'law_id', 'branch', 'seq', 'enforcement_date', 'status', 'amendment_law_title', 'amendment_law_num', 'amendment_promulgate_date', 'headings'],
 		rows: []
 	};
 	const provisions: Table = { name: 'provisions', columns: ['id', 'law_id', 'kind', 'parent_id'], rows: [] };
@@ -84,6 +84,7 @@ export function seedStatements(lawIds: string[], load: (name: string) => unknown
 		// 題名は施行済みのうち最新の版から取る（施行予定の改正で題名が変わることがある）
 		const latest = data.revisions.find((r) => STATUS[r.current_revision_status] === 'enforced')!;
 		laws.rows.push([lawId, latest.law_title, latest.law_title_kana, data.law_info.law_num]);
+		const texts = chosen.map((r) => (load(`law_data_${r.law_revision_id}`) as { law_full_text: EgovNode }).law_full_text);
 		chosen.forEach((r, seq) =>
 			revisions.rows.push([
 				r.law_revision_id,
@@ -94,14 +95,15 @@ export function seedStatements(lawIds: string[], load: (name: string) => unknown
 				statusOf(r),
 				r.amendment_law_title,
 				r.amendment_law_num,
-				r.amendment_promulgate_date
+				r.amendment_promulgate_date,
+				JSON.stringify(parseHeadings(texts[seq]))
 			])
 		);
 
 		const history = buildHistory(
-			chosen.map((r) => ({
+			chosen.map((r, i) => ({
 				id: r.law_revision_id,
-				articles: parseLaw((load(`law_data_${r.law_revision_id}`) as { law_full_text: EgovNode }).law_full_text)
+				articles: parseLaw(texts[i])
 			})),
 			{ hasBaseline: base >= 0, nextId }
 		);

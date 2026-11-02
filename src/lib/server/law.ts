@@ -2,7 +2,15 @@
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, max, or } from 'drizzle-orm';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { alias } from 'drizzle-orm/sqlite-core';
-import { articleLabel, BASELINE_DATE, compareArticles, compareNum, type Change } from '../domain/law';
+import {
+	articleLabel,
+	BASELINE_DATE,
+	compareArticles,
+	compareNum,
+	headingPaths,
+	tableOfContents,
+	type Change
+} from '../domain/law';
 import { laws, lawRevisions, provisions, provisionVersions } from '../db/schema';
 
 // D1（本番）と node:sqlite（テスト）の両方の Drizzle を受ける
@@ -100,11 +108,16 @@ export async function lawPage(db: Db, lawId: string) {
 	if (!law || !current) return undefined;
 
 	const amended = await lastAmendedDates(db, lawId);
+	// 見出しが前の条と変わるところにだけ帯を出す（設計書 docs/spec/21.md）
+	const paths = headingPaths(current.headings ?? []);
+	let previous = '';
 	// 内部IDは画面に渡さない
-	const articles = articlesAt(await provisionsAt(db, current.id)).map(({ id, ...a }) => ({
-		...a,
-		lastAmended: amended.get(id) ?? null
-	}));
+	const articles = articlesAt(await provisionsAt(db, current.id)).map(({ id, ...a }) => {
+		const path = (paths.get(a.num) ?? []).join('／');
+		const band = path && path !== previous ? path : null;
+		previous = path;
+		return { ...a, band, lastAmended: amended.get(id) ?? null };
+	});
 
 	const revisions = await db
 		.select()
@@ -118,6 +131,7 @@ export async function lawPage(db: Db, lawId: string) {
 		law: { id: law.id, title: law.title, lawNum: law.lawNum },
 		current: { enforcementDate: current.enforcementDate },
 		articles,
+		toc: tableOfContents(current.headings ?? []),
 		enforced: listed.filter((r) => r.status === 'enforced').map(entry),
 		scheduled: listed.filter((r) => r.status === 'scheduled').map(entry)
 	};

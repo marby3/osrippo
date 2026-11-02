@@ -26,6 +26,8 @@ export const ja = {
 		scheduled: '施行予定',
 		beforeBaseline: '2017年4月より前の改正は準備中',
 		compareLink: '2つの版を比べる',
+		toc: '目次',
+		openToc: '目次から探す',
 		openRecord: '変わった記録を見る',
 		recordTitle: (label: string) => `${label}が変わった記録`,
 		enforcedOn: (date: string) => `${jaDate(date)} 施行`,
