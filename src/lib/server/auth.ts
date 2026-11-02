@@ -1,5 +1,7 @@
 // ログイン（設計書 docs/spec/23.md）。Workers では D1 が要求ごとに渡されるので、auth も要求ごとに作る
+import { getRequestEvent } from '$app/server';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
+import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
@@ -39,6 +41,8 @@ export function authOptions(env: AuthEnv) {
 				mapProfileToUser: (profile) => profileToUser('line', profile)
 			}
 		},
+		// form action などサーバーから auth.api を呼んだときも、Better Auth の Cookie（OAuth の state、セッション）を応答に載せる
+		plugins: [sveltekitCookies(getRequestEvent)],
 		// Google と LINE を自動では結び付けない（決めたこと3）
 		account: { accountLinking: { enabled: false } },
 		databaseHooks: {

@@ -17,17 +17,11 @@ declare global {
 		// interface Platform {}
 	}
 
-	// 秘密の値は wrangler secret（手元は .dev.vars、画面のテストは --var）なので、
-	// wrangler types が作る型には入らない。ここで足す（設計書 docs/spec/23.md）
+	// 秘密の値の型は wrangler.jsonc の secrets.required から wrangler types が作る。
+	// TEST_LOGIN はどこにも宣言しない（画面のテストのサーバーだけが --var で渡す）ので、ここで足す
 	namespace Cloudflare {
 		interface Env {
-			BETTER_AUTH_URL: string;
-			BETTER_AUTH_SECRET: string;
-			GOOGLE_CLIENT_ID: string;
-			GOOGLE_CLIENT_SECRET: string;
-			LINE_CLIENT_ID: string;
-			LINE_CLIENT_SECRET: string;
-			/** 画面のテストのサーバーだけで "1"。テスト用のログインを有効にする */
+			/** 画面のテストのサーバーだけで "1"。テスト用のログインを有効にする（設計書 docs/spec/23.md） */
 			TEST_LOGIN?: string;
 		}
 	}

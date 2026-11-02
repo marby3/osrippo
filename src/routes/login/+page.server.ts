@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { safeNext } from '#lib/domain/auth.ts';
+import { safeNext, type Provider } from '#lib/domain/auth.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ locals, url }) => {
@@ -10,7 +10,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
 };
 
 const signIn =
-	(provider: 'google' | 'line') =>
+	(provider: Provider) =>
 	async ({ locals, request, url }: Parameters<Actions[string]>[0]) => {
 		const form = await request.formData();
 		const next = safeNext(String(form.get('next') ?? ''), url.origin);

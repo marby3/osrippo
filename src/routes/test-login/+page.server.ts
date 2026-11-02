@@ -17,7 +17,8 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	if (!/^[A-Za-z0-9-]{1,32}$/.test(name)) error(400);
 
 	// testUtils は本番の auth には入れず、ここでだけ作る
-	const auth = betterAuth({ ...authOptions(env), plugins: [testUtils()] });
+	const options = authOptions(env);
+	const auth = betterAuth({ ...options, plugins: [...options.plugins, testUtils()] });
 	const { test } = await auth.$context;
 	const db = drizzle(env.DB, { schema });
 	const email = `test-${name}@test.invalid`;

@@ -8,6 +8,8 @@ export function safeNext(next: string | null | undefined, origin: string): strin
 	if (!next || !next.startsWith('/') || /[\u0000-\u001f\u007f]/.test(next)) return '/';
 	const url = new URL(next, origin);
 	if (url.origin !== new URL(origin).origin) return '/';
+	// 解決で . や .. が消えて // や /\ が現れたもの（/.//evil.example）は、返すと外への URL になる
+	if (/^[/\\]{2}/.test(url.pathname)) return '/';
 	return url.pathname + url.search + url.hash;
 }
 
