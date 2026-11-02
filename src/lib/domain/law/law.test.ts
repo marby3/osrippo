@@ -46,7 +46,8 @@ test('基準2：前後の版の条を、似ている度合いの高い順に対�
 	expect(byNum(tokusho, '24_3')).toMatchObject({ before: { num: '24_2' } });
 	expect(byNum(tokusho, '15_2')).toMatchObject({ kind: 'unconfirmed' });
 	expect(byNum(tokusho, '15_2')?.before).toBeUndefined();
-	expect(byNum(tokusho, '70_2', 'before')).toMatchObject({ kind: 'removed' });
+	// 第70条の3は、罰則を各号にまとめた改正で相手がなくなった
+	expect(byNum(tokusho, '70_3', 'before')).toMatchObject({ kind: 'removed' });
 });
 
 test('基準3：結び付いた条の中で、項と号も対応付ける', () => {
