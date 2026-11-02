@@ -5,7 +5,8 @@ import { expect, test, type Page } from '@playwright/test';
 async function authorizeUrl(page: Page, button: string, host: string): Promise<URL> {
 	let seen: URL | undefined;
 	await page.route(`https://${host}/**`, (route) => {
-		seen = new URL(route.request().url());
+		// 最初の要求（認可の URL）だけを見る。偽のページを返したあとの favicon.ico などで上書きしない
+		seen ??= new URL(route.request().url());
 		return route.fulfill({ status: 200, body: 'provider' });
 	});
 	await page.goto('/login');
