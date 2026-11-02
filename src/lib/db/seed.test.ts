@@ -144,3 +144,14 @@ test('基準6：特定商取引法 2017-12-01 の第15条の2 は確認待ち', 
 	expect(after[0].pid).not.toBe(before?.pid);
 	expect(articleAt('351AC0000000057_20171201_428AC0000000060', '15_3')?.pid).toBe(before?.pid);
 });
+
+test('Issue #21 基準2：各版の headings に見出しの木が入る', () => {
+	const rows = all(`SELECT id, headings FROM law_revisions`);
+	expect(rows.every((r) => r.headings !== null)).toBe(true);
+	type Node = { kind: string; title: string; children: Node[] };
+	const now = one(`SELECT headings FROM law_revisions WHERE id = '412AC0000000061_20260624_508AC0000000046'`);
+	const tree = JSON.parse(String(now?.headings)) as Node[];
+	const chapter3 = tree.find((h) => h.title === '第三章　差止請求')!;
+	const section2 = chapter3.children.find((h) => h.title === '第二節　適格消費者団体')!;
+	expect(section2.children.map((h) => h.kind)).toEqual(['subsection', 'subsection', 'subsection', 'subsection']);
+});

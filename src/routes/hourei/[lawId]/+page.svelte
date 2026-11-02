@@ -19,6 +19,9 @@
 	let record = $state<ArticleRecord | null>(null);
 	let failed = $state(false);
 
+	/** 目次：PC は左にいつも出す。スマホは「目次から探す」で開く */
+	let tocOpen = $state(false);
+
 	/** PC は右の欄、スマホは条の下に開く */
 	let wide = $state(false);
 	$effect(() => {
@@ -49,6 +52,17 @@
 		}
 	}
 </script>
+
+{#snippet tocList(items: PageProps['data']['toc'])}
+	<ul>
+		{#each items as h (h.title)}
+			<li>
+				{#if h.first}<a href="#jo-{h.first}" onclick={() => (tocOpen = false)}>{h.title}</a>{:else}{h.title}{/if}
+				{#if h.children.length}{@render tocList(h.children)}{/if}
+			</li>
+		{/each}
+	</ul>
+{/snippet}
 
 {#snippet recordPanel(r: ArticleRecord)}
 	<section class="record" id="record" aria-labelledby="record-title">
@@ -87,10 +101,22 @@
 	</header>
 
 	<div class="layout">
+	{#if data.toc.length}
+		<div class="toc">
+			<button class="toc-toggle" aria-expanded={tocOpen} aria-controls="toc" onclick={() => (tocOpen = !tocOpen)}>
+				{ja.law.openToc}
+			</button>
+			<nav id="toc" aria-labelledby="toc-title" class:shown={tocOpen}>
+				<h2 id="toc-title">{ja.law.toc}</h2>
+				{@render tocList(data.toc)}
+			</nav>
+		</div>
+	{/if}
 	<div>
 	{#each data.articles as article (article.num)}
-		<article aria-labelledby="article-{article.num}" class:selected={openNum === article.num}>
-			<h2><span id="article-{article.num}">{article.label}</span><span class="caption">{article.caption}</span></h2>
+		{#if article.band}<h2 class="band">{ja.law.band(article.band)}</h2>{/if}
+		<article id="jo-{article.num}" aria-labelledby="article-{article.num}" class:selected={openNum === article.num}>
+			<h3><span id="article-{article.num}">{article.label}</span><span class="caption">{article.caption}</span></h3>
 			{#each article.paragraphs as paragraph, i (paragraph.num)}
 				<div class="paragraph">
 					<p>{#if i > 0}<span class="num">{paragraph.num}</span>{/if}{paragraph.text}</p>
@@ -155,7 +181,7 @@
 
 <style>
 	main {
-		max-width: 76rem;
+		max-width: 84rem;
 		margin: 0 auto;
 		padding: 1rem;
 	}
@@ -187,8 +213,9 @@
 		margin-bottom: 1.5rem;
 	}
 
-	article h2 {
+	article h3 {
 		margin: 0 0 0.25rem;
+		font-size: var(--font-size-body);
 	}
 
 	.caption {
@@ -223,6 +250,65 @@
 	h3 {
 		font-size: var(--font-size-sub);
 		margin-bottom: 0.25rem;
+	}
+
+	/* 見出しの帯（「第二章　…／第二節　…」） */
+	.band {
+		margin: 1.5rem 0 1rem;
+		font-size: var(--font-size-body);
+		padding: 0.5rem 0.75rem;
+		border-left: 4px solid var(--color-base);
+		background: var(--color-surface);
+		font-weight: bold;
+	}
+
+	article {
+		scroll-margin-top: 1rem;
+	}
+
+	.toc-toggle {
+		min-height: var(--tap-min);
+		margin-bottom: 1rem;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--color-link);
+		font: inherit;
+		text-decoration: underline;
+	}
+
+	/* スマホは「目次から探す」で開く */
+	nav {
+		display: none;
+		margin-bottom: 1.5rem;
+	}
+
+	nav.shown {
+		display: block;
+	}
+
+	nav h2 {
+		font-size: var(--font-size-sub);
+		color: var(--color-text-sub);
+	}
+
+	nav ul {
+		margin: 0;
+		padding-left: 1em;
+		list-style: none;
+	}
+
+	nav > ul {
+		padding-left: 0;
+	}
+
+	nav li {
+		padding: 0.25rem 0;
+	}
+
+	nav a {
+		color: var(--color-text);
+		text-decoration: none;
 	}
 
 	/* 開くと「⌄」が上を向く */
@@ -281,9 +367,22 @@
 
 	/* PC：記録は右の欄に出す */
 	@media (min-width: 64rem) {
+		/* PC は左に目次をいつも出す */
+		.toc-toggle {
+			display: none;
+		}
+
+		nav {
+			display: block;
+			position: sticky;
+			top: 1rem;
+			max-height: calc(100vh - 2rem);
+			overflow-y: auto;
+		}
+
 		.layout {
 			display: grid;
-			grid-template-columns: minmax(0, 1fr) 22rem;
+			grid-template-columns: 13rem minmax(0, 1fr) 20rem;
 			gap: 2.5rem;
 			align-items: start;
 		}
