@@ -15,7 +15,8 @@ export const ja = {
 	siteName: 'オープンソース立法府',
 	unofficial: '国会・政府とは無関係の非公式サービスです',
 	law: {
-		asOf: (date: string) => `${jaDate(date)}施行の版`,
+		pageTitle: (title: string) => `${title}｜オープンソース立法府`,
+		meta: (lawNum: string, asOf: string) => `${lawNum} ・ ${jaDate(asOf)}施行の版`,
 		amended: (date: string, years: number) => `${jaMonth(date)}に改正・${years}年変わっていない`,
 		unchangedSinceBaseline: '2017年4月より前から変更なし',
 		history: '改正履歴',

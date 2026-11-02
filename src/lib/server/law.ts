@@ -61,7 +61,14 @@ export async function lastAmendedDates(db: Db, lawId: string): Promise<Map<numbe
 		.from(provisionVersions)
 		.innerJoin(provisions, eq(provisions.id, provisionVersions.provisionId))
 		.innerJoin(from, eq(from.id, provisionVersions.fromRevisionId))
-		.where(and(eq(provisions.lawId, lawId), inArray(provisionVersions.change, COUNTED), eq(from.status, 'enforced')))
+		.where(
+			and(
+				eq(provisions.lawId, lawId),
+				eq(from.branch, 'real'),
+				inArray(provisionVersions.change, COUNTED),
+				eq(from.status, 'enforced')
+			)
+		)
 		.groupBy(provisionVersions.provisionId);
 	return new Map(rows.filter((r) => r.date).map((r) => [r.id, r.date!]));
 }

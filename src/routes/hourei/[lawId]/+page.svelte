@@ -7,13 +7,13 @@
 </script>
 
 <svelte:head>
-	<title>{data.law.title}｜{ja.siteName}</title>
+	<title>{ja.law.pageTitle(data.law.title)}</title>
 </svelte:head>
 
 <main>
 	<header class="law-head">
 		<h1>{data.law.title}</h1>
-		<p class="sub">{data.law.lawNum} ・ {ja.law.asOf(data.current.enforcementDate)}</p>
+		<p class="sub">{ja.law.meta(data.law.lawNum, data.current.enforcementDate)}</p>
 	</header>
 
 	{#each data.articles as article (article.num)}
@@ -46,14 +46,14 @@
 		{#if data.scheduled.length}
 			<h3 id="scheduled">{ja.law.scheduled}</h3>
 			<ul aria-labelledby="scheduled" class="revisions">
-				{#each data.scheduled as r, i (i)}
+				{#each data.scheduled as r}
 					<li><span class="date">{jaDate(r.date)}</span>{r.title}</li>
 				{/each}
 			</ul>
 		{/if}
 		<h3 id="enforced">{ja.law.enforced}</h3>
 		<ol aria-labelledby="enforced" class="revisions">
-			{#each data.enforced as r, i (i)}
+			{#each data.enforced as r}
 				<li><span class="date">{jaDate(r.date)}</span>{r.title}</li>
 			{/each}
 		</ol>
