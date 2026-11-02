@@ -1,0 +1,22 @@
+/* 要素の既定のスタイル。値は tokens.css の変数だけを使う */
+body {
+	margin: 0;
+	background: var(--color-bg);
+	color: var(--color-text);
+	font-family: var(--font-family);
+	font-size: var(--font-size-body);
+	line-height: var(--line-height-body);
+}
+
+a {
+	color: var(--color-link);
+}
+
+a:hover {
+	color: var(--color-link-hover);
+}
+
+:focus-visible {
+	outline: 4px solid var(--color-text);
+	box-shadow: 0 0 0 2px var(--color-focus);
+}
