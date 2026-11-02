@@ -7,7 +7,7 @@
 
 	let { data }: PageProps = $props();
 
-	type Record = {
+	type ArticleRecord = {
 		label: string;
 		latest: DiffPart[];
 		amendments: { date: string; lawNum: string; then: string | null }[];
@@ -16,7 +16,8 @@
 
 	/** 開いている条の番号と、その条の変わった記録（押したときに読み込む） */
 	let openNum = $state<string | null>(null);
-	let record = $state<Record | null>(null);
+	let record = $state<ArticleRecord | null>(null);
+	let failed = $state(false);
 
 	/** PC は右の欄、スマホは条の下に開く */
 	let wide = $state(false);
@@ -35,13 +36,22 @@
 		}
 		openNum = num;
 		record = null;
-		const res = await fetch(`/hourei/${data.law.id}/kiroku/${encodeURIComponent(num)}`);
-		if (res.ok && openNum === num) record = await res.json();
+		failed = false;
+		try {
+			const res = await fetch(`/hourei/${data.law.id}/kiroku/${encodeURIComponent(num)}`);
+			const body: ArticleRecord | null = res.ok ? await res.json() : null;
+			// 待っている間に別の条が押されたら、古い応答は捨てる
+			if (openNum !== num) return;
+			record = body;
+			failed = !body;
+		} catch {
+			if (openNum === num) failed = true;
+		}
 	}
 </script>
 
-{#snippet recordPanel(r: Record)}
-	<section class="record" aria-labelledby="record-title">
+{#snippet recordPanel(r: ArticleRecord)}
+	<section class="record" id="record" aria-labelledby="record-title">
 		<h3 id="record-title">{ja.law.recordTitle(r.label)}</h3>
 		<!-- 長い条でも読めるよう、最新の改正で変わった行だけを出す -->
 		{#each changedLines(r.latest) as line}
@@ -52,7 +62,7 @@
 			{#each r.amendments as a}
 				<li>
 					<strong>{ja.law.enforcedOn(a.date)}</strong>{#if a.then}<span>{ja.law.then(a.then)}</span>{/if}
-					<span class="sub">{a.lawNum}</span>
+					{#if a.lawNum}<span class="sub">{a.lawNum}</span>{/if}
 				</li>
 			{/each}
 			{#if r.baseline}
@@ -79,7 +89,7 @@
 	<div class="layout">
 	<div>
 	{#each data.articles as article (article.num)}
-		<article aria-labelledby="article-{article.num}">
+		<article aria-labelledby="article-{article.num}" class:selected={openNum === article.num}>
 			<h2><span id="article-{article.num}">{article.label}</span><span class="caption">{article.caption}</span></h2>
 			{#each article.paragraphs as paragraph, i (paragraph.num)}
 				<div class="paragraph">
@@ -101,16 +111,25 @@
 				{/if}
 			</p>
 			{#if article.lastAmended}
-				<button class="open" aria-expanded={openNum === article.num} onclick={() => toggle(article.num)}>
+				<button
+					class="open"
+					aria-expanded={openNum === article.num}
+					aria-controls={openNum === article.num ? 'record' : undefined}
+					onclick={() => toggle(article.num)}
+				>
 					{ja.law.openRecord}
 				</button>
-				{#if !wide && openNum === article.num && record}{@render recordPanel(record)}{/if}
+				{#if !wide && openNum === article.num}
+					{#if record}{@render recordPanel(record)}{:else if failed}<p role="alert">{ja.law.recordFailed}</p>{/if}
+				{/if}
 			{/if}
 		</article>
 	{/each}
 	</div>
 	<aside>
-		{#if wide && openNum && record}{@render recordPanel(record)}{/if}
+		{#if wide && openNum}
+			{#if record}{@render recordPanel(record)}{:else if failed}<p role="alert">{ja.law.recordFailed}</p>{/if}
+		{/if}
 	</aside>
 	</div>
 
@@ -206,6 +225,16 @@
 		margin-bottom: 0.25rem;
 	}
 
+	/* 開くと「⌄」が上を向く */
+	.open::after {
+		content: '⌄';
+		float: right;
+	}
+
+	.open[aria-expanded='true']::after {
+		transform: rotate(180deg);
+	}
+
 	.open {
 		min-height: var(--tap-min);
 		width: 100%;
@@ -266,6 +295,13 @@
 
 		.record {
 			margin-top: 0;
+		}
+
+		/* 右の欄に記録を出している条を枠で示す */
+		article.selected {
+			border: 2px solid var(--color-base);
+			border-radius: var(--radius-l);
+			padding: 0 1rem 1rem;
 		}
 	}
 

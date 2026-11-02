@@ -192,7 +192,7 @@ export async function articleHistory(db: Db, lawId: string, num: string) {
 		})
 		.from(provisionVersions)
 		.innerJoin(from, eq(from.id, provisionVersions.fromRevisionId))
-		.where(eq(provisionVersions.provisionId, article.id))
+		.where(and(eq(provisionVersions.provisionId, article.id), eq(from.branch, 'real')))
 		.orderBy(desc(from.seq));
 	const amendments = versions.filter((v) => COUNTED.includes(v.change) && v.status === 'enforced');
 	if (!amendments.length) return undefined;
