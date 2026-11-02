@@ -1,0 +1,401 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "6dca4fc6-3e97-45d1-94b0-ba4afd3952d7",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "law_revisions": {
+      "name": "law_revisions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "law_id": {
+          "name": "law_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "branch": {
+          "name": "branch",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "seq": {
+          "name": "seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "enforcement_date": {
+          "name": "enforcement_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amendment_law_title": {
+          "name": "amendment_law_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "amendment_law_num": {
+          "name": "amendment_law_num",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "amendment_promulgate_date": {
+          "name": "amendment_promulgate_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "law_revisions_law_id_branch_seq_unique": {
+          "name": "law_revisions_law_id_branch_seq_unique",
+          "columns": [
+            "law_id",
+            "branch",
+            "seq"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "law_revisions_law_id_laws_id_fk": {
+          "name": "law_revisions_law_id_laws_id_fk",
+          "tableFrom": "law_revisions",
+          "tableTo": "laws",
+          "columnsFrom": [
+            "law_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "law_revisions_branch": {
+          "name": "law_revisions_branch",
+          "value": "\"law_revisions\".\"branch\" IN ('real')"
+        },
+        "law_revisions_status": {
+          "name": "law_revisions_status",
+          "value": "\"law_revisions\".\"status\" IN ('enforced', 'scheduled')"
+        }
+      }
+    },
+    "laws": {
+      "name": "laws",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title_kana": {
+          "name": "title_kana",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "law_num": {
+          "name": "law_num",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "provision_versions": {
+      "name": "provision_versions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provision_id": {
+          "name": "provision_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "from_revision_id": {
+          "name": "from_revision_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "to_revision_id": {
+          "name": "to_revision_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "num": {
+          "name": "num",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "caption": {
+          "name": "caption",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "change": {
+          "name": "change",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "similarity": {
+          "name": "similarity",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "unconfirmed_of": {
+          "name": "unconfirmed_of",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "provision_versions_from": {
+          "name": "provision_versions_from",
+          "columns": [
+            "from_revision_id"
+          ],
+          "isUnique": false
+        },
+        "provision_versions_to": {
+          "name": "provision_versions_to",
+          "columns": [
+            "to_revision_id"
+          ],
+          "isUnique": false
+        },
+        "provision_versions_provision_id_from_revision_id_unique": {
+          "name": "provision_versions_provision_id_from_revision_id_unique",
+          "columns": [
+            "provision_id",
+            "from_revision_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "provision_versions_provision_id_provisions_id_fk": {
+          "name": "provision_versions_provision_id_provisions_id_fk",
+          "tableFrom": "provision_versions",
+          "tableTo": "provisions",
+          "columnsFrom": [
+            "provision_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "provision_versions_from_revision_id_law_revisions_id_fk": {
+          "name": "provision_versions_from_revision_id_law_revisions_id_fk",
+          "tableFrom": "provision_versions",
+          "tableTo": "law_revisions",
+          "columnsFrom": [
+            "from_revision_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "provision_versions_to_revision_id_law_revisions_id_fk": {
+          "name": "provision_versions_to_revision_id_law_revisions_id_fk",
+          "tableFrom": "provision_versions",
+          "tableTo": "law_revisions",
+          "columnsFrom": [
+            "to_revision_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "provision_versions_unconfirmed_of_provisions_id_fk": {
+          "name": "provision_versions_unconfirmed_of_provisions_id_fk",
+          "tableFrom": "provision_versions",
+          "tableTo": "provisions",
+          "columnsFrom": [
+            "unconfirmed_of"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "provision_versions_change": {
+          "name": "provision_versions_change",
+          "value": "\"provision_versions\".\"change\" IN ('baseline', 'added', 'amended', 'renumbered', 'unconfirmed')"
+        }
+      }
+    },
+    "provisions": {
+      "name": "provisions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "law_id": {
+          "name": "law_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "provisions_law_id": {
+          "name": "provisions_law_id",
+          "columns": [
+            "law_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "provisions_law_id_laws_id_fk": {
+          "name": "provisions_law_id_laws_id_fk",
+          "tableFrom": "provisions",
+          "tableTo": "laws",
+          "columnsFrom": [
+            "law_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "provisions_parent_id_provisions_id_fk": {
+          "name": "provisions_parent_id_provisions_id_fk",
+          "tableFrom": "provisions",
+          "tableTo": "provisions",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "provisions_kind": {
+          "name": "provisions_kind",
+          "value": "\"provisions\".\"kind\" IN ('article', 'paragraph', 'item')"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

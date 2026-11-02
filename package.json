@@ -4,6 +4,9 @@
 	"version": "0.0.1",
 	"type": "module",
 	"packageManager": "pnpm@12.16.1",
+	"engines": {
+		"node": ">=22.13"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
@@ -13,7 +16,9 @@
 		"test": "vitest run --passWithNoTests",
 		"test:e2e": "playwright test --pass-with-no-tests",
 		"test:phase": "playwright test -c playwright.phase.config.ts",
-		"gen": "wrangler types"
+		"gen": "wrangler types",
+		"db:generate": "drizzle-kit generate",
+		"db:reset": "tsx scripts/db-reset.ts"
 	},
 	"imports": {
 		"#lib": "./src/lib/index.js",
@@ -25,11 +30,16 @@
 		"@sveltejs/kit": "^3.1.1",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@types/node": "^22.20.5",
+		"drizzle-kit": "^0.31.11",
 		"svelte": "^5.57.3",
 		"svelte-check": "^4.7.7",
+		"tsx": "^4.23.15",
 		"typescript": "^6.0.3",
 		"vite": "^8.3.5",
 		"vitest": "^5.0.5",
 		"wrangler": "^4.156.0"
+	},
+	"dependencies": {
+		"drizzle-orm": "^0.45.4"
 	}
 }
