@@ -20,6 +20,8 @@ export type Provider = 'google' | 'line';
  * 名前・メール・画像は使わない。メールは提供元ごとに分ける。表示名は作るときに pickDisplayName で振る
  */
 export function profileToUser<P extends { sub: string }>(provider: Provider, profile: P) {
+	// 提供元から届く値なので、型を信じず確かめる。sub がないと別の人とメールが重なる
+	if (typeof profile.sub !== 'string' || !profile.sub) throw new Error(`${provider} のプロフィールに sub がありません`);
 	// Better Auth は提供元の値のあとにこれを重ねるので、image を undefined にすれば提供元の画像は残らない
 	return { name: '参加者', email: `${provider}-${profile.sub}@users.invalid`, image: undefined };
 }

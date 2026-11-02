@@ -52,6 +52,8 @@ export function authOptions(env: AuthEnv) {
 					before: async (data) => ({
 						data: {
 							...data,
+							// 提供元の画像は保存しない（mapProfileToUser でも外しているが、念のためここでも）
+							image: null,
 							name: await pickDisplayName(async (name) =>
 								Boolean(await db.query.user.findFirst({ where: eq(schema.user.name, name) }))
 							)

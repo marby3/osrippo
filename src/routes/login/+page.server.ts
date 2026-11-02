@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { safeNext, type Provider } from '#lib/domain/auth.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -18,8 +18,9 @@ const signIn =
 			body: { provider, callbackURL: next, disableRedirect: true },
 			headers: request.headers
 		});
+		if (!authorize) error(500, '提供元の認可の URL を作れませんでした');
 		// 外へのリダイレクトは、提供元の認可のサイトだけを許す
-		redirect(303, authorize!, { external: ['https://accounts.google.com', 'https://access.line.me'] });
+		redirect(303, authorize, { external: ['https://accounts.google.com', 'https://access.line.me'] });
 	};
 
 export const actions: Actions = { google: signIn('google'), line: signIn('line') };
