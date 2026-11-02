@@ -57,3 +57,14 @@ test('基準4：番号が変わった条も前の番号の時期までつなが�
 	await expect(items.last()).toContainText('2017年4月より前');
 	await expect(items.last()).toContainText('（当時は第15条の2）');
 });
+
+test('記録の URL が崩れていたり、ない条・法令なら 404', async ({ request }) => {
+	for (const path of [
+		'/hourei/412AC0000000061/kiroku/99999',
+		'/hourei/412AC0000000061/kiroku/2',
+		'/hourei/412AC0000000061/kiroku/%E7%AC%AC4%E6%9D%A1',
+		'/hourei/000AC0000000000/kiroku/4'
+	]) {
+		expect((await request.get(path)).status(), path).toBe(404);
+	}
+});
