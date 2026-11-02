@@ -60,7 +60,7 @@ test('基準3：TEST_LOGIN のないサーバーでは 404、name が不正な�
 
 test('基準4：ログインしたあとの戻り先に外のサイトを渡しても、外へは送らない', async ({ page }, info) => {
 	await page.goto(`/test-login?name=next-${info.project.name}`);
-	for (const next of ['//evil.example', '/\\evil.example', 'https://evil.example', '/\n/evil.example']) {
+	for (const next of ['//evil.example', '/\\evil.example', 'https://evil.example', '/\n/evil.example', '/.//evil.example']) {
 		await page.goto(`/login?next=${encodeURIComponent(next)}`);
 		expect(new URL(page.url()).origin, next).toBe('http://localhost:4173');
 		expect(new URL(page.url()).pathname, next).toBe('/');

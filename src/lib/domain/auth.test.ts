@@ -16,7 +16,11 @@ describe('基準4：safeNext は自サイトの中だけに戻す', () => {
 		['https://evil.example', '/'],
 		['/\t/evil.example', '/'],
 		['/a\nb', '/'],
-		['http://localhost:4173.evil.example/', '/']
+		['http://localhost:4173.evil.example/', '/'],
+		// 解決すると . や .. が消えて // が現れるもの
+		['/.//evil.example', '/'],
+		['/a/..//evil.example', '/'],
+		['/./\\evil.example', '/']
 	])('%j → %j', (next, expected) => {
 		expect(safeNext(next, ORIGIN)).toBe(expected);
 	});
