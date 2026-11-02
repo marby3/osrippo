@@ -5,6 +5,8 @@ const article = (page: Page, name: string) => page.getByRole('article', { name, 
 
 async function open(page: Page, lawId: string, name: string) {
 	await page.goto(`/hourei/${lawId}`);
+	// ボタンはスクリプトで動くので、ハイドレーションが済むまで待つ
+	await page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
 	await article(page, name).getByRole('button', { name: '変わった記録を見る' }).click();
 	const record = page.getByRole('region', { name: `${name}が変わった記録` });
 	await expect(record).toBeVisible();
