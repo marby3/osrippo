@@ -1,11 +1,8 @@
 // e-Gov のデータ（今はテストデータ）から、法令と版の DB に入れる SQL を作る（設計書 docs/spec/8.md）
-import { buildHistory, parseLaw, type EgovNode } from '../domain/law';
+import { BASELINE_DATE, buildHistory, parseLaw, type EgovNode } from '../domain/law';
 
 /** 対象3法：景品表示法、特定商取引法、消費者契約法（法令ID順） */
 export const TARGET_LAWS = ['337AC0000000134', '351AC0000000057', '412AC0000000061'];
-
-/** 時点を指定した条文が取れるのはこの日から。これ以前（当日を含む）で最新の版を起点にする */
-const BASELINE_DATE = '2017-04-01';
 
 type EgovRevision = {
 	law_revision_id: string;

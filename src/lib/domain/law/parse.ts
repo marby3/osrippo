@@ -9,15 +9,18 @@ export type Article = { num: string; label: string; caption: string; paragraphs:
 const elements = (node: EgovNode, tag: string) =>
 	(node.children ?? []).filter((c): c is EgovNode => typeof c !== 'string' && c.tag === tag);
 
-/** 子孫の文字をつなげる。skip の要素（条名や号名など）は飛ばす */
+/** 子孫の文字をつなげる。skip の要素（条名や号名など）は飛ばす。号の細分（イ、ロ、ハ）は改行して見出しのあとを空ける */
 function textOf(node: EgovNode | string, skip: string[] = []): string {
 	if (typeof node === 'string') return node;
 	if (skip.includes(node.tag)) return '';
-	return (node.children ?? []).map((c) => textOf(c, skip)).join('');
+	const text = (node.children ?? []).map((c) => textOf(c, skip)).join('');
+	if (/^Subitem\d+$/.test(node.tag)) return `\n${text}`;
+	if (/^Subitem\d+Title$/.test(node.tag)) return `${text}　`;
+	return text;
 }
 
 /** "6_2" → "第6条の2" */
-function articleLabel(num: string): string {
+export function articleLabel(num: string): string {
 	const [head, ...branches] = num.split('_');
 	return `第${head}条${branches.map((b) => `の${b}`).join('')}`;
 }

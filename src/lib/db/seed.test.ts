@@ -3,6 +3,8 @@ import { beforeAll, describe, expect, test } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 import { parseLaw } from '../domain/law';
+import { drizzle } from 'drizzle-orm/sqlite-proxy';
+import { currentRevision, lastAmendedDates, type Db } from '../server/law';
 import { seedStatements, TARGET_LAWS } from './seed';
 
 const root = new URL('../../../', import.meta.url);
@@ -11,6 +13,8 @@ const fixture = (name: string) =>
 
 type Row = Record<string, string | number | null>;
 let db: DatabaseSync;
+/** 本体の読む関数（src/lib/server/law.ts）を、node:sqlite の上の Drizzle で呼ぶ */
+let orm: Db;
 const all = (sql: string, ...params: (string | number)[]) => db.prepare(sql).all(...params) as Row[];
 const one = (sql: string, ...params: (string | number)[]) => db.prepare(sql).get(...params) as Row | undefined;
 
@@ -22,6 +26,13 @@ beforeAll(() => {
 		db.exec(readFileSync(new URL(f, migrations), 'utf8'));
 	}
 	for (const sql of seedStatements(TARGET_LAWS, fixture)) db.exec(sql);
+	orm = drizzle(async (sql, params, method) => {
+		const stmt = db.prepare(sql);
+		stmt.setReturnArrays(true);
+		if (method === 'run') return stmt.run(...(params as [])), { rows: [] };
+		if (method === 'get') return { rows: stmt.get(...(params as [])) as unknown as unknown[] };
+		return { rows: stmt.all(...(params as [])) as unknown as unknown[][] };
+	});
 }, 120_000);
 
 /** 版 R で有効な行（設計書 決定1） */
@@ -97,32 +108,25 @@ test('基準3：版をまたいで同じ内部IDになる', () => {
 });
 
 describe('現在の版（施行済みのうち seq が最大）', () => {
-	const current = (law: string) =>
-		one(`SELECT id FROM law_revisions WHERE law_id = ? AND status = 'enforced' ORDER BY seq DESC LIMIT 1`, law)?.id;
+	const current = async (law: string) => (await currentRevision(orm, law))?.id;
 
-	test('基準4：消費者契約法の現在の条文は 2026-06-24 の版', () => {
+	test('基準4：消費者契約法の現在の条文は 2026-06-24 の版', async () => {
 		const now = '412AC0000000061_20260624_508AC0000000046';
-		expect(current('412AC0000000061')).toBe(now);
+		expect(await current('412AC0000000061')).toBe(now);
 		const expected = parseLaw(fixture(`law_data_${now}`).law_full_text).map(({ label: _, ...a }) => a);
 		const scheduled = parseLaw(fixture('law_data_412AC0000000061_20281223_508AC0000000046').law_full_text);
 		expect(scheduled.map(({ label: _, ...a }) => a)).not.toEqual(expected);
-		expect(rebuild(current('412AC0000000061') as string)).toEqual(expected);
+		expect(rebuild((await current('412AC0000000061')) as string)).toEqual(expected);
 	});
 
-	test('基準5：最後に改正された日', () => {
-		// 設計書 決定3：数える change で、施行済みの版から始まる行のうち最新の施行日
-		const lastAmended = (num: string) => {
-			const pid = articleAt(current('412AC0000000061') as string, num)?.pid as number;
-			return one(
-				`SELECT MAX(f.enforcement_date) AS d FROM provision_versions v JOIN law_revisions f ON f.id = v.from_revision_id
-				 WHERE v.provision_id = ? AND v.change IN ('added', 'amended', 'unconfirmed') AND f.status = 'enforced'`,
-				pid
-			)?.d;
-		};
+	test('基準5：最後に改正された日', async () => {
+		const now = (await current('412AC0000000061')) as string;
+		const dates = await lastAmendedDates(orm, '412AC0000000061');
+		const lastAmended = (num: string) => dates.get(articleAt(now, num)?.pid as number);
 		expect(lastAmended('4')).toBe('2023-06-01');
 		expect(lastAmended('1')).toBe('2017-06-03');
-		expect(lastAmended('2')).toBeNull();
-		expect(articleAt(current('412AC0000000061') as string, '2')?.change).toBe('baseline');
+		expect(lastAmended('2')).toBeUndefined();
+		expect(articleAt(now, '2')?.change).toBe('baseline');
 		expect(one(`SELECT enforcement_date AS d FROM law_revisions WHERE law_id = '412AC0000000061' AND seq = 0`)?.d).toBe(
 			'2016-10-01'
 		);
