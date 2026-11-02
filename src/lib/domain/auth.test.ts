@@ -30,7 +30,8 @@ test('基準5：プロフィールの名前・メール・画像は使わず、�
 		picture: 'https://example.com/me.jpg'
 	});
 	expect(google.email).toBe('google-1234567890@users.invalid');
-	expect(google.image).toBeNull();
+	// Better Auth は提供元の画像のあとにこの値を重ねるので、キーを持って undefined にすれば画像は残らない
+	expect('image' in google && google.image === undefined).toBe(true);
 	expect(JSON.stringify(google)).not.toContain('山田');
 	expect(profileToUser('line', { sub: 'U4af4980629' }).email).toBe('line-U4af4980629@users.invalid');
 
