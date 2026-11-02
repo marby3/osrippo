@@ -1,4 +1,4 @@
-// Issue #8 基準1：pnpm db:reset でローカル D1 を作り直せる（webServer の起動前に pnpm db:reset が走る）
+// Issue #8 基準1：pnpm db:reset でローカル D1 を作り直せる（webServer を起動するときに pnpm db:reset が走る。既存のサーバーを使う場合は走らない）
 // D1 を別のプロセスから開くと、サーバーとロックがぶつかる（Issue #17）。サーバーを通して確かめる
 import { expect, test } from '@playwright/test';
 

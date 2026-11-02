@@ -107,7 +107,8 @@ test('ページのスクリプトが動き出す前に選んだ版が、消え�
 	await page.getByLabel('前の版').selectOption(R20230105);
 	await page.getByLabel('後の版').selectOption(R20230601);
 	release();
-	await page.waitForLoadState('networkidle');
+	// ハイドレーションが済むまで待つ（レイアウトが body に data-hydrated を付ける）
+	await page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
 	await expect(page.getByLabel('前の版')).toHaveValue(R20230105);
 	await expect(page.getByLabel('後の版')).toHaveValue(R20230601);
 	await page.getByRole('button', { name: '比べる' }).click();
