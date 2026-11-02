@@ -37,6 +37,19 @@ export const ja = {
 		recordPreparing: '条文ごとの記録は準備中',
 		recordFailed: '変わった記録を読み込めませんでした。もう一度押してください。'
 	},
+	login: {
+		pageTitle: 'ログイン｜オープンソース立法府',
+		heading: 'ログイン',
+		lead: '課題を書いたり「わかる」を付けたりするには、ログインしてください。読むだけならログインはいりません。',
+		google: 'Googleでログイン',
+		line: 'LINEでログイン'
+	},
+	watashi: {
+		pageTitle: 'わたしの記録｜オープンソース立法府',
+		heading: 'わたしの記録',
+		name: '表示名',
+		logout: 'ログアウト'
+	},
 	compare: {
 		pageTitle: (title: string) => `${title}の2つの版を比べる｜オープンソース立法府`,
 		heading: '2つの版を比べる',

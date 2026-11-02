@@ -11,6 +11,8 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
+		"preview:test": "tsx scripts/preview-test.ts --port 4173 --test-login",
+		"preview:nologin": "tsx scripts/preview-test.ts --port 4174 --persist-to .wrangler/state-nologin",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "wrangler types --check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"test": "vitest run --passWithNoTests",

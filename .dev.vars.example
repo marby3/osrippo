@@ -1,0 +1,8 @@
+# 手元の pnpm dev / pnpm preview 用。.dev.vars に写して値を入れる（.dev.vars は git に入れない）
+# 本番とステージングは wrangler secret put で入れる
+BETTER_AUTH_URL=http://localhost:5173
+BETTER_AUTH_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+LINE_CLIENT_ID=
+LINE_CLIENT_SECRET=
