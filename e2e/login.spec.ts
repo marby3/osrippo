@@ -11,7 +11,7 @@ async function authorizeUrl(page: Page, button: string, action: string): Promise
 	const res = await page.request.post(`/login?/${action}`, {
 		form: { next: '/' },
 		// ブラウザのフォームと同じく HTML を求める（そうでないと SvelteKit は JSON で返す）
-		headers: { origin: 'http://localhost:4173', accept: 'text/html' },
+		headers: { origin: new URL(page.url()).origin, accept: 'text/html' },
 		maxRedirects: 0
 	});
 	expect(res.status()).toBe(303);
@@ -46,6 +46,7 @@ test('基準2：テスト用のログインで入ると表示名が出て、ロ�
 	await expect(page.getByText(name, { exact: true })).toBeVisible();
 
 	await page.getByRole('button', { name: 'ログアウト' }).click();
+	await page.waitForURL('/');
 	await page.goto('/watashi');
 	await expect(page).toHaveURL('/login?next=%2Fwatashi');
 });
