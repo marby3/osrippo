@@ -2,10 +2,16 @@
 	import '#lib/styles/tokens.css';
 	import '#lib/styles/base.css';
 	import favicon from '#lib/assets/favicon.svg';
+	import { onMount } from 'svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
+
+	// ハイドレーションが済んだ印（画面のテストが待つ）
+	onMount(() => {
+		document.body.dataset.hydrated = '';
+	});
 </script>
 
 <svelte:head>

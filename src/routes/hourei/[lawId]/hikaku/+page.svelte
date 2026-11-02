@@ -9,6 +9,7 @@
 	// 選択欄は利用者が動かすので、比べて移動したあとに結果の版へ戻す。
 	// 入れ替えで結果が前回と同じだと data は変わらないので、移動のたびに戻す。
 	// ページを開いたとき（enter）は戻さない：スクリプトが動く前に選んだ版を消さないため（Issue #17）
+	// bind:value にしないこと。ハイドレーションで利用者の選択を上書きしてしまう
 	let maeSelect: HTMLSelectElement;
 	let atoSelect: HTMLSelectElement;
 	afterNavigate(({ type }) => {
