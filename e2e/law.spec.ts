@@ -16,7 +16,7 @@ test('基準1：法令名・法令番号・現在の版の条文が出る', asyn
 	await expect(page.getByText('平成十二年法律第六十一号')).toBeVisible();
 	await expect(page.getByText('2026年6月24日施行の版')).toBeVisible();
 
-	const art4 = page.getByRole('article', { name: '第4条' });
+	const art4 = page.getByRole('article', { name: '第4条', exact: true });
 	await expect(art4).toContainText('（消費者契約の申込み又はその承諾の意思表示の取消し）');
 	await expect(art4.getByText(/^一\s*重要事項について事実と異なることを告げること。/)).toBeVisible();
 	await expect(art4.getByText(/^2\s*消費者は、事業者が消費者契約の締結について勧誘をするに際し、当該消費者に対してある重要事項/)).toBeVisible();
@@ -24,10 +24,10 @@ test('基準1：法令名・法令番号・現在の版の条文が出る', asyn
 
 test('基準2：条ごとに最後に改正された時期が出る', async ({ page }) => {
 	await page.goto(SHOHISHA);
-	await expect(page.getByRole('article', { name: '第4条' })).toContainText(
+	await expect(page.getByRole('article', { name: '第4条', exact: true })).toContainText(
 		`2023年6月に改正・${fullYears('2023-06-01')}年変わっていない`
 	);
-	await expect(page.getByRole('article', { name: '第2条' })).toContainText('2017年4月より前から変更なし');
+	await expect(page.getByRole('article', { name: '第2条', exact: true })).toContainText('2017年4月より前から変更なし');
 });
 
 test('基準3：改正履歴に施行済みの版が新しい順に並び、施行予定は別に出る', async ({ page }) => {
@@ -49,7 +49,7 @@ test('基準3：改正履歴に施行済みの版が新しい順に並び、施�
 
 test('基準4：号の細分は見出しごとに改行して出る', async ({ page }) => {
 	await page.goto(SHOHISHA);
-	const item = page.getByRole('article', { name: '第4条' }).getByText(/^五\s*当該消費者が、社会生活上の経験が乏しいことから/);
+	const item = page.getByRole('article', { name: '第4条', exact: true }).getByText(/^五\s*当該消費者が、社会生活上の経験が乏しいことから/);
 	const text = await item.innerText();
 	expect(text).toMatch(/\nイ\s*進学、就職、結婚、生計/);
 	expect(text).toMatch(/\nロ\s*容姿、体型/);
@@ -65,4 +65,11 @@ test('基準5：全ページのフッターに非公式サービスの表示が�
 test('基準6：ない法令IDは 404', async ({ page }) => {
 	const res = await page.goto('/hourei/000AC0000000000');
 	expect(res?.status()).toBe(404);
+});
+
+test('URL の法令IDが崩れていても 404', async ({ page }) => {
+	for (const id of ["'%20OR%201=1--", '%E3%81%82', '412AC0000000061%00']) {
+		const res = await page.goto(`/hourei/${id}`);
+		expect(res?.status(), id).toBe(404);
+	}
 });
