@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
-import { parseLaw } from '#lib/domain/law';
+import { parseLaw } from '../domain/law';
 import { seedStatements, TARGET_LAWS } from './seed';
 
 const root = new URL('../../../', import.meta.url);
