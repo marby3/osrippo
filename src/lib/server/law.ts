@@ -1,5 +1,5 @@
 // 法令と版の DB を読む（設計書 docs/spec/8.md の決定1〜3）
-import { and, asc, desc, eq, gt, inArray, isNull, lte, max, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, max, or } from 'drizzle-orm';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { articleLabel, BASELINE_DATE, compareArticles, compareNum, type Change } from '../domain/law';
@@ -166,6 +166,58 @@ export async function comparePage(db: Db, lawId: string, mae?: string | null, at
 		mae: before.id,
 		ato: after.id,
 		changes
+	};
+}
+
+/**
+ * 条ごとの変わった記録。num は現在の版での条の番号。
+ * 改正されたことがない条（または、ない条）なら undefined
+ */
+export async function articleHistory(db: Db, lawId: string, num: string) {
+	const current = await currentRevision(db, lawId);
+	if (!current) return undefined;
+	const article = (await provisionsAt(db, current.id)).find((r) => r.kind === 'article' && r.num === num);
+	if (!article) return undefined;
+
+	const from = alias(lawRevisions, 'from_revision');
+	const versions = await db
+		.select({
+			num: provisionVersions.num,
+			change: provisionVersions.change,
+			revisionId: from.id,
+			seq: from.seq,
+			status: from.status,
+			date: from.enforcementDate,
+			lawNum: from.amendmentLawNum
+		})
+		.from(provisionVersions)
+		.innerJoin(from, eq(from.id, provisionVersions.fromRevisionId))
+		.where(and(eq(provisionVersions.provisionId, article.id), eq(from.branch, 'real')))
+		.orderBy(desc(from.seq));
+	const amendments = versions.filter((v) => COUNTED.includes(v.change) && v.status === 'enforced');
+	if (!amendments.length) return undefined;
+
+	// 番号が今と違う時期には、当時の番号を添える
+	const then = (n: string) => (n === num ? null : articleLabel(n));
+	const baseline = versions.find((v) => v.change === 'baseline');
+
+	// 最新の改正の変更点：その版と、1つ前の版の同じ条を比べる
+	const latest = amendments[0];
+	const [previous] = await db
+		.select()
+		.from(lawRevisions)
+		.where(and(eq(lawRevisions.lawId, lawId), eq(lawRevisions.branch, 'real'), lt(lawRevisions.seq, latest.seq)))
+		.orderBy(desc(lawRevisions.seq))
+		.limit(1);
+	const at = async (revisionId: string) =>
+		articlesAt(await provisionsAt(db, revisionId)).filter((a) => a.id === article.id);
+	const [change] = compareArticles(previous ? await at(previous.id) : [], await at(latest.revisionId));
+
+	return {
+		label: articleLabel(num),
+		latest: change?.parts ?? [],
+		amendments: amendments.map((v) => ({ date: v.date, lawNum: v.lawNum ?? '', then: then(v.num) })),
+		baseline: baseline ? { then: then(baseline.num) } : null
 	};
 }
 

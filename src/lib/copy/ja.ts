@@ -25,7 +25,14 @@ export const ja = {
 		enforced: '施行された改正',
 		scheduled: '施行予定',
 		beforeBaseline: '2017年4月より前の改正は準備中',
-		compareLink: '2つの版を比べる'
+		compareLink: '2つの版を比べる',
+		openRecord: '変わった記録を見る',
+		recordTitle: (label: string) => `${label}が変わった記録`,
+		enforcedOn: (date: string) => `${jaDate(date)} 施行`,
+		then: (label: string) => `（当時は${label}）`,
+		recordBeforeBaseline: '2017年4月より前',
+		recordPreparing: '条文ごとの記録は準備中',
+		recordFailed: '変わった記録を読み込めませんでした。もう一度押してください。'
 	},
 	compare: {
 		pageTitle: (title: string) => `${title}の2つの版を比べる｜オープンソース立法府`,

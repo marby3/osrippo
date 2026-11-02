@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { afterNavigate } from '$app/navigation';
 	import { ja } from '#lib/copy/ja.ts';
-	import type { DiffPart } from '#lib/domain/law/compare.ts';
+	import DiffText from '#lib/components/DiffText.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -21,18 +21,6 @@
 <svelte:head>
 	<title>{ja.compare.pageTitle(data.law.title)}</title>
 </svelte:head>
-
-{#snippet side(parts: DiffPart[], show: 'removed' | 'added')}
-	<p class="text">
-		{#each parts as part}
-			{#if part.removed}
-				{#if show === 'removed'}<del>−{part.value}</del>{/if}
-			{:else if part.added}
-				{#if show === 'added'}<ins>＋{part.value}</ins>{/if}
-			{:else}{part.value}{/if}
-		{/each}
-	</p>
-{/snippet}
 
 <main>
 	<p class="sub"><a href="/hourei/{data.law.id}">{data.law.title}</a></p>
@@ -70,13 +58,13 @@
 				{#if change.kind !== 'added'}
 					<section class="before" aria-labelledby="before-{change.num}-{change.kind}">
 						<h3 id="before-{change.num}-{change.kind}">{ja.compare.beforeSide}</h3>
-						{@render side(change.parts, 'removed')}
+						<DiffText parts={change.parts} show="removed" />
 					</section>
 				{/if}
 				{#if change.kind !== 'removed'}
 					<section class="after" aria-labelledby="after-{change.num}-{change.kind}">
 						<h3 id="after-{change.num}-{change.kind}">{ja.compare.afterSide}</h3>
-						{@render side(change.parts, 'added')}
+						<DiffText parts={change.parts} show="added" />
 					</section>
 				{/if}
 			</div>
@@ -163,23 +151,6 @@
 	h3 {
 		margin: 0.75rem 0 0;
 		font-size: var(--font-size-sub);
-	}
-
-	.text {
-		line-height: var(--line-height-law);
-		white-space: pre-line;
-	}
-
-	del {
-		background: var(--color-del-bg);
-		color: var(--color-del-text);
-		text-decoration: line-through;
-	}
-
-	ins {
-		background: var(--color-ins-bg);
-		color: var(--color-ins-text);
-		text-decoration: underline;
 	}
 
 	/* PC：改正後を左、改正前を右の新旧対照表 */
