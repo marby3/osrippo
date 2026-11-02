@@ -14,7 +14,8 @@ test('基準3：見出しが変わるところに、見出しをつないだ帯�
 	expect(before.y).toBeLessThan(b.y);
 	expect(b.y).toBeLessThan(art3.y);
 	// 同じ節の続き（第3条の2）の上には帯を出さない：第二節の帯は1つだけ
-	await expect(page.getByText(/第二節　訪問販売$/)).toHaveCount(1);
+	// 目次の「第二節　訪問販売」には当たらないよう、帯にだけある「／」を含めて数える
+	await expect(page.getByText(/／第二節　訪問販売$/)).toHaveCount(1);
 });
 
 test('基準4：目次の見出しを押すと、その見出しの最初の条へ移る', async ({ page }, info) => {
