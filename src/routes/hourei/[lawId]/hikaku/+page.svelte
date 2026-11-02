@@ -6,15 +6,16 @@
 
 	let { data }: PageProps = $props();
 
-	// 選択欄は利用者が動かすので、比べるたびに結果の版へ戻す。
-	// 入れ替えで結果が前回と同じだと data は変わらないので、移動のたびに戻す
-	// svelte-ignore state_referenced_locally
-	let mae = $state(data.mae);
-	// svelte-ignore state_referenced_locally
-	let ato = $state(data.ato);
-	afterNavigate(() => {
-		mae = data.mae;
-		ato = data.ato;
+	// 選択欄は利用者が動かすので、比べて移動したあとに結果の版へ戻す。
+	// 入れ替えで結果が前回と同じだと data は変わらないので、移動のたびに戻す。
+	// ページを開いたとき（enter）は戻さない：スクリプトが動く前に選んだ版を消さないため（Issue #17）
+	// bind:value にしないこと。ハイドレーションで利用者の選択を上書きしてしまう
+	let maeSelect: HTMLSelectElement;
+	let atoSelect: HTMLSelectElement;
+	afterNavigate(({ type }) => {
+		if (type === 'enter') return;
+		maeSelect.value = data.mae;
+		atoSelect.value = data.ato;
 	});
 </script>
 
@@ -29,17 +30,17 @@
 	<form method="get">
 		<label>
 			<span>{ja.compare.before}</span>
-			<select name="mae" bind:value={mae}>
+			<select name="mae" bind:this={maeSelect}>
 				{#each data.revisions as r (r.id)}
-					<option value={r.id}>{ja.compare.option(r.date, r.title, r.scheduled)}</option>
+					<option value={r.id} selected={r.id === data.mae}>{ja.compare.option(r.date, r.title, r.scheduled)}</option>
 				{/each}
 			</select>
 		</label>
 		<label>
 			<span>{ja.compare.after}</span>
-			<select name="ato" bind:value={ato}>
+			<select name="ato" bind:this={atoSelect}>
 				{#each data.revisions as r (r.id)}
-					<option value={r.id}>{ja.compare.option(r.date, r.title, r.scheduled)}</option>
+					<option value={r.id} selected={r.id === data.ato}>{ja.compare.option(r.date, r.title, r.scheduled)}</option>
 				{/each}
 			</select>
 		</label>

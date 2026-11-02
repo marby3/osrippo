@@ -94,3 +94,23 @@ test('基準7：法令ページから比較ページへ行ける', async ({ page
 	await page.getByRole('link', { name: '2つの版を比べる' }).click();
 	await expect(page).toHaveURL(/\/hourei\/412AC0000000061\/hikaku/);
 });
+
+test('ページのスクリプトが動き出す前に選んだ版が、消えずに比べられる（Issue #17）', async ({ page }) => {
+	// スクリプトの読み込みを止めておき、選んだあとで動き出させる（遅い回線のスマホと同じ）
+	let release!: () => void;
+	const held = new Promise<void>((resolve) => (release = resolve));
+	await page.route('**/_app/immutable/**/*.js', async (route) => {
+		await held;
+		await route.continue();
+	});
+	await page.goto(PAGE, { waitUntil: 'domcontentloaded' });
+	await page.getByLabel('前の版').selectOption(R20230105);
+	await page.getByLabel('後の版').selectOption(R20230601);
+	release();
+	// ハイドレーションが済むまで待つ（レイアウトが body に data-hydrated を付ける）
+	await page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
+	await expect(page.getByLabel('前の版')).toHaveValue(R20230105);
+	await expect(page.getByLabel('後の版')).toHaveValue(R20230601);
+	await page.getByRole('button', { name: '比べる' }).click();
+	await expect(article(page, '第4条')).toBeVisible();
+});
