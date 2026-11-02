@@ -38,6 +38,8 @@ test('基準5：プロフィールの名前・メール・画像は使わず、�
 	expect('image' in google && google.image === undefined).toBe(true);
 	expect(JSON.stringify(google)).not.toContain('山田');
 	expect(profileToUser('line', { sub: 'U4af4980629' }).email).toBe('line-U4af4980629@users.invalid');
+	// 提供元から届く値（信頼の境界）：sub がなければ作らない
+	expect(() => profileToUser('line', { sub: '' })).toThrow();
 
 	// 最初の2回は既にある表示名と重なったことにする
 	const checked: string[] = [];

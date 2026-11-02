@@ -72,3 +72,16 @@ test('基準4：ログインしたあとの戻り先に外のサイトを渡し�
 	await page.goto(`/login?next=${encodeURIComponent('/watashi')}`);
 	await expect(page).toHaveURL('/watashi');
 });
+
+test('Better Auth の経路は、提供元から戻るところ以外は外から呼べない（表示名を勝手に変えられない）', async ({ page }, info) => {
+	const name = `guard-${info.project.name}`;
+	await page.goto(`/test-login?name=${name}`);
+	const origin = new URL(page.url()).origin;
+	const post = (path: string, data: object) =>
+		page.request.post(path, { data, headers: { origin }, maxRedirects: 0 });
+
+	expect((await post('/api/auth/update-user', { name: '運営', image: 'https://evil.example/a.png' })).status()).toBe(404);
+	expect((await post('/api/auth/sign-in/social', { provider: 'google', callbackURL: 'https://evil.example' })).status()).toBe(404);
+	await page.goto('/watashi');
+	await expect(page.getByText(name, { exact: true })).toBeVisible();
+});
