@@ -31,3 +31,17 @@ export function fullYears(from: string, today: string): number {
 	const years = Number(today.slice(0, 4)) - Number(from.slice(0, 4));
 	return today.slice(5) < from.slice(5) ? years - 1 : years;
 }
+
+/** 比べるときの条の文字列：見出し、項（2項からは番号付き）、号（漢数字付き）を行に分けてつなげる */
+export function articleText(article: {
+	caption: string;
+	paragraphs: { num: string; text: string; items: { num: string; text: string }[] }[];
+}): string {
+	return [
+		article.caption,
+		...article.paragraphs.flatMap((p, i) => [
+			i > 0 ? `${p.num}　${p.text}` : p.text,
+			...p.items.map((item) => `${itemLabel(item.num)}　${item.text}`)
+		])
+	].join('\n');
+}

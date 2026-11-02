@@ -24,6 +24,22 @@ export const ja = {
 		history: '改正履歴',
 		enforced: '施行された改正',
 		scheduled: '施行予定',
-		beforeBaseline: '2017年4月より前の改正は準備中'
+		beforeBaseline: '2017年4月より前の改正は準備中',
+		compareLink: '2つの版を比べる'
+	},
+	compare: {
+		pageTitle: (title: string) => `${title}の2つの版を比べる｜オープンソース立法府`,
+		heading: '2つの版を比べる',
+		before: '前の版',
+		after: '後の版',
+		submit: '比べる',
+		option: (date: string, title: string, scheduled: boolean) =>
+			`${jaDate(date)}施行${scheduled ? '（施行予定）' : ''}　${title}`,
+		beforeSide: '改正前',
+		afterSide: '改正後',
+		added: '新しく入った条',
+		removed: 'なくなった条',
+		renumbered: (label: string) => `（改正前は${label}）`,
+		none: '変わった条はありません'
 	}
 };
