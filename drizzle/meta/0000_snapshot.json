@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ead25f86-a177-42e1-b73c-61d507454384",
+  "id": "6dca4fc6-3e97-45d1-94b0-ba4afd3952d7",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "law_revisions": {
@@ -223,6 +223,20 @@
         }
       },
       "indexes": {
+        "provision_versions_from": {
+          "name": "provision_versions_from",
+          "columns": [
+            "from_revision_id"
+          ],
+          "isUnique": false
+        },
+        "provision_versions_to": {
+          "name": "provision_versions_to",
+          "columns": [
+            "to_revision_id"
+          ],
+          "isUnique": false
+        },
         "provision_versions_provision_id_from_revision_id_unique": {
           "name": "provision_versions_provision_id_from_revision_id_unique",
           "columns": [
@@ -327,7 +341,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "provisions_law_id": {
+          "name": "provisions_law_id",
+          "columns": [
+            "law_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "provisions_law_id_laws_id_fk": {
           "name": "provisions_law_id_laws_id_fk",

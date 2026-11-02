@@ -3,7 +3,8 @@ import { alignArticles, type Match } from './align';
 import type { Article, Item, Paragraph } from './parse';
 
 export type ProvisionKind = 'article' | 'paragraph' | 'item';
-export type Change = 'baseline' | 'added' | 'amended' | 'renumbered' | 'unconfirmed';
+export const CHANGES = ['baseline', 'added', 'amended', 'renumbered', 'unconfirmed'] as const;
+export type Change = (typeof CHANGES)[number];
 
 export type ProvisionRow = { id: number; kind: ProvisionKind; parentId: number | null };
 export type VersionRow = {

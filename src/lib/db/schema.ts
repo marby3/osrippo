@@ -1,6 +1,7 @@
 // 法令と版の DB（設計書 docs/spec/8.md）
 import { sql } from 'drizzle-orm';
-import { check, foreignKey, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import { CHANGES } from '../domain/law/history';
 
 export const laws = sqliteTable('laws', {
 	/** e-Gov の law_id */
@@ -48,11 +49,10 @@ export const provisions = sqliteTable(
 	},
 	(t) => [
 		foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }),
+		index('provisions_law_id').on(t.lawId),
 		check('provisions_kind', sql`${t.kind} IN ('article', 'paragraph', 'item')`)
 	]
 );
-
-export const CHANGES = ['baseline', 'added', 'amended', 'renumbered', 'unconfirmed'] as const;
 
 /** 条・項・号の、ある版から次に変わるまでの中身 */
 export const provisionVersions = sqliteTable(
@@ -81,6 +81,9 @@ export const provisionVersions = sqliteTable(
 	},
 	(t) => [
 		unique().on(t.provisionId, t.fromRevisionId),
-		check('provision_versions_change', sql`${t.change} IN ('baseline', 'added', 'amended', 'renumbered', 'unconfirmed')`)
+		// 版 R の条文を引くとき（設計書 決定1）に、版で絞り込む
+		index('provision_versions_from').on(t.fromRevisionId),
+		index('provision_versions_to').on(t.toRevisionId),
+		check('provision_versions_change', sql`${t.change} IN (${sql.raw(CHANGES.map((c) => `'${c}'`).join(', '))})`)
 	]
 );

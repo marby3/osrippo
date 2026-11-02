@@ -39,6 +39,8 @@ CREATE TABLE `provision_versions` (
 	CONSTRAINT "provision_versions_change" CHECK("provision_versions"."change" IN ('baseline', 'added', 'amended', 'renumbered', 'unconfirmed'))
 );
 --> statement-breakpoint
+CREATE INDEX `provision_versions_from` ON `provision_versions` (`from_revision_id`);--> statement-breakpoint
+CREATE INDEX `provision_versions_to` ON `provision_versions` (`to_revision_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `provision_versions_provision_id_from_revision_id_unique` ON `provision_versions` (`provision_id`,`from_revision_id`);--> statement-breakpoint
 CREATE TABLE `provisions` (
 	`id` integer PRIMARY KEY NOT NULL,
@@ -49,3 +51,5 @@ CREATE TABLE `provisions` (
 	FOREIGN KEY (`parent_id`) REFERENCES `provisions`(`id`) ON UPDATE no action ON DELETE no action,
 	CONSTRAINT "provisions_kind" CHECK("provisions"."kind" IN ('article', 'paragraph', 'item'))
 );
+--> statement-breakpoint
+CREATE INDEX `provisions_law_id` ON `provisions` (`law_id`);

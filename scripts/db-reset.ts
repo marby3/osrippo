@@ -9,7 +9,8 @@ const root = join(import.meta.dirname, '..');
 const wrangler = (...args: string[]) =>
 	execFileSync(process.execPath, [join(root, 'node_modules/wrangler/bin/wrangler.js'), ...args], {
 		cwd: root,
-		stdio: 'inherit'
+		// 標準入力を渡さない：端末から流したときに、マイグレーションの確認（Y/n）で止まらないようにする
+		stdio: ['ignore', 'inherit', 'inherit']
 	});
 
 try {
