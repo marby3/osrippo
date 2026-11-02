@@ -1,9 +1,21 @@
 <script lang="ts">
+	import { afterNavigate } from '$app/navigation';
 	import { ja } from '#lib/copy/ja.ts';
-	import type { DiffPart } from '#lib/server/law.ts';
+	import type { DiffPart } from '#lib/domain/law/compare.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
+
+	// 選択欄は利用者が動かすので、比べるたびに結果の版へ戻す。
+	// 入れ替えで結果が前回と同じだと data は変わらないので、移動のたびに戻す
+	// svelte-ignore state_referenced_locally
+	let mae = $state(data.mae);
+	// svelte-ignore state_referenced_locally
+	let ato = $state(data.ato);
+	afterNavigate(() => {
+		mae = data.mae;
+		ato = data.ato;
+	});
 </script>
 
 <svelte:head>
@@ -12,7 +24,7 @@
 
 {#snippet side(parts: DiffPart[], show: 'removed' | 'added')}
 	<p class="text">
-		{#each parts as part, i (i)}
+		{#each parts as part}
 			{#if part.removed}
 				{#if show === 'removed'}<del>−{part.value}</del>{/if}
 			{:else if part.added}
@@ -29,7 +41,7 @@
 	<form method="get">
 		<label>
 			<span>{ja.compare.before}</span>
-			<select name="mae" value={data.mae}>
+			<select name="mae" bind:value={mae}>
 				{#each data.revisions as r (r.id)}
 					<option value={r.id}>{ja.compare.option(r.date, r.title, r.scheduled)}</option>
 				{/each}
@@ -37,7 +49,7 @@
 		</label>
 		<label>
 			<span>{ja.compare.after}</span>
-			<select name="ato" value={data.ato}>
+			<select name="ato" bind:value={ato}>
 				{#each data.revisions as r (r.id)}
 					<option value={r.id}>{ja.compare.option(r.date, r.title, r.scheduled)}</option>
 				{/each}
@@ -56,14 +68,14 @@
 			</h2>
 			<div class="sides">
 				{#if change.kind !== 'added'}
-					<section class="before" aria-label={ja.compare.beforeSide}>
-						<h3>{ja.compare.beforeSide}</h3>
+					<section class="before" aria-labelledby="before-{change.num}-{change.kind}">
+						<h3 id="before-{change.num}-{change.kind}">{ja.compare.beforeSide}</h3>
 						{@render side(change.parts, 'removed')}
 					</section>
 				{/if}
 				{#if change.kind !== 'removed'}
-					<section class="after" aria-label={ja.compare.afterSide}>
-						<h3>{ja.compare.afterSide}</h3>
+					<section class="after" aria-labelledby="after-{change.num}-{change.kind}">
+						<h3 id="after-{change.num}-{change.kind}">{ja.compare.afterSide}</h3>
 						{@render side(change.parts, 'added')}
 					</section>
 				{/if}

@@ -1,9 +1,8 @@
 // 法令と版の DB を読む（設計書 docs/spec/8.md の決定1〜3）
 import { and, asc, desc, eq, gt, inArray, isNull, lte, max, or } from 'drizzle-orm';
-import { diffChars } from 'diff';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { alias } from 'drizzle-orm/sqlite-core';
-import { articleLabel, articleText, BASELINE_DATE, compareNum, type Change } from '../domain/law';
+import { articleLabel, BASELINE_DATE, compareArticles, compareNum, type Change } from '../domain/law';
 import { laws, lawRevisions, provisions, provisionVersions } from '../db/schema';
 
 // D1（本番）と node:sqlite（テスト）の両方の Drizzle を受ける
@@ -101,9 +100,10 @@ export async function lawPage(db: Db, lawId: string) {
 	if (!law || !current) return undefined;
 
 	const amended = await lastAmendedDates(db, lawId);
-	const articles = articlesAt(await provisionsAt(db, current.id)).map((a) => ({
+	// 内部IDは画面に渡さない
+	const articles = articlesAt(await provisionsAt(db, current.id)).map(({ id, ...a }) => ({
 		...a,
-		lastAmended: amended.get(a.id) ?? null
+		lastAmended: amended.get(id) ?? null
 	}));
 
 	const revisions = await db
@@ -123,11 +123,9 @@ export async function lawPage(db: Db, lawId: string) {
 	};
 }
 
-export type DiffPart = { value: string; added?: boolean; removed?: boolean };
-
 /**
- * 比較ページに出すもの。mae／ato が省かれたら、現在の版とその1つ前を比べる。
- * 法令がないか、その法令にない版が指定されたら undefined
+ * 比較ページに出すもの。mae／ato が省かれたら、現在の版とその1つ前を比べる（1つ前がなければ現在の版どうし）。
+ * 法令がないか、その法令にない版が指定されたら（片方だけの指定も含む）undefined
  */
 export async function comparePage(db: Db, lawId: string, mae?: string | null, ato?: string | null) {
 	const [law] = await db.select().from(laws).where(eq(laws.id, lawId));
@@ -138,39 +136,23 @@ export async function comparePage(db: Db, lawId: string, mae?: string | null, at
 		.where(and(eq(lawRevisions.lawId, lawId), eq(lawRevisions.branch, 'real')))
 		.orderBy(asc(lawRevisions.seq));
 
-	let before, after;
+	let before: (typeof revisions)[number] | undefined, after: (typeof revisions)[number] | undefined;
 	if (mae || ato) {
 		before = revisions.find((r) => r.id === mae);
 		after = revisions.find((r) => r.id === ato);
 	} else {
 		after = await currentRevision(db, lawId);
-		before = after && revisions.find((r) => r.seq === after!.seq - 1);
+		const i = revisions.findIndex((r) => r.id === after?.id);
+		before = revisions[Math.max(i - 1, 0)];
 	}
 	if (!before || !after) return undefined;
 	// 前の版に新しいほうが選ばれたら、古い順に入れ替える
 	if (before.seq > after.seq) [before, after] = [after, before];
 
-	const old = new Map(articlesAt(await provisionsAt(db, before.id)).map((a) => [a.id, a]));
-	const now = new Map(articlesAt(await provisionsAt(db, after.id)).map((a) => [a.id, a]));
-	const changes = [...new Set([...old.keys(), ...now.keys()])]
-		.map((id) => {
-			const [b, a] = [old.get(id), now.get(id)];
-			const [bt, at] = [b && articleText(b), a && articleText(a)];
-			if (bt === at && b?.num === a?.num) return undefined;
-			return {
-				num: (a ?? b)!.num,
-				label: (a ?? b)!.label,
-				caption: (a ?? b)!.caption,
-				beforeLabel: b && a && b.num !== a.num ? b.label : null,
-				kind: !b ? ('added' as const) : !a ? ('removed' as const) : ('changed' as const),
-				parts:
-					bt === undefined || at === undefined
-						? [{ value: (at ?? bt)! }]
-						: diffChars(bt, at).map(({ value, added, removed }): DiffPart => ({ value, added, removed }))
-			};
-		})
-		.filter((c) => c !== undefined)
-		.sort((x, y) => compareNum(x.num, y.num));
+	const changes = compareArticles(
+		articlesAt(await provisionsAt(db, before.id)),
+		articlesAt(await provisionsAt(db, after.id))
+	);
 
 	const option = (r: (typeof revisions)[number]) => ({
 		id: r.id,
