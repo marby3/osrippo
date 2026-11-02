@@ -1,8 +1,9 @@
 // 法令と版の DB を読む（設計書 docs/spec/8.md の決定1〜3）
-import { and, desc, eq, gt, inArray, isNull, lte, max, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, lte, max, or } from 'drizzle-orm';
+import { diffChars } from 'diff';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { alias } from 'drizzle-orm/sqlite-core';
-import { articleLabel, BASELINE_DATE, compareNum, type Change } from '../domain/law';
+import { articleLabel, articleText, BASELINE_DATE, compareNum, type Change } from '../domain/law';
 import { laws, lawRevisions, provisions, provisionVersions } from '../db/schema';
 
 // D1（本番）と node:sqlite（テスト）の両方の Drizzle を受ける
@@ -73,30 +74,37 @@ export async function lastAmendedDates(db: Db, lawId: string): Promise<Map<numbe
 	return new Map(rows.filter((r) => r.date).map((r) => [r.id, r.date!]));
 }
 
-/** 法令ページに出すもの。ない法令なら undefined */
-export async function lawPage(db: Db, lawId: string) {
-	const [law] = await db.select().from(laws).where(eq(laws.id, lawId));
-	const current = law && (await currentRevision(db, lawId));
-	if (!law || !current) return undefined;
-
-	const rows = await provisionsAt(db, current.id);
-	const amended = await lastAmendedDates(db, lawId);
+/** 版で有効な行を、条・項・号の木にする（並びは num の順） */
+function articlesAt(rows: Awaited<ReturnType<typeof provisionsAt>>) {
 	const childrenOf = (kind: string, parentId: number) =>
 		rows.filter((r) => r.kind === kind && r.parentId === parentId).sort((a, b) => compareNum(a.num, b.num));
-	const articles = rows
+	return rows
 		.filter((r) => r.kind === 'article')
 		.sort((a, b) => compareNum(a.num, b.num))
 		.map((a) => ({
+			id: a.id,
 			num: a.num,
 			label: articleLabel(a.num),
 			caption: a.caption ?? '',
-			lastAmended: amended.get(a.id) ?? null,
 			paragraphs: childrenOf('paragraph', a.id).map((p) => ({
 				num: p.num,
 				text: p.text ?? '',
 				items: childrenOf('item', p.id).map((i) => ({ num: i.num, text: i.text ?? '' }))
 			}))
 		}));
+}
+
+/** 法令ページに出すもの。ない法令なら undefined */
+export async function lawPage(db: Db, lawId: string) {
+	const [law] = await db.select().from(laws).where(eq(laws.id, lawId));
+	const current = law && (await currentRevision(db, lawId));
+	if (!law || !current) return undefined;
+
+	const amended = await lastAmendedDates(db, lawId);
+	const articles = articlesAt(await provisionsAt(db, current.id)).map((a) => ({
+		...a,
+		lastAmended: amended.get(a.id) ?? null
+	}));
 
 	const revisions = await db
 		.select()
@@ -112,6 +120,70 @@ export async function lawPage(db: Db, lawId: string) {
 		articles,
 		enforced: listed.filter((r) => r.status === 'enforced').map(entry),
 		scheduled: listed.filter((r) => r.status === 'scheduled').map(entry)
+	};
+}
+
+export type DiffPart = { value: string; added?: boolean; removed?: boolean };
+
+/**
+ * 比較ページに出すもの。mae／ato が省かれたら、現在の版とその1つ前を比べる。
+ * 法令がないか、その法令にない版が指定されたら undefined
+ */
+export async function comparePage(db: Db, lawId: string, mae?: string | null, ato?: string | null) {
+	const [law] = await db.select().from(laws).where(eq(laws.id, lawId));
+	if (!law) return undefined;
+	const revisions = await db
+		.select()
+		.from(lawRevisions)
+		.where(and(eq(lawRevisions.lawId, lawId), eq(lawRevisions.branch, 'real')))
+		.orderBy(asc(lawRevisions.seq));
+
+	let before, after;
+	if (mae || ato) {
+		before = revisions.find((r) => r.id === mae);
+		after = revisions.find((r) => r.id === ato);
+	} else {
+		after = await currentRevision(db, lawId);
+		before = after && revisions.find((r) => r.seq === after!.seq - 1);
+	}
+	if (!before || !after) return undefined;
+	// 前の版に新しいほうが選ばれたら、古い順に入れ替える
+	if (before.seq > after.seq) [before, after] = [after, before];
+
+	const old = new Map(articlesAt(await provisionsAt(db, before.id)).map((a) => [a.id, a]));
+	const now = new Map(articlesAt(await provisionsAt(db, after.id)).map((a) => [a.id, a]));
+	const changes = [...new Set([...old.keys(), ...now.keys()])]
+		.map((id) => {
+			const [b, a] = [old.get(id), now.get(id)];
+			const [bt, at] = [b && articleText(b), a && articleText(a)];
+			if (bt === at && b?.num === a?.num) return undefined;
+			return {
+				num: (a ?? b)!.num,
+				label: (a ?? b)!.label,
+				caption: (a ?? b)!.caption,
+				beforeLabel: b && a && b.num !== a.num ? b.label : null,
+				kind: !b ? ('added' as const) : !a ? ('removed' as const) : ('changed' as const),
+				parts:
+					bt === undefined || at === undefined
+						? [{ value: (at ?? bt)! }]
+						: diffChars(bt, at).map(({ value, added, removed }): DiffPart => ({ value, added, removed }))
+			};
+		})
+		.filter((c) => c !== undefined)
+		.sort((x, y) => compareNum(x.num, y.num));
+
+	const option = (r: (typeof revisions)[number]) => ({
+		id: r.id,
+		date: r.enforcementDate,
+		title: r.amendmentLawTitle ?? '',
+		scheduled: r.status === 'scheduled'
+	});
+	return {
+		law: { id: law.id, title: law.title },
+		revisions: revisions.map(option).reverse(),
+		mae: before.id,
+		ato: after.id,
+		changes
 	};
 }
 

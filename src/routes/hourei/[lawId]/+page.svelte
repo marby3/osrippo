@@ -14,6 +14,7 @@
 	<header class="law-head">
 		<h1>{data.law.title}</h1>
 		<p class="sub">{ja.law.meta(data.law.lawNum, data.current.enforcementDate)}</p>
+		<p><a href="/hourei/{data.law.id}/hikaku">{ja.law.compareLink}</a></p>
 	</header>
 
 	{#each data.articles as article (article.num)}
