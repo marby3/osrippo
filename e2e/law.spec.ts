@@ -31,7 +31,8 @@ test('基準2：条ごとに最後に改正された時期が出る', async ({ p
 	// 1年未満は年数を出さない（2026-11-02 決定）。景品表示法 第43条は 2026-05-21 に改正
 	await page.goto('/hourei/337AC0000000134');
 	const art43 = page.getByRole('article', { name: '第43条', exact: true });
-	await expect(art43).toContainText(fullYears('2026-05-21') < 1 ? /2026年5月に改正$/ : '2026年5月に改正・');
+	// 条の末尾には「変わった記録を見る」が付くので、改正時期の行そのものを見る
+	await expect(art43.getByText(/^2026年5月に改正/)).toHaveText(fullYears('2026-05-21') < 1 ? '2026年5月に改正' : /^2026年5月に改正・/);
 	await expect(art43).not.toContainText('・0年');
 });
 
