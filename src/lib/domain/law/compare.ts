@@ -32,3 +32,21 @@ export function compareArticles(before: ArticleTree[], after: ArticleTree[]) {
 		.filter((c) => c !== undefined)
 		.sort((x, y) => compareNum(x.num, y.num));
 }
+
+/** 差分を行（見出し・項・号）に分け、変わった行だけを返す。間を飛ばしたところには gap を付ける */
+export function changedLines(parts: DiffPart[]): { parts: DiffPart[]; gap: boolean }[] {
+	const lines: DiffPart[][] = [[]];
+	for (const part of parts) {
+		part.value.split('\n').forEach((value, i) => {
+			if (i > 0) lines.push([]);
+			if (value) lines.at(-1)!.push({ ...part, value });
+		});
+	}
+	let last = -1;
+	return lines.flatMap((line, i) => {
+		if (!line.some((p) => p.added || p.removed)) return [];
+		const gap = last >= 0 && i > last + 1;
+		last = i;
+		return [{ parts: line, gap }];
+	});
+}
