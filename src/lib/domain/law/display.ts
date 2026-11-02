@@ -1,3 +1,5 @@
+import type { Heading } from './parse';
+
 // 条文を画面に出すための小さな決まり。DB にも画面にも触れない
 
 /** 時点を指定した条文が取れるのはこの日から。これ以前（当日を含む）で最新の版を起点にする（設計書 docs/spec/8.md 決定5） */
@@ -46,7 +48,7 @@ export function articleText(article: {
 	].join('\n');
 }
 
-type HeadingTree = { title: string; articles: string[]; children: HeadingTree[] };
+type HeadingTree = Pick<Heading, 'title' | 'articles'> & { children: HeadingTree[] };
 
 /** 条の num → その条が属する見出しの題名（上から）。木の外の条は入らない */
 export function headingPaths(tree: HeadingTree[]): Map<string, string[]> {
@@ -62,12 +64,12 @@ export function headingPaths(tree: HeadingTree[]): Map<string, string[]> {
 	return paths;
 }
 
-/** 目次：見出しごとに、その下の木で最初の条（num の順）を付ける。条のない見出しは null */
+/** 目次：見出しごとに、その下の木を深さ優先でたどって最初の条を付ける。条のない見出しは null */
 export function tableOfContents(tree: HeadingTree[]): { title: string; first: string | null; children: ReturnType<typeof tableOfContents> }[] {
 	const all = (h: HeadingTree): string[] => [...h.articles, ...h.children.flatMap(all)];
 	return tree.map((h) => ({
 		title: h.title,
-		first: all(h).sort(compareNum)[0] ?? null,
+		first: all(h)[0] ?? null,
 		children: tableOfContents(h.children)
 	}));
 }

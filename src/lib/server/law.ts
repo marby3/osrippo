@@ -109,13 +109,15 @@ export async function lawPage(db: Db, lawId: string) {
 
 	const amended = await lastAmendedDates(db, lawId);
 	// 見出しが前の条と変わるところにだけ帯を出す（設計書 docs/spec/21.md）
+	// 木の外の条（本来ない）は帯を出さず、前の帯も続いているものとみなす
 	const paths = headingPaths(current.headings ?? []);
 	let previous = '';
 	// 内部IDは画面に渡さない
 	const articles = articlesAt(await provisionsAt(db, current.id)).map(({ id, ...a }) => {
-		const path = (paths.get(a.num) ?? []).join('／');
-		const band = path && path !== previous ? path : null;
-		previous = path;
+		const path = paths.get(a.num) ?? [];
+		const key = path.join('\n');
+		const band = key && key !== previous ? path : null;
+		if (key) previous = key;
 		return { ...a, band, lastAmended: amended.get(id) ?? null };
 	});
 

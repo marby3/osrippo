@@ -28,6 +28,7 @@ export const ja = {
 		compareLink: '2つの版を比べる',
 		toc: '目次',
 		openToc: '目次から探す',
+		band: (titles: string[]) => titles.join('／'),
 		openRecord: '変わった記録を見る',
 		recordTitle: (label: string) => `${label}が変わった記録`,
 		enforcedOn: (date: string) => `${jaDate(date)} 施行`,

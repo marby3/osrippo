@@ -55,7 +55,7 @@
 
 {#snippet tocList(items: PageProps['data']['toc'])}
 	<ul>
-		{#each items as h}
+		{#each items as h (h.title)}
 			<li>
 				{#if h.first}<a href="#jo-{h.first}" onclick={() => (tocOpen = false)}>{h.title}</a>{:else}{h.title}{/if}
 				{#if h.children.length}{@render tocList(h.children)}{/if}
@@ -114,9 +114,9 @@
 	{/if}
 	<div>
 	{#each data.articles as article (article.num)}
-		{#if article.band}<p class="band">{article.band}</p>{/if}
+		{#if article.band}<h2 class="band">{ja.law.band(article.band)}</h2>{/if}
 		<article id="jo-{article.num}" aria-labelledby="article-{article.num}" class:selected={openNum === article.num}>
-			<h2><span id="article-{article.num}">{article.label}</span><span class="caption">{article.caption}</span></h2>
+			<h3><span id="article-{article.num}">{article.label}</span><span class="caption">{article.caption}</span></h3>
 			{#each article.paragraphs as paragraph, i (paragraph.num)}
 				<div class="paragraph">
 					<p>{#if i > 0}<span class="num">{paragraph.num}</span>{/if}{paragraph.text}</p>
@@ -213,8 +213,9 @@
 		margin-bottom: 1.5rem;
 	}
 
-	article h2 {
+	article h3 {
 		margin: 0 0 0.25rem;
+		font-size: var(--font-size-body);
 	}
 
 	.caption {
@@ -254,6 +255,7 @@
 	/* 見出しの帯（「第二章　…／第二節　…」） */
 	.band {
 		margin: 1.5rem 0 1rem;
+		font-size: var(--font-size-body);
 		padding: 0.5rem 0.75rem;
 		border-left: 4px solid var(--color-base);
 		background: var(--color-surface);
