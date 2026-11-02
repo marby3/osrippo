@@ -35,11 +35,13 @@ test('基準2：変わった条だけが並ぶ（新しく入った条、なく�
 	for (const name of ['第3条', '第4条', '第12条の2', '第13条']) await expect(article(page, name)).toBeVisible();
 	await expect(article(page, '第1条')).toHaveCount(0);
 	await expect(article(page, '第12条の3')).toContainText('新しく入った条');
+	await expect(article(page, '第12条の3').locator('ins')).toContainText('＋');
 
 	await page.goto(
 		'/hourei/351AC0000000057/hikaku?mae=351AC0000000057_20170602_428AC0000000060&ato=351AC0000000057_20171201_428AC0000000060'
 	);
 	await expect(article(page, '第70条の3')).toContainText('なくなった条');
+	await expect(article(page, '第70条の3').locator('del')).toContainText('−');
 });
 
 test('基準3：削除は取り消し線と「−」、追加は下線と「＋」', async ({ page }) => {
@@ -71,6 +73,12 @@ test('基準5：前の版に新しいほうを選んでも、古い順に入れ�
 	await expect(page.getByLabel('前の版')).toHaveValue(R20230105);
 	await expect(page.getByLabel('後の版')).toHaveValue(R20230601);
 	await expect(article(page, '第12条の3')).toContainText('新しく入った条');
+	// 表示中と同じ組を逆に選び直しても、選択欄が結果とそろう
+	await page.getByLabel('前の版').selectOption(R20230601);
+	await page.getByLabel('後の版').selectOption(R20230105);
+	await page.getByRole('button', { name: '比べる' }).click();
+	await expect(page.getByLabel('前の版')).toHaveValue(R20230105);
+	await expect(page.getByLabel('後の版')).toHaveValue(R20230601);
 });
 
 test('基準6：その法令にない版を指定すると 404', async ({ page }) => {
@@ -78,6 +86,7 @@ test('基準6：その法令にない版を指定すると 404', async ({ page }
 		const res = await page.goto(`${PAGE}?mae=${mae}&ato=${R20230601}`);
 		expect(res?.status(), mae).toBe(404);
 	}
+	expect((await page.goto('/hourei/000AC0000000000/hikaku'))?.status()).toBe(404);
 });
 
 test('基準7：法令ページから比較ページへ行ける', async ({ page }) => {
