@@ -10,6 +10,15 @@
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
 	},
+	"d1_databases": [
+		{
+			// 本番とステージングの D1 はまだ作っていない（ローカルだけで使う）
+			"binding": "DB",
+			"database_name": "osrippo",
+			"database_id": "local",
+			"migrations_dir": "drizzle"
+		}
+	],
 	"workers_dev": true,
 	"preview_urls": true
 }

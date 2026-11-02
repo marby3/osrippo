@@ -5,7 +5,7 @@ export default defineConfig({
 	testDir: 'e2e',
 	// フェーズの締めのテストは test:phase で回す（playwright.phase.config.ts）
 	testIgnore: '**/phase*.spec.ts',
-	webServer: { command: 'pnpm build && pnpm preview', port: 4173, reuseExistingServer: !process.env.CI },
+	webServer: { command: 'pnpm db:reset && pnpm build && pnpm preview', port: 4173, reuseExistingServer: !process.env.CI },
 	use: { baseURL: 'http://localhost:4173' },
 	projects: [
 		{ name: 'sp', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } },

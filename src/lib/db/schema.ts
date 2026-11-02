@@ -1,0 +1,86 @@
+// 法令と版の DB（設計書 docs/spec/8.md）
+import { sql } from 'drizzle-orm';
+import { check, foreignKey, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+
+export const laws = sqliteTable('laws', {
+	/** e-Gov の law_id */
+	id: text('id').primaryKey(),
+	title: text('title').notNull(),
+	titleKana: text('title_kana'),
+	lawNum: text('law_num').notNull()
+});
+
+export const lawRevisions = sqliteTable(
+	'law_revisions',
+	{
+		/** e-Gov の law_revision_id */
+		id: text('id').primaryKey(),
+		lawId: text('law_id')
+			.notNull()
+			.references(() => laws.id),
+		branch: text('branch', { enum: ['real'] }).notNull(),
+		/** 法令とブランチの中での古い順の番号（0から） */
+		seq: integer('seq').notNull(),
+		enforcementDate: text('enforcement_date').notNull(),
+		status: text('status', { enum: ['enforced', 'scheduled'] }).notNull(),
+		amendmentLawTitle: text('amendment_law_title'),
+		amendmentLawNum: text('amendment_law_num'),
+		amendmentPromulgateDate: text('amendment_promulgate_date')
+	},
+	(t) => [
+		unique().on(t.lawId, t.branch, t.seq),
+		check('law_revisions_branch', sql`${t.branch} IN ('real')`),
+		check('law_revisions_status', sql`${t.status} IN ('enforced', 'scheduled')`)
+	]
+);
+
+/** 条・項・号そのもの（内部ID）。画面には出さない */
+export const provisions = sqliteTable(
+	'provisions',
+	{
+		id: integer('id').primaryKey(),
+		lawId: text('law_id')
+			.notNull()
+			.references(() => laws.id),
+		kind: text('kind', { enum: ['article', 'paragraph', 'item'] }).notNull(),
+		/** 項→条、号→項。条は NULL */
+		parentId: integer('parent_id')
+	},
+	(t) => [
+		foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }),
+		check('provisions_kind', sql`${t.kind} IN ('article', 'paragraph', 'item')`)
+	]
+);
+
+export const CHANGES = ['baseline', 'added', 'amended', 'renumbered', 'unconfirmed'] as const;
+
+/** 条・項・号の、ある版から次に変わるまでの中身 */
+export const provisionVersions = sqliteTable(
+	'provision_versions',
+	{
+		id: integer('id').primaryKey(),
+		provisionId: integer('provision_id')
+			.notNull()
+			.references(() => provisions.id),
+		fromRevisionId: text('from_revision_id')
+			.notNull()
+			.references(() => lawRevisions.id),
+		/** より新しい版で変わったかなくなったら、その版。そうでなければ NULL */
+		toRevisionId: text('to_revision_id').references(() => lawRevisions.id),
+		/** e-Gov の Num 属性（例：条 3_2） */
+		num: text('num').notNull(),
+		/** 条だけ（見出しのない条は空文字） */
+		caption: text('caption'),
+		/** 項・号だけ */
+		text: text('text'),
+		change: text('change', { enum: CHANGES }).notNull(),
+		/** amended／renumbered のとき */
+		similarity: real('similarity'),
+		/** 確認待ちのとき、前の版でその番号だった条・項・号 */
+		unconfirmedOf: integer('unconfirmed_of').references(() => provisions.id)
+	},
+	(t) => [
+		unique().on(t.provisionId, t.fromRevisionId),
+		check('provision_versions_change', sql`${t.change} IN ('baseline', 'added', 'amended', 'renumbered', 'unconfirmed')`)
+	]
+);
