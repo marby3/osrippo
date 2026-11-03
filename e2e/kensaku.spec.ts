@@ -20,6 +20,9 @@ async function user(browser: Browser, name: string, ipAddress: string, opts: { r
 	return u.page;
 }
 
+/** ハイドレーションが済むまで待つ（済む前に入力すると、入力欄が空に戻される） */
+const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
+
 const section = (page: Page, name: string) =>
 	page.locator('section').filter({ has: page.getByRole('heading', { name: new RegExp(`^${name}\\s*\\d+件$`) }) });
 
@@ -153,6 +156,7 @@ test('基準6：課題の一覧の「課題を探す」で課題だけを探し�
 	expect((await solutionRequest(writer, a, '解決策')).status()).toBe(303);
 
 	await page.goto('/kadai?sort=new');
+	await hydrated(page);
 	await page.getByLabel('課題を探す').fill(c);
 	await page.getByRole('button', { name: '探す' }).click();
 	await expect(page).toHaveURL(`/kadai?sort=new&q=${c}`);
@@ -177,6 +181,7 @@ test('基準7：トップページと法令のページから探せる。新し�
 	expect((await solutionRequest(author, id, `${c} 書いたばかりの解決策`)).status()).toBe(303);
 
 	await page.goto('/');
+	await hydrated(page);
 	await page.getByLabel('法令や課題を探す').fill(c);
 	await page.getByRole('button', { name: '探す' }).click();
 	await expect(page).toHaveURL(searchUrl(c));
