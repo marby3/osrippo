@@ -10,10 +10,10 @@ test.afterEach(async () => {
 /** テストごと・幅ごとに別の回線（IP）にする */
 const ip = (project: string, test: number, n: number) => `10.${project === 'sp' ? 1 : 2}.${test}.${n}`;
 
-/** 一覧に並んだ課題のタイトル（上から） */
 /** ハイドレーションが済むまで待つ（済む前に入力すると、段の切り替えやフォームの送り方が変わる） */
 const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
 
+/** 一覧に並んだ課題のタイトル（上から） */
 const listedTitles = (page: Page) =>
 	page.locator('main a[href^="/kadai/"]:not([href="/kadai/kaku"])').allInnerTexts();
 

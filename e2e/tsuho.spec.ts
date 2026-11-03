@@ -160,6 +160,10 @@ test('基準4：/kanri は運営と運営協力者だけ。通報を受けた課
 	expect((await staffRequest(reporter, 'restore', { issue: String(hiddenId), note: 'メモ' })).status()).toBe(404);
 
 	const mod = await user(browser, `t4-mod-${p}-${s}`, ip(p, 4, 4), { role: 'moderator' });
+	// ?issue= の形が違う・課題がないときは 404（信頼の境界）
+	for (const q of ['abc', '01', '0', '9999999999']) {
+		expect((await mod.request.get(`/kanri?issue=${q}`)).status(), q).toBe(404);
+	}
 	await mod.goto('/kanri');
 	await expect(mod.getByRole('heading', { level: 1, name: '通報を受けた課題' })).toBeVisible();
 	await expect(mod.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
@@ -251,12 +255,15 @@ test('基準6：/unei はだれでも見られ、基準と対応の記録を新�
 	const rows = page.locator('tr').filter({ has: page.getByRole('link', { name: `#${id}`, exact: true }) });
 	await expect(rows).toHaveCount(2);
 	// 新しい順：表示に戻した記録が先
-	await expect(rows.nth(0)).toContainText('表示に戻した');
-	await expect(rows.nth(0)).toContainText('運営');
-	await expect(rows.nth(0)).toContainText(note);
-	await expect(rows.nth(1)).toContainText('自動で非表示');
-	await expect(rows.nth(1)).toContainText('自動');
-	await expect(rows.nth(1)).toContainText('通報が3件');
+	// 列：日時、課題、何をしたか、だれが、理由、メモ
+	const cell = (row: number, col: number) => rows.nth(row).locator(`td:nth-child(${col})`);
+	await expect(cell(0, 1)).toHaveText(/^\d{4}年\d+月\d+日 \d+時\d{2}分$/);
+	await expect(cell(0, 3)).toHaveText('表示に戻した');
+	await expect(cell(0, 4)).toHaveText('運営');
+	await expect(cell(0, 6)).toHaveText(note);
+	await expect(cell(1, 3)).toHaveText('自動で非表示');
+	await expect(cell(1, 4)).toHaveText('自動');
+	await expect(cell(1, 5)).toHaveText('通報が3件');
 	const html = await page.content();
 	expect(html).not.toContain(authorName);
 	expect(html).not.toContain(`t6-r-${p}-${s}`);
