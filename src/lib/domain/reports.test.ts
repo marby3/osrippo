@@ -18,7 +18,7 @@ test('通報：理由は4つか空（none）。説明は「その他」のとき
 	for (const reason of ['none', 'ATTACK', 'hide', ' attack']) {
 		expect(validateReport({ reason, note: null }), reason).toEqual({ ok: false });
 	}
-	for (const note of ['あ'.repeat(201), 'a\u0000b', 'a‮b']) {
+	for (const note of ['あ'.repeat(201), 'a\u0000b', 'a\u202eb']) {
 		expect(validateReport({ reason: 'other', note }), note.slice(0, 5)).toEqual({ ok: false });
 	}
 });
@@ -44,7 +44,7 @@ test('運営の操作：課題の番号、非表示の理由（3つ）、メモ�
 		[{ issue: '1', reason: 'spam', note: 'あ'.repeat(201) }, 'hide'],
 		[{ issue: '1', reason: 'spam', note: 'a\u0007b' }, 'hide'],
 		[{ issue: '1', reason: null, note: '  ' }, 'restore'],
-		[{ issue: '1', reason: null, note: 'a⁧b' }, 'restore']
+		[{ issue: '1', reason: null, note: 'a\u2067b' }, 'restore']
 	];
 	for (const [raw, action] of bad) {
 		expect(validateStaffAction(raw, action), JSON.stringify(raw)).toEqual({ ok: false });
