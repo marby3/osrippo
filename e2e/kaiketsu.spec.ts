@@ -312,13 +312,14 @@ test('信頼の境界：解決策の投稿先の課題の番号、押す値、�
 		expect((await viewer.request.get(`/kadai/${bad}/kaiketsu/kaku`)).status(), bad).toBe(404);
 	}
 	// 押す値：形が違えば 400、ほかの課題の解決策・ない解決策は 404
-	for (const form of [
+	const forms: Record<string, string>[] = [
 		{ solution: id, kind: 'like', op: 'add' },
 		{ solution: id, kind: 'support', op: 'toggle' },
 		{ solution: 'abc', kind: 'support', op: 'add' },
 		{ solution: id, kind: 'support' },
 		{ kind: 'support', op: 'add' }
-	]) {
+	];
+	for (const form of forms) {
 		expect((await reactRequest(viewer, issueId, form)).status(), JSON.stringify(form)).toBe(400);
 	}
 	expect((await reactRequest(viewer, otherIssue, { solution: id, kind: 'support', op: 'add' })).status()).toBe(404);
