@@ -197,8 +197,11 @@ test('基準5：Turnstile が通らなければ、課題を保存せず、ログ
 	await page.goto('/kadai?sort=new');
 	expect(await listedTitles(page)).not.toContain(title);
 
-	await page.goto('/login');
-	const res = await page.request.post('/login?/google', {
+	// ログインの確かめは、ログインしていない人で（ログイン済みだと、断った画面の代わりに戻り先へ送られる）
+	const guest = await newUser(browser, { ip: ip(p, 5, 2), token: 'test-fail' });
+	contexts.push(guest.context);
+	await guest.page.goto('/login');
+	const res = await guest.page.request.post('/login?/google', {
 		form: { next: '/', 'cf-turnstile-response': 'test-fail' },
 		headers: { origin: 'http://localhost:4173', accept: 'text/html' },
 		maxRedirects: 0
@@ -222,7 +225,9 @@ test('基準6：日本以外からのログイン・投稿・「わかる」は�
 		await page.goto(`/kadai/${id}`);
 		await expect(page.getByRole('button', { name: /^わかる/ })).toBeVisible();
 
-		const login = await page.request.post('/login?/google', {
+		const guest = await newUser(browser, { ip: ip(p, 6, 3), country });
+		contexts.push(guest.context);
+		const login = await guest.page.request.post('/login?/google', {
 			form: { next: '/', 'cf-turnstile-response': 'test-pass' },
 			headers: { origin: 'http://localhost:4173', accept: 'text/html' },
 			maxRedirects: 0

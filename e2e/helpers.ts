@@ -11,19 +11,29 @@ export async function stubTurnstile(page: Page, token = 'test-pass') {
 	await page.route(/^https:\/\/challenges\.cloudflare\.com\/turnstile\/v0\/api\.js/, (route) =>
 		route.fulfill({
 			contentType: 'text/javascript',
-			body: `window.turnstile = {
-				render(el, opts) {
-					const input = document.createElement('input');
-					input.type = 'hidden';
-					input.name = 'cf-turnstile-response';
-					input.value = ${JSON.stringify(token)};
-					el.appendChild(input);
-					setTimeout(() => opts.callback && opts.callback(input.value));
-					return 'stub';
-				},
-				reset() {},
-				remove() {}
-			};`
+			body: `(() => {
+				const token = ${JSON.stringify(token)};
+				let issue = () => {};
+				window.turnstile = {
+					render(el, opts) {
+						const input = document.createElement('input');
+						input.type = 'hidden';
+						input.name = 'cf-turnstile-response';
+						el.appendChild(input);
+						issue = () => setTimeout(() => {
+							input.value = token;
+							opts.callback && opts.callback(token);
+						});
+						issue();
+						return 'stub';
+					},
+					// 本物と同じく、作り直すと新しいトークンを callback に渡す
+					reset() {
+						issue();
+					},
+					remove() {}
+				};
+			})();`
 		})
 	);
 }
