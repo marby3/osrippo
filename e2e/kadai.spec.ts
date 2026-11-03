@@ -304,12 +304,12 @@ test('基準7・8（画面）：断ったときは理由を、締め出したと
 	}
 	const refused = await supportRequest(page, id, 'add');
 	expect(refused.status()).toBe(429);
-	expect(await refused.text()).toContain('短いあいだに「わかる」を何度も押しました');
+	expect(await refused.text()).toContain('短いあいだに「わかる」や「考えが変わった」を何度も押しました');
 	await supportRequest(page, id, 'add');
 	await supportRequest(page, id, 'add');
 	const banned = await supportRequest(page, id, 'add');
 	expect(banned.status()).toBe(429);
-	expect(await banned.text()).toMatch(/制限を何度も超えたため、\d+月\d+日 \d+時\d{2}分まで、課題の投稿・「わかる」・通報ができません/);
+	expect(await banned.text()).toMatch(/制限を何度も超えたため、\d+月\d+日 \d+時\d{2}分まで、課題や解決策の投稿、「わかる」「考えが変わった」、通報ができません/);
 	// 締め出しの間は、課題の投稿もできない
 	const posted = await postIssueRequest(page, { title: `締め出し中 ${p}` });
 	expect(posted.status()).toBe(429);

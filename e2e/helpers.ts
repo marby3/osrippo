@@ -126,3 +126,21 @@ export function similarRequest(page: Page, body: unknown, raw = false) {
 		headers: { origin: ORIGIN, 'content-type': 'application/json' }
 	});
 }
+
+/** 解決策を書くフォームと同じ POST（リダイレクトは追わない） */
+export function solutionRequest(page: Page, issueId: number | string, body: string, token = 'test-pass') {
+	return page.request.post(`/kadai/${issueId}/kaiketsu/kaku`, {
+		form: { body, 'cf-turnstile-response': token },
+		headers: { origin: ORIGIN, accept: 'text/html' },
+		maxRedirects: 0
+	});
+}
+
+/** 解決策の「わかる」「考えが変わった」のフォームと同じ POST */
+export function reactRequest(page: Page, issueId: number | string, form: Record<string, string>) {
+	return page.request.post(`/kadai/${issueId}?/react`, {
+		form,
+		headers: { origin: ORIGIN, accept: 'text/html' },
+		maxRedirects: 0
+	});
+}

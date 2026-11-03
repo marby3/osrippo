@@ -13,6 +13,9 @@ import {
 } from '../domain/limits';
 import type { Db } from './law';
 
+/** 押す操作として合わせて数える actions の種類 */
+export const PRESS_KINDS = ['support_add', 'support_remove', 'reaction_add', 'reaction_remove'] as const;
+
 /** 書き込む人。ipHash はハッシュにした IP（生の IP は受け取らない） */
 export type Actor = { userId: string; registeredAt: number; ipHash: string };
 
@@ -34,7 +37,14 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 		rising: [desc(recent), desc(supports), desc(issues.id)]
 	}[q.sort];
 	const rows = await db
-		.select({ id: issues.id, title: issues.title, topicName: topics.name, supports })
+		.select({
+			id: issues.id,
+			title: issues.title,
+			topicName: topics.name,
+			supports,
+			// 「わかる」と同じ JOIN に足すと行が掛け算で増えるので、相関サブクエリで数える（設計書 docs/spec/34.md 決めたこと8）
+			solutions: sql<number>`(SELECT count(*) FROM solutions WHERE solutions.issue_id = ${issues.id})`
+		})
 		.from(issues)
 		.leftJoin(issueSupports, eq(issueSupports.issueId, issues.id))
 		.leftJoin(topics, eq(topics.id, issues.topicId))
@@ -43,7 +53,8 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 				// 非表示の課題は出さない（設計書 docs/spec/28.md 決めたこと4）
 				inArray(issues.status, ['visible', 'restored']),
 				// 今回のお題がまだないときは、絞り込むと0件
-				q.topic === 'current' ? eq(issues.topicId, topicId ?? -1) : undefined
+				q.topic === 'current' ? eq(issues.topicId, topicId ?? -1) : undefined,
+				q.solutions ? sql`EXISTS (SELECT 1 FROM solutions WHERE solutions.issue_id = ${issues.id})` : undefined
 			)
 		)
 		.groupBy(issues.id)
@@ -151,7 +162,8 @@ export async function setSupport(db: Db, actor: Actor, issueId: number, op: 'add
 		return { ok: true as const, supported, count: await supportCount(db, issueId) };
 	}
 
-	const supportKinds = inArray(actions.kind, ['support_add', 'support_remove']);
+	// 課題の「わかる」と解決策の「わかる」「考えが変わった」は合わせて数える（設計書 docs/spec/34.md 決めたこと5）
+	const supportKinds = inArray(actions.kind, PRESS_KINDS);
 	const mine = eq(actions.userId, actor.userId);
 	const [day] = await db
 		.select({ n: count() })

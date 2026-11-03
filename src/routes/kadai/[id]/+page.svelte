@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { afterNavigate, replaceState } from '$app/navigation';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import SolutionCard from '#lib/components/SolutionCard.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -13,12 +16,22 @@
 	onMount(() => {
 		js = true;
 	});
+	// 案内を出したら URL から from を消す（読み直しで何度も出さないように）。
+	// ルーターの準備が済んでから呼ぶため、onMount ではなく afterNavigate（最初の読み込みのあとにも呼ばれる）で行う
+	afterNavigate(() => {
+		if (!page.url.searchParams.has('from')) return;
+		const url = new URL(page.url.href);
+		url.searchParams.delete('from');
+		replaceState(url, page.state);
+	});
 
 	const hiddenMessage = (status: string, reason: string | null) =>
 		status === 'auto_hidden'
 			? ja.hidden.auto
 			: ja.hidden.staff(ja.hideReasons[(reason ?? 'other') as keyof typeof ja.hideReasons]);
-	const message = $derived(form && 'message' in form ? form.message : undefined);
+	// 解決策への操作を断った理由は、その解決策のところに出す
+	const refusedSolution = $derived(form && 'solution' in form ? form.solution : null);
+	const message = $derived(form && 'message' in form && refusedSolution === null ? form.message : undefined);
 	const reportMessage = $derived(form && 'reportMessage' in form ? form.reportMessage : undefined);
 </script>
 
@@ -48,6 +61,12 @@
 		<p><a href="/unei">{ja.hidden.toLog}</a></p>
 	{:else}
 		{@const issue = data.issue}
+		{#if data.fromSimilar}
+			<p class="from-similar" role="status">
+				{ja.solution.fromSimilar}
+				<a href="/kadai/{issue.id}/kaiketsu/kaku">{ja.solution.write}</a>
+			</p>
+		{/if}
 		{#if data.hidden}
 			<p class="notice" role="status">
 				{hiddenMessage(issue.status, issue.statusReason)}
@@ -77,6 +96,28 @@
 				{#if message}<p role="alert">{message}</p>{/if}
 			</form>
 		{/if}
+
+		<section class="solutions" aria-labelledby="solutions-heading">
+			<div class="solutions-head">
+				<h2 id="solutions-heading">{ja.solution.heading} <span>{ja.solution.count(data.solutionCount)}</span></h2>
+				{#if !data.hidden}<a class="write" href="/kadai/{issue.id}/kaiketsu/kaku">{ja.solution.write}</a>{/if}
+			</div>
+			{#if data.solutions.length === 0}
+				<p class="empty">{ja.solution.empty}</p>
+			{/if}
+			{#each data.solutions as solution (solution.id)}
+				<SolutionCard
+					{solution}
+					loggedIn={data.loggedIn}
+					readonly={data.hidden}
+					back="/kadai/{issue.id}"
+					message={refusedSolution === solution.id && form && 'message' in form ? form.message : undefined}
+				/>
+			{/each}
+			{#if data.solutionCount > data.solutions.length}
+				<p><a href="/kadai/{issue.id}/kaiketsu">{ja.solution.all(data.solutionCount)}</a></p>
+			{/if}
+		</section>
 
 		{#if data.sources.length}
 			<h2>{ja.merge.sourcesHeading}</h2>
@@ -158,6 +199,51 @@
 
 	.example {
 		white-space: pre-wrap;
+	}
+
+	.from-similar {
+		padding: 0.75rem 1rem;
+		border-radius: var(--radius-m);
+		background: var(--color-surface);
+	}
+
+	.solutions {
+		margin-top: 2rem;
+	}
+
+	.solutions-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		border-bottom: 1px solid var(--color-divider);
+	}
+
+	.solutions-head h2 {
+		margin: 0;
+		color: var(--color-text);
+		font-size: var(--font-size-heading);
+	}
+
+	.solutions-head h2 span {
+		color: var(--color-text-sub);
+		font-weight: normal;
+	}
+
+	.solutions .write {
+		display: inline-flex;
+		align-items: center;
+		min-height: var(--tap-min);
+		padding: 0 1rem;
+		border: 1px solid var(--color-base);
+		border-radius: var(--radius-m);
+		color: var(--color-base);
+		font-weight: bold;
+		text-decoration: none;
+	}
+
+	.empty {
+		color: var(--color-text-sub);
 	}
 
 	.notice {

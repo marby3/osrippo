@@ -62,16 +62,23 @@ export const ja = {
 		outsideJapan: '日本国内からのみ参加できます。見ることは国外からもできます。',
 		turnstileFailed: '確認できませんでした。もう一度お試しください。',
 		turnstileUnavailable: '確認の仕組みを読み込めませんでした。ページを読み直してください。',
-		banned: (until: number) => `制限を何度も超えたため、${jaDateTime(until)}まで、課題の投稿・「わかる」・通報ができません。`,
+		banned: (until: number) =>
+			`制限を何度も超えたため、${jaDateTime(until)}まで、課題や解決策の投稿、「わかる」「考えが変わった」、通報ができません。`,
 		refusals: {
 			'post-account': '課題は24時間に5件まで書けます。しばらくしてからお試しください。',
 			'post-new': (retryAt: number) =>
 				`登録したばかりのあいだは、課題は24時間に1件まで書けます。${jaDateTime(retryAt)}から次の課題を書けます。`,
 			'post-ip': 'この回線から書ける課題の数を超えました。しばらくしてからお試しください。',
-			'support-day': '「わかる」は24時間に50回まで押せます。しばらくしてからお試しください。',
-			'support-burst': '短いあいだに「わかる」を何度も押しました。しばらくしてからお試しください。',
+			// 課題の「わかる」と解決策の「わかる」「考えが変わった」は合わせて数える（設計書 docs/spec/34.md 決めたこと5）
+			'support-day': '「わかる」と「考えが変わった」は、合わせて24時間に50回まで押せます。しばらくしてからお試しください。',
+			'support-burst': '短いあいだに「わかる」や「考えが変わった」を何度も押しました。しばらくしてからお試しください。',
 			'support-ip': 'この回線からは、この課題にこれ以上「わかる」を付けられません。',
-			'report-day': '通報は24時間に10件までできます。しばらくしてからお試しください。'
+			'report-day': '通報は24時間に10件までできます。しばらくしてからお試しください。',
+			'solution-account': '解決策は24時間に10件まで書けます。しばらくしてからお試しください。',
+			'solution-new': (retryAt: number) =>
+				`登録したばかりのあいだは、解決策は24時間に3件まで書けます。${jaDateTime(retryAt)}から次の解決策を書けます。`,
+			'solution-ip': 'この回線から書ける解決策の数を超えました。しばらくしてからお試しください。',
+			'reaction-ip': 'この回線からは、この解決策にこれ以上押せません。'
 		}
 	},
 	/** 通報（設計書 docs/spec/28.md） */
@@ -92,6 +99,28 @@ export const ja = {
 		done: '通報を受け付けました',
 		already: 'この課題は通報済みです',
 		hiddenIssue: '非表示の課題には操作できません'
+	},
+	/** 解決策（設計書 docs/spec/34.md） */
+	solution: {
+		heading: '解決策',
+		count: (n: number) => `${n}件`,
+		write: '解決策を書く',
+		all: (n: number) => `解決策をすべて見る（${n}件）`,
+		support: (n: number) => `わかる ${n}`,
+		changed: (n: number) => `考えが変わった ${n}`,
+		/** 課題そのものの「わかる」と区別する、読み上げだけの前置き */
+		srPrefix: 'この解決策に',
+		empty: 'まだ解決策はありません',
+		fromSimilar: '「わかる」を付けました。考えがあれば、解決策として書いてください',
+		listPageTitle: (title: string) => `${title}の解決策｜オープンソース立法府`,
+		listHeading: '解決策の一覧',
+		writePageTitle: '解決策を書く｜オープンソース立法府',
+		label: '解決策',
+		submit: '投稿する',
+		cannotWrite: 'この課題には解決策を書けません',
+		ownSolution: '自分の解決策には押せません',
+		prevPage: '前の50件',
+		nextPage: '次の50件'
 	},
 	/** 似た課題（設計書 docs/spec/30.md） */
 	similar: {
@@ -183,15 +212,19 @@ export const ja = {
 		filterLabel: '表示する課題',
 		filterAll: 'すべて',
 		filterTopic: '今回のお題',
+		filterSolutions: '解決策あり',
 		sortLabel: '並び',
 		sorts: { support: '「わかる」の多い順', new: '新しい順', rising: '最近「わかる」が増えている順' },
 		columnTitle: '課題',
 		columnSupports: 'わかる',
 		columnTopic: 'お題',
+		columnSolutions: '解決策',
+		solutions: '解決策',
 		supports: 'わかる',
 		topicMark: (name: string) => `お題：${name}`,
 		empty: 'まだ課題がありません',
 		emptyTopic: '今回のお題の課題はまだありません',
+		emptySolutions: '解決策のある課題はまだありません',
 		prevPage: '前の50件',
 		nextPage: '次の50件',
 		pageTitle: (title: string) => `${title}｜オープンソース立法府`,

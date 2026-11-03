@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, primaryKey, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
 import { CHANGES } from '../domain/law/history';
 import type { Heading } from '../domain/law/parse';
+import { REACTIONS } from '../domain/solutions';
 
 export const laws = sqliteTable('laws', {
 	/** e-Gov の law_id */
@@ -194,7 +195,7 @@ export const issues = sqliteTable(
 		topicId: integer('topic_id').references(() => topics.id),
 		createdAt: integer('created_at').notNull(),
 		// 通報と非表示（設計書 docs/spec/28.md）。status を変えると、トリガーが下の status_* の値で moderation_logs に記録を書く。
-		// トリガー（issues_status_log）は drizzle/0005_merge.sql に手で書いたもので（最初は 0004）、drizzle のスナップショットにない。
+		// トリガー（issues_status_log）は drizzle/0006_solutions.sql に手で書いたもので（最初は 0004、次に 0005）、drizzle のスナップショットにない。
 		// この表を作り直すマイグレーションでは、トリガーも消えるので書き直すこと
 		/** restored は運営が表示に戻した課題（表示するが、自動では非表示にしない） */
 		status: text('status', { enum: ISSUE_STATUSES }).notNull().default('visible'),
@@ -228,7 +229,16 @@ export const issueSupports = sqliteTable(
 	(t) => [primaryKey({ columns: [t.issueId, t.userId] }), index('issue_supports_issue_created').on(t.issueId, t.createdAt)]
 );
 
-export const ACTION_KINDS = ['issue_post', 'support_add', 'support_remove', 'violation'] as const;
+/** target_id は、issue_post・support_* では課題の番号、solution_post・reaction_* では解決策の番号（設計書 docs/spec/34.md） */
+export const ACTION_KINDS = [
+	'issue_post',
+	'support_add',
+	'support_remove',
+	'violation',
+	'solution_post',
+	'reaction_add',
+	'reaction_remove'
+] as const;
 
 /** レート制限を数えるための記録。IP はハッシュ（ip_hash）だけを持つ */
 export const actions = sqliteTable(
@@ -306,4 +316,44 @@ export const moderationLogs = sqliteTable(
 		createdAt: integer('created_at').notNull()
 	},
 	(t) => [index('moderation_logs_issue').on(t.issueId)]
+);
+
+// 解決策（設計書 docs/spec/34.md）
+
+export const solutions = sqliteTable(
+	'solutions',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		/** 課題を統合すると、トリガーが統合先に付け替える */
+		issueId: integer('issue_id')
+			.notNull()
+			.references(() => issues.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		body: text('body').notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [index('solutions_issue_id').on(t.issueId)]
+);
+
+/** support＝わかる、changed＝考えが変わった（立場は記録しない）。値はルールの側（domain/solutions）に1つだけ持つ */
+const REACTION_KINDS = REACTIONS;
+
+export const solutionReactions = sqliteTable(
+	'solution_reactions',
+	{
+		solutionId: integer('solution_id')
+			.notNull()
+			.references(() => solutions.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		kind: text('kind', { enum: REACTION_KINDS }).notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.solutionId, t.userId, t.kind] }),
+		check('solution_reactions_kind', sql`${t.kind} IN (${sql.raw(REACTION_KINDS.map((k) => `'${k}'`).join(', '))})`)
+	]
 );

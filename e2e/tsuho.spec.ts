@@ -294,7 +294,7 @@ test('基準7：通報は24時間に10件まで。超えると違反に数えて
 	await reportRequest(r, ids[12], { reason: 'spam' });
 	const banned = await reportRequest(r, ids[13], { reason: 'spam' });
 	expect(banned.status()).toBe(429);
-	expect(await banned.text()).toContain('課題の投稿・「わかる」・通報ができません');
+	expect(await banned.text()).toContain('課題や解決策の投稿、「わかる」「考えが変わった」、通報ができません');
 });
 
 test('信頼の境界：運営の記録の page の形が違えば 404', async ({ request }) => {

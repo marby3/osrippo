@@ -71,7 +71,8 @@
 
 	/** 「これに『わかる』を付ける」：その課題の「わかる」を通ったら、その課題のページへ */
 	const supportThis = (id: number) => () => async ({ result }: { result: { type: string; data?: Record<string, unknown>; location?: string } }) => {
-		if (result.type === 'success') await goto(`/kadai/${id}`);
+		// 解決策を書く案内を出すため、似た課題から来たことを伝える（設計書 docs/spec/34.md 決めたこと6）
+		if (result.type === 'success') await goto(`/kadai/${id}?from=nita`);
 		else if (result.type === 'redirect' && result.location) await goto(result.location);
 		else supportError = String(result.data?.message ?? ja.similar.failed);
 	};

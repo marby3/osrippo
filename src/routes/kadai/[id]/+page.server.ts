@@ -8,9 +8,14 @@ import { isHidden, validateReport } from '#lib/domain/reports.ts';
 import { refusalMessage, writeGuard } from '#lib/server/client.ts';
 import { getIssue, issueMeta, setSupport } from '#lib/server/issues.ts';
 import { hasReported, mergedSources, reportIssue, roleOf } from '#lib/server/reports.ts';
+import { reactAction } from '#lib/server/solution-actions.ts';
+import { listSolutions, solutionCount } from '#lib/server/solutions.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
-export const load: PageServerLoad = async ({ params, locals, request }) => {
+/** 課題のページに出す解決策の数（設計書 docs/spec/34.md 決めたこと3） */
+const TOP_SOLUTIONS = 3;
+
+export const load: PageServerLoad = async ({ params, locals, request, url }) => {
 	const id = parseIssueId(params.id);
 	if (id === null) error(404);
 	const db = drizzle(env.DB);
@@ -39,7 +44,11 @@ export const load: PageServerLoad = async ({ params, locals, request }) => {
 		staff,
 		loggedIn: userId !== null,
 		reported: userId !== null && (await hasReported(db, id, userId)),
-		sources: await mergedSources(db, id)
+		sources: await mergedSources(db, id),
+		solutions: await listSolutions(db, id, userId, TOP_SOLUTIONS),
+		solutionCount: await solutionCount(db, id),
+		// 似た課題から「わかる」で来た人だけに、解決策を書く案内を出す（URL を共有された人には出さない）
+		fromSimilar: url.searchParams.get('from') === 'nita' && userId !== null && !hidden && issue.supported
 	};
 };
 
@@ -58,6 +67,7 @@ async function prepare(event: RequestEvent) {
 }
 
 export const actions: Actions = {
+	react: (event) => reactAction(event, (id) => `/kadai/${id}`),
 	support: async (event) => {
 		const { id, db, meta, now, guard } = await prepare(event);
 		if (!guard.ok) return guard.failure;
