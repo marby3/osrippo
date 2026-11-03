@@ -139,12 +139,14 @@ describe('基準2：版ごとの保存', () => {
 		expect(await saveDraft(db, 5000, 'u1', 0, await input('乗っ取り', 'x', [1]), T0)).toBe(false);
 		expect(await billById(db, 9999)).toBeUndefined();
 
-		// 同じ rev から同時に保存すると、片方だけが通り、中身は通った方のものだけになる
-		const [a, b] = await Promise.all([
-			saveDraft(db, id, 'u1', 2, await input('タブA', 'Aの本文', [1]), T0 + 4),
-			saveDraft(db, id, 'u1', 2, await input('タブB', 'Bの本文', [2, 3]), T0 + 4)
-		]);
+		// 同じ rev から同時に保存すると、片方だけが通り、中身は通った方のものだけになる。
+		// 値は先に作っておき、2つの保存が DB への問い合わせのたびに交互に進むようにする
+		const [inputA, inputB] = [await input('タブA', 'Aの本文', [1]), await input('タブB', 'Bの本文', [2, 3])];
+		const revsBefore = all('SELECT DISTINCT rev FROM bill_laws WHERE bill_id = ?', id).length;
+		const [a, b] = await Promise.all([saveDraft(db, id, 'u1', 2, inputA, T0 + 4), saveDraft(db, id, 'u1', 2, inputB, T0 + 4)]);
 		expect([a, b].filter(Boolean)).toHaveLength(1);
+		// 2つとも子の行を書いた（別々の版の番号で）。負けた方の行は残るが読まれない
+		expect(all('SELECT DISTINCT rev FROM bill_laws WHERE bill_id = ?', id).length).toBe(revsBefore + 2);
 		const third = (await billById(db, id))!;
 		const winner = a ? { title: 'タブA', text: 'Aの本文', solutions: [1] } : { title: 'タブB', text: 'Bの本文', solutions: [2, 3] };
 		expect({ title: third.title, text: third.laws[0].changes[0].paragraphs![0].text, solutions: third.solutionIds }).toEqual(winner);
