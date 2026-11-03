@@ -21,21 +21,25 @@ export async function reactAction(event: RequestEvent<{ id: string }>, back: (id
 	const user = event.locals.user;
 	if (!user) redirect(303, `/login?next=${encodeURIComponent(back(id))}`);
 	const now = Date.now();
-	const guard = await writeGuard(event, db, user, now);
-	if (!guard.ok) return guard.failure;
-
 	const form = await event.request.formData();
 	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
-	const input = parseReaction({ solution: field('solution'), kind: field('kind'), op: field('op') });
+	const raw = field('solution');
+	const guard = await writeGuard(event, db, user, now);
+	if (!guard.ok) {
+		return fail(guard.failure.status, { ...guard.failure.data, solution: raw && /^\d+$/.test(raw) ? Number(raw) : null });
+	}
+	const input = parseReaction({ solution: raw, kind: field('kind'), op: field('op') });
 	if (!input) error(400);
 	// その課題の解決策でなければ 404（統合したあとは解決策が統合先へ移っているので、元の課題への操作もここで止まる）
 	const solution = await solutionMeta(db, input.solutionId);
 	if (!solution || solution.issueId !== id) error(404);
-	if (meta.status === 'merged') return fail(403, { message: ja.merge.mergedOp });
-	if (isHidden(meta.status)) return fail(403, { message: ja.report.hiddenIssue });
-	if (solution.userId === user.id) return fail(403, { message: ja.solution.ownSolution });
+	// 断った理由は、押した解決策のところに出す（solution で見分ける）
+	const solutionId = input.solutionId;
+	if (meta.status === 'merged') return fail(403, { message: ja.merge.mergedOp, solution: solutionId });
+	if (isHidden(meta.status)) return fail(403, { message: ja.report.hiddenIssue, solution: solutionId });
+	if (solution.userId === user.id) return fail(403, { message: ja.solution.ownSolution, solution: solutionId });
 
-	const result = await react(db, guard.actor, input.solutionId, input.kind, input.op, now);
-	if (!result.ok) return fail(429, { message: refusalMessage(result.refusal) });
+	const result = await react(db, guard.actor, solutionId, input.kind, input.op, now);
+	if (!result.ok) return fail(429, { message: refusalMessage(result.refusal), solution: solutionId });
 	return { reacted: input.solutionId };
 }

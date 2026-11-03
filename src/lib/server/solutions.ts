@@ -2,6 +2,7 @@
 import { and, count, countDistinct, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { actions, solutionReactions, solutions } from '../db/schema';
 import { checkSolutionPost, checkSupport, DAY, LIMITS } from '../domain/limits';
+import { LISTED } from '../domain/reports';
 import type { Reaction } from '../domain/solutions';
 import { PRESS_KINDS, refuse, type Actor } from './issues';
 import type { Db } from './law';
@@ -27,7 +28,10 @@ export async function createSolution(db: Db, actor: Actor, issueId: number, body
 	const rows = await db.all<{ id: number }>(sql`
 		INSERT INTO ${solutions} (issue_id, user_id, body, created_at)
 		SELECT ${issueId}, ${actor.userId}, ${body}, ${now}
-		WHERE EXISTS (SELECT 1 FROM issues WHERE id = ${issueId} AND status IN ('visible', 'restored'))
+		WHERE EXISTS (SELECT 1 FROM issues WHERE id = ${issueId} AND status IN (${sql.join(
+			LISTED.map((s) => sql`${s}`),
+			sql`, `
+		)}))
 		RETURNING id`);
 	if (rows.length === 0) return { ok: true as const, created: false as const };
 	await db

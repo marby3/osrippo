@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { replaceState } from '$app/navigation';
+	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import SolutionCard from '#lib/components/SolutionCard.svelte';
@@ -15,19 +15,23 @@
 	let js = $state(false);
 	onMount(() => {
 		js = true;
-		// 案内を出したら URL から from を消す（読み直しで何度も出さないように）
-		if (page.url.searchParams.has('from')) {
-			const url = new URL(page.url.href);
-			url.searchParams.delete('from');
-			replaceState(url, page.state);
-		}
+	});
+	// 案内を出したら URL から from を消す（読み直しで何度も出さないように）。
+	// ルーターの準備が済んでから呼ぶため、onMount ではなく afterNavigate（最初の読み込みのあとにも呼ばれる）で行う
+	afterNavigate(() => {
+		if (!page.url.searchParams.has('from')) return;
+		const url = new URL(page.url.href);
+		url.searchParams.delete('from');
+		replaceState(url, page.state);
 	});
 
 	const hiddenMessage = (status: string, reason: string | null) =>
 		status === 'auto_hidden'
 			? ja.hidden.auto
 			: ja.hidden.staff(ja.hideReasons[(reason ?? 'other') as keyof typeof ja.hideReasons]);
-	const message = $derived(form && 'message' in form ? form.message : undefined);
+	// 解決策への操作を断った理由は、その解決策のところに出す
+	const refusedSolution = $derived(form && 'solution' in form ? form.solution : null);
+	const message = $derived(form && 'message' in form && refusedSolution === null ? form.message : undefined);
 	const reportMessage = $derived(form && 'reportMessage' in form ? form.reportMessage : undefined);
 </script>
 
@@ -102,7 +106,13 @@
 				<p class="empty">{ja.solution.empty}</p>
 			{/if}
 			{#each data.solutions as solution (solution.id)}
-				<SolutionCard {solution} loggedIn={data.loggedIn} readonly={data.hidden} back="/kadai/{issue.id}" />
+				<SolutionCard
+					{solution}
+					loggedIn={data.loggedIn}
+					readonly={data.hidden}
+					back="/kadai/{issue.id}"
+					message={refusedSolution === solution.id && form && 'message' in form ? form.message : undefined}
+				/>
 			{/each}
 			{#if data.solutionCount > data.solutions.length}
 				<p><a href="/kadai/{issue.id}/kaiketsu">{ja.solution.all(data.solutionCount)}</a></p>

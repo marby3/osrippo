@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, primaryKey, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
 import { CHANGES } from '../domain/law/history';
 import type { Heading } from '../domain/law/parse';
+import { REACTIONS } from '../domain/solutions';
 
 export const laws = sqliteTable('laws', {
 	/** e-Gov の law_id */
@@ -336,8 +337,8 @@ export const solutions = sqliteTable(
 	(t) => [index('solutions_issue_id').on(t.issueId)]
 );
 
-/** support＝わかる、changed＝考えが変わった（立場は記録しない） */
-export const REACTION_KINDS = ['support', 'changed'] as const;
+/** support＝わかる、changed＝考えが変わった（立場は記録しない）。値はルールの側（domain/solutions）に1つだけ持つ */
+const REACTION_KINDS = REACTIONS;
 
 export const solutionReactions = sqliteTable(
 	'solution_reactions',

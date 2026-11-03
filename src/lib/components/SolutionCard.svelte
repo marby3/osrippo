@@ -16,7 +16,8 @@
 		solution,
 		loggedIn,
 		readonly = false,
-		back
+		back,
+		message
 	}: {
 		solution: Solution;
 		loggedIn: boolean;
@@ -24,6 +25,8 @@
 		readonly?: boolean;
 		/** ログインしていないとき、ログインのあとに戻るパス */
 		back: string;
+		/** この解決策への操作を断った理由 */
+		message?: string;
 	} = $props();
 
 	const label = (kind: (typeof REACTIONS)[number]) =>
@@ -60,6 +63,7 @@
 			{/each}
 		{/if}
 	</div>
+	{#if message}<p role="alert" class="refused">{message}</p>{/if}
 </article>
 
 <style>
@@ -105,6 +109,12 @@
 		border-color: var(--color-base);
 		background: var(--color-base);
 		color: var(--color-bg);
+	}
+
+	.refused {
+		margin: 0;
+		color: var(--color-caution);
+		font-size: var(--font-size-sub);
 	}
 
 	.sr {

@@ -10,10 +10,10 @@ import { getIssue, issueMeta, setSupport } from '#lib/server/issues.ts';
 import { hasReported, mergedSources, reportIssue, roleOf } from '#lib/server/reports.ts';
 import { reactAction } from '#lib/server/solution-actions.ts';
 import { listSolutions, solutionCount } from '#lib/server/solutions.ts';
+import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
 /** 課題のページに出す解決策の数（設計書 docs/spec/34.md 決めたこと3） */
 const TOP_SOLUTIONS = 3;
-import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals, request, url }) => {
 	const id = parseIssueId(params.id);

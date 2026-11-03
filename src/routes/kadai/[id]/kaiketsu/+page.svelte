@@ -4,7 +4,8 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const message = $derived(form && 'message' in form ? form.message : undefined);
+	const refusedSolution = $derived(form && 'solution' in form ? form.solution : null);
+	const message = $derived(form && 'message' in form && refusedSolution === null ? form.message : undefined);
 	const pageHref = (id: number, page: number) => (page > 1 ? `/kadai/${id}/kaiketsu?page=${page}` : `/kadai/${id}/kaiketsu`);
 </script>
 
@@ -34,7 +35,13 @@
 		{#if message}<p role="alert">{message}</p>{/if}
 		{#if data.solutions.length === 0}<p>{ja.solution.empty}</p>{/if}
 		{#each data.solutions as solution (solution.id)}
-			<SolutionCard {solution} loggedIn={data.loggedIn} readonly={data.hidden} back="/kadai/{data.issue.id}/kaiketsu" />
+			<SolutionCard
+				{solution}
+				loggedIn={data.loggedIn}
+				readonly={data.hidden}
+				back={pageHref(data.issue.id, data.page)}
+				message={refusedSolution === solution.id && form && 'message' in form ? form.message : undefined}
+			/>
 		{/each}
 		{#if data.page > 1 || data.hasNext}
 			<nav class="pages">

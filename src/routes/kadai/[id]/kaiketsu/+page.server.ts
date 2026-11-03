@@ -22,14 +22,14 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 		if (request.method === 'GET' || request.method === 'HEAD') redirect(308, `/kadai/${issue.mergedInto}/kaiketsu`);
 		return { view: 'merged' as const, id, mergedInto: issue.mergedInto };
 	}
+	const page = parsePage(url.searchParams.get('page'));
+	if (page === null) error(404);
 	const hidden = isHidden(issue.status);
 	const staff = userId !== null && (await roleOf(db, userId)) !== null;
 	// 書いた本人と運営以外には、非表示の課題の解決策を渡さない（docs/spec/28.md 決めたこと4）
 	if (hidden && userId !== issue.userId && !staff) {
 		return { view: 'hidden' as const, id, status: issue.status, statusReason: issue.statusReason };
 	}
-	const page = parsePage(url.searchParams.get('page'));
-	if (page === null) error(404);
 	const rows = await listSolutions(db, id, userId, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE);
 	if (page > 1 && rows.length === 0) error(404);
 	return {
@@ -44,5 +44,10 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 };
 
 export const actions: Actions = {
-	react: (event) => reactAction(event, (id) => `/kadai/${id}/kaiketsu`)
+	react: (event) =>
+		reactAction(event, (id) => {
+			// ログインのあとは同じページへ戻る
+			const page = event.url.searchParams.get('page');
+			return page ? `/kadai/${id}/kaiketsu?page=${encodeURIComponent(page)}` : `/kadai/${id}/kaiketsu`;
+		})
 };
