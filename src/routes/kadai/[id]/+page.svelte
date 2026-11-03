@@ -36,13 +36,12 @@
 	const reportMessage = $derived(
 		form && 'reportMessage' in form && refusedSolution === null ? form.reportMessage : undefined
 	);
-	/** 解決策への操作の知らせ（断った理由か、通報を受け付けたこと） */
-	const solutionMessage = (id: number) => {
-		if (!form || refusedSolution !== id) return undefined;
-		if ('message' in form) return form.message;
-		if ('reportMessage' in form) return form.reportMessage;
-		return undefined;
-	};
+	/** 解決策への操作を断った理由 */
+	const solutionMessage = (id: number) =>
+		form && refusedSolution === id && 'message' in form ? form.message : undefined;
+	/** 解決策の通報を受け付けた知らせ（「通報済み」の知らせも含む） */
+	const solutionDone = (id: number) =>
+		form && refusedSolution === id && 'reportMessage' in form ? form.reportMessage : undefined;
 </script>
 
 <svelte:head>
@@ -122,6 +121,7 @@
 					readonly={data.hidden}
 					back="/kadai/{issue.id}"
 					message={solutionMessage(solution.id)}
+				done={solutionDone(solution.id)}
 					reported={data.reportedSolutions.includes(solution.id)}
 					staff={data.staff}
 				/>

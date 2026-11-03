@@ -369,7 +369,7 @@ export const solutionReactions = sqliteTable(
 	]
 );
 
-export const SOLUTION_REPORT_REASONS = ['attack', 'spam', 'other', 'none'] as const;
+export const SOLUTION_REPORT_REASONS_DB = ['attack', 'spam', 'other', 'none'] as const;
 
 /** 解決策の通報（設計書 docs/spec/36.md）。課題の reports とは別の表（課題の一意の索引を変えないため） */
 export const solutionReports = sqliteTable(
@@ -382,7 +382,7 @@ export const solutionReports = sqliteTable(
 		userId: text('user_id')
 			.notNull()
 			.references(() => user.id),
-		reason: text('reason', { enum: SOLUTION_REPORT_REASONS }).notNull(),
+		reason: text('reason', { enum: SOLUTION_REPORT_REASONS_DB }).notNull(),
 		note: text('note'),
 		counted: integer('counted', { mode: 'boolean' }).notNull(),
 		createdAt: integer('created_at').notNull()
@@ -392,7 +392,7 @@ export const solutionReports = sqliteTable(
 		index('solution_reports_user').on(t.userId, t.createdAt),
 		check(
 			'solution_reports_reason',
-			sql`${t.reason} IN (${sql.raw(SOLUTION_REPORT_REASONS.map((r) => `'${r}'`).join(', '))})`
+			sql`${t.reason} IN (${sql.raw(SOLUTION_REPORT_REASONS_DB.map((r) => `'${r}'`).join(', '))})`
 		)
 	]
 );

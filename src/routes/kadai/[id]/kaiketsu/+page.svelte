@@ -6,13 +6,12 @@
 	let { data, form }: PageProps = $props();
 	const refusedSolution = $derived(form && 'solution' in form ? form.solution : null);
 	const message = $derived(form && 'message' in form && refusedSolution === null ? form.message : undefined);
-	/** 解決策への操作の知らせ（断った理由か、通報を受け付けたこと） */
-	const solutionMessage = (id: number) => {
-		if (!form || refusedSolution !== id) return undefined;
-		if ('message' in form) return form.message;
-		if ('reportMessage' in form) return form.reportMessage;
-		return undefined;
-	};
+	/** 解決策への操作を断った理由 */
+	const solutionMessage = (id: number) =>
+		form && refusedSolution === id && 'message' in form ? form.message : undefined;
+	/** 解決策の通報を受け付けた知らせ（「通報済み」の知らせも含む） */
+	const solutionDone = (id: number) =>
+		form && refusedSolution === id && 'reportMessage' in form ? form.reportMessage : undefined;
 	const pageHref = (id: number, page: number) => (page > 1 ? `/kadai/${id}/kaiketsu?page=${page}` : `/kadai/${id}/kaiketsu`);
 </script>
 
@@ -48,6 +47,7 @@
 				readonly={data.hidden}
 				back={pageHref(data.issue.id, data.page)}
 				message={solutionMessage(solution.id)}
+				done={solutionDone(solution.id)}
 				reported={data.reportedSolutions.includes(solution.id)}
 				staff={data.staff}
 			/>
@@ -63,7 +63,7 @@
 					staff={data.staff}
 					notice={solution.status === 'auto_hidden'
 						? ja.solution.hiddenAuto
-						: ja.solution.hiddenStaff(ja.hideReasons[solution.statusReason ?? 'other'])}
+						: ja.solution.hiddenStaff(solution.statusReason ? ja.hideReasons[solution.statusReason] : null)}
 				/>
 			{/each}
 		{/if}

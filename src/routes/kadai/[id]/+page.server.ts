@@ -9,7 +9,7 @@ import { refusalMessage, writeGuard } from '#lib/server/client.ts';
 import { getIssue, issueMeta, setSupport } from '#lib/server/issues.ts';
 import { hasReported, mergedSources, reportIssue, roleOf } from '#lib/server/reports.ts';
 import { reactAction, reportSolutionAction } from '#lib/server/solution-actions.ts';
-import { listHiddenSolutions, listSolutions, reportedSolutionIds, solutionCount } from '#lib/server/solutions.ts';
+import { hasHiddenSolutions, listSolutions, reportedSolutionIds, solutionCount } from '#lib/server/solutions.ts';
 import type { Db } from '#lib/server/law.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
@@ -63,7 +63,7 @@ async function solutionsFor(db: Db, id: number, userId: string | null, staff: bo
 			userId,
 			solutions.map((s) => s.id)
 		),
-		hasHiddenSolutions: (await listHiddenSolutions(db, id, userId, staff)).length > 0
+		hasHiddenSolutions: await hasHiddenSolutions(db, id, userId, staff)
 	};
 }
 

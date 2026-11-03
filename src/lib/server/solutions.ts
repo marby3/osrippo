@@ -126,6 +126,23 @@ export async function listHiddenSolutions(db: Db, issueId: number, userId: strin
 	return rows;
 }
 
+/** 本人と運営に見せる非表示の解決策が、1つでもあるか（課題のページのリンクに使う） */
+export async function hasHiddenSolutions(db: Db, issueId: number, userId: string | null, staff: boolean) {
+	if (userId === null) return false;
+	const [row] = await db
+		.select({ id: solutions.id })
+		.from(solutions)
+		.where(
+			and(
+				eq(solutions.issueId, issueId),
+				inArray(solutions.status, ['auto_hidden', 'hidden']),
+				staff ? undefined : eq(solutions.userId, userId)
+			)
+		)
+		.limit(1);
+	return Boolean(row);
+}
+
 /** その人が通報した解決策の番号（通報済みの表示に使う） */
 export async function reportedSolutionIds(db: Db, userId: string | null, ids: number[]) {
 	if (userId === null || ids.length === 0) return [];

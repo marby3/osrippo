@@ -124,7 +124,10 @@ export const ja = {
 		reportAlready: 'この解決策は通報済みです',
 		hiddenHeading: '非表示の解決策',
 		hiddenAuto: 'この解決策は通報により非表示になっています',
-		hiddenStaff: (reason: string) => `この解決策は運営の確認により非表示になっています（理由：${reason}）`,
+		hiddenStaff: (reason: string | null) =>
+			reason === null
+				? 'この解決策は運営の確認により非表示になっています'
+				: `この解決策は運営の確認により非表示になっています（理由：${reason}）`,
 		showHidden: '非表示の解決策を見る',
 		staffLink: 'この解決策に運営として対応する',
 		ownSolution: '自分の解決策には押せません',

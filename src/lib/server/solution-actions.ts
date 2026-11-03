@@ -25,9 +25,7 @@ export async function reactAction(event: RequestEvent<{ id: string }>, back: (id
 	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
 	const raw = field('solution');
 	const guard = await writeGuard(event, db, user, now);
-	if (!guard.ok) {
-		return fail(guard.failure.status, { ...guard.failure.data, solution: raw && /^\d+$/.test(raw) ? Number(raw) : null });
-	}
+	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, solution: parseIssueId(raw ?? '') });
 	const input = parseReaction({ solution: raw, kind: field('kind'), op: field('op') });
 	if (!input) error(400);
 	// その課題の解決策でなければ 404（統合したあとは解決策が統合先へ移っているので、元の課題への操作もここで止まる）
@@ -58,12 +56,11 @@ export async function reportSolutionAction(event: RequestEvent<{ id: string }>, 
 	const now = Date.now();
 	const form = await event.request.formData();
 	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
-	const raw = field('solution');
-	const where = raw && /^\d+$/.test(raw) ? Number(raw) : null;
+	// 解決策の番号の形は課題の番号と同じ判定（断った理由を出す場所にも使う）
+	const solutionId = parseIssueId(field('solution') ?? '');
 	const guard = await writeGuard(event, db, user, now);
-	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, solution: where });
+	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, solution: solutionId });
 
-	const solutionId = where !== null && /^[1-9]\d{0,9}$/.test(raw ?? '') ? where : null;
 	const checked = validateSolutionReport({ reason: field('reason'), note: field('note') });
 	if (solutionId === null || !checked.ok) error(400);
 	// その課題の解決策でなければ 404（統合したあとは解決策が統合先へ移っているので、元の課題への通報もここで止まる）

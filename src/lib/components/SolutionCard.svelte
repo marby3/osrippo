@@ -20,6 +20,7 @@
 		readonly = false,
 		back,
 		message,
+		done,
 		notice,
 		reported = false,
 		staff = false
@@ -30,8 +31,10 @@
 		readonly?: boolean;
 		/** ログインしていないとき、ログインのあとに戻るパス */
 		back: string;
-		/** この解決策への操作を断った理由、または通報を受け付けた知らせ */
+		/** この解決策への操作を断った理由 */
 		message?: string;
+		/** 通報を受け付けた知らせ（断った理由とは分けて、警告ではない形で出す） */
+		done?: string;
 		/** 非表示になっていることの知らせ（本人・運営に見せるとき） */
 		notice?: string;
 		/** 見ている人が通報済みか */
@@ -91,8 +94,10 @@
 
 	<!-- 通報（設計書 docs/spec/36.md 決めたこと1）。自分の解決策と、非表示のものには出さない -->
 	{#if !solution.mine && !readonly}
-		{#if reported}
-			{#if message !== ja.solution.reportAlready}<p class="sub">{ja.solution.reportAlready}</p>{/if}
+		{#if done}
+			<p role="status" class="sub">{done}</p>
+		{:else if reported}
+			<p class="sub">{ja.solution.reportAlready}</p>
 		{:else if !loggedIn}
 			<form method="get" action="/login">
 				<input type="hidden" name="next" value={back} />
