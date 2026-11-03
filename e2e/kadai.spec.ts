@@ -14,12 +14,36 @@ const ip = (project: string, test: number, n: number) => `10.${project === 'sp' 
 const listedTitles = (page: Page) =>
 	page.locator('main a[href^="/kadai/"]:not([href="/kadai/kaku"])').allInnerTexts();
 
+/**
+ * url から「次の50件」をたどり、wanted がすべて出るまでのタイトルを上から集める。
+ * ほかのテスト（もう一方の幅を含む）が同時に課題を足しても、並びの前後だけを比べられるように
+ */
+async function titlesUntil(page: Page, url: string, wanted: string[]) {
+	const titles: string[] = [];
+	const pageOf = new Map<string, string>();
+	await page.goto(url);
+	for (let i = 0; i < 20; i++) {
+		for (const t of await listedTitles(page)) {
+			titles.push(t);
+			pageOf.set(t, page.url());
+		}
+		if (wanted.every((w) => titles.includes(w))) break;
+		const next = page.getByRole('link', { name: '次の50件' });
+		if ((await next.count()) === 0) break;
+		await next.click();
+		await page.waitForURL(/page=\d+/);
+	}
+	return { titles, pageOf };
+}
+
 test('基準1：一覧はログインなしで見られ、3つの並び・お題の絞り込み・50件ごとのページがある', async ({ browser, page }, info) => {
 	test.setTimeout(120_000);
 	const p = info.project.name;
-	const tag = `${p}-${Date.now()}`;
+	const stamp = Date.now();
+	const tag = `${p}-${stamp}`;
+	// 名前は実行ごとに変える（再試行で1アカウント5件の上限に当たらないように）
 	const open = async (name: string, n: number) => {
-		const u = await newUser(browser, { name: `${name}-${p}`, ip: ip(p, 1, n) });
+		const u = await newUser(browser, { name: `${name}-${p}-${stamp % 1e8}`, ip: ip(p, 1, n) });
 		contexts.push(u.context);
 		return u.page;
 	};
@@ -46,12 +70,12 @@ test('基準1：一覧はログインなしで見られ、3つの並び・お題
 	await page.getByRole('link', { name: '課題を見る' }).click();
 	await expect(page).toHaveURL('/kadai');
 	await expect(page.getByRole('heading', { level: 1, name: '課題', exact: true })).toBeVisible();
-	let titles = await listedTitles(page);
+	const titles = await listedTitles(page);
 	expect(titles.indexOf(x)).toBeGreaterThanOrEqual(0);
 	expect(titles.indexOf(x)).toBeLessThan(titles.indexOf(y));
-	// 行には、わかるの数とお題の印
-	const row = (title: string) => page.locator('tr, li').filter({ has: page.getByRole('link', { name: title, exact: true }) });
-	await expect(row(x)).toContainText('2');
+	// 行には、わかるの数とお題の印（タイトルの数字と混ざらないよう、数のセルだけを見る）
+	const row = (title: string) => page.locator('tr').filter({ has: page.getByRole('link', { name: title, exact: true }) });
+	await expect(row(x).locator('td').nth(1)).toHaveText(/^\s*(わかる)?\s*2\s*$/);
 	await expect(row(x)).toContainText('お題：消費者保護');
 
 	// 50件ごと
@@ -60,30 +84,32 @@ test('基準1：一覧はログインなしで見られ、3つの並び・お題
 	await expect(page).toHaveURL('/kadai?page=2');
 	expect((await listedTitles(page)).length).toBeGreaterThan(0);
 
-	// 新しい順
+	// 新しい順（並びを選ぶと1ページ目から）
 	await page.goto('/kadai');
 	await page.getByLabel('並び').selectOption({ label: '新しい順' });
 	await expect(page).toHaveURL('/kadai?sort=new');
-	titles = await listedTitles(page);
-	expect(titles.indexOf(z)).toBeGreaterThanOrEqual(0);
-	expect(titles.indexOf(z)).toBeLessThan(titles.indexOf(y));
-	expect(titles.indexOf(y)).toBeLessThan(titles.indexOf(x));
+	const byNew = await titlesUntil(page, '/kadai?sort=new', [x, y, z]);
+	expect(byNew.titles.indexOf(z)).toBeGreaterThanOrEqual(0);
+	expect(byNew.titles.indexOf(z)).toBeLessThan(byNew.titles.indexOf(y));
+	expect(byNew.titles.indexOf(y)).toBeLessThan(byNew.titles.indexOf(x));
+	await page.goto(byNew.pageOf.get(z)!);
 	await expect(row(z)).not.toContainText('お題');
 
-	// 今回のお題で絞り込む（並びはそのまま）
+	// 今回のお題で絞り込む（並びはそのまま）。Z（ほかの話題）は X より新しいので、出るなら X より前に出る
+	await page.goto('/kadai?sort=new');
 	await page.getByRole('link', { name: '今回のお題' }).click();
 	await expect(page).toHaveURL('/kadai?sort=new&topic=current');
 	await expect(page.getByLabel('並び')).toHaveValue('new');
-	titles = await listedTitles(page);
-	expect(titles).toContain(x);
-	expect(titles).not.toContain(z);
+	const byTopic = await titlesUntil(page, '/kadai?sort=new&topic=current', [x]);
+	expect(byTopic.titles).toContain(x);
+	expect(byTopic.titles).not.toContain(z);
 
 	// 最近「わかる」が増えている順
 	await page.goto('/kadai?sort=rising');
 	await expect(page.getByLabel('並び')).toHaveValue('rising');
-	titles = await listedTitles(page);
-	expect(titles.indexOf(x)).toBeGreaterThanOrEqual(0);
-	expect(titles.indexOf(x)).toBeLessThan(titles.indexOf(y));
+	const byRising = await titlesUntil(page, '/kadai?sort=rising', [x, y]);
+	expect(byRising.titles.indexOf(x)).toBeGreaterThanOrEqual(0);
+	expect(byRising.titles.indexOf(x)).toBeLessThan(byRising.titles.indexOf(y));
 });
 
 test('基準2：3つの段で課題を書くと、課題のページに書いた内容とお題が出る', async ({ browser, page }, info) => {
@@ -135,16 +161,14 @@ test('基準3：入力に誤りがあれば保存せず、その欄の横に理�
 	// 誤りのある段に戻り、欄の横に理由。入力は残る
 	await expect(field).toHaveAccessibleDescription('60字以内で書いてください');
 	await expect(field).toHaveValue(title);
-	await page.goto('/kadai?sort=new');
-	expect(await listedTitles(page)).not.toContain(title);
+	const other = await newUser(browser, { ip: ip(p, 3, 2) });
+	contexts.push(other.context);
+	await other.page.goto('/kadai?sort=new');
+	expect(await listedTitles(other.page)).not.toContain(title);
 
-	// 直して出し直せば通る（Turnstile は作り直される）
-	await page.goto('/kadai/kaku');
-	await page.getByLabel('何に困っていますか？').fill(title.slice(0, 60));
+	// 直して出し直せば通る（使い終わった Turnstile は作り直される）
+	await field.fill(title.slice(0, 60));
 	await page.getByRole('button', { name: '次へ' }).click();
-	await page.getByLabel('困っている人').fill('困っている人');
-	await page.getByLabel('具体的には').fill('具体例');
-	await page.getByRole('radio', { name: 'ほかの話題' }).check();
 	await page.getByRole('button', { name: '次へ' }).click();
 	await page.getByRole('button', { name: '投稿する' }).click();
 	await expect(page).toHaveURL(/\/kadai\/\d+$/);
@@ -244,6 +268,45 @@ test('基準6：日本以外からのログイン・投稿・「わかる」は�
 		await page.goto(`/kadai/${id}`);
 		await expect(page.getByRole('button', { name: /^わかる/ })).toHaveText(/わかる\s*0$/);
 	}
+});
+
+test('基準7・8（画面）：断ったときは理由を、締め出したときはいつまでかを出す', async ({ browser }, info) => {
+	const p = info.project.name;
+	const author = await newUser(browser, { name: `limit-author-${p}`, ip: ip(p, 8, 1) });
+	contexts.push(author.context);
+	const id = await postIssue(author.page, { title: `制限のテスト ${p}-${Date.now()}` });
+
+	// 同じ課題に同じ回線から4人目
+	for (let n = 1; n <= 4; n++) {
+		const u = await newUser(browser, { name: `limit-ip${n}-${p}`, ip: ip(p, 8, 2) });
+		contexts.push(u.context);
+		const res = await supportRequest(u.page, id, 'add');
+		if (n < 4) {
+			expect(res.status(), String(n)).toBeLessThan(400);
+			continue;
+		}
+		expect(res.status()).toBe(429);
+		expect(await res.text()).toContain('この回線からは、この課題にこれ以上「わかる」を付けられません');
+	}
+
+	// 5分に10回を超えると理由を出し、3回超えると締め出して期限を出す
+	const { context, page } = await newUser(browser, { name: `limit-burst-${p}`, ip: ip(p, 8, 3) });
+	contexts.push(context);
+	for (let i = 0; i < 10; i++) {
+		expect((await supportRequest(page, id, i % 2 ? 'remove' : 'add')).status(), String(i)).toBeLessThan(400);
+	}
+	const refused = await supportRequest(page, id, 'add');
+	expect(refused.status()).toBe(429);
+	expect(await refused.text()).toContain('短いあいだに「わかる」を何度も押しました');
+	await supportRequest(page, id, 'add');
+	await supportRequest(page, id, 'add');
+	const banned = await supportRequest(page, id, 'add');
+	expect(banned.status()).toBe(429);
+	expect(await banned.text()).toMatch(/制限を何度も超えたため、\d+月\d+日 \d+時\d{2}分まで、課題の投稿と「わかる」ができません/);
+	// 締め出しの間は、課題の投稿もできない
+	const posted = await postIssueRequest(page, { title: `締め出し中 ${p}` });
+	expect(posted.status()).toBe(429);
+	expect(await posted.text()).toContain('制限を何度も超えたため');
 });
 
 test('信頼の境界：課題の番号の形が違えば 404', async ({ request }) => {
