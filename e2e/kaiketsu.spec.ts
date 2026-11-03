@@ -248,6 +248,15 @@ test('基準5：似た課題から「わかる」で来た人に、解決策を�
 	await expect(writer).toHaveURL(`/kadai/${issueId}`);
 	await expect(writer.getByRole('link', { name: '解決策を書く' })).toHaveCount(2);
 
+	// ?from=nita を直接開いても、ページのエラーを出さずに案内を出し、URL から from を消す
+	const errors: string[] = [];
+	writer.on('pageerror', (e) => errors.push(e.message));
+	await writer.goto(`/kadai/${issueId}?from=nita`);
+	await hydrated(writer);
+	await expect(writer.getByText('「わかる」を付けました。考えがあれば、解決策として書いてください')).toBeVisible();
+	await expect(writer).toHaveURL(`/kadai/${issueId}`);
+	expect(errors).toEqual([]);
+
 	// 「わかる」を付けていない人が同じ URL を開いても出さない
 	const other = await user(browser, `k5-other-${p}-${s}`, ip(p, 5, 3));
 	await other.goto(`/kadai/${issueId}?from=nita`);
