@@ -12,6 +12,7 @@
 		latest: DiffPart[];
 		amendments: { date: string; lawNum: string; then: string | null }[];
 		baseline: { then: string | null } | null;
+		enacted: { date: string; then: string | null } | null;
 	};
 
 	/** 開いている条の番号と、その条の変わった記録（押したときに読み込む） */
@@ -79,7 +80,11 @@
 					{#if a.lawNum}<span class="sub">{a.lawNum}</span>{/if}
 				</li>
 			{/each}
-			{#if r.baseline}
+			{#if r.enacted}
+				<li>
+					<strong>{ja.law.enactedOn(r.enacted.date)}</strong>{#if r.enacted.then}<span>{ja.law.then(r.enacted.then)}</span>{/if}
+				</li>
+			{:else if r.baseline}
 				<li>
 					<strong>{ja.law.recordBeforeBaseline}</strong>{#if r.baseline.then}<span>{ja.law.then(r.baseline.then)}</span>{/if}
 					<span class="sub">{ja.law.recordPreparing}</span>
@@ -134,6 +139,8 @@
 			<p class="amended">
 				{#if article.lastAmended}
 					<strong>{ja.law.amended(article.lastAmended, fullYears(article.lastAmended, data.today))}</strong>
+				{:else if article.enacted}
+					{ja.law.enacted(article.enacted, fullYears(article.enacted, data.today))}
 				{:else}
 					{ja.law.unchangedSinceBaseline}
 				{/if}
@@ -176,8 +183,13 @@
 			{#each data.enforced as r}
 				<li><span class="date">{jaDate(r.date)}</span>{r.title}</li>
 			{/each}
+			{#if data.enacted}
+				<li><span class="date">{jaDate(data.enacted)}</span>{ja.law.enactment}</li>
+			{/if}
 		</ol>
-		<p class="sub">{ja.law.beforeBaseline}</p>
+		{#if !data.enacted}
+			<p class="sub">{ja.law.beforeBaseline}</p>
+		{/if}
 	</section>
 </main>
 
