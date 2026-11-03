@@ -1,4 +1,5 @@
 // 画面の文言はすべてここに置く
+import type { Session } from '../domain/session';
 
 /** "2023-06-01" → "2023年6月1日" */
 export const jaDate = (iso: string) => {
@@ -35,10 +36,8 @@ const jaTime = (ms: number) => {
 	return `${d.getUTCHours()}時${String(d.getUTCMinutes()).padStart(2, '0')}分`;
 };
 
-/** 会期の表示に要るもの（src/lib/domain/session.ts の Session と同じ形の一部） */
-type SessionView = { month: number | null; startsAt: number; deliberationAt: number; voteAt: number; endsAt: number; week: number; stage: 'proposal' | 'deliberation' | 'vote' };
 /** カレンダーの月の会期は日付、開発用の分の会期は時刻 */
-const sessionPoint = (s: SessionView, ms: number, withDay: boolean) =>
+const sessionPoint = (s: Session, ms: number, withDay: boolean) =>
 	s.month === null ? jaTime(ms) : withDay ? jaDay(ms) : jaDay(ms).replace(/（.）$/, '');
 
 export const ja = {
@@ -74,20 +73,22 @@ export const ja = {
 	},
 	/** 会期（Issue #44。画面の案 SpHome・PcHome） */
 	session: {
-		name: (s: SessionView) => (s.month === null ? `${jaTime(s.startsAt)}からの会期` : `${s.month}月の会期`),
+		name: (s: Session) => (s.month === null ? `${jaTime(s.startsAt)}からの会期` : `${s.month}月の会期`),
 		stages: { proposal: '発議', deliberation: '質疑と修正', vote: '採決' },
 		now: 'いまは',
 		week: (week: number) => `（${week}週目）`,
 		progress: '会期の進み具合',
+		/** スマホの棒の読み上げ */
+		bar: (week: number, filled: boolean) => `${week}週目${filled ? '（済み）' : ''}`,
 		/** スマホの次の段の始まり：[前, 日付, 後] */
-		next: (s: SessionView): [string, string, string] =>
+		next: (s: Session): [string, string, string] =>
 			s.stage === 'proposal'
 				? ['質疑は', sessionPoint(s, s.deliberationAt, true), 'から']
 				: s.stage === 'deliberation'
 					? ['採決は', sessionPoint(s, s.voteAt, true), 'から']
 					: ['次の会期は', sessionPoint(s, s.endsAt, true), 'から'],
 		/** PC の 2:1:1 の区切り */
-		segments: (s: SessionView) => ['1〜2週 発議', '3週 質疑・修正', `4週 採決（${sessionPoint(s, s.voteAt, false)}から）`]
+		segments: (s: Session) => ['1〜2週 発議', '3週 質疑・修正', `4週 採決（${sessionPoint(s, s.voteAt, false)}から）`]
 	},
 	login: {
 		pageTitle: 'ログイン｜オープンソース立法府',

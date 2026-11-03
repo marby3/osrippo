@@ -26,7 +26,8 @@
 		</h2>
 		<ol class="bars sp" aria-label={ja.session.progress}>
 			{#each [1, 2, 3, 4] as week}
-				<li data-filled={week <= s.week ? '' : undefined}></li>
+				<!-- 棒は見た目だけ。読み上げでは「1週目（済み）」のように読む -->
+				<li data-filled={week <= s.week ? '' : undefined}><span class="hidden">{ja.session.bar(week, week <= s.week)}</span></li>
 			{/each}
 		</ol>
 		<ol class="segments pc" aria-label={ja.session.progress}>
@@ -109,6 +110,14 @@
 	.segments li.current {
 		color: var(--color-text);
 		font-weight: 700;
+	}
+	.hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 	.next {
 		margin: 0.75rem 0 0;
