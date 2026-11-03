@@ -6,7 +6,7 @@ import { ja } from '../copy/ja';
 import { parseIssueId } from '../domain/issues';
 import { isHidden, validateSolutionReport } from '../domain/reports';
 import { parseReaction } from '../domain/solutions';
-import { refusalMessage, writeGuard } from './client';
+import { nowOf, refusalMessage, writeGuard } from './client';
 import { issueMeta } from './issues';
 import { react, reportSolution, solutionMeta } from './solutions';
 
@@ -20,7 +20,7 @@ export async function reactAction(event: RequestEvent<{ id: string }>, back: (id
 	if (!meta) error(404);
 	const user = event.locals.user;
 	if (!user) redirect(303, `/login?next=${encodeURIComponent(back(id))}`);
-	const now = Date.now();
+	const now = nowOf(event);
 	const form = await event.request.formData();
 	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
 	const raw = field('solution');
@@ -53,7 +53,7 @@ export async function reportSolutionAction(event: RequestEvent<{ id: string }>, 
 	if (!meta) error(404);
 	const user = event.locals.user;
 	if (!user) redirect(303, `/login?next=${encodeURIComponent(back(id))}`);
-	const now = Date.now();
+	const now = nowOf(event);
 	const form = await event.request.formData();
 	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
 	// 解決策の番号の形は課題の番号と同じ判定（断った理由を出す場所にも使う）

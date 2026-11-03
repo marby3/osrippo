@@ -5,7 +5,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '#lib/copy/ja.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { isHidden, validateReport } from '#lib/domain/reports.ts';
-import { refusalMessage, writeGuard } from '#lib/server/client.ts';
+import { nowOf, refusalMessage, writeGuard } from '#lib/server/client.ts';
 import { getIssue, issueMeta, setSupport } from '#lib/server/issues.ts';
 import { hasReported, mergedSources, reportIssue, roleOf } from '#lib/server/reports.ts';
 import { reactAction, reportSolutionAction } from '#lib/server/solution-actions.ts';
@@ -76,7 +76,7 @@ async function prepare(event: RequestEvent) {
 	if (!meta) error(404);
 	const user = event.locals.user;
 	if (!user) redirect(303, `/login?next=${encodeURIComponent(`/kadai/${id}`)}`);
-	const now = Date.now();
+	const now = nowOf(event);
 	const guard = await writeGuard(event, db, user, now);
 	return { id, db, meta, user, now, guard };
 }
