@@ -115,7 +115,8 @@ export const ja = {
 			tooLong: '条文が長すぎます（1条あたり10000字まで）。',
 			control: '使えない文字が入っています。',
 			paragraphOrder: '項の番号が順になっていません（2、3、4…と続けてください）。',
-			itemOrder: '号の番号が順になっていません（一、二、三…と続けてください）。'
+			itemOrder: '号の番号は、前の号より後ろの番号にしてください。',
+			empty: '項や号の本文が空です。'
 		},
 		bodyErrorAt: (line: number, message: string) => `${line}行目：${message}`,
 		changeErrors: {

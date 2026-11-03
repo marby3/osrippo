@@ -4,8 +4,10 @@ import { articleBodyText, compareNum, type Paragraph } from './law';
 
 export { articleBodyText };
 
-export type BillKind = 'amend' | 'repeal' | 'enact';
-export type ChangeOp = 'amend' | 'add' | 'delete';
+export const BILL_KINDS = ['amend', 'repeal', 'enact'] as const;
+export const CHANGE_OPS = ['amend', 'add', 'delete'] as const;
+export type BillKind = (typeof BILL_KINDS)[number];
+export type ChangeOp = (typeof CHANGE_OPS)[number];
 
 export const BILL_MAX = {
 	title: 60,
@@ -27,7 +29,7 @@ export type BillChange = { op: ChangeOp; num: string; provisionId: number | null
 
 // ---- 変更後の条文の読み取り（決めたこと3） ----
 
-export type BodyError = 'required' | 'tooLong' | 'control' | 'paragraphOrder' | 'itemOrder';
+export type BodyError = 'required' | 'tooLong' | 'control' | 'paragraphOrder' | 'itemOrder' | 'empty';
 export type BodyResult = { ok: true; paragraphs: Paragraph[] } | { ok: false; line: number; error: BodyError };
 
 const KANJI_DIGITS: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
@@ -74,6 +76,7 @@ export function parseArticleBody(raw: string): BodyResult {
 		const p = PARAGRAPH_LINE.exec(line);
 		if (p) {
 			if (p[1] !== String(paragraphs.length + 1)) return { ok: false, line: at, error: 'paragraphOrder' };
+			if (!p[2].trim()) return { ok: false, line: at, error: 'empty' };
 			paragraphs.push({ num: p[1], text: p[2], items: [] });
 			continue;
 		}
@@ -82,6 +85,7 @@ export function parseArticleBody(raw: string): BodyResult {
 			const num = itemNum(item[1]);
 			const last = current.items[current.items.length - 1];
 			if (last && compareNum(last.num, num) >= 0) return { ok: false, line: at, error: 'itemOrder' };
+			if (!item[2].trim()) return { ok: false, line: at, error: 'empty' };
 			current.items.push({ num, text: item[2] });
 			continue;
 		}
@@ -227,7 +231,6 @@ export type BillValue = {
 	solutionIds: number[];
 };
 
-const KINDS: readonly string[] = ['amend', 'repeal', 'enact'];
 
 /** 任意の欄：空なら null。誤りは checkText と同じ */
 function optional(raw: Text, max: number, multiline: boolean): [string | null, IssueError | null] {
@@ -252,7 +255,7 @@ export function validateBill(
 	ctx: { committeeLawIds: readonly string[]; visibleSolutionIds: ReadonlySet<number> }
 ): { ok: true; value: BillValue } | { ok: false; errors: Partial<Record<BillField, BillError>> } {
 	const errors: Partial<Record<BillField, BillError>> = {};
-	const kind = KINDS.includes(String(raw.kind)) ? (raw.kind as BillKind) : null;
+	const kind = (BILL_KINDS as readonly string[]).includes(String(raw.kind)) ? (raw.kind as BillKind) : null;
 	if (!kind) errors.kind = 'invalid';
 
 	const [title, titleError] = checkText(raw.title, BILL_MAX.title, false);
@@ -286,7 +289,8 @@ export function validateBill(
 	// 対象の法令
 	let newTitle: string | null = null;
 	if (kind) {
-		const laws = raw.laws;
+		// 境界の関数なので、配列でない値も誤りとして返す
+		const laws = Array.isArray(raw.laws) ? raw.laws : [];
 		if (laws.length < 1 || laws.length > BILL_MAX.laws) errors.laws = 'lawCount';
 		else if (!lawShapeOk(kind, laws)) errors.laws = 'lawShape';
 		else if (laws.some((l) => l.lawId !== null && !ctx.committeeLawIds.includes(l.lawId))) errors.laws = 'lawNotInCommittee';
@@ -302,7 +306,7 @@ export function validateBill(
 	if (!Number.isInteger(raw.changeCount) || raw.changeCount < 0 || raw.changeCount > BILL_MAX.changes) errors.changes = 'changeCount';
 
 	// 元になった解決策：1〜5つ、重ならない、表示中のものだけ（形の違う番号は「引用できない解決策」と同じ扱い）
-	const ids = raw.solutionIds.map((s) => (/^[1-9]\d{0,9}$/.test(String(s)) ? Number(s) : NaN));
+	const ids = (Array.isArray(raw.solutionIds) ? raw.solutionIds : []).map((s) => (/^[1-9]\d{0,9}$/.test(String(s)) ? Number(s) : NaN));
 	if (ids.length < 1 || ids.length > BILL_MAX.solutions) errors.solutions = 'solutionCount';
 	else if (new Set(ids.map(String)).size !== ids.length) errors.solutions = 'duplicateSolution';
 	else if (ids.some((id) => !ctx.visibleSolutionIds.has(id))) errors.solutions = 'solutionHidden';

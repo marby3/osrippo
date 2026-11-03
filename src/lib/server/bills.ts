@@ -38,7 +38,8 @@ async function insertContent(db: Db, billId: number, rev: number, input: DraftIn
 			num: c.num,
 			op: c.op,
 			provisionId: c.provisionId,
-			caption: c.caption,
+			// 空の見出しは NULL にそろえる（任意の欄は空なら NULL）
+			caption: c.caption || null,
 			body: c.paragraphs === null ? null : JSON.stringify(c.paragraphs)
 		}))
 	);
@@ -73,16 +74,18 @@ export async function createDraft(db: Db, userId: string, input: DraftInput, now
  */
 export async function saveDraft(db: Db, billId: number, userId: string, expectedRev: number, input: DraftInput, now: number): Promise<boolean> {
 	if (!Number.isInteger(expectedRev) || expectedRev < 1) return false;
-	const editable = and(eq(bills.id, billId), eq(bills.userId, userId), eq(bills.status, 'draft'), savedBill);
+	// kind は作ったあとは変えないので、違う kind の中身は保存しない
+	const editable = and(eq(bills.id, billId), eq(bills.userId, userId), eq(bills.status, 'draft'), eq(bills.kind, input.kind), savedBill);
+	// 開いたときの rev でなければ、子の行を書く前に止める（古い画面から何度押しても行が増えないように）。
+	// 同時の保存は両方ここを通りうるが、最後の UPDATE で片方だけが通る
 	const [taken] = await db
 		.update(bills)
 		.set({ nextRev: sql`${bills.nextRev} + 1` })
-		.where(editable)
+		.where(and(editable, eq(bills.rev, expectedRev)))
 		.returning({ next: bills.nextRev });
 	if (!taken) return false;
 	const rev = taken.next - 1;
 	await insertContent(db, billId, rev, input);
-	// kind は作ったあとは変えない
 	const done = await db
 		.update(bills)
 		.set({ rev, ...fields(input), updatedAt: now })

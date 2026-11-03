@@ -4,6 +4,7 @@ import { check, foreignKey, index, integer, primaryKey, real, sqliteTable, text,
 import { CHANGES } from '../domain/law/history';
 import type { Heading } from '../domain/law/parse';
 import { REACTIONS } from '../domain/solutions';
+import { BILL_KINDS, CHANGE_OPS } from '../domain/bills';
 
 export const laws = sqliteTable('laws', {
 	/** e-Gov の law_id */
@@ -430,10 +431,8 @@ export const committeeLaws = sqliteTable(
 	(t) => [primaryKey({ columns: [t.committeeId, t.lawId] })]
 );
 
-export const BILL_KINDS = ['amend', 'repeal', 'enact'] as const;
 /** v0.4 で withdrawn・passed などを足す。表を作り直さないよう、DB には CHECK を付けない */
 export const BILL_STATUSES = ['draft', 'proposed'] as const;
-export const CHANGE_OPS = ['amend', 'add', 'delete'] as const;
 const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '));
 
 /**
