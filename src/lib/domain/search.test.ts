@@ -27,10 +27,10 @@ test('信頼の境界：検索の言葉は2文字以上・5つまで・60字ま�
 	expect(parseQuery('契約 !!')).toEqual({ ok: false, error: 'short' });
 	expect(parseQuery('あ'.repeat(61))).toEqual({ ok: false, error: 'long' });
 	expect(parseQuery('ああ いい うう ええ おお かか')).toEqual({ ok: false, error: 'long' });
-	// そろえると長くなる文字（U+FDFA は18字になる）
-	expect(parseQuery('ﷺﷺ')).toEqual({ ok: false, error: 'long' });
+	// そろえると長くなる文字（U+FDFA は18字になる。4つで72字）
+	expect(parseQuery(String.fromCodePoint(0xfdfa).repeat(4))).toEqual({ ok: false, error: 'long' });
 	expect(parseQuery('契約\u0007')).toEqual({ ok: false, error: 'control' });
-	expect(parseQuery('契約‮')).toEqual({ ok: false, error: 'control' });
+	expect(parseQuery(`契約${String.fromCodePoint(0x202e)}`)).toEqual({ ok: false, error: 'control' });
 });
 
 test('基準2：該当部分は最初の言葉の前後を切り出し、当たった言葉に印を付ける（大文字・小文字は区別しない）', () => {
