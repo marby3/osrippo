@@ -32,7 +32,17 @@
 	// 解決策への操作を断った理由は、その解決策のところに出す
 	const refusedSolution = $derived(form && 'solution' in form ? form.solution : null);
 	const message = $derived(form && 'message' in form && refusedSolution === null ? form.message : undefined);
-	const reportMessage = $derived(form && 'reportMessage' in form ? form.reportMessage : undefined);
+	// 課題の通報の知らせ（解決策の通報の知らせは、その解決策のところに出す）
+	const reportMessage = $derived(
+		form && 'reportMessage' in form && refusedSolution === null ? form.reportMessage : undefined
+	);
+	/** 解決策への操作の知らせ（断った理由か、通報を受け付けたこと） */
+	const solutionMessage = (id: number) => {
+		if (!form || refusedSolution !== id) return undefined;
+		if ('message' in form) return form.message;
+		if ('reportMessage' in form) return form.reportMessage;
+		return undefined;
+	};
 </script>
 
 <svelte:head>
@@ -111,11 +121,16 @@
 					loggedIn={data.loggedIn}
 					readonly={data.hidden}
 					back="/kadai/{issue.id}"
-					message={refusedSolution === solution.id && form && 'message' in form ? form.message : undefined}
+					message={solutionMessage(solution.id)}
+					reported={data.reportedSolutions.includes(solution.id)}
+					staff={data.staff}
 				/>
 			{/each}
 			{#if data.solutionCount > data.solutions.length}
 				<p><a href="/kadai/{issue.id}/kaiketsu">{ja.solution.all(data.solutionCount)}</a></p>
+			{:else if data.hasHiddenSolutions}
+				<!-- 本人・運営に見せられる非表示の解決策は、解決策の一覧の最後に出す（設計書 docs/spec/36.md 決めたこと4） -->
+				<p><a href="/kadai/{issue.id}/kaiketsu">{ja.solution.showHidden}</a></p>
 			{/if}
 		</section>
 

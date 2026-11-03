@@ -43,7 +43,8 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 			topicName: topics.name,
 			supports,
 			// 「わかる」と同じ JOIN に足すと行が掛け算で増えるので、相関サブクエリで数える（設計書 docs/spec/34.md 決めたこと8）
-			solutions: sql<number>`(SELECT count(*) FROM solutions WHERE solutions.issue_id = ${issues.id})`
+			// 非表示の解決策は数えない（設計書 docs/spec/36.md 決めたこと4）
+			solutions: sql<number>`(SELECT count(*) FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`
 		})
 		.from(issues)
 		.leftJoin(issueSupports, eq(issueSupports.issueId, issues.id))
@@ -54,7 +55,9 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 				inArray(issues.status, ['visible', 'restored']),
 				// 今回のお題がまだないときは、絞り込むと0件
 				q.topic === 'current' ? eq(issues.topicId, topicId ?? -1) : undefined,
-				q.solutions ? sql`EXISTS (SELECT 1 FROM solutions WHERE solutions.issue_id = ${issues.id})` : undefined
+				q.solutions
+					? sql`EXISTS (SELECT 1 FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`
+					: undefined
 			)
 		)
 		.groupBy(issues.id)

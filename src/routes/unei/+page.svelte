@@ -32,7 +32,10 @@
 				{#each data.rows as row (row.id)}
 					<tr>
 						<td data-label={ja.unei.columns.at}>{jaDateTimeFull(row.createdAt)}</td>
-						<td data-label={ja.unei.columns.issue}><a href="/kadai/{row.issueId}">#{row.issueId}</a></td>
+						<!-- 解決策の行は「#[課題] の解決策」。リンクは課題のページへ（解決策の番号は出さない。設計書 docs/spec/36.md 決めたこと6） -->
+						<td data-label={ja.unei.columns.issue}
+							><a href="/kadai/{row.issueId}">#{row.issueId}</a>{#if row.solutionId !== null}{' '}{ja.unei.solutionOf}{/if}</td
+						>
 						<td data-label={ja.unei.columns.action}>{ja.unei.actions[row.action]}</td>
 						<td data-label={ja.unei.columns.actor}>{ja.unei.actors[row.actor]}</td>
 						<td data-label={ja.unei.columns.reason}

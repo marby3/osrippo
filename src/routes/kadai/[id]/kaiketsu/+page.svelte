@@ -6,6 +6,13 @@
 	let { data, form }: PageProps = $props();
 	const refusedSolution = $derived(form && 'solution' in form ? form.solution : null);
 	const message = $derived(form && 'message' in form && refusedSolution === null ? form.message : undefined);
+	/** 解決策への操作の知らせ（断った理由か、通報を受け付けたこと） */
+	const solutionMessage = (id: number) => {
+		if (!form || refusedSolution !== id) return undefined;
+		if ('message' in form) return form.message;
+		if ('reportMessage' in form) return form.reportMessage;
+		return undefined;
+	};
 	const pageHref = (id: number, page: number) => (page > 1 ? `/kadai/${id}/kaiketsu?page=${page}` : `/kadai/${id}/kaiketsu`);
 </script>
 
@@ -40,9 +47,26 @@
 				loggedIn={data.loggedIn}
 				readonly={data.hidden}
 				back={pageHref(data.issue.id, data.page)}
-				message={refusedSolution === solution.id && form && 'message' in form ? form.message : undefined}
+				message={solutionMessage(solution.id)}
+				reported={data.reportedSolutions.includes(solution.id)}
+				staff={data.staff}
 			/>
 		{/each}
+		{#if data.hiddenSolutions.length}
+			<h2>{ja.solution.hiddenHeading}</h2>
+			{#each data.hiddenSolutions as solution (solution.id)}
+				<SolutionCard
+					{solution}
+					loggedIn={data.loggedIn}
+					readonly
+					back={pageHref(data.issue.id, data.page)}
+					staff={data.staff}
+					notice={solution.status === 'auto_hidden'
+						? ja.solution.hiddenAuto
+						: ja.solution.hiddenStaff(ja.hideReasons[solution.statusReason ?? 'other'])}
+				/>
+			{/each}
+		{/if}
 		{#if data.page > 1 || data.hasNext}
 			<nav class="pages">
 				{#if data.page > 1}<a href={pageHref(data.issue.id, data.page - 1)}>{ja.solution.prevPage}</a>{/if}

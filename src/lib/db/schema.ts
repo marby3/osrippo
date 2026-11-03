@@ -313,6 +313,8 @@ export const moderationLogs = sqliteTable(
 		note: text('note'),
 		/** 統合したときの統合先 */
 		mergedInto: integer('merged_into'),
+		/** 解決策への対応のとき（設計書 docs/spec/36.md）。外部キーは付けない（付けると drizzle-kit が表を作り直すおそれがある） */
+		solutionId: integer('solution_id'),
 		createdAt: integer('created_at').notNull()
 	},
 	(t) => [index('moderation_logs_issue').on(t.issueId)]
@@ -332,7 +334,16 @@ export const solutions = sqliteTable(
 			.notNull()
 			.references(() => user.id),
 		body: text('body').notNull(),
-		createdAt: integer('created_at').notNull()
+		createdAt: integer('created_at').notNull(),
+		// 通報と非表示（設計書 docs/spec/36.md）。課題と同じく、status を変えるとトリガー（solutions_status_log）が記録を書く。
+		// トリガーは drizzle/0007_solution_reports.sql に手で書いたもので、drizzle のスナップショットにない。
+		// この表を作り直すマイグレーションでは、トリガーも消えるので書き直すこと
+		status: text('status', { enum: ['visible', 'auto_hidden', 'hidden', 'restored'] }).notNull().default('visible'),
+		statusActor: text('status_actor', { enum: MODERATION_ACTORS }),
+		statusActorUserId: text('status_actor_user_id'),
+		statusReason: text('status_reason', { enum: HIDE_LOG_REASONS }),
+		statusNote: text('status_note'),
+		statusChangedAt: integer('status_changed_at')
 	},
 	(t) => [index('solutions_issue_id').on(t.issueId)]
 );
@@ -355,5 +366,33 @@ export const solutionReactions = sqliteTable(
 	(t) => [
 		primaryKey({ columns: [t.solutionId, t.userId, t.kind] }),
 		check('solution_reactions_kind', sql`${t.kind} IN (${sql.raw(REACTION_KINDS.map((k) => `'${k}'`).join(', '))})`)
+	]
+);
+
+export const SOLUTION_REPORT_REASONS = ['attack', 'spam', 'other', 'none'] as const;
+
+/** 解決策の通報（設計書 docs/spec/36.md）。課題の reports とは別の表（課題の一意の索引を変えないため） */
+export const solutionReports = sqliteTable(
+	'solution_reports',
+	{
+		id: integer('id').primaryKey(),
+		solutionId: integer('solution_id')
+			.notNull()
+			.references(() => solutions.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		reason: text('reason', { enum: SOLUTION_REPORT_REASONS }).notNull(),
+		note: text('note'),
+		counted: integer('counted', { mode: 'boolean' }).notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		unique().on(t.solutionId, t.userId),
+		index('solution_reports_user').on(t.userId, t.createdAt),
+		check(
+			'solution_reports_reason',
+			sql`${t.reason} IN (${sql.raw(SOLUTION_REPORT_REASONS.map((r) => `'${r}'`).join(', '))})`
+		)
 	]
 );

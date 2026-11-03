@@ -8,8 +8,9 @@ import { isHidden, validateReport } from '#lib/domain/reports.ts';
 import { refusalMessage, writeGuard } from '#lib/server/client.ts';
 import { getIssue, issueMeta, setSupport } from '#lib/server/issues.ts';
 import { hasReported, mergedSources, reportIssue, roleOf } from '#lib/server/reports.ts';
-import { reactAction } from '#lib/server/solution-actions.ts';
-import { listSolutions, solutionCount } from '#lib/server/solutions.ts';
+import { reactAction, reportSolutionAction } from '#lib/server/solution-actions.ts';
+import { listHiddenSolutions, listSolutions, reportedSolutionIds, solutionCount } from '#lib/server/solutions.ts';
+import type { Db } from '#lib/server/law.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
 /** 課題のページに出す解決策の数（設計書 docs/spec/34.md 決めたこと3） */
@@ -45,12 +46,26 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 		loggedIn: userId !== null,
 		reported: userId !== null && (await hasReported(db, id, userId)),
 		sources: await mergedSources(db, id),
-		solutions: await listSolutions(db, id, userId, TOP_SOLUTIONS),
-		solutionCount: await solutionCount(db, id),
+		...(await solutionsFor(db, id, userId, staff)),
 		// 似た課題から「わかる」で来た人だけに、解決策を書く案内を出す（URL を共有された人には出さない）
 		fromSimilar: url.searchParams.get('from') === 'nita' && userId !== null && !hidden && issue.supported
 	};
 };
+
+/** 課題のページの解決策：表示中の上位3件と数、見る人が通報した解決策、本人・運営に見せられる非表示の解決策があるか */
+async function solutionsFor(db: Db, id: number, userId: string | null, staff: boolean) {
+	const solutions = await listSolutions(db, id, userId, TOP_SOLUTIONS);
+	return {
+		solutions,
+		solutionCount: await solutionCount(db, id),
+		reportedSolutions: await reportedSolutionIds(
+			db,
+			userId,
+			solutions.map((s) => s.id)
+		),
+		hasHiddenSolutions: (await listHiddenSolutions(db, id, userId, staff)).length > 0
+	};
+}
 
 /** 番号の形と課題があるかを、ログインより先に確かめる。そのあとログイン → 国 → 締め出し */
 async function prepare(event: RequestEvent) {
@@ -68,6 +83,7 @@ async function prepare(event: RequestEvent) {
 
 export const actions: Actions = {
 	react: (event) => reactAction(event, (id) => `/kadai/${id}`),
+	reportSolution: (event) => reportSolutionAction(event, (id) => `/kadai/${id}`),
 	support: async (event) => {
 		const { id, db, meta, now, guard } = await prepare(event);
 		if (!guard.ok) return guard.failure;
