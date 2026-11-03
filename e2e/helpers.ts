@@ -41,7 +41,14 @@ export async function stubTurnstile(page: Page, token = 'test-pass') {
 /** 回線（IP）と国を決めた、新しいブラウザのコンテキスト（レート制限の数えがテストどうしで混ざらないように） */
 export async function newUser(
 	browser: Browser,
-	{ name, ip, days = 2, country, token }: { name?: string; ip: string; days?: number; country?: string; token?: string }
+	{
+		name,
+		ip,
+		days = 2,
+		country,
+		token,
+		role
+	}: { name?: string; ip: string; days?: number; country?: string; token?: string; role?: 'moderator' | 'operator' }
 ): Promise<{ context: BrowserContext; page: Page }> {
 	const context = await browser.newContext({
 		baseURL: ORIGIN,
@@ -49,13 +56,13 @@ export async function newUser(
 	});
 	const page = await context.newPage();
 	await stubTurnstile(page, token);
-	if (name) await loginAs(page, name, days);
+	if (name) await loginAs(page, name, days, role);
 	return { context, page };
 }
 
-/** テスト用のログイン。days は登録した日を何日前にするか（新しいアカウントの制限を避ける） */
-export async function loginAs(page: Page, name: string, days = 2) {
-	await page.goto(`/test-login?name=${encodeURIComponent(name)}&days=${days}`);
+/** テスト用のログイン。days は登録した日を何日前にするか（新しいアカウントの制限を避ける）。role は運営・運営協力者 */
+export async function loginAs(page: Page, name: string, days = 2, role?: 'moderator' | 'operator') {
+	await page.goto(`/test-login?name=${encodeURIComponent(name)}&days=${days}${role ? `&role=${role}` : ''}`);
 	await expect(page.getByText(`テスト用のログイン：${name}`)).toBeVisible();
 }
 
@@ -89,6 +96,24 @@ export async function postIssue(page: Page, f: IssueFields): Promise<number> {
 export function supportRequest(page: Page, id: number | string, op: string | undefined) {
 	return page.request.post(`/kadai/${id}?/support`, {
 		form: op === undefined ? {} : { op },
+		headers: { origin: ORIGIN, accept: 'text/html' },
+		maxRedirects: 0
+	});
+}
+
+/** 通報のフォームと同じ POST */
+export function reportRequest(page: Page, id: number | string, form: Record<string, string> = {}) {
+	return page.request.post(`/kadai/${id}?/report`, {
+		form,
+		headers: { origin: ORIGIN, accept: 'text/html' },
+		maxRedirects: 0
+	});
+}
+
+/** 運営の画面の操作と同じ POST */
+export function staffRequest(page: Page, action: 'hide' | 'restore', form: Record<string, string>) {
+	return page.request.post(`/kanri?/${action}`, {
+		form,
 		headers: { origin: ORIGIN, accept: 'text/html' },
 		maxRedirects: 0
 	});

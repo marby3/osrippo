@@ -14,7 +14,8 @@ export type IssueValidation =
 const CONTROL = /[\p{Cc}‪-‮⁦-⁩]/u;
 const CONTROL_EXCEPT_NEWLINE = /(?!\n)[\p{Cc}‪-‮⁦-⁩]/u;
 
-function checkText(raw: string | null | undefined, max: number, multiline: boolean): [string, IssueError | null] {
+/** 前後の空白を除き、改行を \n にそろえて確かめる（通報と運営のメモでも使う） */
+export function checkText(raw: string | null | undefined, max: number, multiline: boolean): [string, IssueError | null] {
 	const text = (raw ?? '').replace(/\r\n?/g, '\n').trim();
 	if (!text) return [text, 'required'];
 	if (!multiline && text.includes('\n')) return [text, 'newline'];
@@ -61,8 +62,15 @@ export function parseListQuery(params: URLSearchParams): ListQuery | null {
 	const page = params.get('page');
 	if (sort !== null && sort !== 'new' && sort !== 'rising') return null;
 	if (topic !== null && topic !== 'current') return null;
-	if (page !== null && !/^(?:[2-9]|[1-9]\d{1,3})$/.test(page)) return null;
-	return { sort: sort ?? 'support', topic: topic ?? 'all', page: page === null ? 1 : Number(page) };
+	const pageNumber = parsePage(page);
+	if (pageNumber === null) return null;
+	return { sort: sort ?? 'support', topic: topic ?? 'all', page: pageNumber };
+}
+
+/** ページの番号：なければ1。2〜9999 の整数（先頭の0なし）だけ。1ページ目は page なしの URL だけなので、page=1 は形が違う */
+export function parsePage(raw: string | null): number | null {
+	if (raw === null) return 1;
+	return /^(?:[2-9]|[1-9]\d{1,3})$/.test(raw) ? Number(raw) : null;
 }
 
 /** 一覧の URL（既定の値は書かない） */

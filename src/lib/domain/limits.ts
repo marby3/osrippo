@@ -20,10 +20,19 @@ export const LIMITS = {
 	supportAccountsPerIp: 3,
 	/** 24時間にこの回数の違反で締め出す（fail2ban の考え方） */
 	violationsToBan: 3,
+	/** 通報：1アカウント24時間（設計書 docs/spec/28.md 決めたこと2） */
+	reportPerDay: 10,
 	banLength: DAY
 } as const;
 
-export type RefusalKind = 'post-account' | 'post-new' | 'post-ip' | 'support-day' | 'support-burst' | 'support-ip';
+export type RefusalKind =
+	| 'post-account'
+	| 'post-new'
+	| 'post-ip'
+	| 'support-day'
+	| 'support-burst'
+	| 'support-ip'
+	| 'report-day';
 export type Refusal = { kind: RefusalKind; retryAt?: number };
 
 /** 違反に数えるか。回線ごとの上限は同じ回線の別の人のせいで当たることがあり、登録したばかりの上限は試しているうちに締め出されないよう、数えない */
@@ -33,7 +42,8 @@ export const COUNTS_AS_VIOLATION: Record<RefusalKind, boolean> = {
 	'post-ip': false,
 	'support-day': true,
 	'support-burst': true,
-	'support-ip': false
+	'support-ip': false,
+	'report-day': true
 };
 
 /** 課題の投稿。accountPostTimes はそのアカウントの直近24時間の投稿の時刻 */

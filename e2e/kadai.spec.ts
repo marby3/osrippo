@@ -10,6 +10,9 @@ test.afterEach(async () => {
 /** テストごと・幅ごとに別の回線（IP）にする */
 const ip = (project: string, test: number, n: number) => `10.${project === 'sp' ? 1 : 2}.${test}.${n}`;
 
+/** ハイドレーションが済むまで待つ（済む前に入力すると、段の切り替えやフォームの送り方が変わる） */
+const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
+
 /** 一覧に並んだ課題のタイトル（上から） */
 const listedTitles = (page: Page) =>
 	page.locator('main a[href^="/kadai/"]:not([href="/kadai/kaku"])').allInnerTexts();
@@ -118,11 +121,13 @@ test('基準2：3つの段で課題を書くと、課題のページに書いた
 
 	// ログインしていなければ、ログインの画面へ
 	await page.goto('/kadai/kaku');
+	await hydrated(page);
 	await expect(page).toHaveURL('/login?next=%2Fkadai%2Fkaku');
 
 	const { context, page: a } = await newUser(browser, { name: `write-${p}`, ip: ip(p, 2, 1), days: 0 });
 	contexts.push(context);
 	await a.goto('/kadai/kaku');
+	await hydrated(a);
 	await a.getByLabel('何に困っていますか？').fill(title);
 	await a.getByRole('button', { name: '次へ' }).click();
 	await a.getByLabel('困っている人').fill('ネット通販で定期購入を申し込んだ人');
@@ -147,6 +152,7 @@ test('基準3：入力に誤りがあれば保存せず、その欄の横に理�
 	const title = `長すぎるタイトル ${p}-${Date.now()} `.padEnd(61, 'あ');
 
 	await page.goto('/kadai/kaku');
+	await hydrated(page);
 	const field = page.getByLabel('何に困っていますか？');
 	// ブラウザの検証を外して、サーバーの判定を確かめる
 	await field.evaluate((el) => el.removeAttribute('maxlength'));
@@ -210,6 +216,7 @@ test('基準5：Turnstile が通らなければ、課題を保存せず、ログ
 	const title = `通らない ${p}-${Date.now()}`;
 
 	await page.goto('/kadai/kaku');
+	await hydrated(page);
 	await page.getByLabel('何に困っていますか？').fill(title);
 	await page.getByRole('button', { name: '次へ' }).click();
 	await page.getByLabel('困っている人').fill('困っている人');
@@ -302,7 +309,7 @@ test('基準7・8（画面）：断ったときは理由を、締め出したと
 	await supportRequest(page, id, 'add');
 	const banned = await supportRequest(page, id, 'add');
 	expect(banned.status()).toBe(429);
-	expect(await banned.text()).toMatch(/制限を何度も超えたため、\d+月\d+日 \d+時\d{2}分まで、課題の投稿と「わかる」ができません/);
+	expect(await banned.text()).toMatch(/制限を何度も超えたため、\d+月\d+日 \d+時\d{2}分まで、課題の投稿・「わかる」・通報ができません/);
 	// 締め出しの間は、課題の投稿もできない
 	const posted = await postIssueRequest(page, { title: `締め出し中 ${p}` });
 	expect(posted.status()).toBe(429);

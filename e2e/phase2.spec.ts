@@ -18,7 +18,8 @@ async function loginAs(browser: Browser, name: string): Promise<Page> {
 	const page = await context.newPage();
 	// Turnstile は外部の api.js を読まず、通るトークンを入れる（Issue #25 設計書 決めたこと8）
 	await stubTurnstile(page);
-	await page.goto(`/test-login?name=${encodeURIComponent(name)}`);
+	// 登録から2日たった利用者にする（登録から24時間の通報は自動非表示の数に入れない。Issue #28 設計書）
+	await page.goto(`/test-login?name=${encodeURIComponent(name)}&days=2`);
 	await expect(page.getByText(`テスト用のログイン：${name}`)).toBeVisible();
 	return page;
 }
