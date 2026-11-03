@@ -151,7 +151,7 @@ test('基準6：課題の一覧の「課題を探す」で課題だけを探し�
 	const author = await user(browser, `ks6-author-${p}-${c}`, ip(p, 6, 1));
 	const a = await postIssue(author, { title: `${c} 探す課題1` });
 	await postIssue(author, { title: `${c} 探す課題2` });
-	await postIssue(author, { title: `関係のない課題 ${p}-${c}` });
+	await postIssue(author, { title: `関係のない課題 ${p}` });
 	const writer = await user(browser, `ks6-writer-${p}-${c}`, ip(p, 6, 2));
 	expect((await solutionRequest(writer, a, '解決策')).status()).toBe(303);
 
