@@ -1,5 +1,5 @@
 // 似た課題の判定（設計書 docs/spec/30.md「似ている度合い」）。タイトルの2文字ずつの組の重なり（Dice 係数）
-// 判定を差し替えるとき（Jev など。Issue #31）は rankSimilar を入れ替える
+// 判定を差し替えるとき（TypeSafe AI の System One モデル Jev など。Issue #31）は、ここの関数を入れ替える
 
 /** NFKC にそろえ、英字を小文字にし、空白・句読点・記号を除く */
 const normalize = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[\p{P}\p{S}\s]/gu, '');
@@ -27,6 +27,19 @@ export function similarity(a: string, b: string): { common: number; score: numbe
 export const SIMILAR_MIN_COMMON = 2;
 export const SIMILAR_MIN_SCORE = 0.2;
 export const SIMILAR_LIMIT = 3;
+
+/**
+ * 「わかる」の数を数える前の足切り：条件を満たすものを度合いの高い順（同じなら新しい順）に limit 件まで。
+ * D1 が読む行を減らすため、タイトルだけで絞ってから、残った候補だけ「わかる」を数える
+ */
+export function preselectSimilar<T extends { id: number; title: string }>(query: string, candidates: T[], limit = 30): T[] {
+	return candidates
+		.map((c) => ({ c, ...similarity(query, c.title) }))
+		.filter((r) => r.common >= SIMILAR_MIN_COMMON && r.score >= SIMILAR_MIN_SCORE)
+		.sort((a, b) => b.score - a.score || b.c.id - a.c.id)
+		.slice(0, limit)
+		.map((r) => r.c);
+}
 
 /** 共通の組が2つ以上・度合い0.2以上を、度合い → わかるの数 → 新しい順に3件まで */
 export function rankSimilar<T extends { id: number; title: string; supports: number }>(query: string, candidates: T[]): T[] {

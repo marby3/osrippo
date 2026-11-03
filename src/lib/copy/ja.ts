@@ -99,12 +99,14 @@ export const ja = {
 		lead: '同じ困りごとなら、「わかる」を付けるだけで十分です。',
 		supports: (n: number) => `わかる ${n}`,
 		supportThis: 'これに「わかる」を付ける',
-		nextDifferent: 'どれとも違うので、次へ'
+		nextDifferent: 'どれとも違うので、次へ',
+		failed: '「わかる」を付けられませんでした。もう一度お試しください。'
 	},
 	/** 統合（設計書 docs/spec/30.md） */
 	merge: {
 		sourcesHeading: 'この課題にまとめた課題',
 		mergedInto: (id: number) => `この課題は #${id} にまとめられました`,
+		pageTitle: (id: number) => `この課題は #${id} にまとめられました｜オープンソース立法府`,
 		mergedOp: '統合された課題には操作できません',
 		target: '統合先の課題の番号',
 		check: '確かめる',

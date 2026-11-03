@@ -2,6 +2,7 @@
 import { and, count, countDistinct, desc, eq, gt, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
 import { issueSupports, issues, moderationLogs, reports, user, type ROLES } from '../db/schema';
 import { PAGE_SIZE } from '../domain/issues';
+import { preselectSimilar, rankSimilar } from '../domain/similar';
 import { DAY, LIMITS } from '../domain/limits';
 import {
 	countsTowardHide,
@@ -222,7 +223,10 @@ export async function mergeIssue(
 				ne(issues.id, targetId),
 				inArray(issues.status, LISTED),
 				// 統合先も一覧に出る状態のときだけ（同じ文の中で確かめる）
-				sql`EXISTS (SELECT 1 FROM issues AS t WHERE t.id = ${targetId} AND t.status IN ('visible', 'restored'))`
+				sql`EXISTS (SELECT 1 FROM issues AS t WHERE t.id = ${targetId} AND t.status IN (${sql.join(
+					LISTED.map((s) => sql`${s}`),
+					sql`, `
+				)}))`
 			)
 		)
 		.returning({ id: issues.id });
@@ -238,12 +242,18 @@ export async function mergedSources(db: Db, targetId: number) {
 		.orderBy(desc(issues.statusChangedAt), desc(issues.id));
 }
 
-/** 似た課題の候補：一覧に出る課題のタイトルとわかるの数（設計書 docs/spec/30.md 決めたこと1） */
-export async function similarCandidates(db: Db) {
-	return db
-		.select({ id: issues.id, title: issues.title, supports: count(issueSupports.userId) })
-		.from(issues)
-		.leftJoin(issueSupports, eq(issueSupports.issueId, issues.id))
-		.where(inArray(issues.status, LISTED))
-		.groupBy(issues.id);
+/** 似た課題（設計書 docs/spec/30.md 決めたこと1）：一覧に出る課題のタイトルだけを読んで絞り、残った候補だけ「わかる」を数える */
+export async function findSimilar(db: Db, query: string) {
+	const titles = await db.select({ id: issues.id, title: issues.title }).from(issues).where(inArray(issues.status, LISTED));
+	const picked = preselectSimilar(query, titles);
+	if (picked.length === 0) return [];
+	const counts = await db
+		.select({ id: issueSupports.issueId, n: count() })
+		.from(issueSupports)
+		.where(inArray(issueSupports.issueId, picked.map((p) => p.id)))
+		.groupBy(issueSupports.issueId);
+	return rankSimilar(
+		query,
+		picked.map((p) => ({ ...p, supports: counts.find((c) => c.id === p.id)?.n ?? 0 }))
+	);
 }

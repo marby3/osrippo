@@ -25,10 +25,11 @@ BEGIN
 		NEW.`merged_into`,
 		NEW.`status_changed_at`
 	);
-	-- トリガーの中では UPSERT（ON CONFLICT）が使えないので、主キーの重なりは OR IGNORE で捨てる（写す列はどれも NOT NULL の元の行から来る）
-	INSERT OR IGNORE INTO `issue_supports` (`issue_id`, `user_id`, `created_at`)
+	-- 主キーの重なり（両方に付けた人）だけを捨てる。OR IGNORE だと NOT NULL 違反なども黙って捨てるので使わない
+	INSERT INTO `issue_supports` (`issue_id`, `user_id`, `created_at`)
 	SELECT NEW.`merged_into`, `user_id`, `created_at` FROM `issue_supports`
-	WHERE `issue_id` = NEW.`id` AND NEW.`status` = 'merged';
+	WHERE `issue_id` = NEW.`id` AND NEW.`status` = 'merged' AND NEW.`merged_into` IS NOT NULL
+	ON CONFLICT (`issue_id`, `user_id`) DO NOTHING;
 	UPDATE `issues` SET `merged_into` = NEW.`merged_into`
-	WHERE `merged_into` = NEW.`id` AND NEW.`status` = 'merged';
+	WHERE `merged_into` = NEW.`id` AND NEW.`status` = 'merged' AND NEW.`merged_into` IS NOT NULL;
 END;

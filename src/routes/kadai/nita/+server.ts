@@ -3,8 +3,7 @@ import { error, json } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { ISSUE_MAX } from '#lib/domain/issues.ts';
-import { rankSimilar } from '#lib/domain/similar.ts';
-import { similarCandidates } from '#lib/server/reports.ts';
+import { findSimilar } from '#lib/server/reports.ts';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -18,5 +17,5 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const q = typeof body === 'object' && body !== null && !Array.isArray(body) ? (body as { q?: unknown }).q : undefined;
 	if (typeof q !== 'string' || [...q].length > ISSUE_MAX.title) error(400);
 	if (!q.trim()) return json({ issues: [] });
-	return json({ issues: rankSimilar(q, await similarCandidates(drizzle(env.DB))) });
+	return json({ issues: await findSimilar(drizzle(env.DB), q) });
 };

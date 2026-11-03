@@ -69,10 +69,11 @@ const act = (action: 'hide' | 'restore' | 'merge') => async (event: RequestEvent
 	const now = Date.now();
 
 	if (action === 'merge') {
-		const can = await checkMerge(db, issueId, targetId!, staff.userId);
+		if (targetId === undefined) return fail(400, { message: ja.kanri.invalid, issueId: null });
+		const can = await checkMerge(db, issueId, targetId, staff.userId);
 		if (!can.ok) return fail(can.status, { message: can.message, issueId });
 		// 確かめたあとに状態が変わっていたら（同時の操作）、統合しない
-		if (!(await mergeIssue(db, issueId, targetId!, staff, note, now))) return fail(400, { message: ja.merge.targetInvalid, issueId });
+		if (!(await mergeIssue(db, issueId, targetId, staff, note, now))) return fail(400, { message: ja.merge.targetInvalid, issueId });
 		return { done: issueId };
 	}
 

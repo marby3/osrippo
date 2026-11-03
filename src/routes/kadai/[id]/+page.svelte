@@ -24,7 +24,7 @@
 
 <svelte:head>
 	{#if data.view === 'merged'}
-		<title>{ja.merge.mergedInto(data.mergedInto)}</title>
+		<title>{ja.merge.pageTitle(data.mergedInto)}</title>
 	{:else if data.view === 'hidden'}
 		<title>{ja.hidden.pageTitle}</title>
 	{:else}

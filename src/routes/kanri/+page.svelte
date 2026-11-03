@@ -41,6 +41,8 @@
 				</ul>
 			{/if}
 
+			<!-- 統合できないときの理由は、操作の欄を出さない課題（自分の課題、統合した課題）でも出す -->
+			{#if data.merge && !data.merge.ok && data.focus === row.id}<p role="alert">{data.merge.error}</p>{/if}
 			<!-- 自分の課題と、統合した課題には操作の欄を出さない -->
 			{#if !row.mine && row.status !== 'merged'}
 				{#if HIDEABLE.includes(row.status)}
@@ -75,10 +77,8 @@
 						<button>{ja.merge.check}</button>
 					</form>
 				{/if}
-				{#if data.merge && data.focus === row.id}
-					{#if !data.merge.ok}
-						<p role="alert">{data.merge.error}</p>
-					{:else}
+				{#if data.merge?.ok && data.focus === row.id}
+					{#if data.merge.ok}
 						<form method="post" action="?issue={row.id}&merge={data.merge.targetId}&/merge" use:enhance class="confirm">
 							<p>{ja.merge.confirm(row.id, data.merge.source, data.merge.targetId, data.merge.target)}</p>
 							<p><strong>{ja.merge.irreversible}</strong></p>

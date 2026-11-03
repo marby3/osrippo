@@ -59,10 +59,12 @@
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ q })
 				});
-				if (mine !== asked || !res.ok) return;
-				similar = ((await res.json()) as { issues: Similar[] }).issues;
+				if (mine !== asked) return;
+				// 答えを入れ替えたら、前のカードの断り文は消す。失敗したら古い候補も消す（似た課題は出なくても書ける）
+				supportError = '';
+				similar = res.ok ? ((await res.json()) as { issues: Similar[] }).issues : [];
 			} catch {
-				// 似た課題は出なくても書ける
+				if (mine === asked) similar = [];
 			}
 		}, 400);
 	}
@@ -71,7 +73,7 @@
 	const supportThis = (id: number) => () => async ({ result }: { result: { type: string; data?: Record<string, unknown>; location?: string } }) => {
 		if (result.type === 'success') await goto(`/kadai/${id}`);
 		else if (result.type === 'redirect' && result.location) await goto(result.location);
-		else supportError = String(result.data?.message ?? ja.guard.turnstileFailed);
+		else supportError = String(result.data?.message ?? ja.similar.failed);
 	};
 
 	/** その段の欄をブラウザの検証で確かめてから進む */
@@ -202,6 +204,8 @@
 	</form>
 
 	<!-- 主のフォームの中にフォームは置けないので、似た課題の欄は外に置く（PC は右に並べる） -->
+	<!-- 打っている間に現れるので、読み上げにも知らせる（aria-live の入れ物はいつも置く） -->
+	<div class="similar-live" aria-live="polite">
 	{#if js && step === 1 && similar.length}
 		<aside class="similar">
 			<h2>{ja.similar.heading}</h2>
@@ -223,6 +227,7 @@
 			</ul>
 		</aside>
 	{/if}
+	</div>
 </main>
 
 <style>
@@ -288,11 +293,11 @@
 			max-width: 76rem;
 		}
 
-		main > :not(.similar) {
+		main > :not(.similar-live) {
 			grid-column: 1;
 		}
 
-		.similar {
+		.similar-live {
 			grid-column: 2;
 			grid-row: 1 / span 3;
 			align-self: start;
