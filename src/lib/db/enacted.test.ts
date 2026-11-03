@@ -84,9 +84,11 @@ describe('制定された法令（Issue #18）', () => {
 
 	test('基準3：改正履歴に制定の版を並べず、制定の日を別に持つ', async () => {
 		const page = (await lawPage(enacted, LAW))!;
-		expect(page.enforced.map((r) => r.date)).not.toContain(ENACTED);
-		expect(page.enforced.at(-1)!.date > ENACTED).toBe(true);
+		const realPage = (await lawPage(real, LAW))!;
+		// 本物の改正履歴（新しい順）のいちばん古い行が、ここでの制定の版。同じ日のもう1つの版は制定のあとの改正なので残る
+		expect(realPage.enforced.at(-1)!.date).toBe(ENACTED);
+		expect(page.enforced).toEqual(realPage.enforced.slice(0, -1));
 		expect(page.enacted).toBe(ENACTED);
-		expect((await lawPage(real, LAW))!.enacted).toBeNull();
+		expect(realPage.enacted).toBeNull();
 	});
 });
