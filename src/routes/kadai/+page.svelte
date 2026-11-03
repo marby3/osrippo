@@ -19,7 +19,7 @@
 <main>
 	<header>
 		<h1>{ja.issue.heading}</h1>
-		<a class="write" href="/kadai/kaku">＋ {ja.issue.write}</a>
+		<a class="write" href="/kadai/kaku"><span aria-hidden="true">＋</span> {ja.issue.write}</a>
 	</header>
 
 	<div class="controls">
@@ -50,8 +50,8 @@
 	</div>
 
 	{#if data.rows.length === 0}
+		<!-- 「課題を書く」は見出しの横の1つだけ -->
 		<p class="empty">{q.topic === 'current' ? ja.issue.emptyTopic : ja.issue.empty}</p>
-		<a href="/kadai/kaku">{ja.issue.write}</a>
 	{:else}
 		<table>
 			<thead>
