@@ -12,6 +12,8 @@ import {
 	type Refusal
 } from '../domain/limits';
 import type { Db } from './law';
+import { indexTexts, issueMatchSql } from './search';
+import type { Word } from '../domain/search';
 
 /** 押す操作として合わせて数える actions の種類 */
 export const PRESS_KINDS = ['support_add', 'support_remove', 'reaction_add', 'reaction_remove'] as const;
@@ -28,7 +30,8 @@ export async function currentTopic(db: Db) {
 	return row ?? null;
 }
 
-export async function listIssues(db: Db, q: ListQuery, topicId: number | null, now: number) {
+/** words は「課題を探す」の言葉（空なら探さない。設計書 docs/spec/38.md 決めたこと5） */
+export async function listIssues(db: Db, q: ListQuery, topicId: number | null, now: number, words: Word[] = []) {
 	const supports = sql<number>`count(${issueSupports.userId})`;
 	const recent = sql<number>`count(case when ${issueSupports.createdAt} > ${now - RISING_WINDOW} then 1 end)`;
 	const order = {
@@ -57,7 +60,8 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 				q.topic === 'current' ? eq(issues.topicId, topicId ?? -1) : undefined,
 				q.solutions
 					? sql`EXISTS (SELECT 1 FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`
-					: undefined
+					: undefined,
+				words.length ? sql`${issues.id} IN (${issueMatchSql(words)})` : undefined
 			)
 		)
 		.groupBy(issues.id)
@@ -155,6 +159,8 @@ export async function createIssue(db: Db, actor: Actor, value: IssueInput, now: 
 		.values({ ...value, userId: actor.userId, createdAt: now })
 		.returning({ id: issues.id });
 	await db.insert(actions).values({ kind: 'issue_post', userId: actor.userId, ipHash: actor.ipHash, targetId: row.id, createdAt: now });
+	// 全文検索の行（題名・困っている人・具体例を別の行に。設計書 docs/spec/38.md「行の作り方」）
+	await indexTexts(db, 'issue', row.id, [value.title, value.affected, value.example]);
 	return { ok: true as const, id: row.id };
 }
 

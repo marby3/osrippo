@@ -14,6 +14,7 @@ import type { Reaction } from '../domain/solutions';
 import { PRESS_KINDS, refuse, type Actor } from './issues';
 import type { Db } from './law';
 import { reportsInDay, type Role } from './reports';
+import { indexTexts } from './search';
 
 /** 表示中の解決策の状態（解決策には merged がない） */
 const SHOWN = ['visible', 'restored'] as const;
@@ -45,6 +46,8 @@ export async function createSolution(db: Db, actor: Actor, issueId: number, body
 		)}))
 		RETURNING id`);
 	if (rows.length === 0) return { ok: true as const, created: false as const };
+	// 全文検索の行（設計書 docs/spec/38.md「行の作り方」）
+	await indexTexts(db, 'solution', rows[0].id, [body]);
 	await db
 		.insert(actions)
 		.values({ kind: 'solution_post', userId: actor.userId, ipHash: actor.ipHash, targetId: rows[0].id, createdAt: now });

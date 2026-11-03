@@ -1,5 +1,6 @@
 // e-Gov のデータ（今はテストデータ）から、法令と版の DB に入れる SQL を作る（設計書 docs/spec/8.md）
 import { BASELINE_DATE, buildHistory, parseHeadings, parseLaw, type EgovNode } from '../domain/law';
+import { searchTexts } from '../domain/search';
 
 /** 対象3法：景品表示法、特定商取引法、消費者契約法（法令ID順） */
 export const TARGET_LAWS = ['337AC0000000134', '351AC0000000057', '412AC0000000061'];
@@ -73,6 +74,10 @@ export function seedStatements(lawIds: string[], load: (name: string) => unknown
 		rows: []
 	};
 
+	// 全文検索の行（設計書 docs/spec/38.md「行の作り方」）。条は見出し、項・号は本文。どの版の行かは引くときに決める
+	const trigram: Table = { name: 'search_trigram', columns: ['kind', 'ref_id', 'text'], rows: [] };
+	const bigram: Table = { name: 'search_bigram', columns: ['kind', 'ref_id', 'text'], rows: [] };
+
 	let nextId = 1;
 	let nextVersionId = 1;
 	for (const lawId of [...lawIds].sort()) {
@@ -110,8 +115,14 @@ export function seedStatements(lawIds: string[], load: (name: string) => unknown
 		nextId = history.nextId;
 		for (const p of history.provisions) provisions.rows.push([p.id, lawId, p.kind, p.parentId]);
 		for (const v of history.versions) {
+			const versionId = nextVersionId++;
+			const search = searchTexts(v.caption ?? v.text ?? '');
+			if (search) {
+				trigram.rows.push(['provision', versionId, search.trigram]);
+				bigram.rows.push(['provision', versionId, search.bigram]);
+			}
 			versions.rows.push([
-				nextVersionId++,
+				versionId,
 				v.provisionId,
 				v.fromRevisionId,
 				v.toRevisionId,
@@ -124,6 +135,6 @@ export function seedStatements(lawIds: string[], load: (name: string) => unknown
 			]);
 		}
 	}
-	// 外部キーを満たす順：laws → law_revisions → provisions（ID順）→ provision_versions
-	return [laws, revisions, provisions, versions].flatMap(inserts);
+	// 外部キーを満たす順：laws → law_revisions → provisions（ID順）→ provision_versions → 検索の行
+	return [laws, revisions, provisions, versions, trigram, bigram].flatMap(inserts);
 }
