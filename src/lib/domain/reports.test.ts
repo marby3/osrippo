@@ -1,6 +1,6 @@
 // Issue #28 信頼の境界：通報の入力と、運営の操作の入力（設計書 docs/spec/28.md 決めたこと2・5）
 import { expect, test } from 'vitest';
-import { validateReport, validateStaffAction } from './reports';
+import { validateReport, validateSolutionAction, validateSolutionReport, validateStaffAction } from './reports';
 
 test('通報：理由は4つか空（none）。説明は「その他」のときだけ受け取り、200字まで・制御文字なし', () => {
 	expect(validateReport({ reason: 'attack', note: null })).toEqual({ ok: true, value: { reason: 'attack', note: null } });
@@ -61,4 +61,35 @@ test('信頼の境界（Issue #30）：統合の操作は、課題の番号・�
 	}
 	expect(validateStaffAction({ issue: '3', target: '7', note: '' }, 'merge')).toEqual({ ok: false });
 	expect(validateStaffAction({ issue: 'x', target: '7', note: 'メモ' }, 'merge')).toEqual({ ok: false });
+});
+
+test('信頼の境界（Issue #36）：解決策の通報は、理由が3つか空（「同じ課題がほかにある」はない）', () => {
+	expect(validateSolutionReport({ reason: 'spam', note: null })).toEqual({ ok: true, value: { reason: 'spam', note: null } });
+	expect(validateSolutionReport({ reason: '', note: null })).toEqual({ ok: true, value: { reason: 'none', note: null } });
+	expect(validateSolutionReport({ reason: 'other', note: ' 説明 ' })).toEqual({ ok: true, value: { reason: 'other', note: '説明' } });
+	for (const reason of ['duplicate', 'none', 'ATTACK']) {
+		expect(validateSolutionReport({ reason, note: null }), reason).toEqual({ ok: false });
+	}
+	expect(validateSolutionReport({ reason: 'other', note: 'あ'.repeat(201) })).toEqual({ ok: false });
+});
+
+test('信頼の境界（Issue #36）：解決策への運営の操作は、解決策の番号・理由（非表示のみ）・メモ', () => {
+	expect(validateSolutionAction({ solution: '12', reason: 'attack', note: 'メモ' }, 'hide')).toEqual({
+		ok: true,
+		value: { solutionId: 12, reason: 'attack', note: 'メモ' }
+	});
+	expect(validateSolutionAction({ solution: '12', reason: null, note: '問題なし' }, 'restore')).toEqual({
+		ok: true,
+		value: { solutionId: 12, reason: null, note: '問題なし' }
+	});
+	for (const raw of [
+		{ solution: 'abc', reason: 'spam', note: 'メモ' },
+		{ solution: '012', reason: 'spam', note: 'メモ' },
+		{ solution: null, reason: 'spam', note: 'メモ' },
+		{ solution: '1', reason: 'duplicate', note: 'メモ' },
+		{ solution: '1', reason: 'spam', note: '' },
+		{ solution: '1', reason: 'spam', note: 'a\u0007b' }
+	]) {
+		expect(validateSolutionAction(raw, 'hide'), JSON.stringify(raw)).toEqual({ ok: false });
+	}
 });
