@@ -90,3 +90,65 @@ export const provisionVersions = sqliteTable(
 		check('provision_versions_change', sql`${t.change} IN (${sql.raw(CHANGES.map((c) => `'${c}'`).join(', '))})`)
 	]
 );
+
+// ログイン（設計書 docs/spec/23.md）。Better Auth の4つの表。キーは Better Auth の項目名に合わせる
+
+const timestamps = {
+	createdAt: integer('created_at', { mode: 'timestamp_ms' })
+		.notNull()
+		.default(sql`(unixepoch() * 1000)`),
+	updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+		.notNull()
+		.default(sql`(unixepoch() * 1000)`)
+};
+
+export const user = sqliteTable('user', {
+	id: text('id').primaryKey(),
+	/** 表示名（「参加者」＋6桁。一意） */
+	name: text('name').notNull().unique(),
+	/** 提供元ごとの架空のメール（{provider}-{accountId}@users.invalid）。画面に出さない */
+	email: text('email').notNull().unique(),
+	emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
+	/** 提供元の画像は保存しない */
+	image: text('image'),
+	...timestamps
+});
+
+export const session = sqliteTable('session', {
+	id: text('id').primaryKey(),
+	expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+	token: text('token').notNull().unique(),
+	ipAddress: text('ip_address'),
+	userAgent: text('user_agent'),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	...timestamps
+});
+
+export const account = sqliteTable('account', {
+	id: text('id').primaryKey(),
+	/** 提供元の利用者ID（ID トークンの sub） */
+	accountId: text('account_id').notNull(),
+	providerId: text('provider_id').notNull(),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	// トークン類は Better Auth の都合で列を持つが、値は入れない（withoutTokens）
+	accessToken: text('access_token'),
+	refreshToken: text('refresh_token'),
+	idToken: text('id_token'),
+	accessTokenExpiresAt: integer('access_token_expires_at', { mode: 'timestamp_ms' }),
+	refreshTokenExpiresAt: integer('refresh_token_expires_at', { mode: 'timestamp_ms' }),
+	scope: text('scope'),
+	password: text('password'),
+	...timestamps
+});
+
+export const verification = sqliteTable('verification', {
+	id: text('id').primaryKey(),
+	identifier: text('identifier').notNull(),
+	value: text('value').notNull(),
+	expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+	...timestamps
+});
