@@ -18,6 +18,9 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	// 登録した日を何日前にするか（0〜365。新しいアカウントの制限を避ける。docs/spec/25.md 決めたこと15）
 	const days = url.searchParams.get('days') ?? '0';
 	if (!/^(?:0|[1-9]\d{0,2})$/.test(days) || Number(days) > 365) error(400);
+	// 運営・運営協力者にする（省略すると役職なし。docs/spec/28.md 決めたこと7）
+	const role = url.searchParams.get('role');
+	if (role !== null && role !== 'moderator' && role !== 'operator') error(400);
 
 	// testUtils は本番の auth には入れず、ここでだけ作る
 	const options = authOptions(env);
@@ -31,7 +34,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		const createdAt = new Date(Date.now() - Number(days) * 24 * 60 * 60 * 1000);
 		[found] = await db
 			.insert(schema.user)
-			.values({ id: crypto.randomUUID(), name, email, createdAt, updatedAt: createdAt })
+			.values({ id: crypto.randomUUID(), name, email, role, createdAt, updatedAt: createdAt })
 			.returning();
 	}
 	const login = await test.login({ userId: found.id });

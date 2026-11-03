@@ -38,8 +38,14 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 		.from(issues)
 		.leftJoin(issueSupports, eq(issueSupports.issueId, issues.id))
 		.leftJoin(topics, eq(topics.id, issues.topicId))
-		// 今回のお題がまだないときは、絞り込むと0件
-		.where(q.topic === 'current' ? eq(issues.topicId, topicId ?? -1) : undefined)
+		.where(
+			and(
+				// 非表示の課題は出さない（設計書 docs/spec/28.md 決めたこと4）
+				inArray(issues.status, ['visible', 'restored']),
+				// 今回のお題がまだないときは、絞り込むと0件
+				q.topic === 'current' ? eq(issues.topicId, topicId ?? -1) : undefined
+			)
+		)
 		.groupBy(issues.id)
 		.orderBy(...order)
 		.limit(PAGE_SIZE + 1)
@@ -54,7 +60,10 @@ export async function getIssue(db: Db, id: number, userId: string | null) {
 			title: issues.title,
 			affected: issues.affected,
 			example: issues.example,
-			topicName: topics.name
+			topicName: topics.name,
+			userId: issues.userId,
+			status: issues.status,
+			statusReason: issues.statusReason
 		})
 		.from(issues)
 		.leftJoin(topics, eq(topics.id, issues.topicId))
@@ -63,9 +72,10 @@ export async function getIssue(db: Db, id: number, userId: string | null) {
 	return { ...issue, supports: await supportCount(db, id), supported: userId ? await isSupported(db, id, userId) : false };
 }
 
-export async function issueExists(db: Db, id: number) {
-	const [row] = await db.select({ id: issues.id }).from(issues).where(eq(issues.id, id));
-	return Boolean(row);
+/** 書いた人と状態だけ（操作の前の確かめ） */
+export async function issueMeta(db: Db, id: number) {
+	const [row] = await db.select({ userId: issues.userId, status: issues.status }).from(issues).where(eq(issues.id, id));
+	return row ?? null;
 }
 
 async function supportCount(db: Db, issueId: number) {
@@ -91,7 +101,7 @@ export async function activeBan(db: Db, userId: string, now: number): Promise<nu
 }
 
 /** 断ったことを記録する。違反に数えるものは、24時間に3回でアカウントを締め出す */
-async function refuse(db: Db, actor: Actor, refusal: Refusal, now: number) {
+export async function refuse(db: Db, actor: Actor, refusal: Refusal, now: number) {
 	if (COUNTS_AS_VIOLATION[refusal.kind]) {
 		await db.insert(actions).values({ kind: 'violation', userId: actor.userId, ipHash: actor.ipHash, createdAt: now });
 		const [row] = await db

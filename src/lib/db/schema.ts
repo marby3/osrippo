@@ -93,6 +93,8 @@ export const provisionVersions = sqliteTable(
 
 // ログイン（設計書 docs/spec/23.md）。Better Auth の4つの表。キーは Better Auth の項目名に合わせる
 
+export const ROLES = ['moderator', 'operator'] as const;
+
 const timestamps = {
 	createdAt: integer('created_at', { mode: 'timestamp_ms' })
 		.notNull()
@@ -111,6 +113,12 @@ export const user = sqliteTable('user', {
 	emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
 	/** 提供元の画像は保存しない */
 	image: text('image'),
+	/**
+	 * 運営（operator）・運営協力者（moderator）。NULL はふつうの参加者（設計書 docs/spec/28.md）。
+	 * 付けるのは wrangler d1 execute の手作業。Better Auth には登録しない（参加者が update-user で書けないように）。
+	 * 列には CHECK を付けない（付けると drizzle-kit が表を作り直す）
+	 */
+	role: text('role', { enum: ROLES }),
 	...timestamps
 });
 
@@ -165,6 +173,11 @@ export const topics = sqliteTable('topics', {
 		.default(sql`(unixepoch() * 1000)`)
 });
 
+export const ISSUE_STATUSES = ['visible', 'auto_hidden', 'hidden', 'restored'] as const;
+export const MODERATION_ACTORS = ['auto', 'moderator', 'operator'] as const;
+/** 非表示の理由。reports は自動（通報が3件） */
+export const HIDE_LOG_REASONS = ['reports', 'attack', 'spam', 'other'] as const;
+
 export const issues = sqliteTable(
 	'issues',
 	{
@@ -179,7 +192,16 @@ export const issues = sqliteTable(
 		example: text('example').notNull(),
 		/** NULL はほかの話題 */
 		topicId: integer('topic_id').references(() => topics.id),
-		createdAt: integer('created_at').notNull()
+		createdAt: integer('created_at').notNull(),
+		// 通報と非表示（設計書 docs/spec/28.md）。status を変えると、トリガーが下の status_* の値で moderation_logs に記録を書く
+		/** restored は運営が表示に戻した課題（表示するが、自動では非表示にしない） */
+		status: text('status', { enum: ISSUE_STATUSES }).notNull().default('visible'),
+		statusActor: text('status_actor', { enum: MODERATION_ACTORS }),
+		/** 対応した人。公開しない */
+		statusActorUserId: text('status_actor_user_id'),
+		statusReason: text('status_reason', { enum: HIDE_LOG_REASONS }),
+		statusNote: text('status_note'),
+		statusChangedAt: integer('status_changed_at')
 	},
 	(t) => [index('issues_topic_id').on(t.topicId)]
 );
@@ -231,3 +253,48 @@ export const bans = sqliteTable('bans', {
 	until: integer('until').notNull(),
 	createdAt: integer('created_at').notNull()
 });
+
+export const REPORT_REASONS_DB = ['attack', 'spam', 'duplicate', 'other', 'none'] as const;
+
+/** 課題の通報（設計書 docs/spec/28.md）。1人1課題1回 */
+export const reports = sqliteTable(
+	'reports',
+	{
+		id: integer('id').primaryKey(),
+		issueId: integer('issue_id')
+			.notNull()
+			.references(() => issues.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		reason: text('reason', { enum: REPORT_REASONS_DB }).notNull(),
+		/** 「その他」の説明。運営だけが見る */
+		note: text('note'),
+		/** 自動非表示の数に入れるか（同じ課題がほかにある、登録から24時間たっていない人の通報は入れない） */
+		counted: integer('counted', { mode: 'boolean' }).notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		unique().on(t.issueId, t.userId),
+		index('reports_user').on(t.userId, t.createdAt),
+		check('reports_reason', sql`${t.reason} IN (${sql.raw(REPORT_REASONS_DB.map((r) => `'${r}'`).join(', '))})`)
+	]
+);
+
+/** 公開する対応の記録。issues.status の変更でトリガーが書く。actor_user_id は公開しない */
+export const moderationLogs = sqliteTable(
+	'moderation_logs',
+	{
+		id: integer('id').primaryKey(),
+		issueId: integer('issue_id')
+			.notNull()
+			.references(() => issues.id),
+		action: text('action', { enum: ['auto_hide', 'hide', 'restore'] }).notNull(),
+		actor: text('actor', { enum: MODERATION_ACTORS }).notNull(),
+		actorUserId: text('actor_user_id'),
+		reason: text('reason', { enum: HIDE_LOG_REASONS }),
+		note: text('note'),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [index('moderation_logs_issue').on(t.issueId)]
+);

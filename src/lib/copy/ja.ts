@@ -17,6 +17,12 @@ export const jaDateTime = (ms: number) => {
 	return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日 ${d.getUTCHours()}時${String(d.getUTCMinutes()).padStart(2, '0')}分`;
 };
 
+/** ミリ秒 → 日本時間の「2026年11月4日 9時05分」 */
+export const jaDateTimeFull = (ms: number) => {
+	const d = new Date(ms + 9 * 60 * 60 * 1000);
+	return `${d.getUTCFullYear()}年${jaDateTime(ms)}`;
+};
+
 export const ja = {
 	siteName: 'オープンソース立法府',
 	unofficial: '国会・政府とは無関係の非公式サービスです',
@@ -56,7 +62,7 @@ export const ja = {
 		outsideJapan: '日本国内からのみ参加できます。見ることは国外からもできます。',
 		turnstileFailed: '確認できませんでした。もう一度お試しください。',
 		turnstileUnavailable: '確認の仕組みを読み込めませんでした。ページを読み直してください。',
-		banned: (until: number) => `制限を何度も超えたため、${jaDateTime(until)}まで、課題の投稿と「わかる」ができません。`,
+		banned: (until: number) => `制限を何度も超えたため、${jaDateTime(until)}まで、課題の投稿・「わかる」・通報ができません。`,
 		refusals: {
 			'post-account': '課題は24時間に5件まで書けます。しばらくしてからお試しください。',
 			'post-new': (retryAt: number) =>
@@ -64,8 +70,81 @@ export const ja = {
 			'post-ip': 'この回線から書ける課題の数を超えました。しばらくしてからお試しください。',
 			'support-day': '「わかる」は24時間に50回まで押せます。しばらくしてからお試しください。',
 			'support-burst': '短いあいだに「わかる」を何度も押しました。しばらくしてからお試しください。',
-			'support-ip': 'この回線からは、この課題にこれ以上「わかる」を付けられません。'
+			'support-ip': 'この回線からは、この課題にこれ以上「わかる」を付けられません。',
+			'report-day': '通報は24時間に10件までできます。しばらくしてからお試しください。'
 		}
+	},
+	/** 通報（設計書 docs/spec/28.md） */
+	report: {
+		open: 'この課題を通報する',
+		legend: '通報の理由（選ばなくてもかまいません）',
+		reasons: {
+			attack: '人への攻撃・差別',
+			spam: '宣伝・荒らし',
+			duplicate: '同じ課題がほかにある',
+			other: 'その他',
+			none: '理由なし'
+		},
+		noteLabel: 'その他の説明（200字まで）',
+		criteria: '登録から24時間たった別々の3人から通報があると、運営が確認するまで一時的に見えなくなります。',
+		criteriaLink: '非表示にする基準と運営の記録',
+		submit: '通報する',
+		done: '通報を受け付けました',
+		already: 'この課題は通報済みです',
+		hiddenIssue: '非表示の課題には操作できません'
+	},
+	/** 非表示の課題の見え方 */
+	hidden: {
+		pageTitle: '非表示の課題｜オープンソース立法府',
+		heading: '非表示の課題',
+		auto: 'この課題は通報により非表示になっています',
+		staff: (reason: string) => `この課題は運営の確認により非表示になっています（理由：${reason}）`,
+		toLog: 'くわしくは運営の記録へ',
+		staffLink: '運営として対応する'
+	},
+	/** 非表示の理由（記録と課題のページで使う） */
+	hideReasons: {
+		reports: '通報が3件',
+		attack: '人への攻撃・差別',
+		spam: '宣伝・荒らし',
+		other: 'その他'
+	},
+	kanri: {
+		pageTitle: '通報を受けた課題｜オープンソース立法府',
+		heading: '通報を受けた課題',
+		empty: '通報を受けた課題はありません',
+		statuses: { visible: '表示中', auto_hidden: '自動で非表示', hidden: '非表示', restored: '表示に戻した' },
+		reportCount: (total: number, counted: number) => `通報 ${total}件（数えたもの ${counted}件）`,
+		afterRestore: (n: number) => `表示に戻したあとの通報 ${n}件`,
+		notes: 'その他の説明',
+		hideReason: '非表示にする理由',
+		hideNote: '非表示にするメモ（公開されます。個人情報は書かないでください）',
+		hide: '非表示にする',
+		restoreNote: '表示に戻すメモ（公開されます。個人情報は書かないでください）',
+		restore: '表示に戻す',
+		alreadyHidden: 'すでに非表示です',
+		alreadyShown: '表示されています',
+		ownIssue: '自分の課題には対応できません',
+		invalid: '入力を確かめてください'
+	},
+	unei: {
+		pageTitle: '運営の記録｜オープンソース立法府',
+		heading: '運営の記録',
+		criteriaHeading: '非表示にする基準',
+		criteria: [
+			'登録から24時間たった別々の3人から通報があると、運営が確認するまで一時的に見えなくなります。',
+			'「同じ課題がほかにある」の通報では見えなくなりません。',
+			'運営が確認して問題がないとした課題は、そのあと通報があっても自動では見えなくなりません。',
+			'運営が見えなくするのは、人への攻撃・差別、宣伝・荒らしなど、課題として扱えないものだけです。理由はこの記録に残します。',
+			'通報した人や書いた人の名前は、ここには出しません。'
+		],
+		logHeading: '対応の記録',
+		columns: { at: '日時', issue: '課題', action: '何をしたか', actor: 'だれが', reason: '理由', note: 'メモ' },
+		actions: { auto_hide: '自動で非表示', hide: '非表示', restore: '表示に戻した' },
+		actors: { auto: '自動', moderator: '運営協力者', operator: '運営' },
+		empty: 'まだ記録はありません',
+		prevPage: '前の50件',
+		nextPage: '次の50件'
 	},
 	issue: {
 		listPageTitle: '課題｜オープンソース立法府',
