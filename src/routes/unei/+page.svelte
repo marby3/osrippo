@@ -35,7 +35,11 @@
 						<td data-label={ja.unei.columns.issue}><a href="/kadai/{row.issueId}">#{row.issueId}</a></td>
 						<td data-label={ja.unei.columns.action}>{ja.unei.actions[row.action]}</td>
 						<td data-label={ja.unei.columns.actor}>{ja.unei.actors[row.actor]}</td>
-						<td data-label={ja.unei.columns.reason}>{row.reason ? ja.hideReasons[row.reason] : ''}</td>
+						<td data-label={ja.unei.columns.reason}
+							>{#if row.action === 'merge' && row.mergedInto !== null}<a href="/kadai/{row.mergedInto}"
+									>{ja.merge.logReason(row.mergedInto)}</a
+								>{:else if row.reason}{ja.hideReasons[row.reason]}{/if}</td
+						>
 						<td data-label={ja.unei.columns.note} class="note">{row.note ?? ''}</td>
 					</tr>
 				{/each}

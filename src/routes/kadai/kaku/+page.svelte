@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import Turnstile from '#lib/components/Turnstile.svelte';
 	import { ja } from '#lib/copy/ja.ts';
@@ -36,6 +37,44 @@
 	onMount(() => {
 		js = true;
 	});
+
+	// 似た課題（設計書 docs/spec/30.md 決めたこと2）。0.4秒打たなかったら問い合わせ、古い答えは捨てる
+	type Similar = { id: number; title: string; supports: number };
+	let similar: Similar[] = $state([]);
+	let supportError = $state('');
+	let asked = 0;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	function findSimilar() {
+		clearTimeout(timer);
+		const q = title;
+		const mine = ++asked;
+		timer = setTimeout(async () => {
+			if (!q.trim()) {
+				similar = [];
+				return;
+			}
+			try {
+				const res = await fetch('/kadai/nita', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ q })
+				});
+				if (mine !== asked) return;
+				// 答えを入れ替えたら、前のカードの断り文は消す。失敗したら古い候補も消す（似た課題は出なくても書ける）
+				supportError = '';
+				similar = res.ok ? ((await res.json()) as { issues: Similar[] }).issues : [];
+			} catch {
+				if (mine === asked) similar = [];
+			}
+		}, 400);
+	}
+
+	/** 「これに『わかる』を付ける」：その課題の「わかる」を通ったら、その課題のページへ */
+	const supportThis = (id: number) => () => async ({ result }: { result: { type: string; data?: Record<string, unknown>; location?: string } }) => {
+		if (result.type === 'success') await goto(`/kadai/${id}`);
+		else if (result.type === 'redirect' && result.location) await goto(result.location);
+		else supportError = String(result.data?.message ?? ja.similar.failed);
+	};
 
 	/** その段の欄をブラウザの検証で確かめてから進む */
 	function next() {
@@ -76,6 +115,7 @@
 				id="title"
 				name="title"
 				bind:value={title}
+				oninput={findSimilar}
 				required
 				maxlength={ISSUE_MAX.title}
 				aria-invalid={errors.title ? 'true' : undefined}
@@ -84,7 +124,9 @@
 			{#if errors.title}<p id="title-error" class="error">{errorText('title')}</p>{/if}
 			{#if js}
 				<div class="buttons">
-					<button type="button" class="primary" onclick={next}>{ja.issue.next}</button>
+					<button type="button" class={similar.length ? '' : 'primary'} onclick={next}
+						>{similar.length ? ja.similar.nextDifferent : ja.issue.next}</button
+					>
 					<a href="/kadai">{ja.issue.cancel}</a>
 				</div>
 			{/if}
@@ -160,6 +202,32 @@
 			</div>
 		</section>
 	</form>
+
+	<!-- 主のフォームの中にフォームは置けないので、似た課題の欄は外に置く（PC は右に並べる） -->
+	<!-- 打っている間に現れるので、読み上げにも知らせる（aria-live の入れ物はいつも置く） -->
+	<div class="similar-live" aria-live="polite">
+	{#if js && step === 1 && similar.length}
+		<aside class="similar">
+			<h2>{ja.similar.heading}</h2>
+			<p>{ja.similar.lead}</p>
+			<ul>
+				{#each similar as s, i (s.id)}
+					<li class="card" class:top={i === 0}>
+						<a href="/kadai/{s.id}">{s.title}</a>
+						<p>{ja.similar.supports(s.supports)}</p>
+						{#if i === 0}
+							<form method="post" action="/kadai/{s.id}?/support" use:enhance={supportThis(s.id)}>
+								<input type="hidden" name="op" value="add" />
+								<button class="primary">{ja.similar.supportThis}</button>
+							</form>
+							{#if supportError}<p role="alert" class="error">{supportError}</p>{/if}
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		</aside>
+	{/if}
+	</div>
 </main>
 
 <style>
@@ -167,6 +235,74 @@
 		max-width: 40rem;
 		margin: 0 auto;
 		padding: 1rem;
+	}
+
+	.similar {
+		margin-top: 1.5rem;
+		padding: 1rem;
+		border-radius: var(--radius-l);
+		background: var(--color-surface);
+	}
+
+	.similar h2 {
+		margin: 0;
+		font-size: var(--font-size-heading);
+	}
+
+	.similar ul {
+		display: grid;
+		gap: 0.75rem;
+		padding: 0;
+		list-style: none;
+	}
+
+	.card {
+		display: grid;
+		gap: 0.25rem;
+		padding: 1rem;
+		border: 1px solid var(--color-input-border);
+		border-radius: var(--radius-l);
+		background: var(--color-bg);
+	}
+
+	.card.top {
+		border: 2px solid var(--color-base);
+	}
+
+	.card a {
+		color: var(--color-text);
+		font-weight: bold;
+	}
+
+	.card p {
+		margin: 0;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+
+	.card button {
+		width: 100%;
+	}
+
+	/* PC は似た課題を右に並べる（PcIssueNew） */
+	@media (min-width: 64rem) {
+		main {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) 24rem;
+			column-gap: 3rem;
+			max-width: 76rem;
+		}
+
+		main > :not(.similar-live) {
+			grid-column: 1;
+		}
+
+		.similar-live {
+			grid-column: 2;
+			grid-row: 1 / span 3;
+			align-self: start;
+			margin-top: 0;
+		}
 	}
 
 	h1 {

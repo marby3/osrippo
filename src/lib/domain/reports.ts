@@ -32,11 +32,11 @@ export function validateReport(raw: {
 export const countsTowardHide = (reason: ReportReason, registeredAt: number, now: number) =>
 	reason !== 'duplicate' && now - registeredAt >= DAY;
 
-/** 運営の操作：課題の番号、非表示の理由（非表示にするときだけ）、メモ（1〜200字。公開する） */
+/** 運営の操作：課題の番号、非表示の理由（非表示にするときだけ）、統合先の番号（統合するときだけ）、メモ（1〜200字。公開する） */
 export function validateStaffAction(
-	raw: { issue: string | null; reason?: string | null; note: string | null },
-	action: 'hide' | 'restore'
-): { ok: true; value: { issueId: number; reason: HideReason | null; note: string } } | { ok: false } {
+	raw: { issue: string | null; reason?: string | null; target?: string | null; note: string | null },
+	action: 'hide' | 'restore' | 'merge'
+): { ok: true; value: { issueId: number; targetId?: number; reason: HideReason | null; note: string } } | { ok: false } {
 	const issueId = parseIssueId(raw.issue ?? '');
 	if (issueId === null) return { ok: false };
 	let reason: HideReason | null = null;
@@ -44,13 +44,20 @@ export function validateStaffAction(
 		if (!(HIDE_REASONS as readonly string[]).includes(raw.reason ?? '')) return { ok: false };
 		reason = raw.reason as HideReason;
 	}
+	let targetId: number | null = null;
+	if (action === 'merge') {
+		targetId = parseIssueId(raw.target ?? '');
+		if (targetId === null) return { ok: false };
+	}
 	const [note, error] = checkText(raw.note, NOTE_MAX, true);
 	if (error) return { ok: false };
-	return { ok: true, value: { issueId, reason, note } };
+	return { ok: true, value: { issueId, ...(targetId === null ? {} : { targetId }), reason, note } };
 }
 
-export type IssueStatus = 'visible' | 'auto_hidden' | 'hidden' | 'restored';
+export type IssueStatus = 'visible' | 'auto_hidden' | 'hidden' | 'restored' | 'merged';
 export const isHidden = (status: IssueStatus) => status === 'auto_hidden' || status === 'hidden';
 /** 非表示にできる状態、表示に戻せる状態（設計書 決めたこと5の表） */
 export const HIDEABLE: IssueStatus[] = ['visible', 'auto_hidden', 'restored'];
 export const RESTORABLE: IssueStatus[] = ['auto_hidden', 'hidden'];
+/** 一覧に出る状態。統合の元と統合先になれるのもこの状態だけ（設計書 docs/spec/30.md 決めたこと5） */
+export const LISTED: IssueStatus[] = ['visible', 'restored'];

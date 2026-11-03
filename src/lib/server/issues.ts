@@ -63,7 +63,8 @@ export async function getIssue(db: Db, id: number, userId: string | null) {
 			topicName: topics.name,
 			userId: issues.userId,
 			status: issues.status,
-			statusReason: issues.statusReason
+			statusReason: issues.statusReason,
+			mergedInto: issues.mergedInto
 		})
 		.from(issues)
 		.leftJoin(topics, eq(topics.id, issues.topicId))

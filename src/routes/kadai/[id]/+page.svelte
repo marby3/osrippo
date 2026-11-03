@@ -23,18 +23,24 @@
 </script>
 
 <svelte:head>
-	{#if data.view === 'hidden'}
+	{#if data.view === 'merged'}
+		<title>{ja.merge.pageTitle(data.mergedInto)}</title>
+	{:else if data.view === 'hidden'}
 		<title>{ja.hidden.pageTitle}</title>
 	{:else}
 		<title>{ja.issue.pageTitle(data.issue.title)}</title>
 	{/if}
-	{#if data.view === 'hidden' || data.hidden}
+	{#if data.view !== 'full' || data.hidden}
 		<meta name="robots" content="noindex" />
 	{/if}
 </svelte:head>
 
 <main>
-	{#if data.view === 'hidden'}
+	{#if data.view === 'merged'}
+		<!-- 統合された課題への操作を断ったあと（POST）だけここに来る。GET は統合先へ転送する -->
+		<p><a href="/kadai/{data.mergedInto}">{ja.merge.mergedInto(data.mergedInto)}</a></p>
+		{#if message}<p role="alert">{message}</p>{/if}
+	{:else if data.view === 'hidden'}
 		<!-- 自分の通報で非表示になったときも、受け付けたことを知らせる -->
 		{#if reportMessage}<p role="status">{reportMessage}</p>{/if}
 		<h1>{ja.hidden.heading}</h1>
@@ -70,6 +76,14 @@
 				<p class="hint">{ja.issue.supportHint}</p>
 				{#if message}<p role="alert">{message}</p>{/if}
 			</form>
+		{/if}
+
+		{#if data.sources.length}
+			<h2>{ja.merge.sourcesHeading}</h2>
+			<!-- 元の URL は統合先（このページ）へ転送されるので、リンクにしない -->
+			<ul class="sources">
+				{#each data.sources as source (source.id)}<li>{source.title}</li>{/each}
+			</ul>
 		{/if}
 
 		{#if data.staff}

@@ -93,6 +93,35 @@ export const ja = {
 		already: 'この課題は通報済みです',
 		hiddenIssue: '非表示の課題には操作できません'
 	},
+	/** 似た課題（設計書 docs/spec/30.md） */
+	similar: {
+		heading: '似た課題があります',
+		lead: '同じ困りごとなら、「わかる」を付けるだけで十分です。',
+		supports: (n: number) => `わかる ${n}`,
+		supportThis: 'これに「わかる」を付ける',
+		nextDifferent: 'どれとも違うので、次へ',
+		failed: '「わかる」を付けられませんでした。もう一度お試しください。'
+	},
+	/** 統合（設計書 docs/spec/30.md） */
+	merge: {
+		sourcesHeading: 'この課題にまとめた課題',
+		mergedInto: (id: number) => `この課題は #${id} にまとめられました`,
+		pageTitle: (id: number) => `この課題は #${id} にまとめられました｜オープンソース立法府`,
+		mergedOp: '統合された課題には操作できません',
+		target: '統合先の課題の番号',
+		check: '確かめる',
+		confirm: (sourceId: number, source: string, targetId: number, target: string) =>
+			`#${sourceId}「${source}」を #${targetId}「${target}」に統合します。`,
+		irreversible: '統合は取り消せません。',
+		supports: (n: number) => `合算したあとの「わかる」 ${n}`,
+		note: '統合のメモ（公開されます。個人情報は書かないでください）',
+		submit: '統合する',
+		self: '同じ課題には統合できません',
+		sourceNotListed: '非表示か統合済みの課題は統合できません',
+		targetInvalid: '統合先が非表示か統合済みか、ありません',
+		status: (id: number) => `統合した（#${id}）`,
+		logReason: (id: number) => `#${id} にまとめた`
+	},
 	/** 非表示の課題の見え方 */
 	hidden: {
 		pageTitle: '非表示の課題｜オープンソース立法府',
@@ -113,7 +142,7 @@ export const ja = {
 		pageTitle: '通報を受けた課題｜オープンソース立法府',
 		heading: '通報を受けた課題',
 		empty: '通報を受けた課題はありません',
-		statuses: { visible: '表示中', auto_hidden: '自動で非表示', hidden: '非表示', restored: '表示に戻した' },
+		statuses: { visible: '表示中', auto_hidden: '自動で非表示', hidden: '非表示', restored: '表示に戻した', merged: '統合した' },
 		reportCount: (total: number, counted: number) => `通報 ${total}件（数えたもの ${counted}件）`,
 		afterRestore: (n: number) => `表示に戻したあとの通報 ${n}件`,
 		notes: 'その他の説明',
@@ -140,7 +169,7 @@ export const ja = {
 		],
 		logHeading: '対応の記録',
 		columns: { at: '日時', issue: '課題', action: '何をしたか', actor: 'だれが', reason: '理由', note: 'メモ' },
-		actions: { auto_hide: '自動で非表示', hide: '非表示', restore: '表示に戻した' },
+		actions: { auto_hide: '自動で非表示', hide: '非表示', restore: '表示に戻した', merge: '統合' },
 		actors: { auto: '自動', moderator: '運営協力者', operator: '運営' },
 		empty: 'まだ記録はありません',
 		prevPage: '前の50件',
