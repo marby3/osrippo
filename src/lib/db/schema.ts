@@ -229,7 +229,10 @@ export const issueSupports = sqliteTable(
 	(t) => [primaryKey({ columns: [t.issueId, t.userId] }), index('issue_supports_issue_created').on(t.issueId, t.createdAt)]
 );
 
-/** target_id は、issue_post・support_* では課題の番号、solution_post・reaction_* では解決策の番号（設計書 docs/spec/34.md） */
+/**
+ * target_id は、issue_post・support_* では課題の番号、solution_post・reaction_* では解決策の番号（設計書 docs/spec/34.md）、
+ * bill_* では法案の番号（docs/spec/45.md。v0.3 で使う種類をまとめて足した）
+ */
 export const ACTION_KINDS = [
 	'issue_post',
 	'support_add',
@@ -237,7 +240,12 @@ export const ACTION_KINDS = [
 	'violation',
 	'solution_post',
 	'reaction_add',
-	'reaction_remove'
+	'reaction_remove',
+	'bill_draft',
+	'bill_save',
+	'bill_support_add',
+	'bill_support_remove',
+	'bill_propose'
 ] as const;
 
 /** レート制限を数えるための記録。IP はハッシュ（ip_hash）だけを持つ */
@@ -394,5 +402,150 @@ export const solutionReports = sqliteTable(
 			'solution_reports_reason',
 			sql`${t.reason} IN (${sql.raw(SOLUTION_REPORT_REASONS_DB.map((r) => `'${r}'`).join(', '))})`
 		)
+	]
+);
+
+// 委員会と法案の下書き（設計書 docs/spec/45.md）
+
+/** 委員会。最初の行（1, 消費者保護）は drizzle/0009 の末尾に手で INSERT した */
+export const committees = sqliteTable('committees', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	createdAt: integer('created_at')
+		.notNull()
+		.default(sql`(unixepoch() * 1000)`)
+});
+
+/** 委員会の対象法令。laws と同じく取り込み（seed.ts）で入れる（laws はマイグレーションでは入らないため） */
+export const committeeLaws = sqliteTable(
+	'committee_laws',
+	{
+		committeeId: integer('committee_id')
+			.notNull()
+			.references(() => committees.id),
+		lawId: text('law_id')
+			.notNull()
+			.references(() => laws.id)
+	},
+	(t) => [primaryKey({ columns: [t.committeeId, t.lawId] })]
+);
+
+export const BILL_KINDS = ['amend', 'repeal', 'enact'] as const;
+/** v0.4 で withdrawn・passed などを足す。表を作り直さないよう、DB には CHECK を付けない */
+export const BILL_STATUSES = ['draft', 'proposed'] as const;
+export const CHANGE_OPS = ['amend', 'add', 'delete'] as const;
+const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '));
+
+/**
+ * 法案。中身（対象の法令・変更点・元になった解決策）は版（rev）ごとの子の行にあり、rev が指す版だけを読む。
+ * rev = 0 は作りかけで、ないものとして扱う（引くときは src/lib/server/bills.ts の savedBill を使う）
+ */
+export const bills = sqliteTable(
+	'bills',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		/** 提出者 */
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		committeeId: integer('committee_id')
+			.notNull()
+			.references(() => committees.id),
+		/** 作ったあとは変えない */
+		kind: text('kind', { enum: BILL_KINDS }).notNull(),
+		status: text('status', { enum: BILL_STATUSES }).notNull().default('draft'),
+		/** 読む版 */
+		rev: integer('rev').notNull().default(0),
+		/** 次に使う版の番号（保存のたびに UPDATE … RETURNING で取る） */
+		nextRev: integer('next_rev').notNull().default(1),
+		title: text('title').notNull(),
+		/** 誰が困っているか */
+		affected: text('affected').notNull(),
+		sideEffects: text('side_effects').notNull(),
+		/** 3行要約（改行で区切る） */
+		summary: text('summary'),
+		/** 附則の本文 */
+		supplementary: text('supplementary'),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(t) => [
+		index('bills_user').on(t.userId),
+		index('bills_status_updated').on(t.status, t.updatedAt),
+		check('bills_kind', sql`${t.kind} IN (${inList(BILL_KINDS)})`)
+	]
+);
+
+/** 法案の対象の法令（版ごと）。seq 0 が主の法令 */
+export const billLaws = sqliteTable(
+	'bill_laws',
+	{
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		rev: integer('rev').notNull(),
+		seq: integer('seq').notNull(),
+		action: text('action', { enum: BILL_KINDS }).notNull(),
+		/** 制定の新法は NULL */
+		lawId: text('law_id').references(() => laws.id),
+		/** 基にした版（書く画面を開いたときの現在の版）。新法は NULL */
+		baseRevisionId: text('base_revision_id').references(() => lawRevisions.id),
+		/** 制定の法令名 */
+		newTitle: text('new_title')
+	},
+	(t) => [
+		primaryKey({ columns: [t.billId, t.rev, t.seq] }),
+		unique('bill_laws_law').on(t.billId, t.rev, t.lawId),
+		check('bill_laws_seq', sql`${t.seq} BETWEEN 0 AND 4`),
+		check('bill_laws_action', sql`${t.action} IN (${inList(BILL_KINDS)})`),
+		check(
+			'bill_laws_shape',
+			sql`(${t.action} = 'enact') = (${t.lawId} IS NULL AND ${t.baseRevisionId} IS NULL AND ${t.newTitle} IS NOT NULL)
+				AND (${t.action} <> 'enact') = (${t.lawId} IS NOT NULL AND ${t.baseRevisionId} IS NOT NULL AND ${t.newTitle} IS NULL)`
+		)
+	]
+);
+
+/** 条ごとの変更点（版ごと）。body は変更後の項と号の JSON（parse.ts の Paragraph[]） */
+export const billChanges = sqliteTable(
+	'bill_changes',
+	{
+		billId: integer('bill_id').notNull(),
+		rev: integer('rev').notNull(),
+		lawSeq: integer('law_seq').notNull(),
+		/** 条の番号（e-Gov の形。3_2） */
+		num: text('num').notNull(),
+		op: text('op', { enum: CHANGE_OPS }).notNull(),
+		/** amend・delete の対象の条の内部ID */
+		provisionId: integer('provision_id').references(() => provisions.id),
+		caption: text('caption'),
+		body: text('body')
+	},
+	(t) => [
+		primaryKey({ columns: [t.billId, t.rev, t.lawSeq, t.num] }),
+		foreignKey({ columns: [t.billId, t.rev, t.lawSeq], foreignColumns: [billLaws.billId, billLaws.rev, billLaws.seq] }),
+		check('bill_changes_op', sql`${t.op} IN (${inList(CHANGE_OPS)})`),
+		check('bill_changes_provision', sql`(${t.op} = 'add') = (${t.provisionId} IS NULL)`),
+		check('bill_changes_body', sql`(${t.op} = 'delete') = (${t.body} IS NULL)`)
+	]
+);
+
+/** 元になった解決策（版ごと） */
+export const billSolutions = sqliteTable(
+	'bill_solutions',
+	{
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		rev: integer('rev').notNull(),
+		seq: integer('seq').notNull(),
+		solutionId: integer('solution_id')
+			.notNull()
+			.references(() => solutions.id)
+	},
+	(t) => [
+		primaryKey({ columns: [t.billId, t.rev, t.seq] }),
+		unique('bill_solutions_solution').on(t.billId, t.rev, t.solutionId),
+		check('bill_solutions_seq', sql`${t.seq} BETWEEN 0 AND 4`)
 	]
 );

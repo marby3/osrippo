@@ -90,6 +90,54 @@ export const ja = {
 		/** PC の 2:1:1 の区切り */
 		segments: (s: Session) => ['1〜2週 発議', '3週 質疑・修正', `4週 採決（${sessionPoint(s, s.voteAt, false)}から）`]
 	},
+	/** 法案の下書きの誤り（設計書 docs/spec/45.md 決めたこと9。画面は #46・#47） */
+	bill: {
+		errors: {
+			required: 'ここを書いてください。',
+			tooLong: '長すぎます。字数を減らしてください。',
+			newline: '改行は入れられません。',
+			control: '使えない文字が入っています。',
+			invalid: '種類を選んでください。',
+			summaryLines: '3行要約は3行までにしてください。',
+			lawTitleSuffix: '法令名は「法」か「法律」で終わるようにしてください。',
+			lawCount: '対象の法令は1〜5本にしてください。',
+			lawShape: '対象の法令の選び方が、法案の種類に合っていません。',
+			lawNotInCommittee: 'この委員会で扱う法令ではありません。',
+			duplicateLaw: '同じ法令が2回選ばれています。',
+			changeCount: '変える条は、法案全体で50条までにしてください。',
+			solutionCount: '元になった解決策を1〜5つ選んでください。',
+			duplicateSolution: '同じ解決策が2回選ばれています。',
+			solutionHidden: '引用できない解決策が入っています。'
+		},
+		/** 変更後の条文の欄（何行目かを添える） */
+		bodyErrors: {
+			required: '条文を書いてください。',
+			tooLong: '条文が長すぎます（1条あたり10000字まで）。',
+			control: '使えない文字が入っています。',
+			paragraphOrder: '項の番号が順になっていません（2、3、4…と続けてください）。',
+			itemOrder: '号の番号が順になっていません（一、二、三…と続けてください）。'
+		},
+		bodyErrorAt: (line: number, message: string) => `${line}行目：${message}`,
+		changeErrors: {
+			unknownProvision: 'この法令にない条です。',
+			numMismatch: '条の番号が合っていません。',
+			unchanged: 'いまの条文から変わっていません。',
+			bodyMissing: '条文を書いてください。',
+			captionTooLong: '見出しが長すぎます（100字まで）。',
+			captionInvalid: '見出しに改行や使えない文字が入っています。',
+			deleteDeleted: 'この条はもう削除されています。',
+			deleteHasBody: '削除する条には条文を書けません。',
+			addNotBranch: '新しい条は「第3条の2」のように、前の条の枝番にしてください。',
+			addExists: 'その番号の条はもうあります。',
+			addNoParent: '枝番の元になる条がありません。',
+			duplicate: '同じ条に2つの変更があります。',
+			enactNotAdd: '新しい法律では、条を書き足すことだけができます。',
+			enactNumOrder: '新しい法律の条は、第1条から順に番号を付けてください。',
+			enactPurpose: '新しい法律には、見出しが「（目的）」の第1条が要ります。',
+			amendEmpty: '変える条を1つ以上選んでください。',
+			repealHasChanges: '廃止する法令には、変える条を書けません。'
+		}
+	},
 	login: {
 		pageTitle: 'ログイン｜オープンソース立法府',
 		heading: 'ログイン',
