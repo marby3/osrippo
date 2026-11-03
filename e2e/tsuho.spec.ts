@@ -22,9 +22,13 @@ async function user(
 	return u.page;
 }
 
+/** ハイドレーションが済むまで待つ（レイアウトが body に data-hydrated を付ける）。済む前に押すと、ふつうのフォームの送信になる */
+const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
+
 /** 画面から通報する */
 async function reportOnPage(page: Page, id: number, reason?: string, note?: string) {
 	await page.goto(`/kadai/${id}`);
+	await hydrated(page);
 	await page.getByRole('button', { name: 'この課題を通報する' }).click();
 	if (reason) await page.getByRole('radio', { name: reason }).check();
 	if (note) await page.getByLabel('その他の説明').fill(note);
@@ -183,6 +187,7 @@ test('基準5：非表示にする・表示に戻すができ、状態に合わ�
 
 	// 通報されていない課題も ?issue= で扱える。画面から非表示にする
 	await mod.goto(`/kanri?issue=${id}`);
+	await hydrated(mod);
 	const block = mod.locator('article').filter({ has: mod.getByRole('link', { name: title }) });
 	await block.getByLabel('非表示にする理由').selectOption({ label: '宣伝・荒らし' });
 	await block.getByLabel('非表示にするメモ').fill('宣伝だけの書き込み');
@@ -199,6 +204,7 @@ test('基準5：非表示にする・表示に戻すができ、状態に合わ�
 
 	// 表示に戻す
 	await mod.goto(`/kanri?issue=${id}`);
+	await hydrated(mod);
 	await block.getByLabel('表示に戻すメモ').fill('確認したところ問題なし');
 	await block.getByRole('button', { name: '表示に戻す' }).click();
 	await expect(block).toContainText('表示に戻した');
@@ -211,6 +217,7 @@ test('基準5：非表示にする・表示に戻すができ、状態に合わ�
 	await page.goto(`/kadai/${id}`);
 	await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
 	await mod.goto(`/kanri?issue=${id}`);
+	await hydrated(mod);
 	await expect(block).toContainText('表示に戻したあとの通報 3件');
 
 	// 自分の課題には操作できない（画面にもボタンを出さない）
