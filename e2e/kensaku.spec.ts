@@ -51,12 +51,13 @@ test('基準1：法令・条文・課題・解決策の欄に分けて件数と2
 });
 
 test('基準2：条文はいまの版の条・項・号だけを、法令の順・条の順に、位置と該当部分とリンクつきで出す', async ({ page }) => {
-	await page.goto(searchUrl('クーリング・オフ'));
+	// 「訪問販売」は特定商取引法にだけ出る（法令の本文には「クーリング・オフ」という言葉は出てこない）
+	await page.goto(searchUrl('訪問販売'));
 	const rows = section(page, '条文').getByRole('listitem');
 	await expect(rows.first()).toBeVisible();
 	const first = rows.first();
 	await expect(first).toContainText('特定商取引に関する法律');
-	await expect(first.locator('mark').first()).toHaveText('クーリング・オフ');
+	await expect(first.locator('mark').first()).toHaveText('訪問販売');
 	await expect(first.getByRole('link')).toHaveAttribute('href', /^\/hourei\/351AC0000000057#jo-\d+(_\d+)*$/);
 	// 位置は「第N条」から始まる。並びは条の番号の順
 	const labels = await section(page, '条文').locator('.position').allInnerTexts();
