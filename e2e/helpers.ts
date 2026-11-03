@@ -1,0 +1,85 @@
+// 画面のテストで使う手順（Issue #25）
+import { expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
+
+export const ORIGIN = 'http://localhost:4173';
+
+/**
+ * Turnstile の api.js を差し替える（テストから外部の API を呼ばない。設計書 docs/spec/25.md 決めたこと8）。
+ * 本物と同じく、render した場所に cf-turnstile-response を入れ、callback にトークンを渡す
+ */
+export async function stubTurnstile(page: Page, token = 'test-pass') {
+	await page.route(/^https:\/\/challenges\.cloudflare\.com\/turnstile\/v0\/api\.js/, (route) =>
+		route.fulfill({
+			contentType: 'text/javascript',
+			body: `window.turnstile = {
+				render(el, opts) {
+					const input = document.createElement('input');
+					input.type = 'hidden';
+					input.name = 'cf-turnstile-response';
+					input.value = ${JSON.stringify(token)};
+					el.appendChild(input);
+					setTimeout(() => opts.callback && opts.callback(input.value));
+					return 'stub';
+				},
+				reset() {},
+				remove() {}
+			};`
+		})
+	);
+}
+
+/** 回線（IP）と国を決めた、新しいブラウザのコンテキスト（レート制限の数えがテストどうしで混ざらないように） */
+export async function newUser(
+	browser: Browser,
+	{ name, ip, days = 2, country, token }: { name?: string; ip: string; days?: number; country?: string; token?: string }
+): Promise<{ context: BrowserContext; page: Page }> {
+	const context = await browser.newContext({
+		baseURL: ORIGIN,
+		extraHTTPHeaders: { 'x-test-ip': ip, ...(country ? { 'x-test-country': country } : {}) }
+	});
+	const page = await context.newPage();
+	await stubTurnstile(page, token);
+	if (name) await loginAs(page, name, days);
+	return { context, page };
+}
+
+/** テスト用のログイン。days は登録した日を何日前にするか（新しいアカウントの制限を避ける） */
+export async function loginAs(page: Page, name: string, days = 2) {
+	await page.goto(`/test-login?name=${encodeURIComponent(name)}&days=${days}`);
+	await expect(page.getByText(`テスト用のログイン：${name}`)).toBeVisible();
+}
+
+export type IssueFields = { title: string; affected?: string; example?: string; topic?: string; token?: string };
+
+/** 課題を書くフォームと同じ POST を送る（リダイレクトは追わない） */
+export function postIssueRequest(page: Page, f: IssueFields) {
+	return page.request.post('/kadai/kaku', {
+		form: {
+			title: f.title,
+			affected: f.affected ?? '困っている人',
+			example: f.example ?? '具体例',
+			topic: f.topic ?? '1',
+			'cf-turnstile-response': f.token ?? 'test-pass'
+		},
+		headers: { origin: ORIGIN, accept: 'text/html' },
+		maxRedirects: 0
+	});
+}
+
+/** 課題を書いて、その id を返す */
+export async function postIssue(page: Page, f: IssueFields): Promise<number> {
+	const res = await postIssueRequest(page, f);
+	expect(res.status(), await res.text()).toBe(303);
+	const id = Number(/^\/kadai\/(\d+)$/.exec(res.headers()['location'] ?? '')?.[1]);
+	expect(id).toBeGreaterThan(0);
+	return id;
+}
+
+/** 「わかる」のフォームと同じ POST */
+export function supportRequest(page: Page, id: number | string, op: string | undefined) {
+	return page.request.post(`/kadai/${id}?/support`, {
+		form: op === undefined ? {} : { op },
+		headers: { origin: ORIGIN, accept: 'text/html' },
+		maxRedirects: 0
+	});
+}
