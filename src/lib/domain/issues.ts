@@ -11,8 +11,8 @@ export type IssueValidation =
 	| { ok: false; errors: Partial<Record<IssueField, IssueError>> };
 
 /** 制御文字と、文字の向きを変える書式文字（一覧で表示を偽れないように）。ゼロ幅接合子などは絵文字に使うので許す */
-export const CONTROL = /[\p{Cc}‪-‮⁦-⁩]/u;
-const CONTROL_EXCEPT_NEWLINE = /(?!\n)[\p{Cc}‪-‮⁦-⁩]/u;
+export const CONTROL = /[\p{Cc}\u202a-\u202e\u2066-\u2069]/u;
+const CONTROL_EXCEPT_NEWLINE = /(?!\n)[\p{Cc}\u202a-\u202e\u2066-\u2069]/u;
 
 /** 前後の空白を除き、改行を \n にそろえて確かめる（通報と運営のメモでも使う） */
 export function checkText(raw: string | null | undefined, max: number, multiline: boolean): [string, IssueError | null] {

@@ -10,5 +10,5 @@ test('本文は前後の空白を除いて1〜400字、改行は \\n にそろ�
 	expect(validateSolution(' \n ')).toEqual({ ok: false, error: 'required' });
 	expect(validateSolution('あ'.repeat(401))).toEqual({ ok: false, error: 'tooLong' });
 	expect(validateSolution('a\u0000b')).toEqual({ ok: false, error: 'control' });
-	expect(validateSolution('a‮b')).toEqual({ ok: false, error: 'control' });
+	expect(validateSolution('a\u202eb')).toEqual({ ok: false, error: 'control' });
 });
