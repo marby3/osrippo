@@ -1,6 +1,6 @@
 // 法令と版の DB（設計書 docs/spec/8.md）
 import { sql } from 'drizzle-orm';
-import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import { check, foreignKey, index, integer, primaryKey, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
 import { CHANGES } from '../domain/law/history';
 import type { Heading } from '../domain/law/parse';
 
@@ -151,4 +151,83 @@ export const verification = sqliteTable('verification', {
 	value: text('value').notNull(),
 	expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
 	...timestamps
+});
+
+// 課題と「わかる」、荒らし対策の記録（設計書 docs/spec/25.md）。
+// 時刻はミリ秒の整数。比べたり引いたりするので、Date にせず数のまま扱う
+
+/** お題。「今回のお題」は id が最大の行（会期はフェーズ3で結ぶ） */
+export const topics = sqliteTable('topics', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	createdAt: integer('created_at')
+		.notNull()
+		.default(sql`(unixepoch() * 1000)`)
+});
+
+export const issues = sqliteTable(
+	'issues',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		title: text('title').notNull(),
+		/** 困っている人 */
+		affected: text('affected').notNull(),
+		/** 具体例 */
+		example: text('example').notNull(),
+		/** NULL はほかの話題 */
+		topicId: integer('topic_id').references(() => topics.id),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [index('issues_topic_id').on(t.topicId)]
+);
+
+export const issueSupports = sqliteTable(
+	'issue_supports',
+	{
+		issueId: integer('issue_id')
+			.notNull()
+			.references(() => issues.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		createdAt: integer('created_at').notNull()
+	},
+	// 最近「わかる」が増えている順で、課題ごとに直近の行を数える
+	(t) => [primaryKey({ columns: [t.issueId, t.userId] }), index('issue_supports_issue_created').on(t.issueId, t.createdAt)]
+);
+
+export const ACTION_KINDS = ['issue_post', 'support_add', 'support_remove', 'violation'] as const;
+
+/** レート制限を数えるための記録。IP はハッシュ（ip_hash）だけを持つ */
+export const actions = sqliteTable(
+	'actions',
+	{
+		id: integer('id').primaryKey(),
+		kind: text('kind', { enum: ACTION_KINDS }).notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		ipHash: text('ip_hash').notNull(),
+		/** 「わかる」では課題の id */
+		targetId: integer('target_id'),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		index('actions_user').on(t.userId, t.kind, t.createdAt),
+		index('actions_ip').on(t.ipHash, t.kind, t.createdAt),
+		index('actions_target').on(t.targetId, t.kind, t.createdAt),
+		check('actions_kind', sql`${t.kind} IN (${sql.raw(ACTION_KINDS.map((k) => `'${k}'`).join(', '))})`)
+	]
+);
+
+/** アカウントの締め出し。期限が来たら効かない */
+export const bans = sqliteTable('bans', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	until: integer('until').notNull(),
+	createdAt: integer('created_at').notNull()
 });
