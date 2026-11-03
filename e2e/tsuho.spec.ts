@@ -192,7 +192,8 @@ test('基準5：非表示にする・表示に戻すができ、状態に合わ�
 	await block.getByLabel('非表示にする理由').selectOption({ label: '宣伝・荒らし' });
 	await block.getByLabel('非表示にするメモ').fill('宣伝だけの書き込み');
 	await block.getByRole('button', { name: '非表示にする' }).click();
-	await expect(block).toContainText('非表示');
+	// 状態の欄が変わるまで待つ（ボタンの名前にも「非表示」が入るので、ちょうど一致で見る）
+	await expect(block.getByText('非表示', { exact: true })).toBeVisible();
 
 	await page.goto(`/kadai/${id}`);
 	await expect(page.getByText('この課題は運営の確認により非表示になっています（理由：宣伝・荒らし）')).toBeVisible();
@@ -207,7 +208,7 @@ test('基準5：非表示にする・表示に戻すができ、状態に合わ�
 	await hydrated(mod);
 	await block.getByLabel('表示に戻すメモ').fill('確認したところ問題なし');
 	await block.getByRole('button', { name: '表示に戻す' }).click();
-	await expect(block).toContainText('表示に戻した');
+	await expect(block.getByText('表示に戻した', { exact: true })).toBeVisible();
 	const back = await staffRequest(mod, 'restore', { issue: String(id), note: 'もう一度' });
 	expect(back.status()).toBe(400);
 	expect(await back.text()).toContain('表示されています');

@@ -11,6 +11,9 @@ test.afterEach(async () => {
 const ip = (project: string, test: number, n: number) => `10.${project === 'sp' ? 1 : 2}.${test}.${n}`;
 
 /** 一覧に並んだ課題のタイトル（上から） */
+/** ハイドレーションが済むまで待つ（済む前に入力すると、段の切り替えやフォームの送り方が変わる） */
+const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
+
 const listedTitles = (page: Page) =>
 	page.locator('main a[href^="/kadai/"]:not([href="/kadai/kaku"])').allInnerTexts();
 
@@ -118,11 +121,13 @@ test('基準2：3つの段で課題を書くと、課題のページに書いた
 
 	// ログインしていなければ、ログインの画面へ
 	await page.goto('/kadai/kaku');
+	await hydrated(page);
 	await expect(page).toHaveURL('/login?next=%2Fkadai%2Fkaku');
 
 	const { context, page: a } = await newUser(browser, { name: `write-${p}`, ip: ip(p, 2, 1), days: 0 });
 	contexts.push(context);
 	await a.goto('/kadai/kaku');
+	await hydrated(a);
 	await a.getByLabel('何に困っていますか？').fill(title);
 	await a.getByRole('button', { name: '次へ' }).click();
 	await a.getByLabel('困っている人').fill('ネット通販で定期購入を申し込んだ人');
@@ -147,6 +152,7 @@ test('基準3：入力に誤りがあれば保存せず、その欄の横に理�
 	const title = `長すぎるタイトル ${p}-${Date.now()} `.padEnd(61, 'あ');
 
 	await page.goto('/kadai/kaku');
+	await hydrated(page);
 	const field = page.getByLabel('何に困っていますか？');
 	// ブラウザの検証を外して、サーバーの判定を確かめる
 	await field.evaluate((el) => el.removeAttribute('maxlength'));
@@ -210,6 +216,7 @@ test('基準5：Turnstile が通らなければ、課題を保存せず、ログ
 	const title = `通らない ${p}-${Date.now()}`;
 
 	await page.goto('/kadai/kaku');
+	await hydrated(page);
 	await page.getByLabel('何に困っていますか？').fill(title);
 	await page.getByRole('button', { name: '次へ' }).click();
 	await page.getByLabel('困っている人').fill('困っている人');
