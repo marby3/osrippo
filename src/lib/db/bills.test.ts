@@ -124,7 +124,7 @@ describe('基準2：版ごとの保存', () => {
 		expect(await saveDraft(db, id, 'u1', 0, await input('作りかけ', 'x', [3]), T0 + 2)).toBe(false);
 		const second = (await billById(db, id))!;
 		expect([second.rev, second.title, second.solutionIds, second.updatedAt]).toEqual([2, '2回目', [1, 2], T0 + 1]);
-		expect(second.laws[0].changes[0].paragraphs[0].text).toBe('本文その2');
+		expect(second.laws[0].changes[0].paragraphs![0].text).toBe('本文その2');
 
 		// 発議した法案は保存しない
 		run("UPDATE bills SET status = 'proposed' WHERE id = ?", id);
@@ -147,6 +147,6 @@ describe('基準2：版ごとの保存', () => {
 		expect([a, b].filter(Boolean)).toHaveLength(1);
 		const third = (await billById(db, id))!;
 		const winner = a ? { title: 'タブA', text: 'Aの本文', solutions: [1] } : { title: 'タブB', text: 'Bの本文', solutions: [2, 3] };
-		expect({ title: third.title, text: third.laws[0].changes[0].paragraphs[0].text, solutions: third.solutionIds }).toEqual(winner);
+		expect({ title: third.title, text: third.laws[0].changes[0].paragraphs![0].text, solutions: third.solutionIds }).toEqual(winner);
 	});
 });

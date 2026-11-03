@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { parseLaw, type Article } from './law';
-import { articleBodyText, checkChanges, formalName, parseArticleBody, validateBill, type BillChange } from './bills';
+import { articleBodyText, checkChanges, formalName, parseArticleBody, validateBill, type BillChange, type BillRaw } from './bills';
 
 const root = new URL('../../../', import.meta.url);
 const dir = new URL('tests/fixtures/egov/', root);
@@ -99,7 +99,7 @@ describe('基準4：変更点の確かめ', () => {
 
 describe('基準5：法案の確かめ', () => {
 	const ctx = { committeeLawIds: TARGET, visibleSolutionIds: new Set([1, 2, 3, 4, 5, 6]) };
-	const ok = {
+	const ok: BillRaw = {
 		kind: 'amend',
 		title: '解約をいつでもできるようにする',
 		affected: '定期購入の解約に困っている人',
@@ -110,8 +110,8 @@ describe('基準5：法案の確かめ', () => {
 		changeCount: 1,
 		solutionIds: ['1']
 	};
-	const errorsOf = (over: Partial<typeof ok> & Record<string, unknown>) => {
-		const r = validateBill({ ...ok, ...over } as Parameters<typeof validateBill>[0], ctx);
+	const errorsOf = (over: Partial<BillRaw>) => {
+		const r = validateBill({ ...ok, ...over }, ctx);
 		return r.ok ? {} : r.errors;
 	};
 
