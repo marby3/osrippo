@@ -12,7 +12,7 @@ const lawData = readdirSync(dir).filter((f) => TARGET.some((l) => f.startsWith(`
 const articlesOf = (f: string) => parseLaw(JSON.parse(readFileSync(new URL(f, dir), 'utf8')).law_full_text);
 
 describe('基準3：変更後の条文の読み取り', () => {
-	test('対象3法のすべての版のすべての条で、項と号に戻る', () => {
+	test('対象3法のすべての版のすべての条で項と号に戻り、形が違えば何行目がどう違うかを返す', () => {
 		let count = 0;
 		for (const f of lawData) {
 			for (const a of articlesOf(f)) {
@@ -23,9 +23,8 @@ describe('基準3：変更後の条文の読み取り', () => {
 		}
 		// 取り込みデータの全部の版を回したこと（2026-11-04 の時点で 4919 条）
 		expect(count).toBeGreaterThan(1000);
-	});
 
-	test('形が違えば、何行目がどう違うかを返す', () => {
+		// 形が違えば、何行目がどう違うかを返す
 		expect(parseArticleBody('第1項の本文\n2　第2項\n4　第4項')).toEqual({ ok: false, line: 3, error: 'paragraphOrder' });
 		expect(parseArticleBody('本文\n二　二号\n一　一号')).toEqual({ ok: false, line: 3, error: 'itemOrder' });
 		expect(parseArticleBody('\n\n')).toEqual({ ok: false, line: 1, error: 'required' });
