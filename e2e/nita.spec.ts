@@ -91,8 +91,10 @@ test('基準4：確認の欄を通して統合すると、転送・合算・ま�
 	const mod = await user(browser, `n4-mod-${p}-${s}`, ip(p, 4, 5), { role: 'moderator' });
 	await mod.goto(`/kanri?issue=${sourceId}`);
 	await hydrated(mod);
-	await mod.getByLabel('統合先の課題の番号').fill(String(targetId));
-	await mod.getByRole('button', { name: '確かめる' }).click();
+	// /kanri にはほかの課題も並ぶので、元の課題のまとまりの中で操作する
+	const block = mod.locator('article').filter({ has: mod.getByRole('link', { name: source }) });
+	await block.getByLabel('統合先の課題の番号').fill(String(targetId));
+	await block.getByRole('button', { name: '確かめる' }).click();
 	await expect(mod).toHaveURL(`/kanri?issue=${sourceId}&merge=${targetId}`);
 	await expect(mod.getByText(`#${sourceId}「${source}」を #${targetId}「${target}」に統合します`)).toBeVisible();
 	await expect(mod.getByText('統合は取り消せません')).toBeVisible();
