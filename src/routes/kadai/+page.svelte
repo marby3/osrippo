@@ -6,10 +6,13 @@
 
 	let { data }: PageProps = $props();
 	const q = $derived(data.query);
+	// 絞り込みは1つだけ選ぶ（今回のお題と解決策ありは一緒に選べない）
 	const filters = [
-		['all', ja.issue.filterAll],
-		['current', ja.issue.filterTopic]
+		{ key: 'all', label: ja.issue.filterAll, topic: 'all', solutions: false },
+		{ key: 'current', label: ja.issue.filterTopic, topic: 'current', solutions: false },
+		{ key: 'solutions', label: ja.issue.filterSolutions, topic: 'all', solutions: true }
 	] as const;
+	const selected = $derived(q.solutions ? 'solutions' : q.topic);
 </script>
 
 <svelte:head>
@@ -24,11 +27,11 @@
 
 	<div class="controls">
 		<nav aria-label={ja.issue.filterLabel}>
-			{#each filters as [topic, label] (topic)}
+			{#each filters as f (f.key)}
 				<a
 					class="chip"
-					href={listHref({ ...q, topic, page: 1 })}
-					aria-current={q.topic === topic ? 'page' : undefined}>{label}</a
+					href={listHref({ ...q, topic: f.topic, solutions: f.solutions, page: 1 })}
+					aria-current={selected === f.key ? 'page' : undefined}>{f.label}</a
 				>
 			{/each}
 		</nav>
@@ -51,13 +54,16 @@
 
 	{#if data.rows.length === 0}
 		<!-- 「課題を書く」は見出しの横の1つだけ -->
-		<p class="empty">{q.topic === 'current' ? ja.issue.emptyTopic : ja.issue.empty}</p>
+		<p class="empty">
+			{q.solutions ? ja.issue.emptySolutions : q.topic === 'current' ? ja.issue.emptyTopic : ja.issue.empty}
+		</p>
 	{:else}
 		<table>
 			<thead>
 				<tr>
 					<th scope="col">{ja.issue.columnTitle}</th>
 					<th scope="col" class="num">{ja.issue.columnSupports}</th>
+					<th scope="col" class="num">{ja.issue.columnSolutions}</th>
 					<th scope="col">{ja.issue.columnTopic}</th>
 				</tr>
 			</thead>
@@ -66,6 +72,7 @@
 					<tr>
 						<td class="title"><a href="/kadai/{row.id}">{row.title}</a></td>
 						<td class="num"><span class="label">{ja.issue.supports}</span> {row.supports}</td>
+						<td class="num solutions"><span class="label">{ja.issue.solutions}</span> {row.solutions}</td>
 						<td class="topic">{row.topicName ? ja.issue.topicMark(row.topicName) : ''}</td>
 					</tr>
 				{/each}
@@ -233,6 +240,7 @@
 			display: inline;
 		}
 
+		.solutions::before,
 		.topic:not(:empty)::before {
 			content: ' ・ ';
 		}

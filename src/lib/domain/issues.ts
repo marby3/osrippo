@@ -53,18 +53,21 @@ export function parseIssueId(raw: string): number | null {
 
 export const SORTS = ['support', 'new', 'rising'] as const;
 export type Sort = (typeof SORTS)[number];
-export type ListQuery = { sort: Sort; topic: 'all' | 'current'; page: number };
+/** 絞り込みは「すべて」「今回のお題」「解決策あり」から1つ（設計書 docs/spec/34.md 決めたこと8） */
+export type ListQuery = { sort: Sort; topic: 'all' | 'current'; solutions: boolean; page: number };
 
 /** 一覧の検索文字列。形が違えば null（404）。1ページ目は page なしの URL だけ */
 export function parseListQuery(params: URLSearchParams): ListQuery | null {
 	const sort = params.get('sort');
 	const topic = params.get('topic');
 	const page = params.get('page');
+	const kaiketsu = params.get('kaiketsu');
 	if (sort !== null && sort !== 'new' && sort !== 'rising') return null;
 	if (topic !== null && topic !== 'current') return null;
+	if (kaiketsu !== null && (kaiketsu !== 'ari' || topic !== null)) return null;
 	const pageNumber = parsePage(page);
 	if (pageNumber === null) return null;
-	return { sort: sort ?? 'support', topic: topic ?? 'all', page: pageNumber };
+	return { sort: sort ?? 'support', topic: topic ?? 'all', solutions: kaiketsu === 'ari', page: pageNumber };
 }
 
 /** ページの番号：なければ1。2〜9999 の整数（先頭の0なし）だけ。1ページ目は page なしの URL だけなので、page=1 は形が違う */
@@ -74,10 +77,11 @@ export function parsePage(raw: string | null): number | null {
 }
 
 /** 一覧の URL（既定の値は書かない） */
-export function listHref({ sort, topic, page }: ListQuery): string {
+export function listHref({ sort, topic, solutions, page }: ListQuery): string {
 	const params = new URLSearchParams();
 	if (sort !== 'support') params.set('sort', sort);
 	if (topic !== 'all') params.set('topic', topic);
+	if (solutions) params.set('kaiketsu', 'ari');
 	if (page > 1) params.set('page', String(page));
 	const search = params.toString();
 	return search ? `/kadai?${search}` : '/kadai';
