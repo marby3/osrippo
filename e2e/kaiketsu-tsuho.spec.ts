@@ -314,3 +314,16 @@ test('基準7：通報の上限は課題の通報と合わせて24時間に10件
 	expect(banned.status()).toBe(429);
 	expect(await banned.text()).toContain('課題や解決策の投稿、「わかる」「考えが変わった」、通報ができません');
 });
+
+test('信頼の境界：解決策の通報の solution の形が違えば 400', async ({ browser }, info) => {
+	const p = info.project.name;
+	const s = stamp();
+	const author = await user(browser, `stb-author-${p}-${s}`, ip(p, 8, 1));
+	const writer = await user(browser, `stb-writer-${p}-${s}`, ip(p, 8, 2));
+	const { issueId } = await issueWithSolution(author, writer, `通報の境界 ${p}-${s}`, `境界の解決策 ${s}`);
+	const r = await user(browser, `stb-r-${p}-${s}`, ip(p, 8, 3));
+	for (const solution of ['abc', '0', '01', '', '-1', '1.5']) {
+		expect((await reportSolutionRequest(r, issueId, { solution, reason: 'spam' })).status(), solution).toBe(400);
+	}
+	expect((await reportSolutionRequest(r, issueId, { reason: 'spam' })).status()).toBe(400);
+});
