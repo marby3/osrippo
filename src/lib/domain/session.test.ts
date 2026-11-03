@@ -7,7 +7,7 @@ import { ja } from '../copy/ja';
 const jst = (s: string) => Date.parse(`${s}+09:00`);
 
 describe('基準1：カレンダーの月の会期', () => {
-	test('週と段は日で決まり、0時ちょうどは新しい側。どの長さの月でも、年の変わり目でも同じ', () => {
+	test('週と段は日で決まり、0時ちょうどは新しい側。どの長さの月でも、年の変わり目でも同じ。区切りは日本時間の0時', () => {
 		const cases: [string, string, number, string][] = [
 			// [日本時間, 会期, 週, 段]
 			['2030-05-01T00:00:00', '2030-05', 1, 'proposal'],
@@ -30,9 +30,8 @@ describe('基準1：カレンダーの月の会期', () => {
 			const s = sessionAt(jst(at), null);
 			expect({ at, key: s.key, week: s.week, stage: s.stage }).toEqual({ at, key, week, stage });
 		}
-	});
 
-	test('会期の始まりと終わり、質疑と採決の始まりは日本時間の0時', () => {
+		// 会期の始まりと終わり、質疑と採決の始まりは日本時間の0時
 		const s = sessionAt(jst('2030-12-20T10:00:00'), null);
 		expect(s.month).toBe(12);
 		expect(s.startsAt).toBe(jst('2030-12-01T00:00:00'));
@@ -44,14 +43,13 @@ describe('基準1：カレンダーの月の会期', () => {
 });
 
 describe('基準3：開発用の短い会期', () => {
-	test('SESSION_MINUTES は pnpm dev のときだけ、1〜1440 の整数だけを使う', () => {
+	test('SESSION_MINUTES は pnpm dev のときだけ、1〜1440 の整数だけを使い、2:1:1 に割る', () => {
 		expect(sessionMinutes(true, '8')).toBe(8);
 		expect(sessionMinutes(true, '1440')).toBe(1440);
 		expect(sessionMinutes(false, '8')).toBeNull();
 		for (const raw of [undefined, '', '0', '1441', '-5', '2.5', '8分', ' 8']) expect(sessionMinutes(true, raw)).toBeNull();
-	});
 
-	test('分の会期は 2:1:1 に割る（前の半分が発議、次の4分の1が質疑と修正、最後の4分の1が採決）', () => {
+		// 分の会期は 2:1:1 に割る（前の半分が発議、次の4分の1が質疑と修正、最後の4分の1が採決）
 		const minute = 60 * 1000;
 		// 8分の会期：1970-01-01 から8分で割り切れる時刻から
 		const start = jst('2030-05-16T09:08:00');
