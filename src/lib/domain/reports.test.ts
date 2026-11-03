@@ -50,3 +50,15 @@ test('運営の操作：課題の番号、非表示の理由（3つ）、メモ�
 		expect(validateStaffAction(raw, action), JSON.stringify(raw)).toEqual({ ok: false });
 	}
 });
+
+test('信頼の境界（Issue #30）：統合の操作は、課題の番号・統合先の番号・メモ', () => {
+	expect(validateStaffAction({ issue: '3', target: '7', note: '同じ困りごと' }, 'merge')).toEqual({
+		ok: true,
+		value: { issueId: 3, targetId: 7, reason: null, note: '同じ困りごと' }
+	});
+	for (const target of [null, '', 'abc', '07', '0', '-1']) {
+		expect(validateStaffAction({ issue: '3', target, note: 'メモ' }, 'merge'), String(target)).toEqual({ ok: false });
+	}
+	expect(validateStaffAction({ issue: '3', target: '7', note: '' }, 'merge')).toEqual({ ok: false });
+	expect(validateStaffAction({ issue: 'x', target: '7', note: 'メモ' }, 'merge')).toEqual({ ok: false });
+});

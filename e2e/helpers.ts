@@ -111,10 +111,18 @@ export function reportRequest(page: Page, id: number | string, form: Record<stri
 }
 
 /** 運営の画面の操作と同じ POST */
-export function staffRequest(page: Page, action: 'hide' | 'restore', form: Record<string, string>) {
+export function staffRequest(page: Page, action: 'hide' | 'restore' | 'merge', form: Record<string, string>) {
 	return page.request.post(`/kanri?/${action}`, {
 		form,
 		headers: { origin: ORIGIN, accept: 'text/html' },
 		maxRedirects: 0
+	});
+}
+
+/** 似た課題を探す（課題を書く画面と同じ POST） */
+export function similarRequest(page: Page, body: unknown, raw = false) {
+	return page.request.post('/kadai/nita', {
+		data: raw ? (body as string) : JSON.stringify(body),
+		headers: { origin: ORIGIN, 'content-type': 'application/json' }
 	});
 }
