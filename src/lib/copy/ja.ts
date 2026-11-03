@@ -32,6 +32,9 @@ export const ja = {
 		// 1年未満は年数を出さない（2026-11-02 決定）
 		amended: (date: string, years: number) =>
 			years < 1 ? `${jaMonth(date)}に改正` : `${jaMonth(date)}に改正・${years}年変わっていない`,
+		// 2017年4月より後に制定された法令で、制定のあと変わっていない条（Issue #18。1年未満は年数を出さない）
+		enacted: (date: string, years: number) =>
+			years < 1 ? `${jaMonth(date)}に制定` : `${jaMonth(date)}に制定・${years}年変わっていない`,
 		unchangedSinceBaseline: '2017年4月より前から変更なし',
 		history: '改正履歴',
 		enforced: '施行された改正',
@@ -44,6 +47,8 @@ export const ja = {
 		openRecord: '変わった記録を見る',
 		recordTitle: (label: string) => `${label}が変わった記録`,
 		enforcedOn: (date: string) => `${jaDate(date)} 施行`,
+		enactedOn: (date: string) => `${jaDate(date)} 制定`,
+		enactment: '制定',
 		then: (label: string) => `（当時は${label}）`,
 		recordBeforeBaseline: '2017年4月より前',
 		recordPreparing: '条文ごとの記録は準備中',

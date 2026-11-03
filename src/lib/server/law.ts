@@ -61,7 +61,22 @@ export async function provisionsAt(db: Db, revisionId: string) {
 		);
 }
 
-/** 条・項・号ごとの最後に改正された日（決定3）。改正のないものは入らない */
+/**
+ * 制定の版：起点の版がない法令（2017年4月2日以降に制定）の最初の版（Issue #18）。
+ * 取り込みは起点の版か制定の版を seq 0 にするので、seq 0 が起点の日より後なら制定の版。起点の版がある法令は undefined
+ */
+export async function enactmentRevision(db: Db, lawId: string) {
+	const [row] = await db
+		.select({ id: lawRevisions.id, date: lawRevisions.enforcementDate })
+		.from(lawRevisions)
+		.where(and(eq(lawRevisions.lawId, lawId), eq(lawRevisions.branch, 'real'), eq(lawRevisions.seq, 0)));
+	return row && row.date > BASELINE_DATE ? row : undefined;
+}
+
+/**
+ * 条・項・号ごとの最後に改正された日（決定3）。改正のないものは入らない。
+ * seq 0 の行は起点の版（baseline）か制定の版（added）なので、改正に数えない（Issue #18）
+ */
 export async function lastAmendedDates(db: Db, lawId: string): Promise<Map<number, string>> {
 	const from = alias(lawRevisions, 'from_revision');
 	const rows = await db
@@ -74,7 +89,8 @@ export async function lastAmendedDates(db: Db, lawId: string): Promise<Map<numbe
 				eq(provisions.lawId, lawId),
 				eq(from.branch, 'real'),
 				inArray(provisionVersions.change, COUNTED),
-				eq(from.status, 'enforced')
+				eq(from.status, 'enforced'),
+				gt(from.seq, 0)
 			)
 		)
 		.groupBy(provisionVersions.provisionId);
@@ -108,6 +124,7 @@ export async function lawPage(db: Db, lawId: string) {
 	if (!law || !current) return undefined;
 
 	const amended = await lastAmendedDates(db, lawId);
+	const enacted = (await enactmentRevision(db, lawId))?.date ?? null;
 	// 見出しが前の条と変わるところにだけ帯を出す（設計書 docs/spec/21.md）
 	// 木の外の条（本来ない）は帯を出さず、前の帯も続いているものとみなす
 	const paths = headingPaths(current.headings ?? []);
@@ -118,7 +135,9 @@ export async function lawPage(db: Db, lawId: string) {
 		const key = path.join('\n');
 		const band = key && key !== previous ? path : null;
 		if (key) previous = key;
-		return { ...a, band, lastAmended: amended.get(id) ?? null };
+		const lastAmended = amended.get(id) ?? null;
+		// 制定のあと変わっていない条だけ、制定の日を持つ
+		return { ...a, band, lastAmended, enacted: lastAmended ? null : enacted };
 	});
 
 	const revisions = await db
@@ -126,12 +145,13 @@ export async function lawPage(db: Db, lawId: string) {
 		.from(lawRevisions)
 		.where(and(eq(lawRevisions.lawId, lawId), eq(lawRevisions.branch, 'real')))
 		.orderBy(desc(lawRevisions.seq));
-	// 起点の版（seq 0 で 2017年4月1日以前）は、改正履歴に並べない
-	const listed = revisions.filter((r) => !(r.seq === 0 && r.enforcementDate <= BASELINE_DATE));
+	// seq 0 の版（起点の版か制定の版）は、改正履歴に並べない。制定の版は enacted として別に出す（Issue #18）
+	const listed = revisions.filter((r) => r.seq !== 0);
 	const entry = (r: (typeof revisions)[number]) => ({ date: r.enforcementDate, title: r.amendmentLawTitle ?? '' });
 	return {
 		law: { id: law.id, title: law.title, lawNum: law.lawNum },
 		current: { enforcementDate: current.enforcementDate },
+		enacted,
 		articles,
 		toc: tableOfContents(current.headings ?? []),
 		enforced: listed.filter((r) => r.status === 'enforced').map(entry),
@@ -210,12 +230,16 @@ export async function articleHistory(db: Db, lawId: string, num: string) {
 		.innerJoin(from, eq(from.id, provisionVersions.fromRevisionId))
 		.where(and(eq(provisionVersions.provisionId, article.id), eq(from.branch, 'real')))
 		.orderBy(desc(from.seq));
-	const amendments = versions.filter((v) => COUNTED.includes(v.change) && v.status === 'enforced');
+	// seq 0 の行（制定の版の added）は改正に数えない（Issue #18）
+	const amendments = versions.filter((v) => COUNTED.includes(v.change) && v.status === 'enforced' && v.seq > 0);
 	if (!amendments.length) return undefined;
 
 	// 番号が今と違う時期には、当時の番号を添える
 	const then = (n: string) => (n === num ? null : articleLabel(n));
 	const baseline = versions.find((v) => v.change === 'baseline');
+	// 制定の版からある条なら、いちばん古い行を制定にする
+	const enactment = await enactmentRevision(db, lawId);
+	const atEnactment = enactment && versions.find((v) => v.revisionId === enactment.id);
 
 	// 最新の改正の変更点：その版と、1つ前の版の同じ条を比べる
 	const latest = amendments[0];
@@ -233,7 +257,8 @@ export async function articleHistory(db: Db, lawId: string, num: string) {
 		label: articleLabel(num),
 		latest: change?.parts ?? [],
 		amendments: amendments.map((v) => ({ date: v.date, lawNum: v.lawNum ?? '', then: then(v.num) })),
-		baseline: baseline ? { then: then(baseline.num) } : null
+		baseline: baseline ? { then: then(baseline.num) } : null,
+		enacted: atEnactment ? { date: enactment.date, then: then(atEnactment.num) } : null
 	};
 }
 
