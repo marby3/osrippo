@@ -50,7 +50,6 @@
 </svelte:head>
 
 <main>
-	<nav class="crumbs"><a href="/kadai">{ja.issue.heading}</a> ／ {ja.issue.write}</nav>
 	<h1>{ja.issue.write}</h1>
 	<ol class="steps">
 		{#each ja.issue.steps as label, i (label)}
@@ -66,8 +65,9 @@
 				if (result.type === 'failure') {
 					const fields = Object.keys(errors) as IssueField[];
 					step = fields.length ? Math.min(...fields.map((f) => STEP_OF[f])) : 3;
-					turnstile?.reset();
 				}
+				// 失敗でも 500 などでも、トークンはサーバーで使い終わっている
+				if (result.type !== 'redirect') turnstile?.reset();
 			}}
 	>
 		<section bind:this={sections[0]} hidden={js && step !== 1}>
@@ -148,9 +148,8 @@
 					<dd>{affected}</dd>
 					<dt>{ja.issue.exampleLabel}</dt>
 					<dd class="example">{example}</dd>
-					{#if data.topic && topic === String(data.topic.id)}
-						<dt>{ja.issue.topicMark(data.topic.name)}</dt>
-					{/if}
+					<dt>{ja.issue.columnTopic}</dt>
+					<dd>{data.topic && topic === String(data.topic.id) ? data.topic.name : ja.issue.topicNo}</dd>
 				</dl>
 			{/if}
 			<Turnstile siteKey={data.siteKey} bind:token bind:this={turnstile} />
@@ -172,11 +171,6 @@
 
 	h1 {
 		font-size: var(--font-size-page-title);
-	}
-
-	.crumbs {
-		font-size: var(--font-size-sub);
-		color: var(--color-text-sub);
 	}
 
 	.steps {

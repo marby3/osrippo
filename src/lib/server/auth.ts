@@ -45,6 +45,8 @@ export function authOptions(env: AuthEnv) {
 		plugins: [sveltekitCookies(getRequestEvent)],
 		// Google と LINE を自動では結び付けない（決めたこと3）
 		account: { accountLinking: { enabled: false } },
+		// セッションに生の IP を保存しない（docs/spec/25.md 基準9。荒らし対策の数えはハッシュで別に持つ）
+		advanced: { ipAddress: { disableIpTracking: true } },
 		databaseHooks: {
 			user: {
 				create: {

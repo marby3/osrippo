@@ -27,11 +27,13 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { ja } from '../copy/ja';
 
 	/** token は確認が済むと入り、期限切れや作り直しで空に戻る */
 	let { siteKey, token = $bindable('') }: { siteKey: string; token?: string } = $props();
 	let container: HTMLDivElement;
 	let widgetId: string | undefined;
+	let loadFailed = $state(false);
 
 	onMount(() => {
 		let destroyed = false;
@@ -45,7 +47,10 @@
 					'error-callback': () => (token = '')
 				});
 			})
-			.catch(() => (token = ''));
+			.catch(() => {
+				token = '';
+				loadFailed = true;
+			});
 		return () => {
 			destroyed = true;
 			if (widgetId) api()?.remove(widgetId);
@@ -60,3 +65,4 @@
 </script>
 
 <div bind:this={container}></div>
+{#if loadFailed}<p role="alert">{ja.guard.turnstileUnavailable}</p>{/if}

@@ -55,6 +55,7 @@ export const ja = {
 	guard: {
 		outsideJapan: '日本国内からのみ参加できます。見ることは国外からもできます。',
 		turnstileFailed: '確認できませんでした。もう一度お試しください。',
+		turnstileUnavailable: '確認の仕組みを読み込めませんでした。ページを読み直してください。',
 		banned: (until: number) => `制限を何度も超えたため、${jaDateTime(until)}まで、課題の投稿と「わかる」ができません。`,
 		refusals: {
 			'post-account': '課題は24時間に5件まで書けます。しばらくしてからお試しください。',

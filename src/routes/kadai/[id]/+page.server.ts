@@ -4,7 +4,7 @@ import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { refusalMessage, writeGuard } from '#lib/server/client.ts';
-import { getIssue, setSupport } from '#lib/server/issues.ts';
+import { getIssue, issueExists, setSupport } from '#lib/server/issues.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -22,7 +22,7 @@ export const actions: Actions = {
 		const id = parseIssueId(params.id);
 		if (id === null) error(404);
 		const db = drizzle(env.DB);
-		if (!(await getIssue(db, id, null))) error(404);
+		if (!(await issueExists(db, id))) error(404);
 		if (!locals.user) redirect(303, `/login?next=${encodeURIComponent(`/kadai/${id}`)}`);
 
 		const now = Date.now();

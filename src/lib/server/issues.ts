@@ -63,6 +63,11 @@ export async function getIssue(db: Db, id: number, userId: string | null) {
 	return { ...issue, supports: await supportCount(db, id), supported: userId ? await isSupported(db, id, userId) : false };
 }
 
+export async function issueExists(db: Db, id: number) {
+	const [row] = await db.select({ id: issues.id }).from(issues).where(eq(issues.id, id));
+	return Boolean(row);
+}
+
 async function supportCount(db: Db, issueId: number) {
 	const [row] = await db.select({ n: count() }).from(issueSupports).where(eq(issueSupports.issueId, issueId));
 	return row.n;

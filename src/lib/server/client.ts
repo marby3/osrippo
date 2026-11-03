@@ -26,9 +26,10 @@ export function clientOf(event: Pick<RequestEvent, 'url' | 'request'>): { countr
 			ip: (test && headers.get('x-test-ip')) || headers.get('cf-connecting-ip') || '127.0.0.1'
 		};
 	}
-	// Worker が受け取った要求には Cloudflare が国を付ける（request.cf）。念のため CF-IPCountry ヘッダーも見る
+	// SvelteKit 3 の adapter は platform を作らず、Worker が受け取った要求をそのまま event.request に渡す。
+	// その要求に Cloudflare が付ける request.cf だけを信じる（ヘッダーはクライアントが送れるので使わない）
 	const cf = (event.request as Request & { cf?: { country?: string } }).cf;
-	return { country: cf?.country ?? headers.get('cf-ipcountry'), ip: headers.get('cf-connecting-ip') };
+	return { country: cf?.country ?? null, ip: headers.get('cf-connecting-ip') };
 }
 
 /** 日本からのアクセスだけ（Tor の T1、分からないときは断る） */
