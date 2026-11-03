@@ -162,3 +162,6 @@ export function solutionStaffRequest(page: Page, action: 'hideSolution' | 'resto
 		maxRedirects: 0
 	});
 }
+
+/** 全体を探すページ */
+export const searchUrl = (q: string, extra = '') => `/kensaku?q=${encodeURIComponent(q)}${extra}`;

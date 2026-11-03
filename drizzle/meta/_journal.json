@@ -57,6 +57,13 @@
       "when": 1793715393602,
       "tag": "0007_solution_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793720783833,
+      "tag": "0008_search",
+      "breakpoints": true
     }
   ]
 }

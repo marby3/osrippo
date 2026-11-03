@@ -134,6 +134,29 @@ export const ja = {
 		prevPage: '前の50件',
 		nextPage: '次の50件'
 	},
+	/** 全文検索（設計書 docs/spec/38.md） */
+	search: {
+		pageTitle: '探す｜オープンソース立法府',
+		heading: '探す',
+		label: '探す言葉',
+		submit: '探す',
+		entry: '法令や課題を探す',
+		issueLabel: '課題を探す',
+		errors: {
+			short: '2文字以上で入力してください',
+			long: '60字まで、言葉は5つまでで入力してください',
+			control: '使えない文字が入っています'
+		},
+		sections: { laws: '法令', jobun: '条文', kadai: '課題', kaiketsu: '解決策' },
+		count: (n: number) => `${n}件`,
+		none: '見つかりませんでした',
+		more: (n: number) => `もっと見る（${n}件）`,
+		capped: '1000件を超えました。言葉を足してしぼりこんでください',
+		supports: (n: number) => `わかる ${n}`,
+		back: '探した結果のすべてへ',
+		prevPage: '前の50件',
+		nextPage: '次の50件'
+	},
 	/** 似た課題（設計書 docs/spec/30.md） */
 	similar: {
 		heading: '似た課題があります',

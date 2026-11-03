@@ -11,7 +11,7 @@ export type IssueValidation =
 	| { ok: false; errors: Partial<Record<IssueField, IssueError>> };
 
 /** 制御文字と、文字の向きを変える書式文字（一覧で表示を偽れないように）。ゼロ幅接合子などは絵文字に使うので許す */
-const CONTROL = /[\p{Cc}‪-‮⁦-⁩]/u;
+export const CONTROL = /[\p{Cc}‪-‮⁦-⁩]/u;
 const CONTROL_EXCEPT_NEWLINE = /(?!\n)[\p{Cc}‪-‮⁦-⁩]/u;
 
 /** 前後の空白を除き、改行を \n にそろえて確かめる（通報と運営のメモでも使う） */
@@ -54,7 +54,8 @@ export function parseIssueId(raw: string): number | null {
 export const SORTS = ['support', 'new', 'rising'] as const;
 export type Sort = (typeof SORTS)[number];
 /** 絞り込みは「すべて」「今回のお題」「解決策あり」から1つ（設計書 docs/spec/34.md 決めたこと8） */
-export type ListQuery = { sort: Sort; topic: 'all' | 'current'; solutions: boolean; page: number };
+/** q は「課題を探す」の言葉のまま（判定は domain/search の parseQuery。形が違っても 404 にしない） */
+export type ListQuery = { sort: Sort; topic: 'all' | 'current'; solutions: boolean; q: string; page: number };
 
 /** 一覧の検索文字列。形が違えば null（404）。1ページ目は page なしの URL だけ */
 export function parseListQuery(params: URLSearchParams): ListQuery | null {
@@ -67,7 +68,7 @@ export function parseListQuery(params: URLSearchParams): ListQuery | null {
 	if (kaiketsu !== null && (kaiketsu !== 'ari' || topic !== null)) return null;
 	const pageNumber = parsePage(page);
 	if (pageNumber === null) return null;
-	return { sort: sort ?? 'support', topic: topic ?? 'all', solutions: kaiketsu === 'ari', page: pageNumber };
+	return { sort: sort ?? 'support', topic: topic ?? 'all', solutions: kaiketsu === 'ari', q: params.get('q') ?? '', page: pageNumber };
 }
 
 /** ページの番号：なければ1。2〜9999 の整数（先頭の0なし）だけ。1ページ目は page なしの URL だけなので、page=1 は形が違う */
@@ -77,11 +78,12 @@ export function parsePage(raw: string | null): number | null {
 }
 
 /** 一覧の URL（既定の値は書かない） */
-export function listHref({ sort, topic, solutions, page }: ListQuery): string {
+export function listHref({ sort, topic, solutions, q, page }: ListQuery): string {
 	const params = new URLSearchParams();
 	if (sort !== 'support') params.set('sort', sort);
 	if (topic !== 'all') params.set('topic', topic);
 	if (solutions) params.set('kaiketsu', 'ari');
+	if (q.trim()) params.set('q', q);
 	if (page > 1) params.set('page', String(page));
 	const search = params.toString();
 	return search ? `/kadai?${search}` : '/kadai';

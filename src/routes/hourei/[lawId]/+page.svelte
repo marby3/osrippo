@@ -98,6 +98,8 @@
 		<h1>{data.law.title}</h1>
 		<p class="sub">{ja.law.meta(data.law.lawNum, data.current.enforcementDate)}</p>
 		<p><a href="/hourei/{data.law.id}/hikaku">{ja.law.compareLink}</a></p>
+		<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7） -->
+		<p><a href="/kensaku">{ja.search.entry}</a></p>
 	</header>
 
 	<div class="layout">

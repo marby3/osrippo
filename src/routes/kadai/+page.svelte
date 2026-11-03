@@ -17,6 +17,7 @@
 
 <svelte:head>
 	<title>{ja.issue.listPageTitle}</title>
+	{#if q.q.trim()}<meta name="robots" content="noindex" />{/if}
 </svelte:head>
 
 <main>
@@ -24,6 +25,19 @@
 		<h1>{ja.issue.heading}</h1>
 		<a class="write" href="/kadai/kaku"><span aria-hidden="true">＋</span> {ja.issue.write}</a>
 	</header>
+
+	<!-- 課題を探す（設計書 docs/spec/38.md 決めたこと5）。今の並びと絞り込みは残す -->
+	<form method="get" action="/kadai" class="search">
+		{#if q.sort !== 'support'}<input type="hidden" name="sort" value={q.sort} />{/if}
+		{#if q.topic !== 'all'}<input type="hidden" name="topic" value={q.topic} />{/if}
+		{#if q.solutions}<input type="hidden" name="kaiketsu" value="ari" />{/if}
+		<label for="issue-search">{ja.search.issueLabel}</label>
+		<div class="search-row">
+			<input id="issue-search" name="q" type="search" value={q.q} maxlength="60" />
+			<button>{ja.search.submit}</button>
+		</div>
+	</form>
+	{#if data.searchError}<p role="alert">{ja.search.errors[data.searchError]}</p>{/if}
 
 	<div class="controls">
 		<nav aria-label={ja.issue.filterLabel}>
@@ -54,9 +68,17 @@
 
 	{#if data.rows.length === 0}
 		<!-- 「課題を書く」は見出しの横の1つだけ -->
-		<p class="empty">
-			{q.solutions ? ja.issue.emptySolutions : q.topic === 'current' ? ja.issue.emptyTopic : ja.issue.empty}
-		</p>
+		{#if !data.searchError}
+			<p class="empty">
+				{data.searching
+					? ja.search.none
+					: q.solutions
+						? ja.issue.emptySolutions
+						: q.topic === 'current'
+							? ja.issue.emptyTopic
+							: ja.issue.empty}
+			</p>
+		{/if}
 	{:else}
 		<table>
 			<thead>
@@ -116,6 +138,46 @@
 		color: var(--color-bg);
 		font-weight: bold;
 		text-decoration: none;
+	}
+
+	.search {
+		display: grid;
+		gap: 0.25rem;
+		margin-top: 1rem;
+	}
+
+	.search label {
+		font-weight: bold;
+		font-size: var(--font-size-sub);
+	}
+
+	.search-row {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.search input {
+		flex: 1;
+		min-height: var(--tap-min);
+		padding: 0 0.75rem;
+		border: 1px solid var(--color-input-border);
+		border-radius: var(--radius-m);
+		font: inherit;
+	}
+
+	.search button {
+		min-height: var(--tap-min);
+		padding: 0 1rem;
+		border: 1px solid var(--color-base);
+		border-radius: var(--radius-m);
+		background: var(--color-base);
+		color: var(--color-bg);
+		font: inherit;
+		font-weight: bold;
+	}
+
+	[role='alert'] {
+		color: var(--color-caution);
 	}
 
 	.controls {
