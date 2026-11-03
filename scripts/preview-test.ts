@@ -23,6 +23,9 @@ const vars: Record<string, string> = {
 	GOOGLE_CLIENT_SECRET: 'test-google-secret',
 	LINE_CLIENT_ID: 'test-line-client',
 	LINE_CLIENT_SECRET: 'test-line-secret',
+	// 画面のテストのサーバーでは siteverify を呼ばない（設計書 docs/spec/25.md 決めたこと8）
+	TURNSTILE_SECRET_KEY: 'test-turnstile-secret',
+	IP_HASH_SECRET: 'test-ip-hash-secret',
 	...(values['test-login'] ? { TEST_LOGIN: '1' } : {})
 };
 

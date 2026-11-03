@@ -15,6 +15,9 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	if (env.TEST_LOGIN !== '1' || !['localhost', '127.0.0.1'].includes(url.hostname)) error(404);
 	const name = url.searchParams.get('name') ?? '';
 	if (!/^[A-Za-z0-9-]{1,32}$/.test(name)) error(400);
+	// 登録した日を何日前にするか（0〜365。新しいアカウントの制限を避ける。docs/spec/25.md 決めたこと15）
+	const days = url.searchParams.get('days') ?? '0';
+	if (!/^(?:0|[1-9]\d{0,2})$/.test(days) || Number(days) > 365) error(400);
 
 	// testUtils は本番の auth には入れず、ここでだけ作る
 	const options = authOptions(env);
@@ -25,7 +28,11 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	let found = await db.query.user.findFirst({ where: eq(schema.user.email, email) });
 	if (!found) {
 		// 表示名は名前そのまま（ふつうの登録の hook を通さない）
-		[found] = await db.insert(schema.user).values({ id: crypto.randomUUID(), name, email }).returning();
+		const createdAt = new Date(Date.now() - Number(days) * 24 * 60 * 60 * 1000);
+		[found] = await db
+			.insert(schema.user)
+			.values({ id: crypto.randomUUID(), name, email, createdAt, updatedAt: createdAt })
+			.returning();
 	}
 	const login = await test.login({ userId: found.id });
 	for (const c of login.cookies) {

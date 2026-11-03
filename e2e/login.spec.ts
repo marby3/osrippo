@@ -1,5 +1,9 @@
 // Issue #23 ログイン
 import { expect, test, type Page } from '@playwright/test';
+import { stubTurnstile } from './helpers';
+
+// ログインの画面には Turnstile がある（Issue #25）。外部の api.js は読まず、通るトークンを入れる
+test.beforeEach(({ page }) => stubTurnstile(page));
 
 /**
  * 提供元までは行かない：ログインのフォームと同じ POST を、リダイレクトを追わずに送り、行き先を返す
@@ -9,7 +13,7 @@ async function authorizeUrl(page: Page, button: string, action: string): Promise
 	await page.goto('/login');
 	await expect(page.getByRole('button', { name: button })).toBeVisible();
 	const res = await page.request.post(`/login?/${action}`, {
-		form: { next: '/' },
+		form: { next: '/', 'cf-turnstile-response': 'test-pass' },
 		// ブラウザのフォームと同じく HTML を求める（そうでないと SvelteKit は JSON で返す）
 		headers: { origin: new URL(page.url()).origin, accept: 'text/html' },
 		maxRedirects: 0
@@ -84,4 +88,11 @@ test('Better Auth の経路は、提供元から戻るところ以外は外か�
 	expect((await post('/api/auth/sign-in/social', { provider: 'google', callbackURL: 'https://evil.example' })).status()).toBe(404);
 	await page.goto('/watashi');
 	await expect(page.getByText(name, { exact: true })).toBeVisible();
+});
+
+test('信頼の境界（Issue #25）：テスト用のログインの days が 0〜365 の整数でなければ 400', async ({ request }) => {
+	for (const days of ['-1', '366', '1.5', 'abc', '01', '']) {
+		expect((await request.get(`/test-login?name=days-check&days=${days}`)).status(), days).toBe(400);
+	}
+	expect((await request.get('/test-login?name=days-check&days=365')).status()).toBe(200);
 });

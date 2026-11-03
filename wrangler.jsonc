@@ -29,8 +29,16 @@
 			"GOOGLE_CLIENT_ID",
 			"GOOGLE_CLIENT_SECRET",
 			"LINE_CLIENT_ID",
-			"LINE_CLIENT_SECRET"
+			"LINE_CLIENT_SECRET",
+			// 課題の投稿（設計書 docs/spec/25.md 決めたこと8・9・14）
+			"TURNSTILE_SECRET_KEY",
+			"IP_HASH_SECRET"
 		]
+	},
+	"vars": {
+		// Turnstile のサイトキー（公開してよい値）。いまは Cloudflare のテスト用の鍵（いつも通る）。
+		// 本番とステージングの値はデプロイの Issue で決める
+		"TURNSTILE_SITE_KEY": "1x00000000000000000000AA"
 	},
 	"workers_dev": true,
 	"preview_urls": true

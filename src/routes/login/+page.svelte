@@ -1,8 +1,10 @@
 <script lang="ts">
+	import Turnstile from '#lib/components/Turnstile.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
+	let token = $state('');
 </script>
 
 <svelte:head>
@@ -13,10 +15,12 @@
 	<h1>{ja.login.heading}</h1>
 	<p>{ja.login.lead}</p>
 	{#if data.failed}<p role="alert">{ja.login.failed}</p>{/if}
+	{#if form?.message}<p role="alert">{form.message}</p>{/if}
 	<form method="post">
 		<input type="hidden" name="next" value={data.next} />
-		<button formaction="?/google">{ja.login.google}</button>
-		<button formaction="?/line">{ja.login.line}</button>
+		<Turnstile siteKey={data.siteKey} bind:token />
+		<button formaction="?/google" disabled={!token}>{ja.login.google}</button>
+		<button formaction="?/line" disabled={!token}>{ja.login.line}</button>
 	</form>
 </main>
 
@@ -34,6 +38,10 @@
 	form {
 		display: grid;
 		gap: 0.75rem;
+	}
+
+	button:disabled {
+		opacity: 0.5;
 	}
 
 	button {

@@ -1,6 +1,7 @@
 // フェーズ2 課題・解決策の締めのテスト（Issue #14）。
 // 通ったらフェーズ2完了として v0.2 を出す。それまでは test:phase でだけ回す。
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { stubTurnstile } from './helpers';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -15,6 +16,8 @@ async function loginAs(browser: Browser, name: string): Promise<Page> {
 	const context = await browser.newContext();
 	contexts.push(context);
 	const page = await context.newPage();
+	// Turnstile は外部の api.js を読まず、通るトークンを入れる（Issue #25 設計書 決めたこと8）
+	await stubTurnstile(page);
 	await page.goto(`/test-login?name=${encodeURIComponent(name)}`);
 	await expect(page.getByText(`テスト用のログイン：${name}`)).toBeVisible();
 	return page;
@@ -42,19 +45,22 @@ test('課題を投稿し、わかるを付け、3人の通報で非表示にな�
 
 	// 2. A が課題を書く
 	const a = await loginAs(browser, `A-${info.project.name}`);
-	await a.goto('/kadai/new');
+	// 段は「タイトル → くわしく（お題を選ぶ）→ 確認」（Issue #25 で決めた形）。
+	// 似た課題が出るようになると、最初の段のボタンは「どれとも違うので、次へ」になる
+	await a.goto('/kadai/kaku');
 	await a.getByLabel('何に困っていますか？').fill(title);
-	await a.getByRole('button', { name: 'どれとも違うので、次へ' }).click();
+	await a.getByRole('button', { name: /^(どれとも違うので、)?次へ$/ }).click();
 	await a.getByLabel('困っている人').fill('ネット通販で定期購入を申し込んだ人');
-	await a.getByRole('button', { name: '次へ', exact: true }).click();
 	await a.getByLabel('具体的には').fill('1回だけのつもりで申し込んだら、解約の電話がつながらず毎月届き続けている。');
-	// Turnstile のトークンが入るまで「投稿する」は押せない（テストでは必ず通るテスト用の鍵を使う）
+	await a.getByRole('radio', { name: '関係ある（消費者保護）' }).check();
+	await a.getByRole('button', { name: '次へ', exact: true }).click();
+	// Turnstile のトークンが入るまで「投稿する」は押せない
 	await a.getByRole('button', { name: '投稿する' }).click();
 	await expect(a.getByRole('heading', { level: 1, name: title })).toBeVisible();
 	await expect(a.getByText('ネット通販で定期購入を申し込んだ人')).toBeVisible();
 	await expect(a.getByText('解約の電話がつながらず毎月届き続けている')).toBeVisible();
 	const issueUrl = a.url();
-	expect(issueUrl).toMatch(/\/kadai\/(?!new$)[^/]+$/);
+	expect(issueUrl).toMatch(/\/kadai\/\d+$/);
 
 	// 3. B が「わかる」を付け、取り消す
 	const b = await loginAs(browser, `B-${info.project.name}`);
