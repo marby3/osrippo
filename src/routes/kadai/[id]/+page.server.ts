@@ -7,17 +7,23 @@ import { parseIssueId } from '#lib/domain/issues.ts';
 import { isHidden, validateReport } from '#lib/domain/reports.ts';
 import { refusalMessage, writeGuard } from '#lib/server/client.ts';
 import { getIssue, issueMeta, setSupport } from '#lib/server/issues.ts';
-import { hasReported, reportIssue, roleOf } from '#lib/server/reports.ts';
+import { hasReported, mergedSources, reportIssue, roleOf } from '#lib/server/reports.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+export const load: PageServerLoad = async ({ params, locals, request }) => {
 	const id = parseIssueId(params.id);
 	if (id === null) error(404);
 	const db = drizzle(env.DB);
 	const userId = locals.user?.id ?? null;
 	const issue = await getIssue(db, id, userId);
 	if (!issue) error(404);
-	const { userId: authorId, ...rest } = issue;
+	// 統合された課題は、だれが開いても統合先へ転送する（設計書 docs/spec/30.md 決めたこと8）。
+	// フォームの操作を断ったあとの画面（POST）では転送せず、統合されたことと断った理由を出す
+	if (issue.status === 'merged' && issue.mergedInto !== null) {
+		if (request.method === 'GET' || request.method === 'HEAD') redirect(308, `/kadai/${issue.mergedInto}`);
+		return { view: 'merged' as const, id, mergedInto: issue.mergedInto };
+	}
+	const { userId: authorId, mergedInto: _, ...rest } = issue;
 	const staff = userId !== null && (await roleOf(db, userId)) !== null;
 	const mine = userId === authorId;
 	const hidden = isHidden(issue.status);
@@ -32,7 +38,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		mine,
 		staff,
 		loggedIn: userId !== null,
-		reported: userId !== null && (await hasReported(db, id, userId))
+		reported: userId !== null && (await hasReported(db, id, userId)),
+		sources: await mergedSources(db, id)
 	};
 };
 
@@ -56,6 +63,7 @@ export const actions: Actions = {
 		if (!guard.ok) return guard.failure;
 		const op = (await event.request.formData()).get('op');
 		if (op !== 'add' && op !== 'remove') error(400);
+		if (meta.status === 'merged') return fail(403, { message: ja.merge.mergedOp });
 		if (isHidden(meta.status)) return fail(403, { message: ja.report.hiddenIssue });
 		const result = await setSupport(db, guard.actor, id, op, now);
 		if (!result.ok) return fail(429, { message: refusalMessage(result.refusal) });
@@ -70,6 +78,7 @@ export const actions: Actions = {
 			note: form.has('note') ? String(form.get('note')) : null
 		});
 		if (!checked.ok || meta.userId === user.id) error(400);
+		if (meta.status === 'merged') return fail(403, { message: ja.merge.mergedOp });
 		if (isHidden(meta.status)) return fail(403, { message: ja.report.hiddenIssue });
 		const result = await reportIssue(db, guard.actor, id, checked.value, now);
 		if (!result.ok) return fail(429, { message: refusalMessage(result.refusal) });

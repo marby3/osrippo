@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { ja } from '#lib/copy/ja.ts';
-	import { HIDE_REASONS, HIDEABLE, RESTORABLE, REPORT_REASONS } from '#lib/domain/reports.ts';
+	import { HIDE_REASONS, HIDEABLE, LISTED, RESTORABLE, REPORT_REASONS } from '#lib/domain/reports.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -23,7 +23,9 @@
 	{#each data.rows as row (row.id)}
 		<article>
 			<h2><a href="/kadai/{row.id}">#{row.id} {row.title}</a></h2>
-			<p class="status">{ja.kanri.statuses[row.status]}</p>
+			<p class="status">
+				{row.status === 'merged' && row.mergedInto !== null ? ja.merge.status(row.mergedInto) : ja.kanri.statuses[row.status]}
+			</p>
 			{#if form && 'message' in form && form.issueId === row.id}<p role="alert">{form.message}</p>{/if}
 			<p>{ja.kanri.reportCount(row.total, row.counted)}</p>
 			<ul class="reasons">
@@ -39,7 +41,8 @@
 				</ul>
 			{/if}
 
-			{#if !row.mine}
+			<!-- 自分の課題と、統合した課題には操作の欄を出さない -->
+			{#if !row.mine && row.status !== 'merged'}
 				{#if HIDEABLE.includes(row.status)}
 					<!-- 送り先にも issue を入れる（JS がなくても、送ったあとに同じ課題を開いたままにする） -->
 					<form method="post" action="?issue={row.id}&/hide" use:enhance>
@@ -62,6 +65,31 @@
 						<textarea id="restore-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
 						<button>{ja.kanri.restore}</button>
 					</form>
+				{/if}
+				{#if LISTED.includes(row.status)}
+					<!-- 統合は取り消せないので、まず確認の欄を開く（GET） -->
+					<form method="get" action="/kanri">
+						<input type="hidden" name="issue" value={row.id} />
+						<label for="merge-target-{row.id}">{ja.merge.target}</label>
+						<input id="merge-target-{row.id}" name="merge" inputmode="numeric" pattern="[1-9][0-9]*" required />
+						<button>{ja.merge.check}</button>
+					</form>
+				{/if}
+				{#if data.merge && data.focus === row.id}
+					{#if !data.merge.ok}
+						<p role="alert">{data.merge.error}</p>
+					{:else}
+						<form method="post" action="?issue={row.id}&merge={data.merge.targetId}&/merge" use:enhance class="confirm">
+							<p>{ja.merge.confirm(row.id, data.merge.source, data.merge.targetId, data.merge.target)}</p>
+							<p><strong>{ja.merge.irreversible}</strong></p>
+							<p>{ja.merge.supports(data.merge.supports)}</p>
+							<input type="hidden" name="issue" value={row.id} />
+							<input type="hidden" name="target" value={data.merge.targetId} />
+							<label for="merge-note-{row.id}">{ja.merge.note}</label>
+							<textarea id="merge-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
+							<button>{ja.merge.submit}</button>
+						</form>
+					{/if}
 				{/if}
 			{/if}
 		</article>
@@ -112,6 +140,7 @@
 		margin-top: 1rem;
 	}
 
+	input,
 	select,
 	textarea {
 		min-height: var(--tap-min);
@@ -131,6 +160,12 @@
 		color: var(--color-base);
 		font: inherit;
 		font-weight: bold;
+	}
+
+	.confirm {
+		padding: 1rem;
+		border-radius: var(--radius-m);
+		background: var(--color-caution-bg);
 	}
 
 	[role='alert'] {

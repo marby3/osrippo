@@ -173,7 +173,7 @@ export const topics = sqliteTable('topics', {
 		.default(sql`(unixepoch() * 1000)`)
 });
 
-export const ISSUE_STATUSES = ['visible', 'auto_hidden', 'hidden', 'restored'] as const;
+export const ISSUE_STATUSES = ['visible', 'auto_hidden', 'hidden', 'restored', 'merged'] as const;
 export const MODERATION_ACTORS = ['auto', 'moderator', 'operator'] as const;
 /** 非表示の理由。reports は自動（通報が3件） */
 export const HIDE_LOG_REASONS = ['reports', 'attack', 'spam', 'other'] as const;
@@ -194,7 +194,7 @@ export const issues = sqliteTable(
 		topicId: integer('topic_id').references(() => topics.id),
 		createdAt: integer('created_at').notNull(),
 		// 通報と非表示（設計書 docs/spec/28.md）。status を変えると、トリガーが下の status_* の値で moderation_logs に記録を書く。
-		// トリガー（issues_status_log）は drizzle/0004_reports.sql に手で書いたもので、drizzle のスナップショットにない。
+		// トリガー（issues_status_log）は drizzle/0005_merge.sql に手で書いたもので（最初は 0004）、drizzle のスナップショットにない。
 		// この表を作り直すマイグレーションでは、トリガーも消えるので書き直すこと
 		/** restored は運営が表示に戻した課題（表示するが、自動では非表示にしない） */
 		status: text('status', { enum: ISSUE_STATUSES }).notNull().default('visible'),
@@ -203,9 +203,14 @@ export const issues = sqliteTable(
 		statusActorUserId: text('status_actor_user_id'),
 		statusReason: text('status_reason', { enum: HIDE_LOG_REASONS }),
 		statusNote: text('status_note'),
-		statusChangedAt: integer('status_changed_at')
+		statusChangedAt: integer('status_changed_at'),
+		/**
+		 * 統合先（status が merged のとき。設計書 docs/spec/30.md）。外部キーは付けない
+		 * （自分の表への外部キーを足すと drizzle-kit が表を作り直し、トリガーと外部キーの行が消えるおそれがある）
+		 */
+		mergedInto: integer('merged_into')
 	},
-	(t) => [index('issues_topic_id').on(t.topicId)]
+	(t) => [index('issues_topic_id').on(t.topicId), index('issues_merged_into').on(t.mergedInto)]
 );
 
 export const issueSupports = sqliteTable(
@@ -291,11 +296,13 @@ export const moderationLogs = sqliteTable(
 		issueId: integer('issue_id')
 			.notNull()
 			.references(() => issues.id),
-		action: text('action', { enum: ['auto_hide', 'hide', 'restore'] }).notNull(),
+		action: text('action', { enum: ['auto_hide', 'hide', 'restore', 'merge'] }).notNull(),
 		actor: text('actor', { enum: MODERATION_ACTORS }).notNull(),
 		actorUserId: text('actor_user_id'),
 		reason: text('reason', { enum: HIDE_LOG_REASONS }),
 		note: text('note'),
+		/** 統合したときの統合先 */
+		mergedInto: integer('merged_into'),
 		createdAt: integer('created_at').notNull()
 	},
 	(t) => [index('moderation_logs_issue').on(t.issueId)]
