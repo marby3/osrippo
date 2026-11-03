@@ -76,7 +76,7 @@ test('基準4：テストのサーバーでは x-test-now が書き込みの時�
 });
 
 test('信頼の境界：形の違う x-test-now は使わず、本当の時刻にする', async ({ browser }) => {
-	for (const value of ['2031-03-10', '2031-03-10T09:00:00', 'abc', '2031-13-40T00:00:00+09:00', '1e15']) {
+	for (const value of ['2031-03-10', '2031-03-10T09:00:00', 'abc', '2031-13-40T00:00:00+09:00', '2031-02-30T00:00:00+09:00', '2031-03-10T24:00:00+09:00', '1e15']) {
 		const page = await open(browser, { 'x-test-now': value });
 		await page.goto('/');
 		await expect(page.getByText(realMonth(), { exact: true }), value).toBeVisible();
