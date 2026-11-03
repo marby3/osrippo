@@ -27,8 +27,8 @@ test('信頼の境界：検索の言葉は2文字以上・5つまで・60字ま�
 	expect(parseQuery('契約 !!')).toEqual({ ok: false, error: 'short' });
 	expect(parseQuery('あ'.repeat(61))).toEqual({ ok: false, error: 'long' });
 	expect(parseQuery('ああ いい うう ええ おお かか')).toEqual({ ok: false, error: 'long' });
-	// そろえると長くなる文字（U+FDFA は18字になる。4つで72字）
-	expect(parseQuery(String.fromCodePoint(0xfdfa).repeat(4))).toEqual({ ok: false, error: 'long' });
+	// そろえると長くなる文字（U+FDFA は空白を除いて15字になる。5つで75字）
+	expect(parseQuery(String.fromCodePoint(0xfdfa).repeat(5))).toEqual({ ok: false, error: 'long' });
 	expect(parseQuery('契約\u0007')).toEqual({ ok: false, error: 'control' });
 	expect(parseQuery(`契約${String.fromCodePoint(0x202e)}`)).toEqual({ ok: false, error: 'control' });
 });
