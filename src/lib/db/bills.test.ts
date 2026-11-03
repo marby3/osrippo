@@ -122,6 +122,8 @@ describe('基準2：版ごとの保存', () => {
 		expect(await saveDraft(db, id, 'u1', 1, await input('古い', '古い本文', [3]), T0 + 2)).toBe(false);
 		expect(await saveDraft(db, id, 'u2', 2, await input('ほかの人', '他人の本文', [3]), T0 + 2)).toBe(false);
 		expect(await saveDraft(db, id, 'u1', 0, await input('作りかけ', 'x', [3]), T0 + 2)).toBe(false);
+		// 種類（kind）は作ったあとは変えないので、違う種類の中身は保存しない
+		expect(await saveDraft(db, id, 'u1', 2, { ...(await input('種類違い', 'x', [3])), kind: 'enact' }, T0 + 2)).toBe(false);
 		const second = (await billById(db, id))!;
 		expect([second.rev, second.title, second.solutionIds, second.updatedAt]).toEqual([2, '2回目', [1, 2], T0 + 1]);
 		expect(second.laws[0].changes[0].paragraphs![0].text).toBe('本文その2');

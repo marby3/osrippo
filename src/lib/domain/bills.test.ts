@@ -40,6 +40,9 @@ describe('信頼の境界：変更後の条文の欄', () => {
 		expect(parseArticleBody('本文\na\u202eb')).toEqual({ ok: false, line: 2, error: 'control' });
 		// 全角の「２」は項の行にしない（前の本文の続き）
 		expect(parseArticleBody('本文\n２　続き')).toEqual({ ok: true, paragraphs: [{ num: '1', text: '本文\n２　続き', items: [] }] });
+		// 中身のない項と号
+		expect(parseArticleBody('本文\n2　')).toEqual({ ok: false, line: 2, error: 'empty' });
+		expect(parseArticleBody('本文\n一　 ')).toEqual({ ok: false, line: 2, error: 'empty' });
 		// 1行目は号の形でも第1項の本文
 		expect(parseArticleBody('一　本文')).toEqual({ ok: true, paragraphs: [{ num: '1', text: '一　本文', items: [] }] });
 		// \r\n はそろえ、空の行は無視する
