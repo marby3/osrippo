@@ -59,7 +59,9 @@ type ProvisionRow = {
 
 /**
  * 条文：いま施行されている版で有効な条・項・号のうち当てはまるもの。法令の順・条・項・号の番号の順。
- * 番号の順は SQL で並べられないので、いまの版で絞ったあと上限+1件まで読んでアプリで並べる
+ * 番号の順は SQL で並べられないので、いまの版で絞ったあと上限まで読んでアプリで並べる。
+ * 読む行は法令の順・内部IDの順（条・項・号を取り込んだ順。番号の順にほぼ等しい）で選ぶ。1000件を超えたときに、
+ * 法令の順の先頭から読めるように（件数は別に数える）
  */
 export async function searchProvisions(db: Db, words: Word[]) {
 	const ids = matchedIds('provision', words);
@@ -76,8 +78,9 @@ export async function searchProvisions(db: Db, words: Word[]) {
 			(SELECT gv.num FROM provisions gp JOIN provision_versions gv ON gv.provision_id = gp.parent_id
 				WHERE gp.id = p.parent_id AND ${validAt('gv', 'cur')}) AS grand_num
 		${from}
-		LIMIT ${PROVISION_CAP + 1}`);
-	return { total: counted?.n ?? 0, rows: sortProvisions(rows).slice(0, PROVISION_CAP) };
+		ORDER BY p.law_id, p.id
+		LIMIT ${PROVISION_CAP}`);
+	return { total: counted?.n ?? 0, rows: sortProvisions(rows) };
 }
 
 /** 法令の順、条・項・号の番号の順に並べ、位置と本文とリンク先を付ける */

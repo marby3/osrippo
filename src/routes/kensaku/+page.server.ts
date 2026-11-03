@@ -22,6 +22,8 @@ export const load: PageServerLoad = async ({ url }) => {
 	if (page === null || (page > 1 && shurui === null)) error(404);
 	const query = parseQuery(raw);
 	const q = raw ?? '';
+	// 探さないとき、2ページ目以降は課題などがないページなので 404（/kadai と同じ）
+	if ((!query.ok || query.words.length === 0) && page > 1) error(404);
 	if (!query.ok) return { q, shurui, page, error: query.error, results: null };
 	if (query.words.length === 0) return { q, shurui, page, error: null, results: null };
 
