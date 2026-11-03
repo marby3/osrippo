@@ -35,6 +35,8 @@
 
 <main>
 	{#if data.view === 'hidden'}
+		<!-- 自分の通報で非表示になったときも、受け付けたことを知らせる -->
+		{#if reportMessage}<p role="status">{reportMessage}</p>{/if}
 		<h1>{ja.hidden.heading}</h1>
 		<p>{hiddenMessage(data.status, data.statusReason)}</p>
 		<p><a href="/unei">{ja.hidden.toLog}</a></p>
