@@ -1,6 +1,6 @@
 // 通報と非表示、運営の画面と記録の DB（設計書 docs/spec/28.md）
 import { and, count, countDistinct, desc, eq, gt, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
-import { issueSupports, issues, moderationLogs, reports, user, type ROLES } from '../db/schema';
+import { issueSupports, issues, moderationLogs, reports, solutionReports, user, type ROLES } from '../db/schema';
 import { PAGE_SIZE } from '../domain/issues';
 import { preselectSimilar, rankSimilar } from '../domain/similar';
 import { DAY, LIMITS } from '../domain/limits';
@@ -31,6 +31,19 @@ export async function hasReported(db: Db, issueId: number, userId: string) {
 	return row.n > 0;
 }
 
+/** 直近24時間の通報の数。課題と解決策の通報を合わせて数える（設計書 docs/spec/36.md 決めたこと2） */
+export async function reportsInDay(db: Db, userId: string, now: number) {
+	const [issueReports] = await db
+		.select({ n: count() })
+		.from(reports)
+		.where(and(eq(reports.userId, userId), gt(reports.createdAt, now - DAY)));
+	const [solutionReportCount] = await db
+		.select({ n: count() })
+		.from(solutionReports)
+		.where(and(eq(solutionReports.userId, userId), gt(solutionReports.createdAt, now - DAY)));
+	return issueReports.n + solutionReportCount.n;
+}
+
 /** 通報する。2回目は何もせず already。保存したら自動非表示を確かめる */
 export async function reportIssue(
 	db: Db,
@@ -40,11 +53,7 @@ export async function reportIssue(
 	now: number
 ) {
 	if (await hasReported(db, issueId, actor.userId)) return { ok: true as const, already: true };
-	const [mine] = await db
-		.select({ n: count() })
-		.from(reports)
-		.where(and(eq(reports.userId, actor.userId), gt(reports.createdAt, now - DAY)));
-	if (mine.n >= LIMITS.reportPerDay) return refuse(db, actor, { kind: 'report-day' }, now);
+	if ((await reportsInDay(db, actor.userId, now)) >= LIMITS.reportPerDay) return refuse(db, actor, { kind: 'report-day' }, now);
 
 	const inserted = await db
 		.insert(reports)
@@ -166,6 +175,7 @@ export async function moderationLogPage(db: Db, page: number) {
 			reason: moderationLogs.reason,
 			note: moderationLogs.note,
 			mergedInto: moderationLogs.mergedInto,
+			solutionId: moderationLogs.solutionId,
 			createdAt: moderationLogs.createdAt
 		})
 		.from(moderationLogs)

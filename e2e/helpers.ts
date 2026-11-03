@@ -144,3 +144,21 @@ export function reactRequest(page: Page, issueId: number | string, form: Record<
 		maxRedirects: 0
 	});
 }
+
+/** 解決策の通報のフォームと同じ POST */
+export function reportSolutionRequest(page: Page, issueId: number | string, form: Record<string, string>) {
+	return page.request.post(`/kadai/${issueId}?/reportSolution`, {
+		form,
+		headers: { origin: ORIGIN, accept: 'text/html' },
+		maxRedirects: 0
+	});
+}
+
+/** 運営の画面の、解決策の操作と同じ POST */
+export function solutionStaffRequest(page: Page, action: 'hideSolution' | 'restoreSolution', form: Record<string, string>) {
+	return page.request.post(`/kanri?/${action}`, {
+		form,
+		headers: { origin: ORIGIN, accept: 'text/html' },
+		maxRedirects: 0
+	});
+}

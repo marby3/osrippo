@@ -1,11 +1,22 @@
 // 解決策の DB（設計書 docs/spec/34.md）
-import { and, count, countDistinct, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
-import { actions, solutionReactions, solutions } from '../db/schema';
+import { and, count, countDistinct, desc, eq, gt, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
+import { actions, issues, solutionReactions, solutionReports, solutions } from '../db/schema';
 import { checkSolutionPost, checkSupport, DAY, LIMITS } from '../domain/limits';
-import { LISTED } from '../domain/reports';
+import {
+	countsTowardHide,
+	HIDE_THRESHOLD,
+	LISTED,
+	type HideReason,
+	type IssueStatus,
+	type SolutionReportReason
+} from '../domain/reports';
 import type { Reaction } from '../domain/solutions';
 import { PRESS_KINDS, refuse, type Actor } from './issues';
 import type { Db } from './law';
+import { reportsInDay, type Role } from './reports';
+
+/** 表示中の解決策の状態（解決策には merged がない） */
+const SHOWN = ['visible', 'restored'] as const;
 
 /** 解決策を書く。上限を確かめ、課題が一覧に出る状態のときだけ1文で入れる（設計書 決めたこと1・2） */
 export async function createSolution(db: Db, actor: Actor, issueId: number, body: string, now: number) {
@@ -61,7 +72,8 @@ export async function listSolutions(db: Db, issueId: number, userId: string | nu
 			myChanged: pressedBy('changed', userId)
 		})
 		.from(solutions)
-		.where(eq(solutions.issueId, issueId))
+		// 非表示の解決策は出さない（本人・運営には listHiddenSolutions で別に出す。設計書 docs/spec/36.md 決めたこと4）
+		.where(and(eq(solutions.issueId, issueId), inArray(solutions.status, SHOWN)))
 		.orderBy(desc(support), desc(solutions.id))
 		.limit(limit)
 		.offset(offset);
@@ -73,14 +85,191 @@ export async function listSolutions(db: Db, issueId: number, userId: string | nu
 	}));
 }
 
+/** 表示中の解決策の数 */
 export async function solutionCount(db: Db, issueId: number) {
-	const [row] = await db.select({ n: count() }).from(solutions).where(eq(solutions.issueId, issueId));
+	const [row] = await db
+		.select({ n: count() })
+		.from(solutions)
+		.where(and(eq(solutions.issueId, issueId), inArray(solutions.status, SHOWN)));
 	return row.n;
 }
 
 export async function solutionMeta(db: Db, id: number) {
-	const [row] = await db.select({ issueId: solutions.issueId, userId: solutions.userId }).from(solutions).where(eq(solutions.id, id));
+	const [row] = await db
+		.select({ issueId: solutions.issueId, userId: solutions.userId, status: solutions.status })
+		.from(solutions)
+		.where(eq(solutions.id, id));
 	return row ?? null;
+}
+
+/** 本人と運営に見せる非表示の解決策：運営なら全部、本人なら自分のもの。新しい順（設計書 docs/spec/36.md 決めたこと4） */
+export async function listHiddenSolutions(db: Db, issueId: number, userId: string | null, staff: boolean) {
+	if (userId === null) return [];
+	const rows = await db
+		.select({
+			id: solutions.id,
+			body: solutions.body,
+			status: solutions.status,
+			statusReason: solutions.statusReason,
+			support: reactionCount('support'),
+			changed: reactionCount('changed')
+		})
+		.from(solutions)
+		.where(
+			and(
+				eq(solutions.issueId, issueId),
+				inArray(solutions.status, ['auto_hidden', 'hidden']),
+				staff ? undefined : eq(solutions.userId, userId)
+			)
+		)
+		.orderBy(desc(solutions.id));
+	return rows;
+}
+
+/** 本人と運営に見せる非表示の解決策が、1つでもあるか（課題のページのリンクに使う） */
+export async function hasHiddenSolutions(db: Db, issueId: number, userId: string | null, staff: boolean) {
+	if (userId === null) return false;
+	const [row] = await db
+		.select({ id: solutions.id })
+		.from(solutions)
+		.where(
+			and(
+				eq(solutions.issueId, issueId),
+				inArray(solutions.status, ['auto_hidden', 'hidden']),
+				staff ? undefined : eq(solutions.userId, userId)
+			)
+		)
+		.limit(1);
+	return Boolean(row);
+}
+
+/** その人が通報した解決策の番号（通報済みの表示に使う） */
+export async function reportedSolutionIds(db: Db, userId: string | null, ids: number[]) {
+	if (userId === null || ids.length === 0) return [];
+	const rows = await db
+		.select({ id: solutionReports.solutionId })
+		.from(solutionReports)
+		.where(and(eq(solutionReports.userId, userId), inArray(solutionReports.solutionId, ids)));
+	return rows.map((r) => r.id);
+}
+
+/** 解決策を通報する。2回目は何もせず already。保存したら自動非表示を確かめる（設計書 docs/spec/36.md 決めたこと2・3） */
+export async function reportSolution(
+	db: Db,
+	actor: Actor,
+	solutionId: number,
+	value: { reason: SolutionReportReason; note: string | null },
+	now: number
+) {
+	if ((await reportedSolutionIds(db, actor.userId, [solutionId])).length > 0) return { ok: true as const, already: true };
+	if ((await reportsInDay(db, actor.userId, now)) >= LIMITS.reportPerDay) return refuse(db, actor, { kind: 'report-day' }, now);
+	const inserted = await db
+		.insert(solutionReports)
+		.values({
+			solutionId,
+			userId: actor.userId,
+			reason: value.reason,
+			note: value.note,
+			counted: countsTowardHide(value.reason, actor.registeredAt, now),
+			createdAt: now
+		})
+		.onConflictDoNothing()
+		.returning({ id: solutionReports.id });
+	if (inserted.length === 0) return { ok: true as const, already: true };
+	// 数に入る通報が3件以上で、表示中（visible）の解決策だけを自動で非表示にする。記録はトリガーが書く
+	await db
+		.update(solutions)
+		.set({
+			status: 'auto_hidden',
+			statusActor: 'auto',
+			statusActorUserId: null,
+			statusReason: 'reports',
+			statusNote: null,
+			statusChangedAt: now
+		})
+		.where(
+			and(
+				eq(solutions.id, solutionId),
+				eq(solutions.status, 'visible'),
+				sql`(SELECT count(*) FROM ${solutionReports} WHERE ${solutionReports.solutionId} = ${solutionId} AND ${solutionReports.counted} = 1) >= ${HIDE_THRESHOLD}`
+			)
+		);
+	return { ok: true as const, already: false };
+}
+
+/** 運営の操作。from のどれかの状態のときだけ to に変え、変わったら true。記録はトリガーが書く */
+export async function changeSolutionStatus(
+	db: Db,
+	solutionId: number,
+	from: IssueStatus[],
+	to: 'hidden' | 'restored',
+	staff: { userId: string; role: Role },
+	reason: HideReason | null,
+	note: string,
+	now: number
+) {
+	const changed = await db
+		.update(solutions)
+		.set({
+			status: to,
+			statusActor: staff.role,
+			statusActorUserId: staff.userId,
+			statusReason: reason,
+			statusNote: note,
+			statusChangedAt: now
+		})
+		.where(and(eq(solutions.id, solutionId), inArray(solutions.status, from as ('visible' | 'auto_hidden' | 'hidden' | 'restored')[])))
+		.returning({ id: solutions.id });
+	return changed.length > 0;
+}
+
+/** 運営の画面：通報を受けた解決策（と focus の解決策）。自動で非表示が先、その中は最後の通報が新しい順に100件 */
+export async function reportedSolutions(db: Db, focus: number | null) {
+	const reasonCount = (r: SolutionReportReason) =>
+		sql<number>`coalesce(sum(case when ${solutionReports.reason} = ${r} then 1 else 0 end), 0)`;
+	const rows = await db
+		.select({
+			id: solutions.id,
+			body: solutions.body,
+			userId: solutions.userId,
+			status: solutions.status,
+			issueId: solutions.issueId,
+			issueTitle: issues.title,
+			total: count(solutionReports.id),
+			counted: sql<number>`coalesce(sum(${solutionReports.counted}), 0)`,
+			attack: reasonCount('attack'),
+			spam: reasonCount('spam'),
+			other: reasonCount('other'),
+			none: reasonCount('none'),
+			afterRestore: sql<number>`coalesce(sum(case when ${solutions.status} = 'restored' and ${solutionReports.createdAt} > ${solutions.statusChangedAt} then 1 else 0 end), 0)`
+		})
+		.from(solutions)
+		.innerJoin(issues, eq(issues.id, solutions.issueId))
+		.leftJoin(solutionReports, eq(solutionReports.solutionId, solutions.id))
+		// 解決策の総数ではなく、通報された解決策の数だけ読む
+		.where(
+			or(
+				inArray(solutions.id, db.selectDistinct({ id: solutionReports.solutionId }).from(solutionReports)),
+				focus === null ? undefined : eq(solutions.id, focus)
+			)
+		)
+		.groupBy(solutions.id)
+		.orderBy(
+			desc(sql`${solutions.id} = ${focus ?? -1}`),
+			desc(sql`${solutions.status} = 'auto_hidden'`),
+			desc(sql`max(${solutionReports.createdAt})`),
+			desc(solutions.id)
+		)
+		.limit(100);
+	const ids = rows.map((r) => r.id);
+	const notes = ids.length
+		? await db
+				.select({ solutionId: solutionReports.solutionId, note: solutionReports.note })
+				.from(solutionReports)
+				.where(and(inArray(solutionReports.solutionId, ids), isNotNull(solutionReports.note)))
+				.orderBy(desc(solutionReports.createdAt), desc(solutionReports.id))
+		: [];
+	return rows.map((r) => ({ ...r, notes: notes.filter((n) => n.solutionId === r.id).map((n) => n.note as string) }));
 }
 
 /** 「わかる」「考えが変わった」を付ける・外す。いまと同じ状態への操作は何もせず、数えない（設計書 決めたこと5） */

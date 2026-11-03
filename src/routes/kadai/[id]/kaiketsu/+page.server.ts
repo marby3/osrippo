@@ -6,8 +6,8 @@ import { PAGE_SIZE, parseIssueId, parsePage } from '#lib/domain/issues.ts';
 import { isHidden } from '#lib/domain/reports.ts';
 import { getIssue } from '#lib/server/issues.ts';
 import { roleOf } from '#lib/server/reports.ts';
-import { reactAction } from '#lib/server/solution-actions.ts';
-import { listSolutions } from '#lib/server/solutions.ts';
+import { reactAction, reportSolutionAction } from '#lib/server/solution-actions.ts';
+import { listHiddenSolutions, listSolutions, reportedSolutionIds } from '#lib/server/solutions.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals, request, url }) => {
@@ -32,22 +32,33 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 	}
 	const rows = await listSolutions(db, id, userId, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE);
 	if (page > 1 && rows.length === 0) error(404);
+	const solutions = rows.slice(0, PAGE_SIZE);
 	return {
 		view: 'full' as const,
 		issue: { id, title: issue.title },
 		hidden,
 		loggedIn: userId !== null,
 		page,
-		solutions: rows.slice(0, PAGE_SIZE),
-		hasNext: rows.length > PAGE_SIZE
+		solutions,
+		hasNext: rows.length > PAGE_SIZE,
+		staff,
+		reportedSolutions: await reportedSolutionIds(
+			db,
+			userId,
+			solutions.map((s) => s.id)
+		),
+		// 本人・運営に見せる非表示の解決策は、1ページ目の最後に出す（設計書 docs/spec/36.md 決めたこと4）
+		hiddenSolutions: page === 1 ? await listHiddenSolutions(db, id, userId, staff) : []
 	};
 };
 
+/** ログインのあとは同じページへ戻る */
+const backTo = (url: URL, id: number) => {
+	const page = url.searchParams.get('page');
+	return page ? `/kadai/${id}/kaiketsu?page=${encodeURIComponent(page)}` : `/kadai/${id}/kaiketsu`;
+};
+
 export const actions: Actions = {
-	react: (event) =>
-		reactAction(event, (id) => {
-			// ログインのあとは同じページへ戻る
-			const page = event.url.searchParams.get('page');
-			return page ? `/kadai/${id}/kaiketsu?page=${encodeURIComponent(page)}` : `/kadai/${id}/kaiketsu`;
-		})
+	react: (event) => reactAction(event, (id) => backTo(event.url, id)),
+	reportSolution: (event) => reportSolutionAction(event, (id) => backTo(event.url, id))
 };

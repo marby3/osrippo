@@ -118,6 +118,18 @@ export const ja = {
 		label: '解決策',
 		submit: '投稿する',
 		cannotWrite: 'この課題には解決策を書けません',
+		hiddenOp: '非表示の解決策には操作できません',
+		reportOpen: 'この解決策を通報する',
+		reportDone: '通報を受け付けました',
+		reportAlready: 'この解決策は通報済みです',
+		hiddenHeading: '非表示の解決策',
+		hiddenAuto: 'この解決策は通報により非表示になっています',
+		hiddenStaff: (reason: string | null) =>
+			reason === null
+				? 'この解決策は運営の確認により非表示になっています'
+				: `この解決策は運営の確認により非表示になっています（理由：${reason}）`,
+		showHidden: '非表示の解決策を見る',
+		staffLink: 'この解決策に運営として対応する',
 		ownSolution: '自分の解決策には押せません',
 		prevPage: '前の50件',
 		nextPage: '次の50件'
@@ -171,6 +183,9 @@ export const ja = {
 		pageTitle: '通報を受けた課題｜オープンソース立法府',
 		heading: '通報を受けた課題',
 		empty: '通報を受けた課題はありません',
+		solutionsHeading: '通報を受けた解決策',
+		solutionsEmpty: '通報を受けた解決策はありません',
+		ownSolution: '自分の解決策には対応できません',
 		statuses: { visible: '表示中', auto_hidden: '自動で非表示', hidden: '非表示', restored: '表示に戻した', merged: '統合した' },
 		reportCount: (total: number, counted: number) => `通報 ${total}件（数えたもの ${counted}件）`,
 		afterRestore: (n: number) => `表示に戻したあとの通報 ${n}件`,
@@ -190,10 +205,10 @@ export const ja = {
 		heading: '運営の記録',
 		criteriaHeading: '非表示にする基準',
 		criteria: [
-			'登録から24時間たった別々の3人から通報があると、運営が確認するまで一時的に見えなくなります。',
+			'登録から24時間たった別々の3人から通報があると、課題や解決策は、運営が確認するまで一時的に見えなくなります。',
 			'「同じ課題がほかにある」の通報では見えなくなりません。',
-			'運営が確認して問題がないとした課題は、そのあと通報があっても自動では見えなくなりません。',
-			'運営が見えなくするのは、人への攻撃・差別、宣伝・荒らしなど、課題として扱えないものだけです。理由はこの記録に残します。',
+			'運営が確認して問題がないとした課題や解決策は、そのあと通報があっても自動では見えなくなりません。',
+			'運営が見えなくするのは、人への攻撃・差別、宣伝・荒らしなど、課題や解決策として扱えないものだけです。理由はこの記録に残します。',
 			'通報した人や書いた人の名前は、ここには出しません。'
 		],
 		logHeading: '対応の記録',
@@ -201,6 +216,8 @@ export const ja = {
 		actions: { auto_hide: '自動で非表示', hide: '非表示', restore: '表示に戻した', merge: '統合' },
 		actors: { auto: '自動', moderator: '運営協力者', operator: '運営' },
 		empty: 'まだ記録はありません',
+		/** 解決策への対応の行で、課題の番号のあとに付ける */
+		solutionOf: 'の解決策',
 		prevPage: '前の50件',
 		nextPage: '次の50件'
 	},

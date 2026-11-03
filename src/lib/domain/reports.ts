@@ -12,12 +12,12 @@ export const NOTE_MAX = 200;
 export const HIDE_THRESHOLD = 3;
 
 /** 通報の理由と説明。理由は任意（空は none）。説明は「その他」のときだけ受け取る */
-export function validateReport(raw: {
-	reason: string | null;
-	note: string | null;
-}): { ok: true; value: { reason: ReportReason; note: string | null } } | { ok: false } {
+export function validateReport(
+	raw: { reason: string | null; note: string | null },
+	allowed: readonly string[] = REPORT_REASONS
+): { ok: true; value: { reason: ReportReason; note: string | null } } | { ok: false } {
 	// none は保存の値。フォームからは空で送る
-	if (raw.reason !== null && raw.reason !== '' && !(REPORT_REASONS as readonly string[]).includes(raw.reason)) {
+	if (raw.reason !== null && raw.reason !== '' && !allowed.includes(raw.reason)) {
 		return { ok: false };
 	}
 	const reason = raw.reason || 'none';
@@ -26,6 +26,30 @@ export function validateReport(raw: {
 	if (error === 'required') return { ok: true, value: { reason, note: null } };
 	if (error) return { ok: false };
 	return { ok: true, value: { reason, note } };
+}
+
+/** 解決策の通報の理由（「同じ課題がほかにある」は課題の統合のための理由なので出さない。設計書 docs/spec/36.md） */
+export const SOLUTION_REPORT_REASONS = ['attack', 'spam', 'other'] as const;
+export type SolutionReportReason = (typeof SOLUTION_REPORT_REASONS)[number] | 'none';
+
+export function validateSolutionReport(raw: {
+	reason: string | null;
+	note: string | null;
+}): { ok: true; value: { reason: SolutionReportReason; note: string | null } } | { ok: false } {
+	return validateReport(raw, SOLUTION_REPORT_REASONS) as
+		| { ok: true; value: { reason: SolutionReportReason; note: string | null } }
+		| { ok: false };
+}
+
+/** 解決策への運営の操作：解決策の番号、非表示の理由（非表示にするときだけ）、メモ */
+export function validateSolutionAction(
+	raw: { solution: string | null; reason?: string | null; note: string | null },
+	action: 'hide' | 'restore'
+): { ok: true; value: { solutionId: number; reason: HideReason | null; note: string } } | { ok: false } {
+	const checked = validateStaffAction({ issue: raw.solution, reason: raw.reason, note: raw.note }, action);
+	if (!checked.ok) return { ok: false };
+	const { issueId: solutionId, reason, note } = checked.value;
+	return { ok: true, value: { solutionId, reason, note } };
 }
 
 /** 自動非表示の数に入れるか：同じ課題がほかにある、と、登録から24時間たっていない人の通報は入れない */

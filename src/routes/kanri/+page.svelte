@@ -1,11 +1,22 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { ja } from '#lib/copy/ja.ts';
-	import { HIDE_REASONS, HIDEABLE, LISTED, RESTORABLE, REPORT_REASONS } from '#lib/domain/reports.ts';
+	import {
+		HIDE_REASONS,
+		HIDEABLE,
+		LISTED,
+		RESTORABLE,
+		REPORT_REASONS,
+		SOLUTION_REPORT_REASONS
+	} from '#lib/domain/reports.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 	const reasons = [...REPORT_REASONS, 'none'] as const;
+	const solutionReasons = [...SOLUTION_REPORT_REASONS, 'none'] as const;
+	/** 解決策の操作を断った理由は、その解決策のところに出す */
+	const solutionAlert = (id: number) =>
+		form && 'message' in form && 'solutionId' in form && form.solutionId === id ? form.message : undefined;
 </script>
 
 <svelte:head>
@@ -15,8 +26,10 @@
 
 <main>
 	<h1>{ja.kanri.heading}</h1>
-	<!-- 断った文言は、その課題のところに出す（どの課題か分からないときだけ上に） -->
-	{#if form && 'message' in form && !form.issueId}<p role="alert">{form.message}</p>{/if}
+	<!-- 断った文言は、その課題・解決策のところに出す（どれか分からないときだけ上に） -->
+	{#if form && 'message' in form && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId)}
+		<p role="alert">{form.message}</p>
+	{/if}
 	{#if data.rows.length === 0}
 		<p>{ja.kanri.empty}</p>
 	{/if}
@@ -26,7 +39,7 @@
 			<p class="status">
 				{row.status === 'merged' && row.mergedInto !== null ? ja.merge.status(row.mergedInto) : ja.kanri.statuses[row.status]}
 			</p>
-			{#if form && 'message' in form && form.issueId === row.id}<p role="alert">{form.message}</p>{/if}
+			{#if form && 'message' in form && 'issueId' in form && form.issueId === row.id}<p role="alert">{form.message}</p>{/if}
 			<p>{ja.kanri.reportCount(row.total, row.counted)}</p>
 			<ul class="reasons">
 				{#each reasons as reason (reason)}
@@ -94,6 +107,57 @@
 			{/if}
 		</article>
 	{/each}
+
+	<section aria-labelledby="solutions-heading">
+		<h2 id="solutions-heading" class="section">{ja.kanri.solutionsHeading}</h2>
+		{#if data.solutions.length === 0}<p>{ja.kanri.solutionsEmpty}</p>{/if}
+		{#each data.solutions as row (row.id)}
+			<article>
+				<h3><a href="/kadai/{row.issueId}">#{row.issueId} {row.issueTitle}</a> {ja.unei.solutionOf}</h3>
+				<p class="body">{row.body}</p>
+				<p class="status">{ja.kanri.statuses[row.status]}</p>
+				{#if solutionAlert(row.id)}<p role="alert">{solutionAlert(row.id)}</p>{/if}
+				<p>{ja.kanri.reportCount(row.total, row.counted)}</p>
+				<ul class="reasons">
+					{#each solutionReasons as reason (reason)}
+						{#if row[reason] > 0}<li>{ja.report.reasons[reason]} {row[reason]}</li>{/if}
+					{/each}
+				</ul>
+				{#if row.status === 'restored'}<p>{ja.kanri.afterRestore(row.afterRestore)}</p>{/if}
+				{#if row.notes.length}
+					<h4>{ja.kanri.notes}</h4>
+					<ul class="notes">
+						{#each row.notes as note, i (i)}<li>{note}</li>{/each}
+					</ul>
+				{/if}
+				<!-- 自分の解決策には操作の欄を出さない。送り先にも solution を入れる（JS がなくても同じ解決策を開いたままにする） -->
+				{#if !row.mine}
+					{#if HIDEABLE.includes(row.status)}
+						<form method="post" action="?solution={row.id}&/hideSolution" use:enhance>
+							<input type="hidden" name="solution" value={row.id} />
+							<label for="sol-hide-reason-{row.id}">{ja.kanri.hideReason}</label>
+							<select id="sol-hide-reason-{row.id}" name="reason" required>
+								{#each HIDE_REASONS as reason (reason)}
+									<option value={reason}>{ja.hideReasons[reason]}</option>
+								{/each}
+							</select>
+							<label for="sol-hide-note-{row.id}">{ja.kanri.hideNote}</label>
+							<textarea id="sol-hide-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
+							<button>{ja.kanri.hide}</button>
+						</form>
+					{/if}
+					{#if RESTORABLE.includes(row.status)}
+						<form method="post" action="?solution={row.id}&/restoreSolution" use:enhance>
+							<input type="hidden" name="solution" value={row.id} />
+							<label for="sol-restore-note-{row.id}">{ja.kanri.restoreNote}</label>
+							<textarea id="sol-restore-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
+							<button>{ja.kanri.restore}</button>
+						</form>
+					{/if}
+				{/if}
+			</article>
+		{/each}
+	</section>
 </main>
 
 <style>
@@ -116,9 +180,19 @@
 		font-size: var(--font-size-heading);
 	}
 
-	h3 {
+	h3,
+	h4 {
 		font-size: var(--font-size-sub);
 		color: var(--color-text-sub);
+	}
+
+	.section {
+		margin-top: 2rem;
+		font-size: var(--font-size-page-title);
+	}
+
+	.body {
+		white-space: pre-wrap;
 	}
 
 	.status {
