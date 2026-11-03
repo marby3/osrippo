@@ -133,11 +133,11 @@ describe('基準2：版ごとの保存', () => {
 
 		// 作りかけ（rev = 0）は読めず、保存もできない
 		run(
-			"INSERT INTO bills (id, user_id, committee_id, kind, title, affected, side_effects, created_at, updated_at) VALUES (901, 'u1', 1, 'amend', 't', 'a', 's', 0, 0)"
+			"INSERT INTO bills (id, user_id, committee_id, kind, title, affected, side_effects, created_at, updated_at) VALUES (5000, 'u1', 1, 'amend', 't', 'a', 's', 0, 0)"
 		);
-		expect(await billById(db, 901)).toBeUndefined();
-		expect(await saveDraft(db, 901, 'u1', 0, await input('乗っ取り', 'x', [1]), T0)).toBe(false);
-		expect(await billById(db, 999)).toBeUndefined();
+		expect(await billById(db, 5000)).toBeUndefined();
+		expect(await saveDraft(db, 5000, 'u1', 0, await input('乗っ取り', 'x', [1]), T0)).toBe(false);
+		expect(await billById(db, 9999)).toBeUndefined();
 
 		// 同じ rev から同時に保存すると、片方だけが通り、中身は通った方のものだけになる
 		const [a, b] = await Promise.all([
