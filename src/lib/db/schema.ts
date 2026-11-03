@@ -193,7 +193,9 @@ export const issues = sqliteTable(
 		/** NULL はほかの話題 */
 		topicId: integer('topic_id').references(() => topics.id),
 		createdAt: integer('created_at').notNull(),
-		// 通報と非表示（設計書 docs/spec/28.md）。status を変えると、トリガーが下の status_* の値で moderation_logs に記録を書く
+		// 通報と非表示（設計書 docs/spec/28.md）。status を変えると、トリガーが下の status_* の値で moderation_logs に記録を書く。
+		// トリガー（issues_status_log）は drizzle/0004_reports.sql に手で書いたもので、drizzle のスナップショットにない。
+		// この表を作り直すマイグレーションでは、トリガーも消えるので書き直すこと
 		/** restored は運営が表示に戻した課題（表示するが、自動では非表示にしない） */
 		status: text('status', { enum: ISSUE_STATUSES }).notNull().default('visible'),
 		statusActor: text('status_actor', { enum: MODERATION_ACTORS }),

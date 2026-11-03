@@ -35,7 +35,7 @@ export const load: PageServerLoad = async (event) => {
 
 const act = (action: 'hide' | 'restore') => async (event: RequestEvent) => {
 	const { db, staff } = await staffOf(event);
-	if (!allowedCountry(clientOf(event).country)) return fail(403, { message: ja.guard.outsideJapan });
+	if (!allowedCountry(clientOf(event).country)) return fail(403, { message: ja.guard.outsideJapan, issueId: null });
 	const form = await event.request.formData();
 	const checked = validateStaffAction(
 		{
@@ -45,16 +45,18 @@ const act = (action: 'hide' | 'restore') => async (event: RequestEvent) => {
 		},
 		action
 	);
-	if (!checked.ok) return fail(400, { message: ja.kanri.invalid });
+	if (!checked.ok) return fail(400, { message: ja.kanri.invalid, issueId: null });
 	const { issueId, reason, note } = checked.value;
 	const meta = await issueMeta(db, issueId);
-	if (!meta) return fail(400, { message: ja.kanri.invalid });
-	if (meta.userId === staff.userId) return fail(403, { message: ja.kanri.ownIssue });
+	if (!meta) return fail(400, { message: ja.kanri.invalid, issueId: null });
+	if (meta.userId === staff.userId) return fail(403, { message: ja.kanri.ownIssue, issueId });
 	const changed =
 		action === 'hide'
 			? await changeStatus(db, issueId, HIDEABLE, 'hidden', staff, reason, note, Date.now())
 			: await changeStatus(db, issueId, RESTORABLE, 'restored', staff, null, note, Date.now());
-	if (!changed) return fail(400, { message: action === 'hide' ? ja.kanri.alreadyHidden : ja.kanri.alreadyShown });
+	if (!changed) {
+		return fail(400, { message: action === 'hide' ? ja.kanri.alreadyHidden : ja.kanri.alreadyShown, issueId });
+	}
 	return { done: issueId };
 };
 

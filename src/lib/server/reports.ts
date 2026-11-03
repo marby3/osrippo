@@ -126,8 +126,14 @@ export async function reportedIssues(db: Db, focus: number | null) {
 		})
 		.from(issues)
 		.leftJoin(reports, eq(reports.issueId, issues.id))
+		// 課題の総数ではなく、通報された課題の数だけ読む（D1 は読んだ行の数で課金される）
+		.where(
+			or(
+				inArray(issues.id, db.selectDistinct({ id: reports.issueId }).from(reports)),
+				focus === null ? undefined : eq(issues.id, focus)
+			)
+		)
 		.groupBy(issues.id)
-		.having(focus === null ? sql`count(${reports.id}) > 0` : or(sql`count(${reports.id}) > 0`, eq(issues.id, focus)))
 		.orderBy(
 			desc(sql`${issues.id} = ${focus ?? -1}`),
 			desc(sql`${issues.status} = 'auto_hidden'`),

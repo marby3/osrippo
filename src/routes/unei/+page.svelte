@@ -31,12 +31,12 @@
 			<tbody>
 				{#each data.rows as row (row.id)}
 					<tr>
-						<td>{jaDateTimeFull(row.createdAt)}</td>
-						<td><a href="/kadai/{row.issueId}">#{row.issueId}</a></td>
-						<td>{ja.unei.actions[row.action]}</td>
-						<td>{ja.unei.actors[row.actor]}</td>
-						<td>{row.reason ? ja.hideReasons[row.reason] : ''}</td>
-						<td class="note">{row.note ?? ''}</td>
+						<td data-label={ja.unei.columns.at}>{jaDateTimeFull(row.createdAt)}</td>
+						<td data-label={ja.unei.columns.issue}><a href="/kadai/{row.issueId}">#{row.issueId}</a></td>
+						<td data-label={ja.unei.columns.action}>{ja.unei.actions[row.action]}</td>
+						<td data-label={ja.unei.columns.actor}>{ja.unei.actors[row.actor]}</td>
+						<td data-label={ja.unei.columns.reason}>{row.reason ? ja.hideReasons[row.reason] : ''}</td>
+						<td data-label={ja.unei.columns.note} class="note">{row.note ?? ''}</td>
 					</tr>
 				{/each}
 			</tbody>
@@ -119,6 +119,16 @@
 			display: block;
 			border: none;
 			padding: 0.125rem 0;
+		}
+
+		/* 見出しの代わりに、セルの前にラベルを出す。空のセルは出さない */
+		td::before {
+			content: attr(data-label) '：';
+			color: var(--color-text-sub);
+		}
+
+		td:empty {
+			display: none;
 		}
 	}
 </style>

@@ -15,7 +15,8 @@
 
 <main>
 	<h1>{ja.kanri.heading}</h1>
-	{#if form && 'message' in form}<p role="alert">{form.message}</p>{/if}
+	<!-- 断った文言は、その課題のところに出す（どの課題か分からないときだけ上に） -->
+	{#if form && 'message' in form && !form.issueId}<p role="alert">{form.message}</p>{/if}
 	{#if data.rows.length === 0}
 		<p>{ja.kanri.empty}</p>
 	{/if}
@@ -23,6 +24,7 @@
 		<article>
 			<h2><a href="/kadai/{row.id}">#{row.id} {row.title}</a></h2>
 			<p class="status">{ja.kanri.statuses[row.status]}</p>
+			{#if form && 'message' in form && form.issueId === row.id}<p role="alert">{form.message}</p>{/if}
 			<p>{ja.kanri.reportCount(row.total, row.counted)}</p>
 			<ul class="reasons">
 				{#each reasons as reason (reason)}
