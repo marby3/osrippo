@@ -1,10 +1,16 @@
 <script lang="ts">
 	// 法案のページの概要（SpBillSummary・PcBillSummary）
+	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 	const bill = $derived(data.bill);
+	const support = $derived(data.support);
+	const message = $derived(form && 'message' in form ? form.message : undefined);
+	/** 発議にあと何人か（提出者が下書きを見るとき） */
+	const remaining = $derived(support.required === null ? null : Math.max(0, support.required - support.count));
 	/** いまの段の位置（v0.3 の下書きは最初の段。発議から先の段は #50） */
 	const current = $derived(bill.status === 'draft' ? 0 : 1);
 </script>
@@ -61,7 +67,35 @@
 				{/each}
 			</ol>
 		</section>
-		<p class="author">{ja.bill.page.author(bill.author)}</p>
+		<div class="people">
+			<p class="author">{ja.bill.page.author(bill.author)}</p>
+			<span class="sep" aria-hidden="true">{ja.bill.support.separator}</span>
+			<p class="supports">{ja.bill.support.count(support.count)}</p>
+		</div>
+		<!-- 賛同と発議（docs/spec/49.md 決めたこと7） -->
+		{#if remaining !== null}
+			<form method="post" action="?/propose" use:enhance class="act">
+				<button class="primary" disabled={remaining > 0}>{ja.bill.support.propose}</button>
+				{#if remaining > 0}<p class="note">{ja.bill.support.remaining(remaining)}</p>{/if}
+			</form>
+		{:else if support.open}
+			{#if support.waitUntil !== null}
+				<p class="note">{ja.bill.support.tooNew(support.waitUntil)}</p>
+			{:else if !support.loggedIn}
+				<!-- ログインしていなければ、押すとログインの画面へ（JS がなくても動く） -->
+				<form method="get" action="/login" class="act">
+					<input type="hidden" name="next" value={page.url.pathname} />
+					<button class="primary">{ja.bill.support.add}</button>
+				</form>
+			{:else}
+				<form method="post" action="?/support" use:enhance={() => async ({ update }) => update({ reset: false })} class="act">
+					<input type="hidden" name="op" value={support.mine ? 'remove' : 'add'} />
+					<input type="hidden" name="rev" value={support.rev} />
+					<button class={support.mine ? '' : 'primary'}>{support.mine ? ja.bill.support.remove : ja.bill.support.add}</button>
+				</form>
+			{/if}
+		{/if}
+		{#if message}<p role="alert" class="alert">{message}</p>{/if}
 	</aside>
 </div>
 
@@ -127,9 +161,60 @@
 		color: var(--color-text-sub);
 	}
 
-	.author {
+	/* スマホは「提出者 … ・ 賛同 N人」の1行（SpBillSummary）、PC は2行（PcBillSummary） */
+	.people {
+		display: flex;
+		flex-wrap: wrap;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+
+	.sep {
+		white-space: pre-wrap;
+	}
+
+	.author,
+	.supports {
 		margin: 0;
 		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+
+	.act {
+		display: grid;
+		gap: 0.5rem;
+		margin-top: 1rem;
+	}
+
+	.act button {
+		min-height: var(--tap-primary);
+		padding: 0 1.25rem;
+		border: 1px solid var(--color-base);
+		border-radius: var(--radius-m);
+		background: var(--color-bg);
+		color: var(--color-base);
+		font: inherit;
+		font-weight: bold;
+	}
+
+	.act .primary {
+		background: var(--color-base);
+		color: var(--color-bg);
+	}
+
+	.act button:disabled {
+		opacity: 0.5;
+	}
+
+	.note {
+		margin: 0.5rem 0 0;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+
+	.alert {
+		margin: 0.5rem 0 0;
+		color: var(--color-caution);
 		font-size: var(--font-size-sub);
 	}
 
@@ -187,6 +272,14 @@
 
 		.pc {
 			display: block;
+		}
+
+		.people {
+			display: block;
+		}
+
+		.sep {
+			display: none;
 		}
 	}
 </style>

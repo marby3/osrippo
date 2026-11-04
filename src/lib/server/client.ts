@@ -4,6 +4,7 @@ import { fail, type ActionFailure, type RequestEvent } from '@sveltejs/kit';
 import { ja } from '../copy/ja';
 import { hashIp } from '../domain/ip';
 import type { Refusal } from '../domain/limits';
+import { sessionAt, sessionMinutes } from '../domain/session';
 import { activeBan, type Actor } from './issues';
 import type { Db } from './law';
 import { verifyTurnstile } from './turnstile';
@@ -43,6 +44,16 @@ export function nowOf(event: Pick<RequestEvent, 'url' | 'request'>): number {
 		if (ms !== null) return ms;
 	}
 	return Date.now();
+}
+
+/**
+ * now を含む会期と一つ前の会期（Issue #44・#49）。発議の時刻と発議要件が同じ会期になるよう、呼ぶ側の now を受け取る。
+ * 開発用の短い会期は pnpm dev のときだけ（ビルドしたサーバーでは import.meta.env.DEV が false）
+ */
+export function sessionsAt(now: number) {
+	const minutes = sessionMinutes(import.meta.env.DEV, env.SESSION_MINUTES);
+	const session = sessionAt(now, minutes);
+	return { session, previous: sessionAt(session.startsAt - 1, minutes) };
 }
 
 /**

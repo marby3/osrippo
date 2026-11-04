@@ -1,5 +1,5 @@
 <script lang="ts">
-	// 法案の一覧（SpBills・PcBills）。スマホは札・題名・段階の行、PC は表。賛同の列は #49 で足す
+	// 法案の一覧（SpBills・PcBills）。スマホは札・題名・段階と賛同の行、PC は表
 	import { ja } from '#lib/copy/ja.ts';
 	import { billListHref, type BillTab } from '#lib/domain/bills.ts';
 	import type { PageProps } from './$types';
@@ -36,6 +36,7 @@
 					<th role="columnheader" class="kind">{ja.bill.list.kind}</th>
 					<th role="columnheader">{ja.bill.list.bill}</th>
 					<th role="columnheader" class="stage">{ja.bill.list.stage}</th>
+					<th role="columnheader" class="support">{ja.bill.list.support}</th>
 				</tr>
 			</thead>
 			<!-- svelte-ignore a11y_no_redundant_roles -->
@@ -46,6 +47,7 @@
 						<td role="cell" class="kind"><span class="badge">{ja.bill.kinds[row.kind]}</span></td>
 						<td role="cell" class="title"><a href="/houan/{row.id}">{row.title}</a></td>
 						<td role="cell" class="stage">{ja.bill.statuses[row.status]}</td>
+						<td role="cell" class="support"><span class="sp-label">{ja.bill.list.supportPrefix}</span>{ja.bill.list.supportCell(row.supports)}</td>
 					</tr>
 				{/each}
 			</tbody>
@@ -151,7 +153,9 @@
 		text-decoration: none;
 	}
 
-	td.stage {
+	td.stage,
+	td.support {
+		display: inline;
 		color: var(--color-text-sub);
 		font-size: var(--font-size-sub);
 	}
@@ -247,9 +251,20 @@
 			width: 10rem;
 		}
 
-		td.stage {
+		td.stage,
+		td.support {
+			display: table-cell;
 			color: var(--color-text);
 			font-size: var(--font-size-body);
+		}
+
+		.support {
+			width: 5rem;
+			text-align: right;
+		}
+
+		.sp-label {
+			display: none;
 		}
 
 		.title {
