@@ -53,7 +53,7 @@ export function nowOf(event: Pick<RequestEvent, 'url' | 'request'>): number {
 export function sessionsAt(now: number) {
 	const minutes = sessionMinutes(import.meta.env.DEV, env.SESSION_MINUTES);
 	const session = sessionAt(now, minutes);
-	return { session, previous: sessionAt(session.startsAt - 1, minutes) };
+	return { session, previous: sessionAt(session.startsAt - 1, minutes), minutes };
 }
 
 /**

@@ -184,7 +184,8 @@ export const ja = {
 		},
 		kinds: { amend: '改正', repeal: '廃止', enact: '制定' },
 		ops: { amend: '書きかえ', add: '新しく追加', delete: '削除', supplementary: '新しく追加' },
-		statuses: { draft: '下書き', proposed: '発議' },
+		/** 法案のいまの進み（Issue #50。一覧の言葉は list.stages） */
+		progress: { draft: '下書き', proposed: '発議', deliberation: '質疑', vote: '採決', lapsed: '廃案' },
 		/** 賛同と発議（Issue #49） */
 		support: {
 			count: (n: number) => `賛同 ${n}人`,
@@ -215,6 +216,7 @@ export const ja = {
 			kind: '種類',
 			bill: '法案',
 			stage: '段階',
+			stages: { draft: '下書き', proposed: '発議', deliberation: '質疑中', vote: '採決中', lapsed: '廃案' },
 			support: '賛同',
 			supportCell: (n: number) => `${n}人`,
 			supportPrefix: ' ・ 賛同 ',
@@ -237,6 +239,10 @@ export const ja = {
 			stagesHeading: 'いまの段階',
 			stages: ['下書き', '発議', '委員会へ', '質疑', '採決', '結果'],
 			here: '（いまここ）',
+			/** スマホの「いま：」の次の行（docs/spec/50.md 決めたこと6） */
+			nextLine: (stage: 'deliberation' | 'vote', s: Session, at: number) => `${stage === 'deliberation' ? '質疑' : '採決'}は${sessionPoint(s, at, false)}から`,
+			/** PC の段の日付（PcBillSummary） */
+			stageFrom: (name: string, s: Session, at: number) => `${name}（${sessionPoint(s, at, false)}から）`,
 			summaryHeading: '3行でいうと',
 			affected: '誰が困っているか',
 			sideEffects: '副作用',

@@ -2,7 +2,7 @@
 import { error } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
-import { proposalRequirement } from '#lib/domain/bills.ts';
+import { billProgress, nextStage, proposalRequirement } from '#lib/domain/bills.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { billWaitUntil } from '#lib/domain/limits.ts';
 import { FIRST_COMMITTEE } from '#lib/server/bill-form.ts';
@@ -22,14 +22,16 @@ export const load: LayoutServerLoad = async (event) => {
 	const isAuthor = user?.id === bill.userId;
 	const draft = bill.status === 'draft';
 	const { supports, mine } = await billSupportState(db, bill.id, bill.rev, user?.id ?? null);
+	const { session, previous, minutes } = sessionsAt(now);
 	// 発議要件を読むのは提出者が下書きを見るときだけ（その会期で最初に読まれたときに固定する。docs/spec/49.md 決めたこと3）
 	let required: number | null = null;
 	if (draft && isAuthor) {
-		const { session, previous } = sessionsAt(now);
 		required = proposalRequirement(await sessionParticipants(db, FIRST_COMMITTEE, session, previous, now));
 	}
 	return {
 		bill: await billView(db, bill),
+		progress: billProgress(bill, now, minutes),
+		next: nextStage(bill, now, minutes),
 		canEdit: isAuthor && draft,
 		support: {
 			rev: bill.rev,
