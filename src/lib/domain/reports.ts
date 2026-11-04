@@ -85,3 +85,5 @@ export const HIDEABLE: IssueStatus[] = ['visible', 'auto_hidden', 'restored'];
 export const RESTORABLE: IssueStatus[] = ['auto_hidden', 'hidden'];
 /** 一覧に出る状態。統合の元と統合先になれるのもこの状態だけ（設計書 docs/spec/30.md 決めたこと5） */
 export const LISTED: IssueStatus[] = ['visible', 'restored'];
+/** 表示中の解決策の状態（解決策には merged がない） */
+export const SOLUTION_SHOWN = ['visible', 'restored'] as const;

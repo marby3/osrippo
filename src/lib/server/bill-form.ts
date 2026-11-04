@@ -16,7 +16,7 @@ import {
 	type ChangeError,
 	type ChangeOp
 } from '../domain/bills';
-import { LISTED } from '../domain/reports';
+import { LISTED, SOLUTION_SHOWN } from '../domain/reports';
 import { articlesOfRevision, currentRevision, type Db } from './law';
 import type { DraftInput } from './bills';
 
@@ -126,7 +126,7 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 					.select({ id: solutions.id, issueId: solutions.issueId })
 					.from(solutions)
 					.innerJoin(issues, eq(issues.id, solutions.issueId))
-					.where(and(inArray(solutions.id, ids), inArray(solutions.status, ['visible', 'restored']), inArray(issues.status, LISTED)))
+					.where(and(inArray(solutions.id, ids), inArray(solutions.status, SOLUTION_SHOWN), inArray(issues.status, LISTED)))
 			: [];
 	const checked = validateBill(
 		{

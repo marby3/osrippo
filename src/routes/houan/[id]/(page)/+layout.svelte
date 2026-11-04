@@ -15,7 +15,7 @@
 
 <main>
 	<nav class="crumbs pc" aria-label={ja.bill.page.crumbs}>
-		<a href="/houan">{ja.bill.page.breadcrumb}</a> ／ <span>{bill.title}</span>
+		<a href="/houan">{ja.bill.page.breadcrumb}</a> {ja.bill.page.crumbSeparator} <span>{bill.title}</span>
 	</nav>
 	<p class="badge">{ja.bill.kinds[bill.kind]}</p>
 	<h1>{bill.title}</h1>

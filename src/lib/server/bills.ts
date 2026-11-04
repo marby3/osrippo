@@ -3,9 +3,9 @@
 import { and, asc, count, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
 import { actions, billChanges, billLaws, bills, billSolutions, committeeLaws, issues, laws, solutions, user } from '../db/schema';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
-import { changeDiff, formalName, type BillChange, type BillKind } from '../domain/bills';
+import { changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, type BillChange, type BillKind } from '../domain/bills';
 import { checkBillDraft, checkBillSave, DAY } from '../domain/limits';
-import { LISTED } from '../domain/reports';
+import { LISTED, SOLUTION_SHOWN as SHOWN } from '../domain/reports';
 import { refuse, type Actor } from './issues';
 import { articlesOfRevision, currentRevision, type Db } from './law';
 
@@ -168,7 +168,7 @@ export async function draftArticles(db: Db, committeeId: number, lawId: string) 
 /** 表示中の解決策と、その課題（課題が一覧に出る状態のときだけ） */
 export async function citableSolution(db: Db, solutionId: number) {
 	const [row] = await db
-		.select({ id: solutions.id, body: solutions.body, issueId: solutions.issueId })
+		.select({ id: solutions.id, issueId: solutions.issueId })
 		.from(solutions)
 		.innerJoin(issues, eq(issues.id, solutions.issueId))
 		.where(and(eq(solutions.id, solutionId), inArray(solutions.status, SHOWN), inArray(issues.status, LISTED)));
@@ -183,8 +183,6 @@ export async function candidateSolutions(db: Db, issueId: number) {
 		.where(and(eq(solutions.issueId, issueId), inArray(solutions.status, SHOWN)))
 		.orderBy(asc(solutions.id));
 }
-
-const SHOWN = ['visible', 'restored'] as const;
 
 const countSince = async (db: Db, kind: 'bill_draft' | 'bill_save', who: SQL, now: number) => {
 	const [row] = await db
@@ -268,6 +266,7 @@ export async function billView(db: Db, bill: NonNullable<Bill>) {
 /** 変更点のタブに出すもの：条ごとの「いま」と「変更後」。附則は最後に出す */
 export async function billChangeViews(db: Db, bill: NonNullable<Bill>): Promise<ChangeView[]> {
 	const changes: ChangeView[] = [];
+	let budget = DIFF_PAGE_BUDGET;
 	for (const l of bill.laws) {
 		const base = l.baseRevisionId && l.changes.length ? new Map((await articlesOfRevision(db, l.baseRevisionId)).map((a) => [a.id, a])) : new Map();
 		for (const c of l.changes) {
@@ -275,13 +274,17 @@ export async function billChangeViews(db: Db, bill: NonNullable<Bill>): Promise<
 			const old = c.provisionId === null ? undefined : base.get(c.provisionId);
 			const before = old ? textOf(old.caption, old.paragraphs) : null;
 			const after = c.paragraphs ? textOf(c.caption, c.paragraphs) : null;
-			if (c.op === 'amend' && before !== null && after !== null) {
-				const parts = changeDiff(before, after);
-				changes.push({ location, op: 'amend', before: parts, after: parts });
-			} else if (c.op === 'delete') {
-				changes.push({ location, op: 'delete', before: before === null ? null : [{ value: before, removed: true }], after: null });
+			if (before !== null && after !== null) {
+				const { parts, cost } = changeDiff(before, after, Math.min(DIFF_MAX_EDIT, budget));
+				budget -= cost;
+				changes.push({ location, op: c.op, before: parts, after: parts });
 			} else {
-				changes.push({ location, op: 'add', before: null, after: after === null ? null : [{ value: after, added: true }] });
+				changes.push({
+					location,
+					op: c.op,
+					before: before === null ? null : [{ value: before, removed: true }],
+					after: after === null ? null : [{ value: after, added: true }]
+				});
 			}
 		}
 	}

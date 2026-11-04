@@ -20,7 +20,6 @@ export const load: PageServerLoad = async (event) => {
 	const id = raw.length === 1 ? parseIssueId(raw[0]) : null;
 	const start = id === null ? undefined : await citableSolution(db, id);
 	if (!start) return { view: 'start' as const };
-	const candidates = await candidateSolutions(db, start.issueId);
 	const initial: BillFormValues = {
 		kind: 'amend',
 		title: '',
@@ -36,8 +35,8 @@ export const load: PageServerLoad = async (event) => {
 	return {
 		view: 'form' as const,
 		laws: await committeeLawList(db, FIRST_COMMITTEE),
-		// 候補の数を絞っても、書き始めた解決策は必ず入れる
-		candidates: candidates.some((c) => c.id === start.id) ? candidates : [{ id: start.id, body: start.body }, ...candidates],
+		candidates: await candidateSolutions(db, start.issueId),
+		back: `/kadai/${start.issueId}`,
 		initial,
 		articles: null,
 		siteKey: env.TURNSTILE_SITE_KEY

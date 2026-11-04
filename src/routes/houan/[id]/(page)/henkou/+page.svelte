@@ -16,8 +16,8 @@
 <div class="changes">
 	{#if data.changes.length}
 		<p class="legend" aria-hidden="true">
-			<span class="del">−{ja.bill.page.legendDel}</span>
-			<span class="ins">＋{ja.bill.page.legendIns}</span>
+			<span class="del">{ja.bill.page.legendDel}</span>
+			<span class="ins">{ja.bill.page.legendIns}</span>
 		</p>
 	{/if}
 
@@ -186,7 +186,6 @@
 		}
 
 		.after {
-			order: -1;
 			grid-column: 2;
 			grid-row: 1;
 		}

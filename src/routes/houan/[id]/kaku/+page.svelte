@@ -21,6 +21,7 @@
 		siteKey={data.siteKey}
 		edit={{ id: data.edit.id, rev: data.edit.rev }}
 		dropped={data.dropped}
+		back="/houan/{data.edit.id}"
 		{form}
 	/>
 </main>

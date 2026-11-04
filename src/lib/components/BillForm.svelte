@@ -18,6 +18,7 @@
 		siteKey,
 		edit = null,
 		dropped = 0,
+		back,
 		form
 	}: {
 		laws: { id: string; title: string }[];
@@ -28,6 +29,8 @@
 		edit?: { id: number; rev: number } | null;
 		/** 非表示になって引用から外れる解決策の数（直すとき） */
 		dropped?: number;
+		/** 「やめる」の行き先 */
+		back: string;
 		form: { values?: BillFormValues; errors?: BillFormErrors; message?: string } | null | undefined;
 	} = $props();
 
@@ -85,6 +88,7 @@
 			if (mine !== asked) return;
 			if (!res.ok) throw new Error(String(res.status));
 			const data = (await res.json()) as Articles;
+			if (mine !== asked) return;
 			articles = data.articles;
 			if (setBase || !base) base = data.revisionId;
 		} catch {
@@ -325,7 +329,11 @@
 	<fieldset class="solutions" aria-describedby={fieldError('solutions') ? 'bill-solutions-error' : undefined}>
 		<legend>{ja.bill.write.solutions}</legend>
 		<p class="hint">{ja.bill.write.solutionsHint}</p>
-		{#if dropped}<p class="hint">{ja.bill.write.solutionsDropped(dropped)}</p>{/if}
+		{#if !candidates.length}
+			<p class="error">{ja.bill.write.noCandidates}</p>
+		{:else if dropped}
+			<p class="hint">{ja.bill.write.solutionsDropped(dropped)}</p>
+		{/if}
 		{#each candidates as c (c.id)}
 			<label class="check">
 				<input
@@ -345,14 +353,15 @@
 	{#if alertText}<p role="alert" class="error">{alertText}</p>{/if}
 	<div class="buttons">
 		<!-- 条文を読み込むまでは、基にした版が決まらないので送らない -->
-		<button class="primary" disabled={!token || (law !== '' && base === '')}>{ja.bill.write.submit}</button>
-		<a href={edit ? `/houan/${edit.id}` : '/kadai'}>{ja.bill.write.cancel}</a>
+		<button class="primary" disabled={!token || (law !== '' && base === '') || !candidates.length}>{ja.bill.write.submit}</button>
+		<a href={back}>{ja.bill.write.cancel}</a>
 	</div>
 </form>
 
 <style>
 	form {
 		display: grid;
+		grid-template-columns: minmax(0, 1fr);
 		gap: 0.5rem;
 	}
 
@@ -379,6 +388,10 @@
 	input:not([type='radio'], [type='checkbox']),
 	select,
 	textarea {
+		/* 見出しの長い条の選択肢でも、幅からはみ出さない */
+		width: 100%;
+		min-width: 0;
+		box-sizing: border-box;
 		min-height: var(--tap-min);
 		padding: 0.5rem 0.75rem;
 		border: 1px solid var(--color-input-border);
@@ -395,6 +408,7 @@
 	fieldset {
 		display: grid;
 		gap: 0.5rem;
+		min-width: 0;
 		margin: 0;
 		border: none;
 		padding: 0;
@@ -412,11 +426,13 @@
 
 	.changes {
 		display: grid;
+		grid-template-columns: minmax(0, 1fr);
 		gap: 0.75rem;
 	}
 
 	/* SpBillChanges の条のカード */
 	.row {
+		grid-template-columns: minmax(0, 1fr);
 		padding: 0 1rem 1rem;
 		border: 1px solid var(--color-input-border);
 		border-radius: var(--radius-l);

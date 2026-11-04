@@ -331,17 +331,28 @@ export function formalName(kind: BillKind, laws: { action: BillKind; title: stri
 
 // ---- 変更点の出し方（Issue #46） ----
 
-/** 文字の比べで調べる違いの上限。公開のページで動くので、これを超える条は全文の置きかえとして出す */
-const DIFF_MAX_EDIT = 1000;
+/** 文字の比べで調べる違いの上限（1条あたり）。超える条は全文の置きかえとして出す */
+export const DIFF_MAX_EDIT = 1000;
+/**
+ * 1ページあたりの違いの予算。比べの手間は違いの量の2乗で増え、公開のページでログインなしに動くので、ページ全体でも抑える。
+ * Workers では処理のあいだ時計が進まないので、diffChars の timeout は使えない
+ */
+export const DIFF_PAGE_BUDGET = 5000;
 
-/** 基にした版の条と変更後の条の、文字ごとの違い */
-export function changeDiff(before: string, after: string): DiffPart[] {
-	const parts = diffChars(before, after, { maxEditLength: DIFF_MAX_EDIT });
+/** 基にした版の条と変更後の条の文字ごとの違い。cost は使った予算（違いの字数。上限を超えたら上限の分） */
+export function changeDiff(before: string, after: string, maxEdit: number): { parts: DiffPart[]; cost: number } {
+	const parts = maxEdit > 0 ? diffChars(before, after, { maxEditLength: maxEdit }) : undefined;
 	if (!parts) {
-		return [
-			{ value: before, removed: true },
-			{ value: after, added: true }
-		];
+		return {
+			parts: [
+				{ value: before, removed: true },
+				{ value: after, added: true }
+			],
+			cost: maxEdit
+		};
 	}
-	return parts.map(({ value, added, removed }) => ({ value, added, removed }));
+	return {
+		parts: parts.map(({ value, added, removed }) => ({ value, added, removed })),
+		cost: parts.reduce((n, p) => (p.added || p.removed ? n + [...p.value].length : n), 0)
+	};
 }

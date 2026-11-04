@@ -18,7 +18,7 @@
 		<p>{ja.bill.write.start}</p>
 		<p><a href="/kadai">{ja.bill.write.toIssues}</a></p>
 	{:else}
-		<BillForm laws={data.laws} candidates={data.candidates} initial={data.initial} articles={data.articles} siteKey={data.siteKey} {form} />
+		<BillForm laws={data.laws} candidates={data.candidates} initial={data.initial} articles={data.articles} siteKey={data.siteKey} back={data.back} {form} />
 	{/if}
 </main>
 
