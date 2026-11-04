@@ -122,6 +122,7 @@ export const ja = {
 		formInvalid: '送られた内容を読み取れませんでした。ページを読み直してください。',
 		lawRequired: '対象の法令を選んでください。',
 		solutionsOneIssue: '元になった解決策は、同じ課題のものを選んでください。',
+		lawTitleExists: '同じ名前の法律があります。別の名前にしてください。',
 		fixErrors: '入力を直してください。誤りはそれぞれの欄のそばに出しています。',
 		baseChanged: '条文が新しくなりました。開き直してください。',
 		stale: '別の画面で先に保存されました。開き直してください。',
@@ -157,6 +158,17 @@ export const ja = {
 			addRow: '変える条を足す',
 			removeRow: 'この変更を外す',
 			repealNote: '廃止の法案は、選んだ法令をまるごと廃止します。変える条は選びません。',
+			/** 制定（Issue #47） */
+			newTitle: '法令名',
+			newTitleHint: '末尾は「法」か「法律」にします。正式名は「法令名＋案」になります。',
+			enactHeading: '新しい法律の条',
+			enactHint: '第1条は目的です。条の番号は順に自動で付きます。',
+			article: (n: number) => `第${n}条`,
+			articleBody: '条文',
+			addArticle: '条を足す',
+			removeArticle: 'この条を外す',
+			/** ひな形の本文。mark は書きかえてもらう印（domain/bills.ts の ENACT_PLACEHOLDER） */
+			enactTemplateBody: (mark: string) => `この法律は、${mark}することを目的とする。`,
 			affected: '誰が困っているか',
 			sideEffects: '副作用',
 			summary: '3行要約（任意）',
@@ -221,6 +233,7 @@ export const ja = {
 			enactNotAdd: '新しい法律では、条を書き足すことだけができます。',
 			enactNumOrder: '新しい法律の条は、第1条から順に番号を付けてください。',
 			enactPurpose: '新しい法律には、見出しが「（目的）」の第1条が要ります。',
+			enactPlaceholder: '「○○」を書きかえてください。',
 			amendEmpty: '変える条を1つ以上選んでください。',
 			repealHasChanges: '廃止する法令には、変える条を書けません。'
 		}

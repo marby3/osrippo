@@ -165,3 +165,41 @@ export function solutionStaffRequest(page: Page, action: 'hideSolution' | 'resto
 
 /** 全体を探すページ */
 export const searchUrl = (q: string, extra = '') => `/kensaku?q=${encodeURIComponent(q)}${extra}`;
+
+/** 課題と解決策を書き、課題と解決策の番号を返す */
+export async function issueWithSolutions(page: Page, label: string, bodies: string[]) {
+	const issueId = await postIssue(page, { title: `法案の元の課題 ${label}` });
+	for (const body of bodies) {
+		const res = await solutionRequest(page, issueId, body);
+		expect(res.status(), await res.text()).toBe(303);
+	}
+	await page.goto(`/kadai/${issueId}/kaiketsu`);
+	const ids: string[] = [];
+	for (const body of bodies) {
+		const id = await page.locator('article').filter({ hasText: body }).getAttribute('id');
+		expect(id).toMatch(/^kaiketsu-\d+$/);
+		ids.push((id as string).replace('kaiketsu-', ''));
+	}
+	return { issueId, ids };
+}
+
+export type BillForm = Record<string, string | string[]>;
+
+/** 法案を書くフォームと同じ POST（リダイレクトは追わない）。配列の値は同じ名前で並べる */
+export function billRequest(page: Page, path: string, form: BillForm) {
+	const body = new URLSearchParams();
+	for (const [k, v] of Object.entries(form)) for (const x of Array.isArray(v) ? v : [v]) body.append(k, x);
+	return page.request.post(path, {
+		data: body.toString(),
+		headers: { origin: ORIGIN, accept: 'text/html', 'content-type': 'application/x-www-form-urlencoded' },
+		maxRedirects: 0
+	});
+}
+
+/** 法案のページのパス（作ったときのリダイレクト先） */
+export function billPath(res: { status(): number; headers(): Record<string, string> }) {
+	expect(res.status()).toBe(303);
+	const path = res.headers()['location'] ?? '';
+	expect(path).toMatch(/^\/houan\/\d+$/);
+	return path;
+}

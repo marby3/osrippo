@@ -1,6 +1,6 @@
 // Issue #46 法案を書く画面と法案のページ（改正・廃止）。表とルールは docs/spec/45.md
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { ORIGIN, newUser, postIssue, solutionRequest, solutionStaffRequest, staffRequest, stubTurnstile } from './helpers';
+import { billPath, billRequest, issueWithSolutions as solutions, newUser, solutionStaffRequest, staffRequest, stubTurnstile, type BillForm as Form } from './helpers';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -31,41 +31,11 @@ async function user(
 	return u.page;
 }
 
-/** 課題と解決策を書き、解決策の番号を返す */
-async function solutions(page: Page, label: string, bodies: string[]) {
-	const issueId = await postIssue(page, { title: `法案の元の課題 ${label}` });
-	for (const body of bodies) {
-		const res = await solutionRequest(page, issueId, body);
-		expect(res.status(), await res.text()).toBe(303);
-	}
-	await page.goto(`/kadai/${issueId}/kaiketsu`);
-	const ids: string[] = [];
-	for (const body of bodies) {
-		const id = await page.locator('article').filter({ hasText: body }).getAttribute('id');
-		expect(id).toMatch(/^kaiketsu-\d+$/);
-		ids.push((id as string).replace('kaiketsu-', ''));
-	}
-	return { issueId, ids };
-}
-
 /** いま施行されている版（書く画面が条文を取りに行くのと同じところから） */
 async function currentBase(page: Page, law = LAW) {
 	const res = await page.request.get(`/houan/kaku/joubun?law=${law}`);
 	expect(res.status()).toBe(200);
 	return ((await res.json()) as { revisionId: string }).revisionId;
-}
-
-type Form = Record<string, string | string[]>;
-
-/** 書く画面のフォームと同じ POST（リダイレクトは追わない）。配列の値は同じ名前で並べる */
-function billRequest(page: Page, path: string, form: Form) {
-	const body = new URLSearchParams();
-	for (const [k, v] of Object.entries(form)) for (const x of Array.isArray(v) ? v : [v]) body.append(k, x);
-	return page.request.post(path, {
-		data: body.toString(),
-		headers: { origin: ORIGIN, accept: 'text/html', 'content-type': 'application/x-www-form-urlencoded' },
-		maxRedirects: 0
-	});
 }
 
 /** 第1条を書きかえる改正の法案のフォームの値 */
@@ -84,14 +54,6 @@ const amendForm = (base: string, solution: string, title: string, extra: Form = 
 	'cf-turnstile-response': 'test-pass',
 	...extra
 });
-
-/** 法案のページのパス（作ったときのリダイレクト先） */
-function billPath(res: { status(): number; headers(): Record<string, string> }) {
-	expect(res.status()).toBe(303);
-	const path = res.headers()['location'] ?? '';
-	expect(path).toMatch(/^\/houan\/\d+$/);
-	return path;
-}
 
 /** 書く画面で、1つ目の変更を第1条の書きかえにして、共通の欄を書く */
 async function fillCommon(page: Page, title: string) {
@@ -523,7 +485,6 @@ test('信頼の境界：作り変えたフォームの値は 400 で、保存し
 		['別の課題の解決策', form({ solution: [ids[0], other.ids[0]] })],
 		['非表示の課題の解決策', form({ solution: hiddenIssue.ids[0] })],
 		['多すぎる解決策', form({ solution: Array.from({ length: 200 }, (_, i) => String(i + 1)) })],
-		['種類「制定」', form({ kind: 'enact' })],
 		['ない種類', form({ kind: 'bogus' })],
 		['ない変え方', form({ 'op.0': 'rename' })],
 		['廃止に変える条', form({ kind: 'repeal' })],

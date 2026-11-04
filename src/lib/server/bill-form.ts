@@ -2,7 +2,7 @@
 // 基にした版の比べ（docs/spec/45.md 決めたこと7）を通して、createDraft・saveDraft に渡す形にする
 import { and, eq, inArray } from 'drizzle-orm';
 import { ja } from '../copy/ja';
-import { committeeLaws, issues, lawRevisions, solutions } from '../db/schema';
+import { committeeLaws, issues, laws, lawRevisions, solutions } from '../db/schema';
 import {
 	BILL_MAX,
 	CHANGE_OPS,
@@ -22,14 +22,16 @@ import type { DraftInput } from './bills';
 
 /** 第1委員会（消費者保護）。委員会が1つのあいだは、法案はすべてここに出す */
 export const FIRST_COMMITTEE = 1;
-/** v0.3 の書く画面で選べる種類。制定は #47 */
-export const FORM_KINDS = ['amend', 'repeal'] as const;
+/** 書く画面で選べる種類 */
+export const FORM_KINDS = ['amend', 'repeal', 'enact'] as const;
 export type FormKind = (typeof FORM_KINDS)[number];
 
 export type RowValues = { op: string; target: string; num: string; caption: string; body: string };
 export type BillFormValues = {
 	kind: string;
 	title: string;
+	/** 制定の法令名 */
+	newTitle: string;
 	law: string;
 	base: string;
 	affected: string;
@@ -63,6 +65,7 @@ export function readBillForm(form: FormData): BillFormValues {
 	return {
 		kind: s('kind'),
 		title: s('title'),
+		newTitle: s('newTitle'),
 		law: s('law'),
 		base: s('base'),
 		affected: s('affected'),
@@ -102,6 +105,7 @@ const CHANGE_FIELD: Record<ChangeError, RowField> = {
 	enactNotAdd: 'num',
 	enactNumOrder: 'num',
 	enactPurpose: 'caption',
+	enactPlaceholder: 'body',
 	amendEmpty: 'target',
 	repealHasChanges: 'target'
 };
@@ -136,7 +140,7 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 			sideEffects: v.sideEffects,
 			summary: v.summary,
 			supplementary: v.supplementary,
-			laws: kind ? [{ action: kind, lawId: v.law, newTitle: null }] : [],
+			laws: kind ? [kind === 'enact' ? { action: kind, lawId: null, newTitle: v.newTitle } : { action: kind, lawId: v.law, newTitle: null }] : [],
 			changeCount: v.rows.length,
 			solutionIds: v.solutions
 		},
@@ -148,26 +152,43 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 	}
 	// ほかの解決策を足せるのは同じ課題から（Issue #46 基準1）
 	if (new Set(visible.map((r) => r.issueId)).size > 1) errors.fields.solutions = ja.bill.solutionsOneIssue;
-	// 選ばれていない法令は「選んでください」。それ以外の対象外の法令・ない種類は作り変えた値
-	if (!v.law) errors.fields.laws = ja.bill.lawRequired;
-	else if (checked.ok === false && checked.errors.laws) return invalid();
 	if (!kind) return invalid();
-	if (!v.law) return { ok: false, status: 400, errors };
 
-	// 基にした版：その法令の版でなければ作り変えた値。いまの版でなければ、開いたあとで新しい版が施行された
-	const [base] = await db.select({ id: lawRevisions.id, lawId: lawRevisions.lawId }).from(lawRevisions).where(eq(lawRevisions.id, v.base));
-	if (!base || base.lawId !== v.law) return invalid();
-	// 誤りを直してから開き直すのは手間なので、版が変わったことを先に知らせる
-	const current = await currentRevision(db, v.law);
-	if (current?.id !== base.id) return { ok: false, status: 409, errors: { fields: {}, rows: {}, message: ja.bill.baseChanged } };
+	// 基にする版の条。制定は空の法令から書くのでない
+	let articles: Awaited<ReturnType<typeof articlesOfRevision>> | null = null;
+	let baseId: string | null = null;
+	if (kind === 'enact') {
+		// 制定に法令の番号や版は付かない（作り変えた値）
+		if (v.law || v.base) return invalid();
+		if (!errors.fields.newTitle) {
+			const [same] = await db.select({ id: laws.id }).from(laws).where(eq(laws.title, v.newTitle.trim()));
+			if (same) errors.fields.newTitle = ja.bill.lawTitleExists;
+		}
+	} else {
+		// 選ばれていない法令は「選んでください」。それ以外の対象外の法令は作り変えた値
+		if (!v.law) {
+			errors.fields.laws = ja.bill.lawRequired;
+			return { ok: false, status: 400, errors };
+		}
+		if (!checked.ok && checked.errors.laws) return invalid();
+		// 基にした版：その法令の版でなければ作り変えた値。いまの版でなければ、開いたあとで新しい版が施行された
+		const [base] = await db.select({ id: lawRevisions.id, lawId: lawRevisions.lawId }).from(lawRevisions).where(eq(lawRevisions.id, v.base));
+		if (!base || base.lawId !== v.law) return invalid();
+		// 誤りを直してから開き直すのは手間なので、版が変わったことを先に知らせる
+		const current = await currentRevision(db, v.law);
+		if (current?.id !== base.id) return { ok: false, status: 409, errors: { fields: {}, rows: {}, message: ja.bill.baseChanged } };
+		baseId = base.id;
+		articles = await articlesOfRevision(db, base.id);
+	}
 
 	// 変更点
-	const articles = await articlesOfRevision(db, base.id);
-	const byNum = new Map(articles.map((a) => [a.num, a]));
+	const byNum = new Map((articles ?? []).map((a) => [a.num, a]));
 	const changes: BillChange[] = [];
 	let rowsOk = true;
 	for (const [i, row] of v.rows.entries()) {
 		if (!(CHANGE_OPS as readonly string[]).includes(row.op)) return invalid();
+		// 制定の条はすべて足す形で、番号は画面が順に付ける。ほかの形は作り変えた値
+		if (kind === 'enact' && (row.op !== 'add' || branchNum(row.num) === null)) return invalid();
 		const op = row.op as ChangeOp;
 		const caption = row.caption.trim() || null;
 		let num: string | null;
@@ -202,11 +223,15 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 		changes.push({ op, num, provisionId, caption, paragraphs: body.paragraphs });
 	}
 	if (rowsOk && !errors.changes) {
-		const baseArticles: BaseArticle[] = articles.map((a) => ({ id: a.id, num: a.num, caption: a.caption, paragraphs: a.paragraphs }));
+		const baseArticles: BaseArticle[] | null = articles && articles.map((a) => ({ id: a.id, num: a.num, caption: a.caption, paragraphs: a.paragraphs }));
 		const result = checkChanges(kind, baseArticles, changes);
 		if (!result.ok) {
+			// 制定には番号の欄がないので、番号の誤りは作り変えた値
+			if (kind === 'enact' && result.errors.some(({ error }) => CHANGE_FIELD[error] === 'num' || CHANGE_FIELD[error] === 'target')) return invalid();
 			for (const { index, error } of result.errors) {
-				if (index < 0) errors.changes = ja.bill.changeErrors[error];
+				// 第1条（目的）の誤りは第1条の見出しのそばに出す
+				if (index < 0 && error === 'enactPurpose' && changes.length) errors.rows[0] = { field: 'caption', message: ja.bill.changeErrors[error] };
+				else if (index < 0) errors.changes = ja.bill.changeErrors[error];
 				else errors.rows[index] = { field: CHANGE_FIELD[error], message: ja.bill.changeErrors[error] };
 			}
 		}
@@ -226,7 +251,11 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 			sideEffects: value.sideEffects,
 			summary: value.summary,
 			supplementary: value.supplementary,
-			laws: [{ action: kind, lawId: v.law, baseRevisionId: base.id, newTitle: null, changes }],
+			laws: [
+				kind === 'enact'
+					? { action: kind, lawId: null, baseRevisionId: null, newTitle: value.newTitle, changes }
+					: { action: kind, lawId: v.law, baseRevisionId: baseId, newTitle: null, changes }
+			],
 			solutionIds: value.solutionIds
 		}
 	};
