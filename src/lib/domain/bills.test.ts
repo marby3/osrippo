@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { parseLaw, type Article } from './law';
-import { articleBodyText, changeDiff, checkChanges, formalName, parseArticleBody, validateBill, type BillChange, type BillRaw } from './bills';
+import { articleBodyText, billProgress, changeDiff, checkChanges, formalName, nextStage, parseArticleBody, referralSession, validateBill, type BillChange, type BillRaw } from './bills';
 
 const root = new URL('../../../', import.meta.url);
 const dir = new URL('tests/fixtures/egov/', root);
@@ -206,4 +206,76 @@ test('changeDiff：違いが大きい条は、全文の置きかえとして返�
 		['消費者の権利', false, true],
 		['消費者の義務', true, false]
 	]);
+});
+
+// Issue #50 法案の状態の進み方（設計書 docs/spec/50.md 決めたこと2・3）
+const jst = (s: string) => Date.parse(`${s}+09:00`);
+const proposed = (at: string) => ({ status: 'proposed' as const, proposedAt: jst(at) });
+const progressAt = (bill: { status: 'draft' | 'proposed'; proposedAt: number | null }, at: string) => billProgress(bill, jst(at), null);
+
+describe('法案の進み', () => {
+	test('基準1：1〜14日の発議は、その会期の15日に質疑、22日に採決、次の月の1日に廃案。時刻から求めるので、時刻が戻れば戻る', () => {
+		const bill = proposed('2030-05-14T23:59:59.999');
+		expect(referralSession(bill.proposedAt, null).key).toBe('2030-05');
+		const cases: [string, string][] = [
+			['2030-05-14T23:59:59.999', 'proposed'],
+			['2030-05-15T00:00:00', 'deliberation'],
+			['2030-05-21T23:59:59.999', 'deliberation'],
+			['2030-05-22T00:00:00', 'vote'],
+			['2030-05-31T23:59:59.999', 'vote'],
+			['2030-06-01T00:00:00', 'lapsed'],
+			['2031-01-01T00:00:00', 'lapsed'],
+			// 戻す
+			['2030-05-22T00:00:00', 'vote'],
+			['2030-05-14T23:59:59.999', 'proposed']
+		];
+		for (const [at, progress] of cases) expect(progressAt(bill, at), at).toBe(progress);
+		// 下書きは時刻で進まない
+		expect(progressAt({ status: 'draft', proposedAt: null }, '2031-01-01T00:00:00')).toBe('draft');
+	});
+
+	test('基準2：15日 0:00 以降の発議は次の会期に付託する。次の段の日付も次の月になる', () => {
+		const bill = proposed('2030-05-15T00:00:00');
+		expect(referralSession(bill.proposedAt, null).key).toBe('2030-06');
+		const cases: [string, string][] = [
+			['2030-05-15T00:00:00', 'proposed'],
+			['2030-05-31T23:59:59.999', 'proposed'],
+			['2030-06-14T23:59:59.999', 'proposed'],
+			['2030-06-15T00:00:00', 'deliberation'],
+			['2030-06-22T00:00:00', 'vote'],
+			['2030-06-30T23:59:59.999', 'vote'],
+			['2030-07-01T00:00:00', 'lapsed']
+		];
+		for (const [at, progress] of cases) expect(progressAt(bill, at), at).toBe(progress);
+		expect(nextStage(bill, jst('2030-05-20T09:00:00'), null)).toMatchObject({ stage: 'deliberation', at: jst('2030-06-15T00:00:00') });
+		expect(nextStage(bill, jst('2030-06-15T09:00:00'), null)).toMatchObject({ stage: 'vote', at: jst('2030-06-22T00:00:00') });
+		expect(nextStage(bill, jst('2030-06-22T09:00:00'), null)).toBeNull();
+		// 年の変わり目
+		expect(referralSession(jst('2030-12-20T09:00:00'), null).key).toBe('2031-01');
+	});
+});
+
+test('基準7：大きく書きかえた条はひと続きにまとめる。小さい修正は細かいまま。「。」と改行を含む共通部分はまとめない', () => {
+	const changed = (before: string, after: string) => {
+		const { parts } = changeDiff(before, after, 1000);
+		return { added: parts.filter((p) => p.added).map((p) => p.value), removed: parts.filter((p) => p.removed).map((p) => p.value), same: parts.filter((p) => !p.added && !p.removed).map((p) => p.value) };
+	};
+	const article1 =
+		'この法律は、消費者と事業者との間の情報の質及び量並びに交渉力の格差に鑑み、事業者の一定の行為により消費者が誤認し、又は困惑した場合等について契約の申込み又はその承諾の意思表示を取り消すことができることとするとともに、事業者の損害賠償の責任を免除する条項その他の消費者の利益を不当に害することとなる条項の全部又は一部を無効とするほか、消費者の被害の発生又は拡大を防止するため適格消費者団体が事業者等に対し差止請求をすることができることとすることにより、消費者の利益の擁護を図り、もって国民生活の安定向上と国民経済の健全な発展に寄与することを目的とする。';
+	const large = changed(article1, 'この法律は、消費者がいつでも契約をやめられるようにすることを目的とする。');
+	expect(large.added).toEqual(['がいつでも契約をやめられるように']);
+	expect(large.removed).toHaveLength(1);
+	expect(large.same).toEqual(['この法律は、消費者', 'することを目的とする。']);
+
+	const small = changed('事業者は、十日以内に書面で通知しなければならない。', '事業者は、二十日以内に電子メールで通知しなければならない。');
+	expect(small.added).toEqual(['二', '電子メール']);
+	expect(small.removed).toEqual(['書面']);
+
+	// 「。」を含む共通部分（変わっていない文）は、前後の変更より短くてもまとめない
+	const sentence = '契約は解除できる。';
+	const kept = changed(`甲乙丙丁戊己庚辛壬癸甲乙丙丁戊${sentence}甲乙丙丁戊己庚辛壬癸甲乙丙丁戊`, `あいうえおかきくけこさしすせそ${sentence}あいうえおかきくけこさしすせそ`);
+	expect(kept.same).toEqual([sentence]);
+	const line = '第二項';
+	const keptLine = changed(`甲乙丙丁戊己\n${line}\n甲乙丙丁戊己`, `あいうえおか\n${line}\nあいうえおか`);
+	expect(keptLine.same).toEqual([`\n${line}\n`]);
 });
