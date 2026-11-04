@@ -386,3 +386,11 @@ export function billListHref(tab: BillTab, page: number): string {
 	const query = params.toString();
 	return query ? `/houan?${query}` : '/houan';
 }
+
+// ---- 発議要件（Issue #49。設計書 docs/spec/49.md 決めたこと2・3） ----
+
+/** 今月の参加者の 5% を切り上げ、最低3人。割合は小数を使わず整数で計算する */
+export const proposalRequirement = (participants: number) => Math.max(3, Math.ceil((participants * 5) / 100));
+
+/** 今月の参加者に数える行動：課題・わかる・解決策・解決策への反応・法案の起草（作る・保存・発議）・賛同。取り消し、通報、違反、運営の操作は数えない */
+export const PARTICIPANT_KINDS = ['issue_post', 'support_add', 'solution_post', 'reaction_add', 'bill_draft', 'bill_save', 'bill_support_add', 'bill_propose'] as const;

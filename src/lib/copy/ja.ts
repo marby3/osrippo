@@ -185,6 +185,21 @@ export const ja = {
 		kinds: { amend: '改正', repeal: '廃止', enact: '制定' },
 		ops: { amend: '書きかえ', add: '新しく追加', delete: '削除', supplementary: '新しく追加' },
 		statuses: { draft: '下書き', proposed: '発議' },
+		/** 賛同と発議（Issue #49） */
+		support: {
+			count: (n: number) => `賛同 ${n}人`,
+			add: '賛同する',
+			remove: '賛同を取り消す',
+			propose: '発議する',
+			remaining: (n: number) => `発議にはあと${n}人`,
+			tooNew: (at: number) => `登録から7日たつと、賛同と発議ができます。${jaDateTime(at)}からできます。`,
+			stale: 'この法案は直されました。読み直してから賛同してください。',
+			closed: 'この法案は発議されたので、賛同の受け付けを終えました。',
+			author: '自分の法案には賛同できません。',
+			notAuthor: '発議できるのは提出者だけです。',
+			short: '賛同が足りないので、まだ発議できません。',
+			resetNotice: (n: number) => `保存すると、いまの賛同 ${n}人は数えなくなります。集め直しになります。`
+		},
 		/** 法案の一覧（SpBills・PcBills） */
 		list: {
 			pageTitle: '法案｜オープンソース立法府',
@@ -198,6 +213,9 @@ export const ja = {
 			kind: '種類',
 			bill: '法案',
 			stage: '段階',
+			support: '賛同',
+			supportCell: (n: number) => `${n}人`,
+			supportPrefix: ' ・ 賛同 ',
 			empty: { shingi: '審議中の法案はありません。', shitagaki: '下書きはありません。', owari: '終わった法案はありません。' },
 			pages: 'ページ送り',
 			prevPage: '前のページ',
@@ -270,7 +288,7 @@ export const ja = {
 		turnstileFailed: '確認できませんでした。もう一度お試しください。',
 		turnstileUnavailable: '確認の仕組みを読み込めませんでした。ページを読み直してください。',
 		banned: (until: number) =>
-			`制限を何度も超えたため、${jaDateTime(until)}まで、課題や解決策の投稿、「わかる」「考えが変わった」、通報ができません。法案の下書きを作ることと保存することもできません。`,
+			`制限を何度も超えたため、${jaDateTime(until)}まで、課題や解決策の投稿、「わかる」「考えが変わった」、通報ができません。法案の下書きを作ること、保存すること、賛同、発議もできません。`,
 		refusals: {
 			'post-account': '課題は24時間に5件まで書けます。しばらくしてからお試しください。',
 			'post-new': (retryAt: number) =>
@@ -288,7 +306,10 @@ export const ja = {
 			'reaction-ip': 'この回線からは、この解決策にこれ以上押せません。',
 			'bill-draft-account': '法案の下書きは24時間に3件まで作れます。しばらくしてからお試しください。',
 			'bill-draft-ip': 'この回線から作れる法案の下書きの数を超えました。しばらくしてからお試しください。',
-			'bill-save-account': '法案の下書きの保存は24時間に60回までです。しばらくしてからお試しください。'
+			'bill-save-account': '法案の下書きの保存は24時間に60回までです。しばらくしてからお試しください。',
+			'bill-support-day': '賛同は24時間に30回まで押せます（取り消しも1回に数えます）。しばらくしてからお試しください。',
+			'bill-support-burst': '短いあいだに賛同を何度も押しました。しばらくしてからお試しください。',
+			'bill-support-ip': 'この回線からは、この法案にこれ以上賛同できません。'
 		}
 	},
 	/** 通報（設計書 docs/spec/28.md） */

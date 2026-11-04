@@ -466,11 +466,14 @@ export const bills = sqliteTable(
 		/** 附則の本文 */
 		supplementary: text('supplementary'),
 		createdAt: integer('created_at').notNull(),
-		updatedAt: integer('updated_at').notNull()
+		updatedAt: integer('updated_at').notNull(),
+		/** 発議した時刻。締切の前か後かは会期と比べて求める（#50） */
+		proposedAt: integer('proposed_at')
 	},
 	(t) => [
 		index('bills_user').on(t.userId),
 		index('bills_status_updated').on(t.status, t.updatedAt),
+		index('bills_status_created').on(t.status, t.createdAt),
 		check('bills_kind', sql`${t.kind} IN (${inList(BILL_KINDS)})`)
 	]
 );
@@ -547,4 +550,38 @@ export const billSolutions = sqliteTable(
 		unique('bill_solutions_solution').on(t.billId, t.rev, t.solutionId),
 		check('bill_solutions_seq', sql`${t.seq} BETWEEN 0 AND 4`)
 	]
+);
+
+/**
+ * 賛同。賛同したときの版（rev）に結び付け、bills.rev と同じ rev の行だけを数える（設計書 docs/spec/49.md 決めたこと1）。
+ * 保存すると rev が変わるので、行を消さなくても賛同は数えなくなる
+ */
+export const billSupports = sqliteTable(
+	'bill_supports',
+	{
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		rev: integer('rev').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.billId, t.rev, t.userId] })]
+);
+
+/** 会期ごとの今月の参加者（発議要件の母数）。その会期で最初に読まれたときに、一つ前の会期から数えて固定する（設計書 決めたこと3） */
+export const sessionParticipantCounts = sqliteTable(
+	'session_participants',
+	{
+		committeeId: integer('committee_id')
+			.notNull()
+			.references(() => committees.id),
+		/** Session.key */
+		sessionKey: text('session_key').notNull(),
+		activeCount: integer('active_count').notNull(),
+		fixedAt: integer('fixed_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.committeeId, t.sessionKey] })]
 );

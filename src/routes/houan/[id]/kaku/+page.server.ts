@@ -6,7 +6,7 @@ import { articleBodyText, articleLabel } from '#lib/domain/law/index.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { submitBill } from '#lib/server/bill-actions.ts';
 import { FIRST_COMMITTEE, type BillFormValues } from '#lib/server/bill-form.ts';
-import { billById, citedCandidates, committeeLawList, draftArticles } from '#lib/server/bills.ts';
+import { billById, billSupportState, citedCandidates, committeeLawList, draftArticles } from '#lib/server/bills.ts';
 import { requireUser } from '#lib/server/require-user.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
@@ -53,6 +53,7 @@ export const load: PageServerLoad = async (event) => {
 		laws: await committeeLawList(db, FIRST_COMMITTEE),
 		candidates,
 		dropped: bill.solutionIds.length - solutionIds.length,
+		supports: (await billSupportState(db, bill.id, bill.rev, null)).supports,
 		initial,
 		articles: articles ?? null,
 		siteKey: env.TURNSTILE_SITE_KEY

@@ -13,6 +13,7 @@
 <main>
 	<p class="sub"><a href="/houan/{data.edit.id}">{data.edit.title}</a></p>
 	<h1>{ja.bill.write.editHeading}</h1>
+	{#if data.supports > 0}<p class="notice">{ja.bill.support.resetNotice(data.supports)}</p>{/if}
 	<BillForm
 		laws={data.laws}
 		candidates={data.candidates}
@@ -39,5 +40,11 @@
 
 	.sub {
 		font-size: var(--font-size-sub);
+	}
+
+	.notice {
+		padding: 0.75rem 1rem;
+		border-radius: var(--radius-m);
+		background: var(--color-caution-bg);
 	}
 </style>

@@ -1,14 +1,17 @@
 // 法案の下書きを作る・直すフォームの受け付け（Issue #46）。確かめる順は課題を書くときと同じ：
 // ログイン → 日本から → 締め出し → 登録から7日 → Turnstile → 欄 → 基にした版 → 上限 → 書く
-import { fail, redirect, type RequestEvent } from '@sveltejs/kit';
+import { error, fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '../copy/ja';
+import { proposalRequirement } from '../domain/bills';
 import { billWaitUntil } from '../domain/limits';
 import { parseIssueId } from '../domain/issues';
-import { checkBillForm, readBillForm, type BillFormErrors, type BillFormValues } from './bill-form';
-import { createDraftLimited, saveDraftLimited } from './bills';
-import { checkTurnstile, nowOf, refusalMessage, writeGuard } from './client';
+import { checkBillForm, FIRST_COMMITTEE, readBillForm, type BillFormErrors, type BillFormValues } from './bill-form';
+import { billById, createDraftLimited, proposeBill, saveDraftLimited, sessionParticipants, setBillSupport } from './bills';
+import { checkTurnstile, nowOf, refusalMessage, sessionsOf, writeGuard } from './client';
+import type { Db } from './law';
+import { requireUser } from './require-user';
 
 export type BillFormFailure = { values: BillFormValues; errors?: BillFormErrors; message?: string };
 
@@ -43,4 +46,56 @@ export async function submitBill(event: RequestEvent, user: { id: string; create
 	if (!result.ok) return refuse(429, { message: refusalMessage(result.refusal) });
 	if (!result.saved) return refuse(409, { message: ja.bill.stale });
 	redirect(303, `/houan/${edit.id}`);
+}
+
+// ---- 賛同と発議（Issue #49。設計書 docs/spec/49.md） ----
+
+/** 送り先の法案。形が違う番号、ない番号、作りかけは 404（ログインより先に） */
+async function billOf(event: RequestEvent) {
+	const id = parseIssueId(event.params.id ?? '');
+	const db = drizzle(env.DB);
+	const bill = id === null ? undefined : await billById(db, id);
+	if (!bill) error(404);
+	return { db, bill };
+}
+
+/** 確かめる順：ログイン → 日本から → 締め出し → 登録から7日 */
+async function billGuard(event: RequestEvent, db: Db, now: number, checkAge: boolean) {
+	const user = requireUser(event);
+	const guard = await writeGuard(event, db, user, now);
+	if (!guard.ok) return { failure: fail(guard.failure.status, guard.failure.data) };
+	const wait = checkAge ? billWaitUntil(guard.actor.registeredAt, now) : null;
+	if (wait !== null) return { failure: fail(403, { message: ja.bill.support.tooNew(wait) }) };
+	return { actor: guard.actor };
+}
+
+export async function supportAction(event: RequestEvent) {
+	const { db, bill } = await billOf(event);
+	const now = nowOf(event);
+	const form = await event.request.formData();
+	const op = form.get('op');
+	const checked = await billGuard(event, db, now, op !== 'remove');
+	if (checked.failure) return checked.failure;
+	const rev = parseIssueId(String(form.get('rev') ?? ''));
+	if ((op !== 'add' && op !== 'remove') || rev === null) return fail(400, { message: ja.bill.formInvalid });
+	const result = await setBillSupport(db, checked.actor, bill.id, rev, op, now);
+	if (result.ok) return { supported: op === 'add' };
+	if ('refusal' in result) return fail(429, { message: refusalMessage(result.refusal) });
+	return result.reason === 'author'
+		? fail(403, { message: ja.bill.support.author })
+		: fail(409, { message: result.reason === 'stale' ? ja.bill.support.stale : ja.bill.support.closed });
+}
+
+export async function proposeAction(event: RequestEvent) {
+	const { db, bill } = await billOf(event);
+	const now = nowOf(event);
+	const checked = await billGuard(event, db, now, true);
+	if (checked.failure) return checked.failure;
+	const { session, previous } = sessionsOf(event);
+	const required = proposalRequirement(await sessionParticipants(db, FIRST_COMMITTEE, session, previous, now));
+	const result = await proposeBill(db, checked.actor, bill.id, required, now);
+	if (result.ok) return { proposed: true };
+	return result.reason === 'notAuthor'
+		? fail(403, { message: ja.bill.support.notAuthor })
+		: fail(409, { message: result.reason === 'short' ? ja.bill.support.short : ja.bill.support.closed });
 }

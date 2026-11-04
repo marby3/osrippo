@@ -4,6 +4,7 @@ import { fail, type ActionFailure, type RequestEvent } from '@sveltejs/kit';
 import { ja } from '../copy/ja';
 import { hashIp } from '../domain/ip';
 import type { Refusal } from '../domain/limits';
+import { sessionAt, sessionMinutes } from '../domain/session';
 import { activeBan, type Actor } from './issues';
 import type { Db } from './law';
 import { verifyTurnstile } from './turnstile';
@@ -43,6 +44,13 @@ export function nowOf(event: Pick<RequestEvent, 'url' | 'request'>): number {
 		if (ms !== null) return ms;
 	}
 	return Date.now();
+}
+
+/** いまの会期と一つ前の会期（Issue #44・#49） */
+export function sessionsOf(event: Pick<RequestEvent, 'url' | 'request'>) {
+	const minutes = sessionMinutes(import.meta.env.DEV, env.SESSION_MINUTES);
+	const session = sessionAt(nowOf(event), minutes);
+	return { session, previous: sessionAt(session.startsAt - 1, minutes) };
 }
 
 /**

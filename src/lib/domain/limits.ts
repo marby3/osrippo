@@ -30,6 +30,10 @@ export const LIMITS = {
 	billDraftPerAccount: 3,
 	billDraftPerIp: 20,
 	billSavePerAccount: 60,
+	/** 賛同：1アカウント24時間・5分（付けるのも取り消すのも1回）。同じ法案に同じ回線から（設計書 docs/spec/49.md） */
+	billSupportPerDay: 30,
+	billSupportPerBurst: 10,
+	billSupportAccountsPerIp: 3,
 	/** 下書きを作る・賛同する・発議するのは、登録からこの長さのアカウントだけ（Issue #41 決めたこと6） */
 	billAccountAge: 7 * DAY,
 	banLength: DAY
@@ -49,7 +53,10 @@ export type RefusalKind =
 	| 'reaction-ip'
 	| 'bill-draft-account'
 	| 'bill-draft-ip'
-	| 'bill-save-account';
+	| 'bill-save-account'
+	| 'bill-support-day'
+	| 'bill-support-burst'
+	| 'bill-support-ip';
 export type Refusal = { kind: RefusalKind; retryAt?: number };
 
 /** 違反に数えるか。回線ごとの上限は同じ回線の別の人のせいで当たることがあり、登録したばかりの上限は試しているうちに締め出されないよう、数えない */
@@ -67,7 +74,10 @@ export const COUNTS_AS_VIOLATION: Record<RefusalKind, boolean> = {
 	'reaction-ip': false,
 	'bill-draft-account': true,
 	'bill-draft-ip': false,
-	'bill-save-account': true
+	'bill-save-account': true,
+	'bill-support-day': true,
+	'bill-support-burst': true,
+	'bill-support-ip': false
 };
 
 type PostCounts = { accountPostTimes: number[]; ipPosts: number; registeredAt: number };
@@ -148,4 +158,18 @@ export const checkBillSave = (c: { accountSaves: number }): Refusal | null =>
 export function billWaitUntil(registeredAt: number, now: number): number | null {
 	const at = registeredAt + LIMITS.billAccountAge;
 	return now < at ? at : null;
+}
+
+/** 賛同。selfAddedRecently は、そのアカウントが24時間のうちにこの法案へ賛同したことがあるか（どの回線からでも。保存のあとに賛同し直せるように） */
+export function checkBillSupport(c: {
+	op: 'add' | 'remove';
+	accountDay: number;
+	accountBurst: number;
+	otherAccountsOnIp: number;
+	selfAddedRecently: boolean;
+}): Refusal | null {
+	if (c.accountDay >= LIMITS.billSupportPerDay) return { kind: 'bill-support-day' };
+	if (c.accountBurst >= LIMITS.billSupportPerBurst) return { kind: 'bill-support-burst' };
+	if (c.op === 'add' && !c.selfAddedRecently && c.otherAccountsOnIp >= LIMITS.billSupportAccountsPerIp) return { kind: 'bill-support-ip' };
+	return null;
 }
