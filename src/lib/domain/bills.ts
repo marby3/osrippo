@@ -372,10 +372,10 @@ export function changeDiff(before: string, after: string, maxEdit: number): { pa
 export const BILL_TABS = ['shingi', 'shitagaki', 'owari'] as const;
 export type BillTab = (typeof BILL_TABS)[number];
 
-/** ?tab= の値。省くと審議中。決まった値でなければ null */
+/** ?tab= の値。省くと審議中。決まった値でなければ null。既定の審議中は書かない（同じ内容の URL を2つ作らない） */
 export function parseBillTab(raw: string | null): BillTab | null {
 	if (raw === null) return 'shingi';
-	return (BILL_TABS as readonly string[]).includes(raw) ? (raw as BillTab) : null;
+	return raw !== 'shingi' && (BILL_TABS as readonly string[]).includes(raw) ? (raw as BillTab) : null;
 }
 
 /** 一覧のページの URL。審議中と1ページ目は省く */

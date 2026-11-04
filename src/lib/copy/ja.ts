@@ -199,6 +199,7 @@ export const ja = {
 			bill: '法案',
 			stage: '段階',
 			empty: { shingi: '審議中の法案はありません。', shitagaki: '下書きはありません。', owari: '終わった法案はありません。' },
+			pages: 'ページ送り',
 			prevPage: '前のページ',
 			nextPage: '次のページ'
 		},

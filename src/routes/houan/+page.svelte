@@ -17,10 +17,7 @@
 </svelte:head>
 
 <main>
-	<div class="head">
-		<h1>{ja.bill.list.heading}</h1>
-		<a href="/houan/kaku">{ja.bill.list.write}</a>
-	</div>
+	<h1>{ja.bill.list.heading}</h1>
 
 	<nav class="tabs" aria-label={ja.bill.list.tabs}>
 		{#each tabs as t (t.tab)}
@@ -58,30 +55,27 @@
 	{/if}
 
 	{#if data.page > 1 || data.hasNext}
-		<nav class="pages">
+		<nav class="pages" aria-label={ja.bill.list.pages}>
 			{#if data.page > 1}<a href={billListHref(data.tab, data.page - 1)}>{ja.bill.list.prevPage}</a>{/if}
 			{#if data.hasNext}<a href={billListHref(data.tab, data.page + 1)}>{ja.bill.list.nextPage}</a>{/if}
 		</nav>
 	{/if}
+
+	<!-- 案の「法案の書き方を見る」の場所：スマホは一覧の下（SpBills）、PC は見出しの右（PcBills）。リンクは1つで、PC は CSS で動かす -->
+	<p class="write"><a href="/houan/kaku">{ja.bill.list.write}</a></p>
 </main>
 
 <style>
 	main {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
 		max-width: 76rem;
 		margin: 0 auto;
 		padding: 1rem;
 	}
 
-	.head {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.5rem 1rem;
-	}
-
-	.head a,
-	.pages a {
+	.pages a,
+	.write a {
 		display: inline-flex;
 		align-items: center;
 		min-height: var(--tap-min);
@@ -154,6 +148,7 @@
 		min-height: var(--tap-min);
 		color: var(--color-text);
 		font-weight: bold;
+		text-decoration: none;
 	}
 
 	td.stage {
@@ -172,9 +167,31 @@
 		margin-top: 1rem;
 	}
 
+	.write {
+		margin: 1rem 0 0;
+	}
+
 	@media (min-width: 64rem) {
 		main {
+			grid-template-columns: minmax(0, 1fr) auto;
 			padding: 1.5rem 4rem;
+		}
+
+		h1 {
+			grid-area: 1 / 1;
+		}
+
+		.write {
+			grid-area: 1 / 2;
+			align-self: center;
+			margin: 0;
+		}
+
+		.tabs,
+		table,
+		.empty,
+		.pages {
+			grid-column: 1 / -1;
 		}
 
 		.tabs {
@@ -237,6 +254,10 @@
 
 		.title {
 			margin: 0;
+		}
+
+		.title a {
+			text-decoration: underline;
 		}
 	}
 </style>
