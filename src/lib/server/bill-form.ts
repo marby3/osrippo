@@ -7,7 +7,6 @@ import {
 	BILL_MAX,
 	CHANGE_OPS,
 	checkChanges,
-	ENACT_PLACEHOLDER,
 	parseArticleBody,
 	validateBill,
 	type BaseArticle,
@@ -106,6 +105,7 @@ const CHANGE_FIELD: Record<ChangeError, RowField> = {
 	enactNotAdd: 'num',
 	enactNumOrder: 'num',
 	enactPurpose: 'caption',
+	enactPlaceholder: 'body',
 	amendEmpty: 'target',
 	repealHasChanges: 'target'
 };
@@ -187,6 +187,8 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 	let rowsOk = true;
 	for (const [i, row] of v.rows.entries()) {
 		if (!(CHANGE_OPS as readonly string[]).includes(row.op)) return invalid();
+		// 制定の条はすべて足す形で、番号は画面が順に付ける。ほかの形は作り変えた値
+		if (kind === 'enact' && (row.op !== 'add' || branchNum(row.num) === null)) return invalid();
 		const op = row.op as ChangeOp;
 		const caption = row.caption.trim() || null;
 		let num: string | null;
@@ -218,18 +220,14 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 			rowsOk = false;
 			continue;
 		}
-		// ひな形の第1条を書きかえずに保存しない
-		if (kind === 'enact' && i === 0 && row.body.includes(ENACT_PLACEHOLDER)) {
-			errors.rows[i] = { field: 'body', message: ja.bill.placeholderLeft };
-			rowsOk = false;
-			continue;
-		}
 		changes.push({ op, num, provisionId, caption, paragraphs: body.paragraphs });
 	}
 	if (rowsOk && !errors.changes) {
 		const baseArticles: BaseArticle[] | null = articles && articles.map((a) => ({ id: a.id, num: a.num, caption: a.caption, paragraphs: a.paragraphs }));
 		const result = checkChanges(kind, baseArticles, changes);
 		if (!result.ok) {
+			// 制定には番号の欄がないので、番号の誤りは作り変えた値
+			if (kind === 'enact' && result.errors.some(({ error }) => CHANGE_FIELD[error] === 'num' || CHANGE_FIELD[error] === 'target')) return invalid();
 			for (const { index, error } of result.errors) {
 				// 第1条（目的）の誤りは第1条の見出しのそばに出す
 				if (index < 0 && error === 'enactPurpose' && changes.length) errors.rows[0] = { field: 'caption', message: ja.bill.changeErrors[error] };

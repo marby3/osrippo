@@ -98,6 +98,13 @@ export function parseArticleBody(raw: string): BodyResult {
 	return { ok: true, paragraphs };
 }
 
+// ---- 制定のひな形（Issue #47） ----
+
+/** 新法の第1条の見出し（仕様「法令名と第1条（目的）を必須にし」） */
+export const ENACT_PURPOSE_CAPTION = '（目的）';
+/** ひな形の第1条の、書きかえてもらう印。残っていたら保存しない */
+export const ENACT_PLACEHOLDER = '○○';
+
 // ---- 変更点の確かめ（決めたこと4） ----
 
 export type ChangeError =
@@ -116,6 +123,7 @@ export type ChangeError =
 	| 'enactNotAdd'
 	| 'enactNumOrder'
 	| 'enactPurpose'
+	| 'enactPlaceholder'
 	| 'amendEmpty'
 	| 'repealHasChanges';
 
@@ -185,9 +193,11 @@ export function checkChanges(
 	if (action === 'enact') {
 		const first = changes[0];
 		// 第1条（目的）が必須（仕様「法令名と第1条（目的）を必須にし」）
-		if (!first || first.caption !== '（目的）' || !first.paragraphs?.[0]?.text.trim()) {
+		if (!first || first.caption !== ENACT_PURPOSE_CAPTION || !first.paragraphs?.[0]?.text.trim()) {
 			return { ok: false, errors: [{ index: -1, error: 'enactPurpose' }] };
 		}
+		// ひな形を書きかえずに保存しない（Issue #47 決めたこと2）
+		if (articleBodyText(first.paragraphs).includes(ENACT_PLACEHOLDER)) return { ok: false, errors: [{ index: 0, error: 'enactPlaceholder' }] };
 	}
 	return { ok: true };
 }
@@ -328,11 +338,6 @@ export function formalName(kind: BillKind, laws: { action: BillKind; title: stri
 	}
 	return laws.length > 1 ? `${main}等の一部を改正する法律案` : `${main}の一部を改正する法律案`;
 }
-
-// ---- 制定のひな形（Issue #47） ----
-
-/** ひな形の第1条の、書きかえてもらう印。残っていたら保存しない */
-export const ENACT_PLACEHOLDER = '○○';
 
 // ---- 変更点の出し方（Issue #46） ----
 

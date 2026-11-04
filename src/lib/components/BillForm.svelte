@@ -5,7 +5,7 @@
 	import { onMount, tick } from 'svelte';
 	import Turnstile from '#lib/components/Turnstile.svelte';
 	import { ja } from '#lib/copy/ja.ts';
-	import { BILL_MAX } from '#lib/domain/bills.ts';
+	import { BILL_MAX, ENACT_PLACEHOLDER, ENACT_PURPOSE_CAPTION } from '#lib/domain/bills.ts';
 	import type { BillFormErrors, BillFormValues, RowField, RowValues } from '#lib/server/bill-form.ts';
 
 	type Article = { num: string; label: string; caption: string; body: string };
@@ -50,7 +50,7 @@
 	let summary = $state(start.summary);
 	let supplementary = $state(start.supplementary);
 	let chosen = $state<string[]>([...start.solutions]);
-	const template = (): RowValues => ({ op: 'add', target: '', num: '', caption: ja.bill.write.enactTemplate.caption, body: ja.bill.write.enactTemplate.body });
+	const template = (): RowValues => ({ op: 'add', target: '', num: '', caption: ENACT_PURPOSE_CAPTION, body: ja.bill.write.enactTemplateBody(ENACT_PLACEHOLDER) });
 	const emptyRow = (): RowValues => ({ op: 'amend', target: '', num: '', caption: '', body: '' });
 	let rows = $state<Row[]>((start.kind === 'enact' ? [emptyRow()] : start.rows).map(toRow));
 	/** 制定の条。種類を切り替えても、改正の行とは別に残す。第1条はひな形から始める */
@@ -250,7 +250,6 @@
 			{#each laws as l (l.id)}<option value={l.id}>{l.title}</option>{/each}
 		</select>
 		{#if fieldError('laws')}<p class="error" id="bill-law-error">{fieldError('laws')}</p>{/if}
-
 	{/if}
 
 	{#if kind === 'repeal'}
