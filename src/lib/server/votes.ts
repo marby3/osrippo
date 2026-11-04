@@ -1,6 +1,6 @@
 // 投票資格・割り当て・票を入れる・票を数える（Issue #65。設計書 docs/spec/65.md 決めたこと5〜10）。
 // 受け取る値は呼ぶ側（#70）が確かめる。ここでは確かめずに書く
-import { and, asc, count, eq, gte, inArray, lt, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, eq, gte, lt, ne, sql } from 'drizzle-orm';
 import { actions, bills, user, voteAssignments, votes } from '../db/schema';
 import { PARTICIPANT_KINDS } from '../domain/bills';
 import type { Session } from '../domain/session';
@@ -8,21 +8,22 @@ import { ASSIGNMENT_COUNT, drawAssignments, type VoteChoice, type VoteCounts } f
 import { savedBill } from './bills';
 import type { Db } from './law';
 
-/** その時刻より前に、今月の参加者に数える行動がある（投票資格の条件。isEligibleVoter と tallyVotes で共通） */
-// 副問い合わせの中の列と混ざらないよう、列は別名か表の名前を付けて書く（drizzle の ${table.col} は表名なしの列名になる）
-const actedBefore = (who: SQL, start: number) =>
-	sql`EXISTS (SELECT 1 FROM ${actions} a WHERE a.user_id = ${who} AND a.kind IN (${sql.join(
+/**
+ * 投票資格の条件：会期の始まりより前に登録し、その前に今月の参加者に数える行動がある。user の行を読む問い合わせの中で使う（isEligibleVoter と tallyVotes で共通）。
+ * 副問い合わせの中の列と混ざらないよう、列は別名か表の名前を付けて書く（drizzle の ${table.col} は表名なしの列名になる）
+ */
+const eligible = (session: Session) =>
+	sql`(${user}.created_at < ${session.startsAt} AND EXISTS (SELECT 1 FROM ${actions} a WHERE a.user_id = ${user}.id AND a.kind IN (${sql.join(
 		PARTICIPANT_KINDS.map((k) => sql`${k}`),
 		sql`, `
-	)}) AND a.created_at < ${start})`;
+	)}) AND a.created_at < ${session.startsAt}))`;
 
-/** 投票資格：会期の始まりより前に登録し、その前に今月の参加者に数える行動がある。session は付託先の会期 */
-export async function isEligibleVoter(db: Db, userId: string, registeredAt: number, session: Session): Promise<boolean> {
-	if (registeredAt >= session.startsAt) return false;
+/** 投票資格があるか。session は付託先の会期 */
+export async function isEligibleVoter(db: Db, userId: string, session: Session): Promise<boolean> {
 	const rows = await db
 		.select({ id: user.id })
 		.from(user)
-		.where(and(eq(user.id, userId), actedBefore(sql`${user}.id`, session.startsAt)));
+		.where(and(eq(user.id, userId), eligible(session)));
 	return rows.length > 0;
 }
 
@@ -43,7 +44,7 @@ const inPeriod = (session: Session, now: number) => session.voteAt <= now && now
 
 /**
  * その人の割り当て（法案の番号）。行があれば読む。なければ、採決の期間のときだけくじを引いて固定する。
- * 1文でまとめて入れるので、同時に開いても先に入った組だけが残る（主キーが seq なので、違う組でも全部の行がぶつかる）
+ * 同時に開いても先に入った組だけが残る。主キーが seq なので、後の文は違う組でも全部の行がぶつかる（候補は締切のあとは変わらないので、どちらの文も同じ本数になる）
  */
 export async function assignedBills(db: Db, userId: string, session: Session, previous: Session, now: number, random: () => number): Promise<number[]> {
 	const mine = and(eq(voteAssignments.sessionKey, session.key), eq(voteAssignments.userId, userId));
@@ -81,7 +82,7 @@ export async function castVote(db: Db, userId: string, session: Session, previou
 	const done = await db.all<{ bill_id: number }>(sql`
 		INSERT INTO ${votes} (session_key, bill_id, user_id, choice, created_at, updated_at)
 		SELECT ${session.key}, id, ${userId}, ${choice}, ${now}, ${now} FROM ${bills}
-		WHERE id = ${billId} AND status = 'proposed' AND rev > 0 AND proposed_at >= ${previous.deliberationAt} AND proposed_at < ${session.deliberationAt}
+		WHERE ${eq(bills.id, billId)} AND ${inVote(session, previous)}
 		ON CONFLICT (session_key, bill_id, user_id) DO UPDATE SET choice = excluded.choice, updated_at = excluded.updated_at
 		RETURNING bill_id`);
 	return done.length > 0;
@@ -95,19 +96,18 @@ const emptyCounts = (): VoteCounts => ({ yes: 0, no: 0, abstain: 0 });
  */
 export async function tallyVotes(db: Db, session: Session, billId: number): Promise<{ counted: VoteCounts; reference: VoteCounts }> {
 	const counted = sql<number>`(
-		${user}.created_at < ${session.startsAt}
-		AND ${actedBefore(sql`${votes}.user_id`, session.startsAt)}
+		${eligible(session)}
 		AND NOT EXISTS (
 			SELECT 1 FROM ${voteAssignments} va WHERE va.session_key = ${votes}.session_key AND va.user_id = ${votes}.user_id
 			AND NOT EXISTS (SELECT 1 FROM ${votes} w WHERE w.session_key = va.session_key AND w.bill_id = va.bill_id AND w.user_id = va.user_id)
 		)
-	)`;
+	)`.as('counted');
 	const rows = await db
 		.select({ choice: votes.choice, counted, n: count() })
 		.from(votes)
 		.innerJoin(user, eq(user.id, votes.userId))
 		.where(and(eq(votes.sessionKey, session.key), eq(votes.billId, billId)))
-		.groupBy(votes.choice, counted);
+		.groupBy(votes.choice, sql`counted`);
 	const result = { counted: emptyCounts(), reference: emptyCounts() };
 	for (const row of rows) result[row.counted ? 'counted' : 'reference'][row.choice] += row.n;
 	return result;

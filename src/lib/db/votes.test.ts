@@ -77,7 +77,10 @@ test('基準1：0011 で票と割り当ての表が増え、actions の行は残
 		old.prepare("INSERT INTO actions (kind, user_id, ip_hash, created_at) VALUES (?, 'u', 'hash', 1)").run(kind);
 	}
 	expect(() => old.exec("INSERT INTO actions (kind, user_id, ip_hash, created_at) VALUES ('nope', 'u', 'hash', 1)")).toThrow();
-	expect(() => old.exec("INSERT INTO votes (session_key, bill_id, user_id, choice, created_at, updated_at) VALUES ('s', 1, 'u', 'maybe', 0, 0)")).toThrow();
+	// 法案と利用者のある行で、票の値だけを誤らせる
+	old.exec("INSERT INTO bills (id, user_id, committee_id, kind, title, affected, side_effects, created_at, updated_at) VALUES (1, 'u', 1, 'amend', 't', 'a', 's', 0, 0)");
+	old.exec("INSERT INTO votes (session_key, bill_id, user_id, choice, created_at, updated_at) VALUES ('s', 1, 'u', 'yes', 0, 0)");
+	expect(() => old.exec("INSERT INTO votes (session_key, bill_id, user_id, choice, created_at, updated_at) VALUES ('t', 1, 'u', 'maybe', 0, 0)")).toThrow();
 });
 
 test('基準2：今月の参加者に質疑・答弁・補足・評価・修正案・投票を数え、立場の変更と取り消しは数えない', async () => {
@@ -89,23 +92,25 @@ test('基準2：今月の参加者に質疑・答弁・補足・評価・修正�
 
 test('基準5：投票資格は、会期の始まりより前に登録し、その前に数える行動がある人だけ', async () => {
 	const s = monthOf('2042-05');
-	const eligible = (id: string, registeredAt: number) => isEligibleVoter(db, id, registeredAt, s);
-	const ok = addUser();
+	const eligible = (id: string) => isEligibleVoter(db, id, s);
+	const ok = addUser(s.startsAt - 1);
 	action('issue_post', ok, s.startsAt - 1);
-	expect(await eligible(ok, s.startsAt - 1)).toBe(true);
+	expect(await eligible(ok)).toBe(true);
 	// 始まりちょうどの登録は間に合わない
-	expect(await eligible(ok, s.startsAt)).toBe(false);
+	const lateSignup = addUser(s.startsAt);
+	action('issue_post', lateSignup, s.startsAt - 1);
+	expect(await eligible(lateSignup)).toBe(false);
 	// 始まりちょうどの行動は間に合わない
 	const late = addUser();
 	action('issue_post', late, s.startsAt);
-	expect(await eligible(late, 0)).toBe(false);
+	expect(await eligible(late)).toBe(false);
 	// 数えない行動だけ
 	const stanceOnly = addUser();
 	action('stance_set', stanceOnly, s.startsAt - 1);
 	action('violation', stanceOnly, s.startsAt - 1);
-	expect(await eligible(stanceOnly, 0)).toBe(false);
+	expect(await eligible(stanceOnly)).toBe(false);
 	// 何もしていない
-	expect(await eligible(addUser(), 0)).toBe(false);
+	expect(await eligible(addUser())).toBe(false);
 });
 
 describe('基準6：割り当て', () => {
@@ -151,6 +156,16 @@ describe('基準6：割り当て', () => {
 		const [a, b] = await Promise.all([assignedBills(db, racer, s, previous, inVote(s), first), assignedBills(db, racer, s, previous, inVote(s), () => 0.99)]);
 		expect(a).toEqual(b);
 		expect(sqlite.prepare('SELECT count(*) AS n FROM vote_assignments WHERE user_id = ?').get(racer)).toEqual({ n: 3 });
+
+		// 提出者の法案と、賛同したことのある法案（古い版の行でも）を除くと2本だけ残る人には、ちょうどその2本
+		const s2 = monthOf('2043-07');
+		const previous2 = previousOf(s2);
+		const picker = addUser();
+		const [ownFirst, supportedFirst] = [addBill(picker, jst('2043-07-01T00:00:00')), addBill(author, jst('2043-07-02T00:00:00'))];
+		run('INSERT INTO bill_supports (bill_id, rev, user_id, created_at) VALUES (?, 0, ?, 0)', supportedFirst, picker);
+		const left = [addBill(author, jst('2043-07-03T00:00:00')), addBill(author, jst('2043-07-04T00:00:00'))];
+		expect(ownFirst).toBeGreaterThan(0);
+		expect((await assignedBills(db, picker, s2, previous2, inVote(s2), first)).sort((a, b) => a - b)).toEqual(left);
 
 		// 足りなければあるだけ。くじは重ならない
 		expect(drawAssignments([1, 2], 3, first).sort()).toEqual([1, 2]);
