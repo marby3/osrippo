@@ -55,9 +55,7 @@ const band = (page: Page) => page.locator('[data-if-band]');
  * use:enhance の送信は fail() でも HTTP 200 で返るので、本文の type も確かめる
  */
 async function posted(u: Page, act: () => Promise<void>) {
-	const done = u.waitForResponse((r) => r.request().method() === 'POST');
-	await act();
-	const res = await done;
+	const [res] = await Promise.all([u.waitForResponse((r) => r.request().method() === 'POST'), act()]);
 	expect(res.status()).toBeLessThan(400);
 	if (res.status() < 300) expect(await res.text()).not.toContain('"type":"failure"');
 }
@@ -126,7 +124,6 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 		await u.goto(bill);
 		await hydrated(u);
 		await u.getByRole('navigation', { name: '法案のページ' }).getByRole('link', { name: tab }).click();
-		await hydrated(u);
 	};
 	const stance = (u: Page, label: string) => u.getByRole('button', { name: label, exact: true });
 
@@ -144,14 +141,15 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	// E が質疑を書くと「答弁待ち」、A が答弁すると消える
 	const question = `解約の窓口は誰が用意しますか ${suffix}`;
 	const answer = `事業者が自分のサイトに用意します ${suffix}`;
-	await e.page.getByRole('link', { name: '質疑を書く' }).or(e.page.getByRole('button', { name: '質疑を書く' })).first().click();
-	await hydrated(e.page);
+	await either(e.page, '質疑を書く').first().click();
 	await e.page.getByLabel('質疑の内容').fill(question);
 	await submit(e.page, '送る');
 	const card = (u: Page) => u.locator('article').filter({ hasText: question });
 	await expect(card(e.page).getByText('答弁待ち')).toBeVisible();
 
 	await openTab(a.page, /^質疑/);
+	// E と F の考えは、ほかの人の画面に出ない
+	await expect(card(a.page)).not.toContainText(/賛成寄り|反対寄り/);
 	await card(a.page).getByRole('button', { name: '答弁する' }).click();
 	await a.page.getByLabel('答弁の内容').fill(answer);
 	await submit(a.page, '送る');
@@ -163,14 +161,14 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	if (w === 'sp') await card(f.page).getByRole('button', { name: /答弁を読む/ }).click();
 	await expect(card(f.page).getByText(answer)).toBeVisible();
 	const reasonable = () => card(f.page).getByRole('button', { name: '筋が通っている' });
-	await posted(f.page, () => reasonable().click());
+	await reasonable().click();
+	await expect(reasonable()).toHaveAttribute('aria-pressed', 'true');
 	await openTab(f.page, /^質疑/);
 	await expect(reasonable()).toHaveAttribute('aria-pressed', 'true');
 
 	// G の修正案を A が取り込むと、変更点の「変更後」が修正案の本文になる
 	await openTab(g.page, /^修正案/);
 	await either(g.page, '修正案を出す').first().click();
-	await hydrated(g.page);
 	await g.page.getByLabel('変える条').selectOption({ label: '第1条（目的）' });
 	await g.page.getByLabel('変更後の条文').fill(amended);
 	await submit(g.page, '修正案を出す');
@@ -180,8 +178,8 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	await v.goto(`${bill}/henkou`);
 	// 「変更後」の欄が修正案の本文になり、取り込む前の本文（createAmendBill）は消える。
 	// 基にした本文と同じ部分は下線の外に出るので（pc は sp の可決のあとの IF世界が基）、欄の文字で比べる
-	const after = v.locator('section.after');
-	await expect.poll(async () => (await after.innerText()).replace(/＋/g, '')).toContain(amended);
+	const after = v.getByRole('main').locator('section').filter({ hasText: '変更後' });
+	expect((await after.innerText()).replace(/＋/g, '')).toContain(amended);
 	await expect(v.getByRole('main')).not.toContainText('いつでも契約をやめられる');
 
 	// 4. 22日：採決
@@ -300,5 +298,5 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	await a.page.getByRole('radio', { name: '改正' }).check();
 	await a.page.getByLabel('対象の法令').selectOption({ label: '消費者契約法' });
 	await a.page.getByLabel('変える条').selectOption({ label: '第1条（目的）' });
-	await expect(a.page.getByLabel('変更後の条文')).toHaveValue(new RegExp(amendedMark));
+	await expect(a.page.getByLabel('変更後の条文')).toHaveValue(amended);
 });
