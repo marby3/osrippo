@@ -4,7 +4,7 @@ import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '#lib/copy/ja.ts';
 import { validateIssue, type IssueField } from '#lib/domain/issues.ts';
-import { checkTurnstile, refusalMessage, writeGuard } from '#lib/server/client.ts';
+import { checkTurnstile, nowOf, refusalMessage, writeGuard } from '#lib/server/client.ts';
 import { createIssue, currentTopic } from '#lib/server/issues.ts';
 import { requireUser } from '#lib/server/require-user.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -20,7 +20,7 @@ export const actions: Actions = {
 	default: async (event) => {
 		const user = requireUser(event);
 		const db = drizzle(env.DB);
-		const now = Date.now();
+		const now = nowOf(event);
 		const form = await event.request.formData();
 		// 断ったときも入力は残す
 		const values = Object.fromEntries(FIELDS.map((f) => [f, String(form.get(f) ?? '')])) as Record<IssueField, string>;

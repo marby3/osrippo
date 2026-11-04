@@ -5,7 +5,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '#lib/copy/ja.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { HIDEABLE, LISTED, RESTORABLE, validateSolutionAction, validateStaffAction } from '#lib/domain/reports.ts';
-import { allowedCountry, clientOf } from '#lib/server/client.ts';
+import { allowedCountry, clientOf, nowOf } from '#lib/server/client.ts';
 import type { Db } from '#lib/server/law.ts';
 import { issueMeta } from '#lib/server/issues.ts';
 import { changeStatus, mergeIssue, mergePreview, reportedIssues, roleOf } from '#lib/server/reports.ts';
@@ -80,7 +80,7 @@ const act = (action: 'hide' | 'restore' | 'merge') => async (event: RequestEvent
 	const checked = validateStaffAction({ issue: field('issue'), reason: field('reason'), target: field('target'), note: field('note') }, action);
 	if (!checked.ok) return fail(400, { message: ja.kanri.invalid, issueId: null });
 	const { issueId, targetId, reason, note } = checked.value;
-	const now = Date.now();
+	const now = nowOf(event);
 
 	if (action === 'merge') {
 		if (targetId === undefined) return fail(400, { message: ja.kanri.invalid, issueId: null });
@@ -118,10 +118,11 @@ const actOnSolution = (action: 'hide' | 'restore') => async (event: RequestEvent
 	if (!meta) return fail(400, { message: ja.kanri.invalid, solutionId: null });
 	if (meta.userId === staff.userId) return fail(403, { message: ja.kanri.ownSolution, solutionId });
 	// 課題が非表示でも、解決策の非表示と表示に戻すはできる
+	const now = nowOf(event);
 	const changed =
 		action === 'hide'
-			? await changeSolutionStatus(db, solutionId, HIDEABLE, 'hidden', staff, reason, note, Date.now())
-			: await changeSolutionStatus(db, solutionId, RESTORABLE, 'restored', staff, null, note, Date.now());
+			? await changeSolutionStatus(db, solutionId, HIDEABLE, 'hidden', staff, reason, note, now)
+			: await changeSolutionStatus(db, solutionId, RESTORABLE, 'restored', staff, null, note, now);
 	if (!changed) {
 		return fail(400, { message: action === 'hide' ? ja.kanri.alreadyHidden : ja.kanri.alreadyShown, solutionId });
 	}

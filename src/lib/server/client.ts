@@ -13,6 +13,38 @@ const isLocalHost = (url: URL) => ['localhost', '127.0.0.1'].includes(url.hostna
 /** 画面のテストのサーバー：TEST_LOGIN が "1" で、要求のホストが手元（docs/spec/23.md 決めたこと10と同じ条件） */
 export const isTestServer = (url: URL) => env.TEST_LOGIN === '1' && isLocalHost(url);
 
+/** タイムゾーン付きの ISO 8601（秒と小数は任意）。日付だけ、タイムゾーンなしは受け付けない */
+const TEST_NOW = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(\.\d{1,3})?)?(Z|([+-])(\d{2}):(\d{2}))$/;
+
+/**
+ * x-test-now を読む。形の違う値は null。Date.parse は 2月30日を3月2日に、24時を翌日0時に繰り上げるので使わず、
+ * 年・月・日・時・分・秒を組み立て直して、元の値と同じになるものだけを通す
+ */
+function parseTestNow(raw: string): number | null {
+	const m = TEST_NOW.exec(raw);
+	if (!m) return null;
+	const [y, mo, d, h, mi, sec] = [1, 2, 3, 4, 5, 6].map((i) => Number(m[i] ?? 0));
+	const local = Date.UTC(y, mo - 1, d, h, mi, sec);
+	const t = new Date(local);
+	if (t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d || t.getUTCHours() !== h || t.getUTCMinutes() !== mi || t.getUTCSeconds() !== sec) {
+		return null;
+	}
+	const offset = m[8] === 'Z' ? 0 : (m[9] === '-' ? -1 : 1) * (Number(m[10]) * 60 + Number(m[11])) * 60 * 1000;
+	return local + Math.round(Number(m[7] ?? 0) * 1000) - offset;
+}
+
+/**
+ * サーバーの「いま」（Issue #44）。画面のテストのサーバーでは x-test-now で決められる（会期の表示、書き込みの時刻、
+ * レート制限と締め出しの数え）。形の違う値と、フラグのないサーバーでは本当の時刻。ログインの時刻はこれを使わない
+ */
+export function nowOf(event: Pick<RequestEvent, 'url' | 'request'>): number {
+	if (isTestServer(event.url)) {
+		const ms = parseTestNow(event.request.headers.get('x-test-now') ?? '');
+		if (ms !== null) return ms;
+	}
+	return Date.now();
+}
+
 /**
  * アクセス元の国と IP。手元では国を JP とし（手元の wrangler は US などにするため）、画面のテストではヘッダーで差し替えられる。
  * 本番は公開のホスト名で届くので、手元の分岐には入らない

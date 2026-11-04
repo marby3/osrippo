@@ -24,6 +24,8 @@ declare global {
 		interface Env {
 			/** 画面のテストのサーバーだけで "1"。テスト用のログインを有効にする（設計書 docs/spec/23.md） */
 			TEST_LOGIN?: string;
+			/** pnpm dev のときだけ使う、開発用の短い会期の分数（1〜1440。Issue #44）。ビルドしたサーバーでは使わない */
+			SESSION_MINUTES?: string;
 		}
 	}
 }

@@ -9,3 +9,6 @@ LINE_CLIENT_SECRET=
 # 手元用は Cloudflare のテスト用の秘密の値（いつも通る）
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 IP_HASH_SECRET=
+# 開発用の短い会期（分、1〜1440）。pnpm dev のときだけ効く。空なら日本時間のカレンダーの月（Issue #44）
+# 会期は 1970-01-01 0時（UTC）から数えて区切るので、1440 なら会期は日本時間の9時に始まる
+SESSION_MINUTES=

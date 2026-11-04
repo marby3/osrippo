@@ -6,7 +6,7 @@ import { ja } from '#lib/copy/ja.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { LISTED } from '#lib/domain/reports.ts';
 import { validateSolution } from '#lib/domain/solutions.ts';
-import { checkTurnstile, refusalMessage, writeGuard } from '#lib/server/client.ts';
+import { checkTurnstile, nowOf, refusalMessage, writeGuard } from '#lib/server/client.ts';
 import { getIssue, issueMeta } from '#lib/server/issues.ts';
 import { requireUser } from '#lib/server/require-user.ts';
 import { createSolution } from '#lib/server/solutions.ts';
@@ -35,7 +35,7 @@ export const actions: Actions = {
 		const meta = await issueMeta(db, id);
 		if (!meta) error(404);
 		const user = requireUser(event);
-		const now = Date.now();
+		const now = nowOf(event);
 		const form = await event.request.formData();
 		const body = String(form.get('body') ?? '');
 
