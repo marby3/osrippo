@@ -135,6 +135,12 @@ export function seedStatements(lawIds: string[], load: (name: string) => unknown
 			]);
 		}
 	}
-	// 外部キーを満たす順：laws → law_revisions → provisions（ID順）→ provision_versions → 検索の行
-	return [laws, revisions, provisions, versions, trigram, bigram].flatMap(inserts);
+	// 委員会1（消費者保護）の対象法令。渡した法令のうち対象3法に入るものだけ（設計書 docs/spec/45.md）
+	const committeeLaws: Table = {
+		name: 'committee_laws',
+		columns: ['committee_id', 'law_id'],
+		rows: [...lawIds].sort().filter((id) => TARGET_LAWS.includes(id)).map((id) => [1, id])
+	};
+	// 外部キーを満たす順：laws → law_revisions → provisions（ID順）→ provision_versions → 検索の行 → 委員会の対象法令
+	return [laws, revisions, provisions, versions, trigram, bigram, committeeLaws].flatMap(inserts);
 }

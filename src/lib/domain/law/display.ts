@@ -34,18 +34,22 @@ export function fullYears(from: string, today: string): number {
 	return today.slice(5) < from.slice(5) ? years - 1 : years;
 }
 
-/** 比べるときの条の文字列：見出し、項（2項からは番号付き）、号（漢数字付き）を行に分けてつなげる */
-export function articleText(article: {
-	caption: string;
-	paragraphs: { num: string; text: string; items: { num: string; text: string }[] }[];
-}): string {
-	return [
-		article.caption,
-		...article.paragraphs.flatMap((p, i) => [
-			i > 0 ? `${p.num}　${p.text}` : p.text,
-			...p.items.map((item) => `${itemLabel(item.num)}　${item.text}`)
-		])
-	].join('\n');
+type ParagraphTree = { num: string; text: string; items: { num: string; text: string }[] };
+
+/**
+ * 条の本文の文字列：項（2項からは番号付き）、号（漢数字付き）を行に分けてつなげる。
+ * 法案の「変更後の条文」の欄も同じ形で、読み取りは parseArticleBody（domain/bills.ts）
+ */
+export function articleBodyText(paragraphs: ParagraphTree[]): string {
+	return paragraphs
+		.flatMap((p, i) => [i > 0 ? `${p.num}　${p.text}` : p.text, ...p.items.map((item) => `${itemLabel(item.num)}　${item.text}`)])
+		.join('\n');
+}
+
+/** 比べるときの条の文字列：見出しと、条の本文 */
+export function articleText(article: { caption: string; paragraphs: ParagraphTree[] }): string {
+	// 項のない条（取り込みでは出ない）でも前と同じ文字列にする
+	return article.paragraphs.length ? `${article.caption}\n${articleBodyText(article.paragraphs)}` : article.caption;
 }
 
 type HeadingTree = Pick<Heading, 'title' | 'articles'> & { children: HeadingTree[] };
