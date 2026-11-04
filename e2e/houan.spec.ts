@@ -124,6 +124,12 @@ test('基準1：解決策から書き始める。同じ課題の解決策を足�
 	await cited.getByRole('checkbox', { name: second }).check();
 	await expect(cited.getByRole('checkbox', { name: second })).toBeChecked();
 
+	// 見出しの長い条（景品表示法の第6条は40字）を選択肢に入れても、幅からはみ出さない
+	await hydrated(a);
+	await a.getByLabel('対象の法令').selectOption({ label: '不当景品類及び不当表示防止法' });
+	await expect(a.getByLabel('変える条').locator('option', { hasText: '第6条' })).toHaveCount(1);
+	expect(await a.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+
 	// ログインしていなければログインへ
 	await page.goto(`/houan/kaku?kaiketsu=${ids[0]}`);
 	await expect(page.getByRole('button', { name: 'Googleでログイン' }).or(page.getByRole('link', { name: 'Googleでログイン' }))).toBeVisible();
@@ -477,6 +483,12 @@ test('基準9：引用した解決策や課題があとで非表示になった�
 	await expect(page.getByText('この解決策は非表示になっています')).toBeVisible();
 	await expect(page.getByText(kept)).toHaveCount(0);
 	await expect(page.getByRole('link', { name: `法案の元の課題 h9-${p}-${s}` })).toHaveCount(0);
+
+	// 引用できる解決策がなくなった下書きは、保存できないことを先に知らせる
+	await a.goto(`${bill}/kaku`);
+	await hydrated(a);
+	await expect(a.getByText('引用できる解決策がなくなったので、この下書きは保存できません。')).toBeVisible();
+	await expect(a.getByRole('button', { name: '下書きを保存する' })).toBeDisabled();
 });
 
 test('信頼の境界：作り変えたフォームの値は 400 で、保存しない', async ({ browser }, info) => {

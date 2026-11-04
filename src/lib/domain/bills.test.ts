@@ -183,16 +183,25 @@ describe('基準6：正式名', () => {
 });
 
 // Issue #46 のレビューの Major：公開のページで、長さと違いに上限のない文字の比べを走らせないように
-test('changeDiff：違いが大きい条は、全文の置きかえとして返す', () => {
-	const shape = (parts: ReturnType<typeof changeDiff>) => parts.map((p) => [p.value, Boolean(p.added), Boolean(p.removed)]);
-	expect(shape(changeDiff('消費者の権利', '消費者の義務'))).toEqual([
+test('changeDiff：違いが大きい条は、全文の置きかえとして返す。使った分を cost で返す', () => {
+	const shape = (parts: ReturnType<typeof changeDiff>['parts']) => parts.map((p) => [p.value, Boolean(p.added), Boolean(p.removed)]);
+	const small = changeDiff('消費者の権利', '消費者の義務', 1000);
+	expect(shape(small.parts)).toEqual([
 		['消費者の', false, false],
 		['権利', false, true],
 		['義務', true, false]
 	]);
+	expect(small.cost).toBe(4);
 	const [before, after] = ['あ'.repeat(10000), 'い'.repeat(10000)];
-	expect(shape(changeDiff(before, after))).toEqual([
+	const large = changeDiff(before, after, 1000);
+	expect(shape(large.parts)).toEqual([
 		[before, false, true],
 		[after, true, false]
+	]);
+	expect(large.cost).toBe(1000);
+	// 予算を使い切ったら比べない
+	expect(shape(changeDiff('消費者の権利', '消費者の義務', 0).parts)).toEqual([
+		['消費者の権利', false, true],
+		['消費者の義務', true, false]
 	]);
 });
