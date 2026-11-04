@@ -366,3 +366,23 @@ export function changeDiff(before: string, after: string, maxEdit: number): { pa
 		cost: parts.reduce((n, p) => (p.added || p.removed ? n + [...p.value].length : n), 0)
 	};
 }
+
+// ---- 一覧のタブ（Issue #48） ----
+
+export const BILL_TABS = ['shingi', 'shitagaki', 'owari'] as const;
+export type BillTab = (typeof BILL_TABS)[number];
+
+/** ?tab= の値。省くと審議中。決まった値でなければ null */
+export function parseBillTab(raw: string | null): BillTab | null {
+	if (raw === null) return 'shingi';
+	return (BILL_TABS as readonly string[]).includes(raw) ? (raw as BillTab) : null;
+}
+
+/** 一覧のページの URL。審議中と1ページ目は省く */
+export function billListHref(tab: BillTab, page: number): string {
+	const params = new URLSearchParams();
+	if (tab !== 'shingi') params.set('tab', tab);
+	if (page > 1) params.set('page', String(page));
+	const query = params.toString();
+	return query ? `/houan?${query}` : '/houan';
+}

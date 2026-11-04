@@ -1,9 +1,10 @@
 // 法案の下書きを作る・保存する・読む（設計書 docs/spec/45.md 決めたこと1・7・8）。
 // 受け取る値は、呼ぶ側（#46）が validateBill・checkChanges・基にした版の比べを通したもの。ここでは確かめずに書く
-import { and, asc, count, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
 import { actions, billChanges, billLaws, bills, billSolutions, committeeLaws, issues, laws, solutions, user } from '../db/schema';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
-import { changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, type BillChange, type BillKind } from '../domain/bills';
+import { changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, type BillChange, type BillKind, type BillTab } from '../domain/bills';
+import { PAGE_SIZE } from '../domain/issues';
 import { checkBillDraft, checkBillSave, DAY } from '../domain/limits';
 import { LISTED, SOLUTION_SHOWN as SHOWN } from '../domain/reports';
 import { refuse, type Actor } from './issues';
@@ -303,4 +304,31 @@ export async function citedCandidates(db: Db, solutionIds: number[]) {
 	const issueIds = [...new Set(rows.map((r) => r.issueId))];
 	const lists = await Promise.all(issueIds.map((id) => candidateSolutions(db, id)));
 	return lists.flat();
+}
+
+// ---- 法案の一覧（Issue #48） ----
+
+/** タブの法案。下書きは保存が新しい順、審議中は作ったのが新しい順。終わったタブは状態の進み方（#50）で埋まる */
+export async function listBills(db: Db, tab: BillTab, page: number) {
+	if (tab === 'owari') return { rows: [], hasNext: false };
+	const draft = tab === 'shitagaki';
+	const rows = await db
+		.select({ id: bills.id, kind: bills.kind, status: bills.status, title: bills.title })
+		.from(bills)
+		.where(and(savedBill, eq(bills.status, draft ? 'draft' : 'proposed')))
+		.orderBy(draft ? desc(bills.updatedAt) : desc(bills.createdAt), desc(bills.id))
+		.limit(PAGE_SIZE + 1)
+		.offset((page - 1) * PAGE_SIZE);
+	return { rows: rows.slice(0, PAGE_SIZE), hasNext: rows.length > PAGE_SIZE };
+}
+
+/** タブの件数。「終わった」には数を出さない（SpBills・PcBills） */
+export async function billTabCounts(db: Db) {
+	const rows = await db
+		.select({ status: bills.status, n: count() })
+		.from(bills)
+		.where(savedBill)
+		.groupBy(bills.status);
+	const of = (status: string) => rows.find((r) => r.status === status)?.n ?? 0;
+	return { shingi: of('proposed'), shitagaki: of('draft') };
 }
