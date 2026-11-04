@@ -96,6 +96,8 @@ describe('基準4：変更点の確かめ', () => {
 		expect(errors('enact', [amend()], null)).toEqual([{ index: 0, error: 'enactNotAdd' }]);
 		expect(errors('enact', [{ ...add('1'), caption: '（定義）' }], null)).toEqual([{ index: -1, error: 'enactPurpose' }]);
 		expect(errors('enact', [], null)).toEqual([{ index: -1, error: 'enactPurpose' }]);
+		// ひな形の印が残った第1条（Issue #47）
+		expect(errors('enact', [{ ...add('1'), caption: '（目的）', paragraphs: p('この法律は、○○することを目的とする。') }], null)).toEqual([{ index: 0, error: 'enactPlaceholder' }]);
 	});
 });
 

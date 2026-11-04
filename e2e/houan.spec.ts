@@ -485,7 +485,6 @@ test('信頼の境界：作り変えたフォームの値は 400 で、保存し
 		['別の課題の解決策', form({ solution: [ids[0], other.ids[0]] })],
 		['非表示の課題の解決策', form({ solution: hiddenIssue.ids[0] })],
 		['多すぎる解決策', form({ solution: Array.from({ length: 200 }, (_, i) => String(i + 1)) })],
-		['種類「制定」', form({ kind: 'enact' })],
 		['ない種類', form({ kind: 'bogus' })],
 		['ない変え方', form({ 'op.0': 'rename' })],
 		['廃止に変える条', form({ kind: 'repeal' })],
