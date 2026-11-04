@@ -1,6 +1,7 @@
 // 法案の下書きの決まり（設計書 docs/spec/45.md 決めたこと3〜6）。DB にも画面にも触れない
+import { diffChars } from 'diff';
 import { checkText, CONTROL, type IssueError } from './issues';
-import { articleBodyText, compareNum, type Paragraph } from './law';
+import { articleBodyText, compareNum, type DiffPart, type Paragraph } from './law';
 
 export { articleBodyText };
 
@@ -326,4 +327,21 @@ export function formalName(kind: BillKind, laws: { action: BillKind; title: stri
 		return repealed > 1 ? `${main}等を廃止する法律案` : `${main}を廃止する法律案`;
 	}
 	return laws.length > 1 ? `${main}等の一部を改正する法律案` : `${main}の一部を改正する法律案`;
+}
+
+// ---- 変更点の出し方（Issue #46） ----
+
+/** 文字の比べで調べる違いの上限。公開のページで動くので、これを超える条は全文の置きかえとして出す */
+const DIFF_MAX_EDIT = 1000;
+
+/** 基にした版の条と変更後の条の、文字ごとの違い */
+export function changeDiff(before: string, after: string): DiffPart[] {
+	const parts = diffChars(before, after, { maxEditLength: DIFF_MAX_EDIT });
+	if (!parts) {
+		return [
+			{ value: before, removed: true },
+			{ value: after, added: true }
+		];
+	}
+	return parts.map(({ value, added, removed }) => ({ value, added, removed }));
 }

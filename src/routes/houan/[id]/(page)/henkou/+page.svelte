@@ -14,21 +14,23 @@
 </svelte:head>
 
 <div class="changes">
-	<p class="legend" aria-hidden="true">
-		<span class="del">−{ja.bill.page.legendDel}</span>
-		<span class="ins">＋{ja.bill.page.legendIns}</span>
-	</p>
+	{#if data.changes.length}
+		<p class="legend" aria-hidden="true">
+			<span class="del">−{ja.bill.page.legendDel}</span>
+			<span class="ins">＋{ja.bill.page.legendIns}</span>
+		</p>
+	{/if}
 
 	{#each bill.repealed as title (title)}
 		<p class="repeal">{ja.bill.page.repeal(title)}</p>
 	{/each}
 
-	{#if bill.changes.length}
+	{#if data.changes.length}
 		<div class="head" aria-hidden="true">
 			<span>{ja.bill.page.place}</span><span>{ja.bill.page.after}</span><span>{ja.bill.page.before}</span>
 		</div>
 	{/if}
-	{#each bill.changes as change, i (i)}
+	{#each data.changes as change, i (i)}
 		{@const supplementary = change.op === 'supplementary'}
 		<article>
 			<h2>
@@ -36,7 +38,8 @@
 					? ja.bill.page.changeHeading(null, ja.bill.page.supplementary, ja.bill.ops.supplementary)
 					: ja.bill.page.changeHeading(i + 1, change.location, ja.bill.ops[change.op])}
 			</h2>
-			<section class="before">
+			<!-- 新しく足すものは、スマホでは変更後だけ（SpBillChanges）、PC は表の欄に（なし）（PcBillChanges） -->
+			<section class="before" class:empty={!change.before}>
 				<h3>{ja.bill.page.before}</h3>
 				{#if change.before}<DiffText parts={change.before} show="removed" />{:else}<p class="none">{ja.bill.page.none}</p>{/if}
 			</section>
@@ -117,6 +120,18 @@
 		color: var(--color-text-sub);
 	}
 
+	.empty {
+		display: none;
+	}
+
+	.empty + .after {
+		border-top: none;
+	}
+
+	.empty + .after h3 {
+		display: none;
+	}
+
 	@media (min-width: 64rem) {
 		.changes {
 			gap: 0;
@@ -177,8 +192,13 @@
 		}
 
 		.before {
+			display: block;
 			grid-column: 3;
 			grid-row: 1;
+		}
+
+		.empty + .after h3 {
+			display: block;
 		}
 
 		/* 見出しの行（場所・変更後・いま）があるので、欄の中の名前は読み上げだけにする */

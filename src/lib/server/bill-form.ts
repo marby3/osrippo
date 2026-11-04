@@ -2,7 +2,7 @@
 // 基にした版の比べ（docs/spec/45.md 決めたこと7）を通して、createDraft・saveDraft に渡す形にする
 import { and, eq, inArray } from 'drizzle-orm';
 import { ja } from '../copy/ja';
-import { committeeLaws, lawRevisions, solutions } from '../db/schema';
+import { committeeLaws, issues, lawRevisions, solutions } from '../db/schema';
 import {
 	BILL_MAX,
 	CHANGE_OPS,
@@ -16,6 +16,7 @@ import {
 	type ChangeError,
 	type ChangeOp
 } from '../domain/bills';
+import { LISTED } from '../domain/reports';
 import { articlesOfRevision, currentRevision, type Db } from './law';
 import type { DraftInput } from './bills';
 
@@ -117,12 +118,16 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 		(r) => r.id
 	);
 	const ids = v.solutions.filter((s) => /^[1-9]\d{0,9}$/.test(s)).map(Number);
-	const visible = ids.length
-		? await db
-				.select({ id: solutions.id })
-				.from(solutions)
-				.where(and(inArray(solutions.id, ids), inArray(solutions.status, ['visible', 'restored'])))
-		: [];
+	// 数が上限を超えていれば問い合わせない（validateBill が誤りにする。D1 は1文に100個までしか値を結び付けられない）。
+	// 引用できるのは、一覧に出る課題の表示中の解決策
+	const visible =
+		ids.length && v.solutions.length <= BILL_MAX.solutions
+			? await db
+					.select({ id: solutions.id, issueId: solutions.issueId })
+					.from(solutions)
+					.innerJoin(issues, eq(issues.id, solutions.issueId))
+					.where(and(inArray(solutions.id, ids), inArray(solutions.status, ['visible', 'restored']), inArray(issues.status, LISTED)))
+			: [];
 	const checked = validateBill(
 		{
 			kind,
@@ -141,6 +146,8 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 		for (const [field, e] of Object.entries(checked.errors) as [BillField, BillError][]) errors.fields[field] = fieldMessage(e);
 		if (checked.errors.changes) errors.changes = errors.fields.changes;
 	}
+	// ほかの解決策を足せるのは同じ課題から（Issue #46 基準1）
+	if (new Set(visible.map((r) => r.issueId)).size > 1) errors.fields.solutions = ja.bill.solutionsOneIssue;
 	// 選ばれていない法令は「選んでください」。それ以外の対象外の法令・ない種類は作り変えた値
 	if (!v.law) errors.fields.laws = ja.bill.lawRequired;
 	else if (checked.ok === false && checked.errors.laws) return invalid();
@@ -150,8 +157,9 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 	// 基にした版：その法令の版でなければ作り変えた値。いまの版でなければ、開いたあとで新しい版が施行された
 	const [base] = await db.select({ id: lawRevisions.id, lawId: lawRevisions.lawId }).from(lawRevisions).where(eq(lawRevisions.id, v.base));
 	if (!base || base.lawId !== v.law) return invalid();
+	// 誤りを直してから開き直すのは手間なので、版が変わったことを先に知らせる
 	const current = await currentRevision(db, v.law);
-	const baseChanged = current?.id !== base.id;
+	if (current?.id !== base.id) return { ok: false, status: 409, errors: { fields: {}, rows: {}, message: ja.bill.baseChanged } };
 
 	// 変更点
 	const articles = await articlesOfRevision(db, base.id);
@@ -194,8 +202,8 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 		changes.push({ op, num, provisionId, caption, paragraphs: body.paragraphs });
 	}
 	if (rowsOk && !errors.changes) {
-		const base: BaseArticle[] = articles.map((a) => ({ id: a.id, num: a.num, caption: a.caption, paragraphs: a.paragraphs }));
-		const result = checkChanges(kind, base, changes);
+		const baseArticles: BaseArticle[] = articles.map((a) => ({ id: a.id, num: a.num, caption: a.caption, paragraphs: a.paragraphs }));
+		const result = checkChanges(kind, baseArticles, changes);
 		if (!result.ok) {
 			for (const { index, error } of result.errors) {
 				if (index < 0) errors.changes = ja.bill.changeErrors[error];
@@ -207,7 +215,6 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 	if (Object.keys(errors.fields).length || Object.keys(errors.rows).length || errors.changes || !checked.ok) {
 		return { ok: false, status: 400, errors };
 	}
-	if (baseChanged) return { ok: false, status: 409, errors: { ...errors, message: ja.bill.baseChanged } };
 	const value = checked.value;
 	return {
 		ok: true,

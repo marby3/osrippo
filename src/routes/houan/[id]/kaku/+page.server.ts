@@ -26,6 +26,9 @@ export const load: PageServerLoad = async (event) => {
 	const law = bill.laws[0];
 	// 条文はいま施行されている版を出し、それを基にした版として送る（docs/spec/45.md 決めたこと7）
 	const articles = law?.lawId ? await draftArticles(db, FIRST_COMMITTEE, law.lawId) : undefined;
+	const candidates = await citedCandidates(db, bill.solutionIds);
+	// 非表示になった解決策は候補に出ないので、引用からも外して、そのことを知らせる
+	const solutionIds = bill.solutionIds.filter((id) => candidates.some((c) => c.id === id));
 	const initial: BillFormValues = {
 		kind: bill.kind,
 		title: bill.title,
@@ -35,7 +38,7 @@ export const load: PageServerLoad = async (event) => {
 		sideEffects: bill.sideEffects,
 		summary: bill.summary ?? '',
 		supplementary: bill.supplementary ?? '',
-		solutions: bill.solutionIds.map(String),
+		solutions: solutionIds.map(String),
 		rows: (law?.changes ?? []).map((c) => ({
 			op: c.op,
 			target: c.op === 'add' ? '' : c.num,
@@ -45,10 +48,10 @@ export const load: PageServerLoad = async (event) => {
 		}))
 	};
 	return {
-		view: 'form' as const,
 		edit: { id: bill.id, rev: bill.rev, title: bill.title },
 		laws: await committeeLawList(db, FIRST_COMMITTEE),
-		candidates: await citedCandidates(db, bill.solutionIds),
+		candidates,
+		dropped: bill.solutionIds.length - solutionIds.length,
 		initial,
 		articles: articles ?? null,
 		siteKey: env.TURNSTILE_SITE_KEY

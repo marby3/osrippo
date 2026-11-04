@@ -2,7 +2,7 @@
 	// 法案を書く・直すフォーム（Issue #46）。キャンバスに案がないので、SpBillChanges の形と Tokens で組む。
 	// 変える条を選ぶと、いま施行されている版の見出しと条文を欄に入れる（条文は法令ごとに取りに行く）
 	import { enhance } from '$app/forms';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import Turnstile from '#lib/components/Turnstile.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import { BILL_MAX } from '#lib/domain/bills.ts';
@@ -17,6 +17,7 @@
 		articles: loaded,
 		siteKey,
 		edit = null,
+		dropped = 0,
 		form
 	}: {
 		laws: { id: string; title: string }[];
@@ -25,10 +26,12 @@
 		articles: Articles | null;
 		siteKey: string;
 		edit?: { id: number; rev: number } | null;
+		/** 非表示になって引用から外れる解決策の数（直すとき） */
+		dropped?: number;
 		form: { values?: BillFormValues; errors?: BillFormErrors; message?: string } | null | undefined;
 	} = $props();
 
-	// 断られたときは送った値から始める（JS がなくても入力が残る）
+	// 断られた結果を読み込み直したときは、送った値から始める
 	// svelte-ignore state_referenced_locally
 	const start = form?.values ?? initial;
 	let key = 0;
@@ -54,7 +57,18 @@
 	const errors = $derived(form?.errors);
 	const message = $derived(form?.message);
 	const fieldError = (f: keyof BillFormErrors['fields']) => errors?.fields[f];
-	const rowError = (i: number, f: RowField) => (errors?.rows[i]?.field === f ? errors.rows[i].message : undefined);
+	/** 送ったときの行の並び。行の誤りは送ったときの位置で返るので、「この変更を外す」のあとも同じ行に出す */
+	// svelte-ignore state_referenced_locally
+	let sentKeys = $state(rows.map((r) => r.key));
+	const rowError = (row: Row, f: RowField) => {
+		const e = errors?.rows[sentKeys.indexOf(row.key)];
+		return e?.field === f ? e.message : undefined;
+	};
+	/** 欄の誤りだけのときも、押したボタンのそばで知らせる */
+	const alertText = $derived(
+		message ?? (errors && (Object.keys(errors.fields).length || Object.keys(errors.rows).length || errors.changes) ? ja.bill.fixErrors : undefined)
+	);
+	let formEl: HTMLFormElement;
 	const byNum = $derived(new Map((articles ?? []).map((a) => [a.num, a])));
 	const emptyRow = (): RowValues => ({ op: 'amend', target: '', num: '', caption: '', body: '' });
 
@@ -113,12 +127,20 @@
 
 <form
 	method="post"
-	use:enhance={() =>
-		async ({ result, update }) => {
+	bind:this={formEl}
+	use:enhance={() => {
+		sentKeys = rows.map((r) => r.key);
+		return async ({ result, update }) => {
 			await update({ reset: false });
 			// 失敗でも 500 などでも、トークンはサーバーで使い終わっている
 			if (result.type !== 'redirect') turnstile?.reset();
-		}}
+			if (result.type === 'failure') {
+				// 長いフォームなので、最初の誤りの欄へ移す
+				await tick();
+				formEl.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+			}
+		};
+	}}
 >
 	{#if edit}<input type="hidden" name="rev" value={edit.rev} />{/if}
 	<input type="hidden" name="base" value={base} />
@@ -191,10 +213,10 @@
 							bind:value={row.num}
 							required
 							maxlength="30"
-							aria-describedby="num-hint-{row.key}{rowError(i, 'num') ? ` num-error-${row.key}` : ''}"
-							aria-invalid={rowError(i, 'num') ? 'true' : undefined}
+							aria-describedby="num-hint-{row.key}{rowError(row, 'num') ? ` num-error-${row.key}` : ''}"
+							aria-invalid={rowError(row, 'num') ? 'true' : undefined}
 						/>
-						{#if rowError(i, 'num')}<p class="error" id="num-error-{row.key}">{rowError(i, 'num')}</p>{/if}
+						{#if rowError(row, 'num')}<p class="error" id="num-error-{row.key}">{rowError(row, 'num')}</p>{/if}
 					{:else}
 						<label for="target-{row.key}">{ja.bill.write.target}</label>
 						<select
@@ -203,14 +225,14 @@
 							value={row.target}
 							onchange={(e) => pick(row, e.currentTarget.value)}
 							required
-							aria-invalid={rowError(i, 'target') ? 'true' : undefined}
-							aria-describedby={rowError(i, 'target') ? `target-error-${row.key}` : undefined}
+							aria-invalid={rowError(row, 'target') ? 'true' : undefined}
+							aria-describedby={rowError(row, 'target') ? `target-error-${row.key}` : undefined}
 						>
 							<option value="">{ja.bill.write.targetPlaceholder}</option>
 							{#each articles ?? [] as a (a.num)}<option value={a.num}>{optionLabel(a)}</option>{/each}
 							{#if !articles && row.target}<option value={row.target}>{row.target}</option>{/if}
 						</select>
-						{#if rowError(i, 'target')}<p class="error" id="target-error-{row.key}">{rowError(i, 'target')}</p>{/if}
+						{#if rowError(row, 'target')}<p class="error" id="target-error-{row.key}">{rowError(row, 'target')}</p>{/if}
 					{/if}
 
 					{#if row.op !== 'delete'}
@@ -220,10 +242,10 @@
 							name="caption.{i}"
 							bind:value={row.caption}
 							maxlength={BILL_MAX.caption}
-							aria-invalid={rowError(i, 'caption') ? 'true' : undefined}
-							aria-describedby={rowError(i, 'caption') ? `caption-error-${row.key}` : undefined}
+							aria-invalid={rowError(row, 'caption') ? 'true' : undefined}
+							aria-describedby={rowError(row, 'caption') ? `caption-error-${row.key}` : undefined}
 						/>
-						{#if rowError(i, 'caption')}<p class="error" id="caption-error-{row.key}">{rowError(i, 'caption')}</p>{/if}
+						{#if rowError(row, 'caption')}<p class="error" id="caption-error-{row.key}">{rowError(row, 'caption')}</p>{/if}
 
 						<label for="body-{row.key}">{ja.bill.write.body}</label>
 						<p class="hint" id="body-hint-{row.key}">{ja.bill.write.bodyHint}</p>
@@ -234,10 +256,10 @@
 							required
 							rows="8"
 							maxlength={BILL_MAX.body}
-							aria-describedby="body-hint-{row.key}{rowError(i, 'body') ? ` body-error-${row.key}` : ''}"
-							aria-invalid={rowError(i, 'body') ? 'true' : undefined}
+							aria-describedby="body-hint-{row.key}{rowError(row, 'body') ? ` body-error-${row.key}` : ''}"
+							aria-invalid={rowError(row, 'body') ? 'true' : undefined}
 						></textarea>
-						{#if rowError(i, 'body')}<p class="error" id="body-error-{row.key}">{rowError(i, 'body')}</p>{/if}
+						{#if rowError(row, 'body')}<p class="error" id="body-error-{row.key}">{rowError(row, 'body')}</p>{/if}
 					{/if}
 					<button type="button" class="link" onclick={() => (rows = rows.filter((r) => r !== row))}>{ja.bill.write.removeRow}</button>
 				</fieldset>
@@ -303,6 +325,7 @@
 	<fieldset class="solutions" aria-describedby={fieldError('solutions') ? 'bill-solutions-error' : undefined}>
 		<legend>{ja.bill.write.solutions}</legend>
 		<p class="hint">{ja.bill.write.solutionsHint}</p>
+		{#if dropped}<p class="hint">{ja.bill.write.solutionsDropped(dropped)}</p>{/if}
 		{#each candidates as c (c.id)}
 			<label class="check">
 				<input
@@ -319,7 +342,7 @@
 	{#if fieldError('solutions')}<p class="error" id="bill-solutions-error">{fieldError('solutions')}</p>{/if}
 
 	<Turnstile {siteKey} bind:token bind:this={turnstile} />
-	{#if message}<p role="alert" class="error">{message}</p>{/if}
+	{#if alertText}<p role="alert" class="error">{alertText}</p>{/if}
 	<div class="buttons">
 		<!-- 条文を読み込むまでは、基にした版が決まらないので送らない -->
 		<button class="primary" disabled={!token || (law !== '' && base === '')}>{ja.bill.write.submit}</button>

@@ -1,10 +1,9 @@
 // 法案の下書きを作る・保存する・読む（設計書 docs/spec/45.md 決めたこと1・7・8）。
 // 受け取る値は、呼ぶ側（#46）が validateBill・checkChanges・基にした版の比べを通したもの。ここでは確かめずに書く
-import { diffChars } from 'diff';
 import { and, asc, count, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
 import { actions, billChanges, billLaws, bills, billSolutions, committeeLaws, issues, laws, solutions, user } from '../db/schema';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
-import { formalName, type BillChange, type BillKind } from '../domain/bills';
+import { changeDiff, formalName, type BillChange, type BillKind } from '../domain/bills';
 import { checkBillDraft, checkBillSave, DAY } from '../domain/limits';
 import { LISTED } from '../domain/reports';
 import { refuse, type Actor } from './issues';
@@ -182,11 +181,9 @@ export async function candidateSolutions(db: Db, issueId: number) {
 		.select({ id: solutions.id, body: solutions.body })
 		.from(solutions)
 		.where(and(eq(solutions.issueId, issueId), inArray(solutions.status, SHOWN)))
-		.orderBy(asc(solutions.id))
-		.limit(CANDIDATE_LIMIT);
+		.orderBy(asc(solutions.id));
 }
 
-const CANDIDATE_LIMIT = 30;
 const SHOWN = ['visible', 'restored'] as const;
 
 const countSince = async (db: Db, kind: 'bill_draft' | 'bill_save', who: SQL, now: number) => {
@@ -223,7 +220,9 @@ const textOf = (caption: string | null, paragraphs: Paragraph[]) => [caption ?? 
 
 export type ChangeView = { location: string; op: 'amend' | 'add' | 'delete' | 'supplementary'; before: DiffPart[] | null; after: DiffPart[] | null };
 
-/** 法案のページに出すもの */
+const changesOf = (bill: NonNullable<Bill>) => bill.laws.reduce((n, l) => n + l.changes.length, 0);
+
+/** 法案のページの上の部分と概要のタブに出すもの。文字の比べは変更点のタブだけで行う（billChangeViews） */
 export async function billView(db: Db, bill: NonNullable<Bill>) {
 	const [author] = await db.select({ name: user.name }).from(user).where(eq(user.id, bill.userId));
 	const lawIds = bill.laws.map((l) => l.lawId).filter((id): id is string => id !== null);
@@ -240,31 +239,7 @@ export async function billView(db: Db, bill: NonNullable<Bill>) {
 				.where(inArray(solutions.id, bill.solutionIds))
 		: [];
 	const byId = new Map(cited.map((c) => [c.id, c]));
-
-	const changes: ChangeView[] = [];
-	const repealed: string[] = [];
-	for (const l of bill.laws) {
-		if (l.action === 'repeal') {
-			repealed.push(lawTitle(l));
-			continue;
-		}
-		const base = l.baseRevisionId ? new Map((await articlesOfRevision(db, l.baseRevisionId)).map((a) => [a.id, a])) : new Map();
-		for (const c of l.changes) {
-			const location = articleLabel(c.num);
-			const old = c.provisionId === null ? undefined : base.get(c.provisionId);
-			const before = old ? textOf(old.caption, old.paragraphs) : null;
-			const after = c.paragraphs ? textOf(c.caption, c.paragraphs) : null;
-			if (c.op === 'amend' && before !== null && after !== null) {
-				const parts = diffChars(before, after).map(({ value, added, removed }) => ({ value, added, removed }));
-				changes.push({ location, op: 'amend', before: parts, after: parts });
-			} else if (c.op === 'delete') {
-				changes.push({ location, op: 'delete', before: before === null ? null : [{ value: before, removed: true }], after: null });
-			} else {
-				changes.push({ location, op: 'add', before: null, after: after === null ? null : [{ value: after, added: true }] });
-			}
-		}
-	}
-	if (bill.supplementary) changes.push({ location: '', op: 'supplementary', before: null, after: [{ value: bill.supplementary, added: true }] });
+	const repealed = bill.laws.filter((l) => l.action === 'repeal').map(lawTitle);
 
 	return {
 		id: bill.id,
@@ -281,25 +256,47 @@ export async function billView(db: Db, bill: NonNullable<Bill>) {
 		author: author?.name ?? '',
 		solutions: bill.solutionIds.map((id) => {
 			const c = byId.get(id);
-			const shown = c && (SHOWN as readonly string[]).includes(c.status);
-			// 課題が非表示なら、課題の題名とリンクは出さない（統合済みは統合先へ転送されるので出す）
-			const issueShown = c && (LISTED.includes(c.issueStatus) || c.issueStatus === 'merged');
-			return {
-				id,
-				body: shown ? c.body : null,
-				issue: shown && issueShown ? { id: c.issueId, title: c.issueTitle } : null
-			};
+			// 解決策か課題が非表示なら本文も課題も出さない（非表示の課題の解決策は本人と運営にしか渡さない。docs/spec/28.md 決めたこと4）
+			const shown = c && (SHOWN as readonly string[]).includes(c.status) && LISTED.includes(c.issueStatus);
+			return shown ? { id, body: c.body as string | null, issue: { id: c.issueId, title: c.issueTitle } as { id: number; title: string } | null } : { id, body: null, issue: null };
 		}),
 		repealed,
-		changes,
-		changeCount: changes.length + repealed.length
+		changeCount: changesOf(bill) + repealed.length + (bill.supplementary ? 1 : 0)
 	};
+}
+
+/** 変更点のタブに出すもの：条ごとの「いま」と「変更後」。附則は最後に出す */
+export async function billChangeViews(db: Db, bill: NonNullable<Bill>): Promise<ChangeView[]> {
+	const changes: ChangeView[] = [];
+	for (const l of bill.laws) {
+		const base = l.baseRevisionId && l.changes.length ? new Map((await articlesOfRevision(db, l.baseRevisionId)).map((a) => [a.id, a])) : new Map();
+		for (const c of l.changes) {
+			const location = articleLabel(c.num);
+			const old = c.provisionId === null ? undefined : base.get(c.provisionId);
+			const before = old ? textOf(old.caption, old.paragraphs) : null;
+			const after = c.paragraphs ? textOf(c.caption, c.paragraphs) : null;
+			if (c.op === 'amend' && before !== null && after !== null) {
+				const parts = changeDiff(before, after);
+				changes.push({ location, op: 'amend', before: parts, after: parts });
+			} else if (c.op === 'delete') {
+				changes.push({ location, op: 'delete', before: before === null ? null : [{ value: before, removed: true }], after: null });
+			} else {
+				changes.push({ location, op: 'add', before: null, after: after === null ? null : [{ value: after, added: true }] });
+			}
+		}
+	}
+	if (bill.supplementary) changes.push({ location: '', op: 'supplementary', before: null, after: [{ value: bill.supplementary, added: true }] });
+	return changes;
 }
 
 /** 直す画面の引用の候補：引用した解決策の課題ごとに、表示中の解決策 */
 export async function citedCandidates(db: Db, solutionIds: number[]) {
 	if (!solutionIds.length) return [];
-	const rows = await db.select({ issueId: solutions.issueId }).from(solutions).where(inArray(solutions.id, solutionIds));
+	const rows = await db
+		.select({ issueId: solutions.issueId })
+		.from(solutions)
+		.innerJoin(issues, eq(issues.id, solutions.issueId))
+		.where(and(inArray(solutions.id, solutionIds), inArray(issues.status, LISTED)));
 	const issueIds = [...new Set(rows.map((r) => r.issueId))];
 	const lists = await Promise.all(issueIds.map((id) => candidateSolutions(db, id)));
 	return lists.flat();

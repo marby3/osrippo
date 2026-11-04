@@ -121,6 +121,8 @@ export const ja = {
 		bodyErrorAt: (line: number, message: string) => `${line}行目：${message}`,
 		formInvalid: '送られた内容を読み取れませんでした。ページを読み直してください。',
 		lawRequired: '対象の法令を選んでください。',
+		solutionsOneIssue: '元になった解決策は、同じ課題のものを選んでください。',
+		fixErrors: '入力を直してください。誤りはそれぞれの欄のそばに出しています。',
 		baseChanged: '条文が新しくなりました。開き直してください。',
 		stale: '別の画面で先に保存されました。開き直してください。',
 		tooNew: (at: number) => `登録から7日たつと、法案を書けます。${jaDateTime(at)}から書けます。`,
@@ -163,6 +165,7 @@ export const ja = {
 			supplementaryHint: 'いつから始めるかなどを書きます。',
 			solutions: '元になった解決策',
 			solutionsHint: '5つまで選べます。',
+			solutionsDropped: (n: number) => `非表示になった解決策${n}件は、保存すると引用から外れます。`,
 			submit: '下書きを保存する',
 			cancel: 'やめる'
 		},

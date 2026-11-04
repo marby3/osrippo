@@ -20,6 +20,7 @@
 		articles={data.articles}
 		siteKey={data.siteKey}
 		edit={{ id: data.edit.id, rev: data.edit.rev }}
+		dropped={data.dropped}
 		{form}
 	/>
 </main>
