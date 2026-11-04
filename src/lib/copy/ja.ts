@@ -90,6 +90,42 @@ export const ja = {
 		/** PC の 2:1:1 の区切り */
 		segments: (s: Session) => ['1〜2週 発議', '3週 質疑・修正', `4週 採決（${sessionPoint(s, s.voteAt, false)}から）`]
 	},
+	/** 質疑・答弁・補足と自分の考え（Issue #66。SpBillQA・PcBillQA） */
+	post: {
+		pageTitle: (title: string) => `${title}の質疑｜オープンソース立法府`,
+		writePageTitle: (title: string) => `${title}の質疑を書く｜オープンソース立法府`,
+		stanceHeading: 'あなたの今の考え',
+		onlyYou: '自分だけに見えます',
+		stances: { for: '賛成寄り', undecided: '未定', against: '反対寄り' },
+		stanceLeft: (n: number) => `この会期はあと${n}回変えられます`,
+		stanceNone: 'この会期はもう変えられません',
+		stanceLimit: 'この会期はもう考えを変えられません。',
+		filters: '質疑の絞り込み',
+		all: 'すべて',
+		waitingCount: (n: number) => `答弁待ち ${n}`,
+		waiting: '答弁待ち',
+		empty: '質疑はまだありません',
+		emptyWaiting: '答弁待ちの質疑はありません',
+		more: (n: number) => `質疑をもっと見る（${n}件）`,
+		writeQuestion: '質疑を書く',
+		questionField: '質疑の内容',
+		answer: '答弁する',
+		answerField: '答弁の内容',
+		supplement: '補足する',
+		supplementField: '補足の内容',
+		send: '送る',
+		back: '質疑の一覧に戻る',
+		roles: { author: '提出者', supporter: '賛同者' },
+		answerHeading: (role: string) => `答弁（${role}）`,
+		supplementHeading: '補足',
+		readAnswer: (role: string) => `答弁を読む（${role}）`,
+		readAnswers: (n: number) => `答弁を読む（${n}件）`,
+		tooNew: (at: number) => `登録から7日たつと、質疑や答弁を書けます。${jaDateTime(at)}から書けます。`,
+		closed: 'いまは書けない時期です。',
+		notAnswerer: '答弁できるのは提出者と賛同者だけです。',
+		ownQuestion: '自分の質疑には答弁できません。',
+		answererSupplement: '提出者と賛同者は、補足ではなく答弁を書いてください。'
+	},
 	/** 法案の下書きの誤り（設計書 docs/spec/45.md 決めたこと9。画面は #46・#47） */
 	bill: {
 		errors: {
@@ -235,6 +271,7 @@ export const ja = {
 			tabs: '法案のページ',
 			summaryTab: '概要',
 			changesTab: (n: number) => `変更点 ${n}`,
+			questionsTab: (n: number) => `質疑 ${n}`,
 			now: 'いま：',
 			stagesHeading: 'いまの段階',
 			stages: ['下書き', '発議', '委員会へ', '質疑', '採決', '結果'],
@@ -315,6 +352,11 @@ export const ja = {
 			'bill-draft-account': '法案の下書きは24時間に3件まで作れます。しばらくしてからお試しください。',
 			'bill-draft-ip': 'この回線から作れる法案の下書きの数を超えました。しばらくしてからお試しください。',
 			'bill-save-account': '法案の下書きの保存は24時間に60回までです。しばらくしてからお試しください。',
+			'question-day': '質疑は24時間に10件まで書けます。しばらくしてからお試しください。',
+			'answer-day': '答弁は24時間に30件まで書けます。しばらくしてからお試しください。',
+			'supplement-day': '補足は24時間に10件まで書けます。しばらくしてからお試しください。',
+			'bill-post-burst': '短いあいだに質疑や答弁を何度も書きました。しばらくしてからお試しください。',
+			'bill-post-ip': 'この回線から書ける質疑や答弁の数を超えました。しばらくしてからお試しください。',
 			'bill-support-day': '賛同は24時間に30回まで押せます（取り消しも1回に数えます）。しばらくしてからお試しください。',
 			'bill-support-burst': '短いあいだに賛同を何度も押しました。しばらくしてからお試しください。',
 			'bill-support-ip': 'この回線からは、この法案にこれ以上賛同できません。'

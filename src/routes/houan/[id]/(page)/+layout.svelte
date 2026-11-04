@@ -1,5 +1,5 @@
 <script lang="ts">
-	// 法案のページの上の部分とタブ（SpBillSummary・PcBillSummary）。質疑のタブは作るときまで出さない（Issue #46 決めたこと4）
+	// 法案のページの上の部分とタブ（SpBillSummary・PcBillSummary）。質疑のタブは発議から出す（Issue #66）
 	import { page } from '$app/state';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { LayoutProps } from './$types';
@@ -9,7 +9,8 @@
 	const base = $derived(`/houan/${bill.id}`);
 	const tabs = $derived([
 		{ href: base, label: ja.bill.page.summaryTab },
-		{ href: `${base}/henkou`, label: ja.bill.page.changesTab(bill.changeCount) }
+		{ href: `${base}/henkou`, label: ja.bill.page.changesTab(bill.changeCount) },
+		...(data.questionCount === null ? [] : [{ href: `${base}/shitsugi`, label: ja.bill.page.questionsTab(data.questionCount) }])
 	]);
 </script>
 
@@ -28,7 +29,8 @@
 
 	<nav class="tabs" aria-label={ja.bill.page.tabs}>
 		{#each tabs as tab (tab.href)}
-			<a href={tab.href} aria-current={page.url.pathname === tab.href ? 'page' : undefined}>{tab.label}</a>
+			<!-- 質疑を書く画面でも質疑のタブを選んだ形にする -->
+			<a href={tab.href} aria-current={page.url.pathname === tab.href || (tab.href !== base && page.url.pathname.startsWith(`${tab.href}/`)) ? 'page' : undefined}>{tab.label}</a>
 		{/each}
 	</nav>
 
@@ -86,7 +88,8 @@
 
 	.tabs {
 		display: grid;
-		grid-template-columns: repeat(2, 1fr);
+		grid-auto-flow: column;
+		grid-auto-columns: 1fr;
 		margin: 1rem -1rem 0;
 		border-bottom: 1px solid var(--color-divider);
 	}
