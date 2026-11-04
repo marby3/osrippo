@@ -46,10 +46,13 @@ export function nowOf(event: Pick<RequestEvent, 'url' | 'request'>): number {
 	return Date.now();
 }
 
-/** いまの会期と一つ前の会期（Issue #44・#49） */
-export function sessionsOf(event: Pick<RequestEvent, 'url' | 'request'>) {
+/**
+ * now を含む会期と一つ前の会期（Issue #44・#49）。発議の時刻と発議要件が同じ会期になるよう、呼ぶ側の now を受け取る。
+ * 開発用の短い会期は pnpm dev のときだけ（ビルドしたサーバーでは import.meta.env.DEV が false）
+ */
+export function sessionsAt(now: number) {
 	const minutes = sessionMinutes(import.meta.env.DEV, env.SESSION_MINUTES);
-	const session = sessionAt(nowOf(event), minutes);
+	const session = sessionAt(now, minutes);
 	return { session, previous: sessionAt(session.startsAt - 1, minutes) };
 }
 

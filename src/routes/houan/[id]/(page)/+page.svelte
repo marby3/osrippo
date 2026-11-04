@@ -69,6 +69,7 @@
 		</section>
 		<div class="people">
 			<p class="author">{ja.bill.page.author(bill.author)}</p>
+			<span class="sep" aria-hidden="true">{ja.bill.support.separator}</span>
 			<p class="supports">{ja.bill.support.count(support.count)}</p>
 		</div>
 		<!-- 賛同と発議（docs/spec/49.md 決めたこと7） -->
@@ -158,6 +159,15 @@
 	.hidden {
 		margin: 0;
 		color: var(--color-text-sub);
+	}
+
+	/* スマホは「提出者 … ・ 賛同 N人」の1行（SpBillSummary）、PC は2行（PcBillSummary） */
+	.people {
+		display: flex;
+		flex-wrap: wrap;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+		white-space: pre-wrap;
 	}
 
 	.author,
@@ -259,6 +269,14 @@
 
 		.pc {
 			display: block;
+		}
+
+		.people {
+			display: block;
+		}
+
+		.sep {
+			display: none;
 		}
 	}
 </style>

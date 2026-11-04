@@ -9,7 +9,7 @@ import { billWaitUntil } from '../domain/limits';
 import { parseIssueId } from '../domain/issues';
 import { checkBillForm, FIRST_COMMITTEE, readBillForm, type BillFormErrors, type BillFormValues } from './bill-form';
 import { billById, createDraftLimited, proposeBill, saveDraftLimited, sessionParticipants, setBillSupport } from './bills';
-import { checkTurnstile, nowOf, refusalMessage, sessionsOf, writeGuard } from './client';
+import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
 import type { Db } from './law';
 import { requireUser } from './require-user';
 
@@ -91,7 +91,7 @@ export async function proposeAction(event: RequestEvent) {
 	const now = nowOf(event);
 	const checked = await billGuard(event, db, now, true);
 	if (checked.failure) return checked.failure;
-	const { session, previous } = sessionsOf(event);
+	const { session, previous } = sessionsAt(now);
 	const required = proposalRequirement(await sessionParticipants(db, FIRST_COMMITTEE, session, previous, now));
 	const result = await proposeBill(db, checked.actor, bill.id, required, now);
 	if (result.ok) return { proposed: true };

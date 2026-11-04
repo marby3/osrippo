@@ -7,7 +7,7 @@ import { parseIssueId } from '#lib/domain/issues.ts';
 import { billWaitUntil } from '#lib/domain/limits.ts';
 import { FIRST_COMMITTEE } from '#lib/server/bill-form.ts';
 import { billById, billSupportState, billView, sessionParticipants } from '#lib/server/bills.ts';
-import { nowOf, sessionsOf } from '#lib/server/client.ts';
+import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async (event) => {
@@ -25,7 +25,7 @@ export const load: LayoutServerLoad = async (event) => {
 	// 発議要件を読むのは提出者が下書きを見るときだけ（その会期で最初に読まれたときに固定する。docs/spec/49.md 決めたこと3）
 	let required: number | null = null;
 	if (draft && isAuthor) {
-		const { session, previous } = sessionsOf(event);
+		const { session, previous } = sessionsAt(now);
 		required = proposalRequirement(await sessionParticipants(db, FIRST_COMMITTEE, session, previous, now));
 	}
 	return {

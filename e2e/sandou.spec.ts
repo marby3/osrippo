@@ -181,7 +181,7 @@ test('基準8：日本からだけ、締め出しのあいだはできない。2
 	expect(await outside.text()).toContain('日本国内からのみ参加できます');
 	expect((await proposeRequest(us, bill)).status()).toBe(403);
 
-	// 同じ法案に同じ回線から3アカウントまで。回線の上限は違反に数えない
+	// 同じ法案に同じ回線から3アカウントまで
 	for (let n = 1; n <= 4; n++) {
 		const u = await user(browser, `s8-ip${n}-${p}-${s}`, ip(p, 8, 3));
 		const res = await billSupportRequest(u, bill, { op: 'add', rev: '1' });

@@ -188,6 +188,7 @@ export const ja = {
 		/** 賛同と発議（Issue #49） */
 		support: {
 			count: (n: number) => `賛同 ${n}人`,
+			separator: ' ・ ',
 			add: '賛同する',
 			remove: '賛同を取り消す',
 			propose: '発議する',
