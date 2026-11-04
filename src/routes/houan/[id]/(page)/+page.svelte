@@ -69,7 +69,7 @@
 		</section>
 		<div class="people">
 			<p class="author">{ja.bill.page.author(bill.author)}</p>
-			<p class="author">{ja.bill.support.count(support.count)}</p>
+			<p class="supports">{ja.bill.support.count(support.count)}</p>
 		</div>
 		<!-- 賛同と発議（docs/spec/49.md 決めたこと7） -->
 		{#if remaining !== null}
@@ -160,7 +160,8 @@
 		color: var(--color-text-sub);
 	}
 
-	.author {
+	.author,
+	.supports {
 		margin: 0;
 		color: var(--color-text-sub);
 		font-size: var(--font-size-sub);

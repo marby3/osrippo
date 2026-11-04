@@ -310,7 +310,8 @@ export async function citedCandidates(db: Db, solutionIds: number[]) {
 // ---- 法案の一覧（Issue #48） ----
 
 /** 賛同の数：いまの版（bills.rev）の行だけを数える（設計書 docs/spec/49.md 決めたこと1） */
-const supportCount = sql<number>`(SELECT count(*) FROM ${billSupports} WHERE ${billSupports.billId} = ${bills.id} AND ${billSupports.rev} = ${bills.rev})`;
+// 列の値（${bills.rev}）を埋めると、drizzle が表名なしの "rev" にして副問い合わせの中の rev を指すので、表の名前を書く
+const supportCount = sql<number>`(SELECT count(*) FROM ${billSupports} s WHERE s.bill_id = ${bills}.id AND s.rev = ${bills}.rev)`;
 
 /** タブの法案。下書きは保存が新しい順、審議中は作ったのが新しい順。終わったタブは状態の進み方（#50）で埋まる */
 export async function listBills(db: Db, tab: BillTab, page: number) {
@@ -355,11 +356,14 @@ export async function sessionParticipants(db: Db, committeeId: number, session: 
 
 /** 法案の賛同の数と、見ている人が賛同しているか */
 export async function billSupportState(db: Db, billId: number, rev: number, userId: string | null) {
-	const rows = await db
-		.select({ userId: billSupports.userId })
+	const here = and(eq(billSupports.billId, billId), eq(billSupports.rev, rev));
+	const [row] = await db.select({ n: count() }).from(billSupports).where(here);
+	if (userId === null || row.n === 0) return { supports: row.n, mine: false };
+	const [own] = await db
+		.select({ n: count() })
 		.from(billSupports)
-		.where(and(eq(billSupports.billId, billId), eq(billSupports.rev, rev)));
-	return { supports: rows.length, mine: userId !== null && rows.some((r) => r.userId === userId) };
+		.where(and(here, eq(billSupports.userId, userId)));
+	return { supports: row.n, mine: own.n > 0 };
 }
 
 export type SupportClosed = 'author' | 'closed' | 'stale';

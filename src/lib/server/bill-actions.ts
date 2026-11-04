@@ -83,7 +83,7 @@ export async function supportAction(event: RequestEvent) {
 	if ('refusal' in result) return fail(429, { message: refusalMessage(result.refusal) });
 	return result.reason === 'author'
 		? fail(403, { message: ja.bill.support.author })
-		: fail(409, { message: result.reason === 'stale' ? ja.bill.support.stale : ja.bill.support.closed });
+		: fail(409, { message: result.reason === 'stale' ? (op === 'add' ? ja.bill.support.stale : ja.bill.support.staleRemove) : ja.bill.support.closed });
 }
 
 export async function proposeAction(event: RequestEvent) {
