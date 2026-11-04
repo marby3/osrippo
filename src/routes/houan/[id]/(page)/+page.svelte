@@ -167,6 +167,9 @@
 		flex-wrap: wrap;
 		color: var(--color-text-sub);
 		font-size: var(--font-size-sub);
+	}
+
+	.sep {
 		white-space: pre-wrap;
 	}
 
