@@ -1,10 +1,14 @@
 // 法案の下書きを作る・保存する・読む（設計書 docs/spec/45.md 決めたこと1・7・8）。
 // 受け取る値は、呼ぶ側（#46）が validateBill・checkChanges・基にした版の比べを通したもの。ここでは確かめずに書く
-import { and, asc, eq, gt, sql } from 'drizzle-orm';
-import { billChanges, billLaws, bills, billSolutions } from '../db/schema';
-import { compareNum, type Paragraph } from '../domain/law';
-import type { BillChange, BillKind } from '../domain/bills';
-import type { Db } from './law';
+import { diffChars } from 'diff';
+import { and, asc, count, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
+import { actions, billChanges, billLaws, bills, billSolutions, committeeLaws, issues, laws, solutions, user } from '../db/schema';
+import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
+import { formalName, type BillChange, type BillKind } from '../domain/bills';
+import { checkBillDraft, checkBillSave, DAY } from '../domain/limits';
+import { LISTED } from '../domain/reports';
+import { refuse, type Actor } from './issues';
+import { articlesOfRevision, currentRevision, type Db } from './law';
 
 /** 作りかけ（rev = 0）を除く条件。法案を引くところは必ずこれを使う */
 export const savedBill = gt(bills.rev, 0);
@@ -133,4 +137,170 @@ export async function billById(db: Db, billId: number) {
 		})),
 		solutionIds: solutions.map((s) => s.solutionId)
 	};
+}
+
+// ---- 書く画面と法案のページ（Issue #46） ----
+
+/** 委員会の対象の法令（書く画面の「対象の法令」） */
+export async function committeeLawList(db: Db, committeeId: number) {
+	return db
+		.select({ id: laws.id, title: laws.title })
+		.from(committeeLaws)
+		.innerJoin(laws, eq(laws.id, committeeLaws.lawId))
+		.where(eq(committeeLaws.committeeId, committeeId))
+		.orderBy(asc(laws.id));
+}
+
+/** 書く画面に出す法令の条：いま施行されている版と、その条の見出しと本文。委員会の対象でなければ undefined */
+export async function draftArticles(db: Db, committeeId: number, lawId: string) {
+	const [allowed] = await db
+		.select({ id: committeeLaws.lawId })
+		.from(committeeLaws)
+		.where(and(eq(committeeLaws.committeeId, committeeId), eq(committeeLaws.lawId, lawId)));
+	const current = allowed && (await currentRevision(db, lawId));
+	if (!current) return undefined;
+	const articles = await articlesOfRevision(db, current.id);
+	return {
+		revisionId: current.id,
+		articles: articles.map((a) => ({ num: a.num, label: a.label, caption: a.caption, body: articleBodyText(a.paragraphs) }))
+	};
+}
+
+/** 表示中の解決策と、その課題（課題が一覧に出る状態のときだけ） */
+export async function citableSolution(db: Db, solutionId: number) {
+	const [row] = await db
+		.select({ id: solutions.id, body: solutions.body, issueId: solutions.issueId })
+		.from(solutions)
+		.innerJoin(issues, eq(issues.id, solutions.issueId))
+		.where(and(eq(solutions.id, solutionId), inArray(solutions.status, SHOWN), inArray(issues.status, LISTED)));
+	return row;
+}
+
+/** 引用の候補：その課題の表示中の解決策（古い順） */
+export async function candidateSolutions(db: Db, issueId: number) {
+	return db
+		.select({ id: solutions.id, body: solutions.body })
+		.from(solutions)
+		.where(and(eq(solutions.issueId, issueId), inArray(solutions.status, SHOWN)))
+		.orderBy(asc(solutions.id))
+		.limit(CANDIDATE_LIMIT);
+}
+
+const CANDIDATE_LIMIT = 30;
+const SHOWN = ['visible', 'restored'] as const;
+
+const countSince = async (db: Db, kind: 'bill_draft' | 'bill_save', who: SQL, now: number) => {
+	const [row] = await db
+		.select({ n: count() })
+		.from(actions)
+		.where(and(eq(actions.kind, kind), who, gt(actions.createdAt, now - DAY)));
+	return row.n;
+};
+
+/** 上限を確かめて下書きを作る（Issue #46 決めたこと2） */
+export async function createDraftLimited(db: Db, actor: Actor, input: DraftInput, now: number) {
+	const refusal = checkBillDraft({
+		accountDrafts: await countSince(db, 'bill_draft', eq(actions.userId, actor.userId), now),
+		ipDrafts: await countSince(db, 'bill_draft', eq(actions.ipHash, actor.ipHash), now)
+	});
+	if (refusal) return refuse(db, actor, refusal, now);
+	const id = await createDraft(db, actor.userId, input, now);
+	await db.insert(actions).values({ kind: 'bill_draft', userId: actor.userId, ipHash: actor.ipHash, targetId: id, createdAt: now });
+	return { ok: true as const, id };
+}
+
+/** 上限を確かめて下書きを保存する。saved が false なら、ほかの画面で先に保存された */
+export async function saveDraftLimited(db: Db, actor: Actor, billId: number, expectedRev: number, input: DraftInput, now: number) {
+	const refusal = checkBillSave({ accountSaves: await countSince(db, 'bill_save', eq(actions.userId, actor.userId), now) });
+	if (refusal) return refuse(db, actor, refusal, now);
+	const saved = await saveDraft(db, billId, actor.userId, expectedRev, input, now);
+	if (saved) await db.insert(actions).values({ kind: 'bill_save', userId: actor.userId, ipHash: actor.ipHash, targetId: billId, createdAt: now });
+	return { ok: true as const, saved };
+}
+
+/** 条の文字列（見出しがなければ本文だけ） */
+const textOf = (caption: string | null, paragraphs: Paragraph[]) => [caption ?? '', articleBodyText(paragraphs)].filter(Boolean).join('\n');
+
+export type ChangeView = { location: string; op: 'amend' | 'add' | 'delete' | 'supplementary'; before: DiffPart[] | null; after: DiffPart[] | null };
+
+/** 法案のページに出すもの */
+export async function billView(db: Db, bill: NonNullable<Bill>) {
+	const [author] = await db.select({ name: user.name }).from(user).where(eq(user.id, bill.userId));
+	const lawIds = bill.laws.map((l) => l.lawId).filter((id): id is string => id !== null);
+	const titles = new Map(
+		(lawIds.length ? await db.select({ id: laws.id, title: laws.title }).from(laws).where(inArray(laws.id, lawIds)) : []).map((r) => [r.id, r.title])
+	);
+	const lawTitle = (l: (typeof bill.laws)[number]) => (l.lawId ? (titles.get(l.lawId) ?? '') : (l.newTitle ?? ''));
+
+	const cited = bill.solutionIds.length
+		? await db
+				.select({ id: solutions.id, body: solutions.body, status: solutions.status, issueId: issues.id, issueTitle: issues.title, issueStatus: issues.status })
+				.from(solutions)
+				.innerJoin(issues, eq(issues.id, solutions.issueId))
+				.where(inArray(solutions.id, bill.solutionIds))
+		: [];
+	const byId = new Map(cited.map((c) => [c.id, c]));
+
+	const changes: ChangeView[] = [];
+	const repealed: string[] = [];
+	for (const l of bill.laws) {
+		if (l.action === 'repeal') {
+			repealed.push(lawTitle(l));
+			continue;
+		}
+		const base = l.baseRevisionId ? new Map((await articlesOfRevision(db, l.baseRevisionId)).map((a) => [a.id, a])) : new Map();
+		for (const c of l.changes) {
+			const location = articleLabel(c.num);
+			const old = c.provisionId === null ? undefined : base.get(c.provisionId);
+			const before = old ? textOf(old.caption, old.paragraphs) : null;
+			const after = c.paragraphs ? textOf(c.caption, c.paragraphs) : null;
+			if (c.op === 'amend' && before !== null && after !== null) {
+				const parts = diffChars(before, after).map(({ value, added, removed }) => ({ value, added, removed }));
+				changes.push({ location, op: 'amend', before: parts, after: parts });
+			} else if (c.op === 'delete') {
+				changes.push({ location, op: 'delete', before: before === null ? null : [{ value: before, removed: true }], after: null });
+			} else {
+				changes.push({ location, op: 'add', before: null, after: after === null ? null : [{ value: after, added: true }] });
+			}
+		}
+	}
+	if (bill.supplementary) changes.push({ location: '', op: 'supplementary', before: null, after: [{ value: bill.supplementary, added: true }] });
+
+	return {
+		id: bill.id,
+		kind: bill.kind,
+		status: bill.status,
+		title: bill.title,
+		formalName: formalName(
+			bill.kind,
+			bill.laws.map((l) => ({ action: l.action, title: lawTitle(l) }))
+		),
+		summary: bill.summary ? bill.summary.split('\n') : [],
+		affected: bill.affected,
+		sideEffects: bill.sideEffects,
+		author: author?.name ?? '',
+		solutions: bill.solutionIds.map((id) => {
+			const c = byId.get(id);
+			const shown = c && (SHOWN as readonly string[]).includes(c.status);
+			// 課題が非表示なら、課題の題名とリンクは出さない（統合済みは統合先へ転送されるので出す）
+			const issueShown = c && (LISTED.includes(c.issueStatus) || c.issueStatus === 'merged');
+			return {
+				id,
+				body: shown ? c.body : null,
+				issue: shown && issueShown ? { id: c.issueId, title: c.issueTitle } : null
+			};
+		}),
+		repealed,
+		changes,
+		changeCount: changes.length + repealed.length
+	};
+}
+
+/** 直す画面の引用の候補：引用した解決策の課題ごとに、表示中の解決策 */
+export async function citedCandidates(db: Db, solutionIds: number[]) {
+	if (!solutionIds.length) return [];
+	const rows = await db.select({ issueId: solutions.issueId }).from(solutions).where(inArray(solutions.id, solutionIds));
+	const issueIds = [...new Set(rows.map((r) => r.issueId))];
+	const lists = await Promise.all(issueIds.map((id) => candidateSolutions(db, id)));
+	return lists.flat();
 }
