@@ -59,6 +59,12 @@ test('基準2：「法案を書く」はログインを求め、ログインし�
 
 	const a = await user(browser, `l2-a-${p}-${stamp()}`, ip(p, 2, 1));
 	await a.goto('/houan');
+	// 案の「法案の書き方を見る」の場所：スマホは一覧の下（SpBills）、PC は見出しの右（PcBills）
+	const box = async (l: ReturnType<Page['getByRole']>) => (await l.boundingBox())!;
+	const link = await box(a.getByRole('link', { name: '法案を書く' }));
+	const tabs = await box(a.getByRole('navigation', { name: '法案のタブ' }));
+	if (p === 'sp') expect(link.y).toBeGreaterThan(tabs.y);
+	else expect(link.y).toBeLessThan(tabs.y);
 	await a.getByRole('link', { name: '法案を書く' }).click();
 	await expect(a).toHaveURL('/houan/kaku');
 	await expect(a.getByText('法案は、課題の解決策から書き始めます')).toBeVisible();
@@ -101,7 +107,7 @@ test('基準3：下書きは「下書き」のタブにだけ、保存が新し�
 	else await expect(head).toBeHidden();
 
 	// ほかのタブには出ない
-	for (const tab of ['/houan', '/houan?tab=shingi', '/houan?tab=owari']) {
+	for (const tab of ['/houan', '/houan?tab=owari']) {
 		await a.goto(tab);
 		await expect(a.getByRole('link', { name: older, exact: true }), tab).toHaveCount(0);
 	}
@@ -112,10 +118,11 @@ test('基準3：下書きは「下書き」のタブにだけ、保存が新し�
 });
 
 test('信頼の境界：?tab= が決まった値でなければ 404', async ({ request }) => {
-	for (const tab of ['', 'abc', 'SHITAGAKI', 'shitagaki ', '1']) {
+	// 既定の審議中は URL に書かない（課題の一覧の sort=support と同じ。同じ内容の URL を2つ作らない）
+	for (const tab of ['', 'abc', 'SHITAGAKI', 'shitagaki ', '1', 'shingi']) {
 		expect((await request.get(`/houan?tab=${encodeURIComponent(tab)}`)).status(), tab).toBe(404);
 	}
-	for (const tab of ['shingi', 'shitagaki', 'owari']) expect((await request.get(`/houan?tab=${tab}`)).status(), tab).toBe(200);
+	for (const tab of ['shitagaki', 'owari']) expect((await request.get(`/houan?tab=${tab}`)).status(), tab).toBe(200);
 });
 
 test('信頼の境界：?page= の形が違う値と、法案のないページは 404', async ({ request }) => {
