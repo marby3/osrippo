@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import { ja } from '#lib/copy/ja.ts';
+	import { BILL_PROGRESS_STEP } from '#lib/domain/bills.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -11,8 +12,14 @@
 	const message = $derived(form && 'message' in form ? form.message : undefined);
 	/** 発議にあと何人か（提出者が下書きを見るとき） */
 	const remaining = $derived(support.required === null ? null : Math.max(0, support.required - support.count));
-	/** いまの段の位置（v0.3 の下書きは最初の段。発議から先の段は #50） */
-	const current = $derived(bill.status === 'draft' ? 0 : 1);
+	/** いまの段の位置 */
+	const current = $derived(BILL_PROGRESS_STEP[data.progress]);
+	/** 段の名前：次の段には日付を出し、廃案のときは最後の段「結果」を「廃案」にする（docs/spec/50.md 決めたこと6） */
+	const stageName = (name: string, i: number) => {
+		const next = data.next;
+		if (next && i === BILL_PROGRESS_STEP[next.stage]) return ja.bill.page.stageFrom(name, next.session, next.at);
+		return data.progress === 'lapsed' && i === BILL_PROGRESS_STEP.lapsed ? ja.bill.progress.lapsed : name;
+	};
 </script>
 
 <svelte:head>
@@ -62,7 +69,7 @@
 			<ol>
 				{#each ja.bill.page.stages as stage, i (stage)}
 					<li class:done={i < current} class:current={i === current}>
-						<span class="dot" aria-hidden="true"></span>{stage}{#if i === current}{ja.bill.page.here}{/if}
+						<span class="dot" aria-hidden="true"></span>{stageName(stage, i)}{#if i === current}{ja.bill.page.here}{/if}
 					</li>
 				{/each}
 			</ol>

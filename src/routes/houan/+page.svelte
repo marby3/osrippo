@@ -46,7 +46,7 @@
 					<tr role="row">
 						<td role="cell" class="kind"><span class="badge">{ja.bill.kinds[row.kind]}</span></td>
 						<td role="cell" class="title"><a href="/houan/{row.id}">{row.title}</a></td>
-						<td role="cell" class="stage">{ja.bill.statuses[row.status]}</td>
+						<td role="cell" class="stage">{ja.bill.list.stages[row.progress]}</td>
 						<td role="cell" class="support"><span class="sp-label">{ja.bill.list.supportPrefix}</span>{ja.bill.list.supportCell(row.supports)}</td>
 					</tr>
 				{/each}

@@ -2,6 +2,7 @@
 import { diffChars } from 'diff';
 import { checkText, CONTROL, type IssueError } from './issues';
 import { articleBodyText, compareNum, type DiffPart, type Paragraph } from './law';
+import { sessionAt, type Session } from './session';
 
 export { articleBodyText };
 
@@ -362,9 +363,46 @@ export function changeDiff(before: string, after: string, maxEdit: number): { pa
 		};
 	}
 	return {
-		parts: parts.map(({ value, added, removed }) => ({ value, added, removed })),
+		parts: mergeShortCommon(parts),
 		cost: parts.reduce((n, p) => (p.added || p.removed ? n + [...p.value].length : n), 0)
 	};
+}
+
+const charCount = (s: string) => [...s].length;
+
+/**
+ * 前後の変更より短い共通部分を変更に含める（設計書 docs/spec/50.md 決めたこと9）。
+ * 文字ごとに比べると、大きく書きかえた条では偶然同じ文字が残って文がばらばらになるため。
+ * 「。」か改行を含む共通部分はまとめない（変わっていない文や項が、変わったように読めないように）
+ */
+function mergeShortCommon(parts: DiffPart[]): DiffPart[] {
+	type Run = { same: string } | { removed: string; added: string };
+	const runs: Run[] = [];
+	const size = (r: { removed: string; added: string }) => Math.max(charCount(r.removed), charCount(r.added));
+	for (const part of parts) {
+		if (!part.added && !part.removed) {
+			runs.push({ same: part.value });
+			continue;
+		}
+		let last = runs[runs.length - 1];
+		if (!last || 'same' in last) runs.push((last = { removed: '', added: '' }));
+		if (part.added) last.added += part.value;
+		else last.removed += part.value;
+		// まとめると変更が長くなるので、前へさかのぼって確かめ続ける
+		while (runs.length >= 3) {
+			const [before, common, after] = runs.slice(-3);
+			if ('same' in before || !('same' in common) || 'same' in after) break;
+			if (/[。\n]/.test(common.same) || charCount(common.same) > size(before) || charCount(common.same) > size(after)) break;
+			before.removed += common.same + after.removed;
+			before.added += common.same + after.added;
+			runs.length -= 2;
+		}
+	}
+	return runs.flatMap((r): DiffPart[] =>
+		'same' in r
+			? [{ value: r.same }]
+			: [...(r.removed ? [{ value: r.removed, removed: true }] : []), ...(r.added ? [{ value: r.added, added: true }] : [])]
+	);
 }
 
 // ---- 一覧のタブ（Issue #48） ----
@@ -394,3 +432,40 @@ export const proposalRequirement = (participants: number) => Math.max(3, Math.ce
 
 /** 今月の参加者に数える行動：課題・わかる・解決策・解決策への反応・法案の起草（作る・保存・発議）・賛同。取り消し、通報、違反、運営の操作は数えない */
 export const PARTICIPANT_KINDS = ['issue_post', 'support_add', 'solution_post', 'reaction_add', 'bill_draft', 'bill_save', 'bill_support_add', 'bill_propose'] as const;
+
+// ---- 法案の進み（Issue #50。設計書 docs/spec/50.md 決めたこと1〜4） ----
+
+export type BillProgress = 'draft' | 'proposed' | 'deliberation' | 'vote' | 'lapsed';
+/** 進みを求めるのに使う法案の列。質疑・採決・廃案は書き込まず、時刻から求める */
+type BillClock = { status: 'draft' | 'proposed'; proposedAt: number | null };
+
+/** 付託先の会期：締切（15日 0:00）より前の発議はその会期、それ以後は次の会期 */
+export function referralSession(proposedAt: number, minutes: number | null): Session {
+	const session = sessionAt(proposedAt, minutes);
+	return proposedAt < session.deliberationAt ? session : sessionAt(session.endsAt, minutes);
+}
+
+/** いまの進み。v0.3 には採決がないので、付託先の会期が終わった法案はすべて廃案 */
+export function billProgress(bill: BillClock, now: number, minutes: number | null): BillProgress {
+	if (bill.status === 'draft') return 'draft';
+	if (bill.proposedAt === null) return 'proposed';
+	const r = referralSession(bill.proposedAt, minutes);
+	return now < r.deliberationAt ? 'proposed' : now < r.voteAt ? 'deliberation' : now < r.endsAt ? 'vote' : 'lapsed';
+}
+
+/** 次の段（質疑か採決）がいつ始まるか。発議と質疑のときだけ */
+export function nextStage(bill: BillClock, now: number, minutes: number | null): { stage: 'deliberation' | 'vote'; at: number; session: Session } | null {
+	const progress = billProgress(bill, now, minutes);
+	if (bill.proposedAt === null || (progress !== 'proposed' && progress !== 'deliberation')) return null;
+	const session = referralSession(bill.proposedAt, minutes);
+	return progress === 'proposed' ? { stage: 'deliberation', at: session.deliberationAt, session } : { stage: 'vote', at: session.voteAt, session };
+}
+
+/**
+ * この時刻より前に発議した法案が廃案（previous は now を含む会期の一つ前）。
+ * 廃案は付託先が previous 以前のときで、それは previous の締切より前に発議したときだけ。暦の計算を SQL に持ち込まずに絞れる
+ */
+export const lapsedBefore = (previous: Session) => previous.deliberationAt;
+
+/** PC の「いまの段階」の並びの位置（下書き・発議・委員会へ・質疑・採決・結果）。委員会へ（2）がいまの段になることはない */
+export const BILL_PROGRESS_STEP = { draft: 0, proposed: 1, deliberation: 3, vote: 4, lapsed: 5 } as const satisfies Record<BillProgress, number>;

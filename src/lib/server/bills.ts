@@ -244,7 +244,6 @@ export async function billView(db: Db, bill: NonNullable<Bill>) {
 	return {
 		id: bill.id,
 		kind: bill.kind,
-		status: bill.status,
 		title: bill.title,
 		formalName: formalName(
 			bill.kind,
@@ -313,29 +312,36 @@ export async function citedCandidates(db: Db, solutionIds: number[]) {
 // 列の値（${bills.rev}）を埋めると、drizzle が表名なしの "rev" にして副問い合わせの中の rev を指すので、表の名前を書く
 const supportCount = sql<number>`(SELECT count(*) FROM ${billSupports} s WHERE s.bill_id = ${bills}.id AND s.rev = ${bills}.rev)`;
 
-/** タブの法案。下書きは保存が新しい順、審議中は作ったのが新しい順。終わったタブは状態の進み方（#50）で埋まる */
-export async function listBills(db: Db, tab: BillTab, page: number) {
-	if (tab === 'owari') return { rows: [], hasNext: false };
+/**
+ * タブの法案。下書きは保存が新しい順、審議中は作ったのが新しい順、終わったは発議が新しい順。
+ * before は lapsedBefore の値で、これより前に発議した法案が終わった（docs/spec/50.md 決めたこと4・5）
+ */
+export async function listBills(db: Db, tab: BillTab, page: number, before: number) {
 	const draft = tab === 'shitagaki';
+	const inTab = draft
+		? eq(bills.status, 'draft')
+		: and(eq(bills.status, 'proposed'), tab === 'owari' ? lt(bills.proposedAt, before) : gte(bills.proposedAt, before));
+	const newest = draft ? bills.updatedAt : tab === 'owari' ? bills.proposedAt : bills.createdAt;
 	const rows = await db
-		.select({ id: bills.id, kind: bills.kind, status: bills.status, title: bills.title, supports: supportCount })
+		.select({ id: bills.id, kind: bills.kind, status: bills.status, proposedAt: bills.proposedAt, title: bills.title, supports: supportCount })
 		.from(bills)
-		.where(and(savedBill, eq(bills.status, draft ? 'draft' : 'proposed')))
-		.orderBy(draft ? desc(bills.updatedAt) : desc(bills.createdAt), desc(bills.id))
+		.where(and(savedBill, inTab))
+		.orderBy(desc(newest), desc(bills.id))
 		.limit(PAGE_SIZE + 1)
 		.offset((page - 1) * PAGE_SIZE);
 	return { rows: rows.slice(0, PAGE_SIZE), hasNext: rows.length > PAGE_SIZE };
 }
 
 /** タブの件数。「終わった」には数を出さない（SpBills・PcBills） */
-export async function billTabCounts(db: Db) {
-	const rows = await db
-		.select({ status: bills.status, n: count() })
+export async function billTabCounts(db: Db, before: number) {
+	const [row] = await db
+		.select({
+			shingi: sql<number>`count(CASE WHEN ${bills.status} = 'proposed' AND ${bills.proposedAt} >= ${before} THEN 1 END)`,
+			shitagaki: sql<number>`count(CASE WHEN ${bills.status} = 'draft' THEN 1 END)`
+		})
 		.from(bills)
-		.where(savedBill)
-		.groupBy(bills.status);
-	const of = (status: string) => rows.find((r) => r.status === status)?.n ?? 0;
-	return { shingi: of('proposed'), shitagaki: of('draft') };
+		.where(savedBill);
+	return row;
 }
 
 // ---- 賛同と発議（Issue #49。設計書 docs/spec/49.md） ----

@@ -20,7 +20,10 @@
 	<p class="badge">{ja.bill.kinds[bill.kind]}</p>
 	<h1>{bill.title}</h1>
 	<p class="formal">{bill.formalName}</p>
-	<p class="now sp">{ja.bill.page.now}<strong>{ja.bill.statuses[bill.status]}</strong></p>
+	<p class="now sp">
+		{ja.bill.page.now}<strong>{ja.bill.progress[data.progress]}</strong>{#if data.progress === 'deliberation'}{ja.session.week(3)}{:else if data.progress === 'vote'}{ja.session.week(4)}{/if}
+	</p>
+	{#if data.next}<p class="next sp">{ja.bill.page.nextLine(ja.bill.progress[data.next.stage], data.next.session, data.next.at)}</p>{/if}
 	{#if data.canEdit}<p class="edit"><a href="{base}/kaku">{ja.bill.page.edit}</a></p>{/if}
 
 	<nav class="tabs" aria-label={ja.bill.page.tabs}>
@@ -63,6 +66,12 @@
 
 	.now {
 		margin: 0.5rem 0 0;
+	}
+
+	.next {
+		margin: 0.25rem 0 0;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
 	}
 
 	.edit {

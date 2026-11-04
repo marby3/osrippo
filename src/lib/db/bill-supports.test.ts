@@ -82,7 +82,7 @@ describe('賛同の持ち越し', () => {
 	// Issue #49 のレビューの Blocker：一覧の数が古い版の賛同も数えていた
 	test('基準6・9：一覧の賛同の数は、いまの版の賛同だけを数える', async () => {
 		const id = bill(1);
-		const count = async () => (await listBills(db, 'shitagaki', 1)).rows.find((r) => r.id === id)?.supports;
+		const count = async () => (await listBills(db, 'shitagaki', 1, 0)).rows.find((r) => r.id === id)?.supports;
 		for (const u of ['u1', 'u2']) expect((await setBillSupport(db, actor(u), id, 1, 'add', 1)).ok).toBe(true);
 		expect(await count()).toBe(2);
 		// 保存して版が変わると0人に戻る
