@@ -5,6 +5,7 @@ import { CHANGES } from '../domain/law/history';
 import type { Heading } from '../domain/law/parse';
 import { REACTIONS } from '../domain/solutions';
 import { BILL_KINDS, CHANGE_OPS } from '../domain/bills';
+import { VOTE_CHOICES } from '../domain/votes';
 
 export const laws = sqliteTable('laws', {
 	/** e-Gov の law_id */
@@ -232,7 +233,8 @@ export const issueSupports = sqliteTable(
 
 /**
  * target_id は、issue_post・support_* では課題の番号、solution_post・reaction_* では解決策の番号（設計書 docs/spec/34.md）、
- * bill_* では法案の番号（docs/spec/45.md。v0.3 で使う種類をまとめて足した）
+ * bill_* では法案の番号（docs/spec/45.md。v0.3 で使う種類をまとめて足した）。
+ * question_post から vote_cast までは v0.4 で使う種類（docs/spec/65.md。Issue ごとに表を作り直さないようにまとめて足した）
  */
 export const ACTION_KINDS = [
 	'issue_post',
@@ -246,7 +248,18 @@ export const ACTION_KINDS = [
 	'bill_save',
 	'bill_support_add',
 	'bill_support_remove',
-	'bill_propose'
+	'bill_propose',
+	'question_post',
+	'answer_post',
+	'supplement_post',
+	'stance_set',
+	'evaluation_add',
+	'evaluation_remove',
+	'amendment_post',
+	'amendment_accept',
+	'amendment_support_add',
+	'amendment_support_remove',
+	'vote_cast'
 ] as const;
 
 /** レート制限を数えるための記録。IP はハッシュ（ip_hash）だけを持つ */
@@ -584,4 +597,55 @@ export const sessionParticipantCounts = sqliteTable(
 		fixedAt: integer('fixed_at').notNull()
 	},
 	(t) => [primaryKey({ columns: [t.committeeId, t.sessionKey] })]
+);
+
+/**
+ * 票（設計書 docs/spec/65.md）。1人1法案1会期に最後の1つだけを持つ。
+ * 要調整の法案は次の会期にもう一度採決するので、主キーに会期を入れる
+ */
+export const votes = sqliteTable(
+	'votes',
+	{
+		/** Session.key */
+		sessionKey: text('session_key').notNull(),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		choice: text('choice', { enum: VOTE_CHOICES }).notNull(),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.sessionKey, t.billId, t.userId] }),
+		index('votes_user').on(t.userId),
+		check('votes_choice', sql`${t.choice} IN (${inList(VOTE_CHOICES)})`)
+	]
+);
+
+/**
+ * くじで割り当てた法案（設計書 docs/spec/65.md 決めたこと8）。
+ * 主キーを seq にして1文で入れるので、同時に開いても先に入った組だけが残る
+ */
+export const voteAssignments = sqliteTable(
+	'vote_assignments',
+	{
+		sessionKey: text('session_key').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		/** 0〜2。4本以上にするときは、この CHECK のために表を作り直す */
+		seq: integer('seq').notNull(),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.sessionKey, t.userId, t.seq] }),
+		unique().on(t.sessionKey, t.userId, t.billId),
+		check('vote_assignments_seq', sql`${t.seq} BETWEEN 0 AND 2`)
+	]
 );
