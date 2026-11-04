@@ -50,12 +50,19 @@ const status = (page: Page, w: Width, name: string) => (w === 'sp' ? page.getByT
 /** IF世界の帯（紫の斜線）。テストの目印として data-if-band を付ける（Issue #63 テストの作り方） */
 const band = (page: Page) => page.locator('[data-if-band]');
 
-/** ボタンを押し、書き込みの応答が返るまで待つ（次の移動で送信が中断されないように） */
-async function submit(u: Page, button: string) {
+/**
+ * 操作をして、書き込みの応答が返るまで待つ（次の移動で送信が中断されないように）。
+ * use:enhance の送信は fail() でも HTTP 200 で返るので、本文の type も確かめる
+ */
+async function posted(u: Page, act: () => Promise<void>) {
 	const done = u.waitForResponse((r) => r.request().method() === 'POST');
-	await u.getByRole('button', { name: button }).click();
-	expect((await done).status()).toBeLessThan(400);
+	await act();
+	const res = await done;
+	expect(res.status()).toBeLessThan(400);
+	if (res.status() < 300) expect(await res.text()).not.toContain('"type":"failure"');
 }
+
+const submit = (u: Page, button: string) => posted(u, () => u.getByRole('button', { name: button }).click());
 
 /** 開いている投票の画面で票を選んで送る */
 async function choose(u: Page, choice: '賛成' | '反対' | RegExp) {
@@ -125,19 +132,12 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 
 	// 自分の考えは、自分にだけ見える
 	await openTab(e.page, /^質疑/);
-	const done = e.page.waitForResponse((r) => r.request().method() === 'POST');
-	await stance(e.page, '賛成寄り').click();
-	await done;
+	await posted(e.page, () => stance(e.page, '賛成寄り').click());
 	await openTab(e.page, /^質疑/);
 	await expect(stance(e.page, '賛成寄り')).toHaveAttribute('aria-pressed', 'true');
 	await openTab(f.page, /^質疑/);
 	await expect(stance(f.page, '賛成寄り')).toHaveAttribute('aria-pressed', 'false');
-	await viewer.setNow(at(now, 15));
-	await openTab(v, /^質疑/);
-	await expect(stance(v, '賛成寄り').and(v.locator('[aria-pressed="true"]'))).toHaveCount(0);
-	const doneF = f.page.waitForResponse((r) => r.request().method() === 'POST');
-	await stance(f.page, '反対寄り').click();
-	await doneF;
+	await posted(f.page, () => stance(f.page, '反対寄り').click());
 	await openTab(f.page, /^質疑/);
 	await expect(stance(f.page, '反対寄り')).toHaveAttribute('aria-pressed', 'true');
 
@@ -157,17 +157,18 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	await submit(a.page, '送る');
 	await expect(card(a.page).getByText('答弁待ち')).toHaveCount(0);
 
-	// F が A の答弁に「筋が通っている」を付ける（答弁を読むと、答弁のボタンが出る）
+	// F が A の答弁に「筋が通っている」を付ける。答弁のあるカードのボタンは答弁の評価（Issue #63 テストの作り方）。
+	// 答弁はスマホでは開くと読める（SpBillQA）。PC は最初から開いている（PcBillQA）
 	await openTab(f.page, /^質疑/);
-	await card(f.page).getByRole('button', { name: /答弁を読む/ }).click();
+	if (w === 'sp') await card(f.page).getByRole('button', { name: /答弁を読む/ }).click();
 	await expect(card(f.page).getByText(answer)).toBeVisible();
-	const reasonable = card(f.page).getByRole('button', { name: '筋が通っている' }).last();
-	await reasonable.click();
-	await expect(reasonable).toHaveAttribute('aria-pressed', 'true');
+	const reasonable = () => card(f.page).getByRole('button', { name: '筋が通っている' });
+	await posted(f.page, () => reasonable().click());
+	await openTab(f.page, /^質疑/);
+	await expect(reasonable()).toHaveAttribute('aria-pressed', 'true');
 
 	// G の修正案を A が取り込むと、変更点の「変更後」が修正案の本文になる
-	await g.page.goto(bill);
-	await hydrated(g.page);
+	await openTab(g.page, /^修正案/);
 	await either(g.page, '修正案を出す').first().click();
 	await hydrated(g.page);
 	await g.page.getByLabel('変える条').selectOption({ label: '第1条（目的）' });
@@ -175,9 +176,12 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	await submit(g.page, '修正案を出す');
 	await openTab(a.page, /^修正案/);
 	await submit(a.page, '取り込む');
+	await viewer.setNow(at(now, 15));
 	await v.goto(`${bill}/henkou`);
-	// 「変更後」の下線の部分が修正案の本文になり、取り込む前の本文（createAmendBill）は消える
-	await expect(v.locator('ins').filter({ hasText: amendedMark }).first()).toBeVisible();
+	// 「変更後」の欄が修正案の本文になり、取り込む前の本文（createAmendBill）は消える。
+	// 基にした本文と同じ部分は下線の外に出るので（pc は sp の可決のあとの IF世界が基）、欄の文字で比べる
+	const after = v.locator('section.after');
+	await expect.poll(async () => (await after.innerText()).replace(/＋/g, '')).toContain(amended);
 	await expect(v.getByRole('main')).not.toContainText('いつでも契約をやめられる');
 
 	// 4. 22日：採決
@@ -217,10 +221,12 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 		await expect(abstain).toBeDisabled();
 		await n.getByRole('button', { name: /^変更点 1か所を見る/ }).click();
 	}
+	await expect(n.locator('ins').first()).toBeVisible();
 	await expect(abstain).toBeEnabled();
 	await choose(n, /^棄権/);
 
 	// Z は前の月に何もしていないので、参考の票になる
+	await z.setNow(at(now, 22));
 	await vote(z.page, voteAt, '賛成');
 	await expect(z.page.getByText('参考の票として数えます')).toBeVisible();
 
