@@ -203,3 +203,31 @@ export function billPath(res: { status(): number; headers(): Record<string, stri
 	expect(path).toMatch(/^\/houan\/\d+$/);
 	return path;
 }
+
+/** 消費者契約法の第1条を書きかえる改正の下書きを作り、法案のページのパスを返す */
+export async function createAmendBill(page: Page, title: string, solution: string) {
+	const law = '412AC0000000061';
+	const { revisionId } = (await (await page.request.get(`/houan/kaku/joubun?law=${law}`)).json()) as { revisionId: string };
+	return billPath(
+		await billRequest(page, '/houan/kaku', {
+			kind: 'amend',
+			title,
+			law,
+			base: revisionId,
+			'op.0': 'amend',
+			'target.0': '1',
+			'caption.0': '（目的）',
+			'body.0': 'この法律は、消費者がいつでも契約をやめられるようにすることを目的とする。',
+			affected: '解約できずに困っている人',
+			sideEffects: '事業者の負担が増える',
+			solution,
+			'cf-turnstile-response': 'test-pass'
+		})
+	);
+}
+
+/** 賛同のフォームと同じ POST */
+export const billSupportRequest = (page: Page, bill: string, form: BillForm) => billRequest(page, `${bill}?/support`, form);
+
+/** 「発議する」のフォームと同じ POST */
+export const proposeRequest = (page: Page, bill: string) => billRequest(page, `${bill}?/propose`, {});
