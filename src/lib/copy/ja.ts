@@ -240,7 +240,7 @@ export const ja = {
 			stages: ['下書き', '発議', '委員会へ', '質疑', '採決', '結果'],
 			here: '（いまここ）',
 			/** スマホの「いま：」の次の行（docs/spec/50.md 決めたこと6） */
-			nextLine: (stage: 'deliberation' | 'vote', s: Session, at: number) => `${stage === 'deliberation' ? '質疑' : '採決'}は${sessionPoint(s, at, false)}から`,
+			nextLine: (name: string, s: Session, at: number) => `${name}は${sessionPoint(s, at, false)}から`,
 			/** PC の段の日付（PcBillSummary） */
 			stageFrom: (name: string, s: Session, at: number) => `${name}（${sessionPoint(s, at, false)}から）`,
 			summaryHeading: '3行でいうと',
