@@ -185,6 +185,24 @@ export const ja = {
 		kinds: { amend: '改正', repeal: '廃止', enact: '制定' },
 		ops: { amend: '書きかえ', add: '新しく追加', delete: '削除', supplementary: '新しく追加' },
 		statuses: { draft: '下書き', proposed: '発議' },
+		/** 法案の一覧（SpBills・PcBills） */
+		list: {
+			pageTitle: '法案｜オープンソース立法府',
+			topLink: '法案を見る',
+			heading: '法案',
+			write: '法案を書く',
+			tabs: '法案のタブ',
+			shingi: (n: number) => `審議中 ${n}`,
+			shitagaki: (n: number) => `下書き ${n}`,
+			owari: '終わった',
+			kind: '種類',
+			bill: '法案',
+			stage: '段階',
+			empty: { shingi: '審議中の法案はありません。', shitagaki: '下書きはありません。', owari: '終わった法案はありません。' },
+			pages: 'ページ送り',
+			prevPage: '前のページ',
+			nextPage: '次のページ'
+		},
 		/** 法案のページ（SpBillSummary・SpBillChanges・PcBillSummary・PcBillChanges） */
 		page: {
 			pageTitle: (title: string) => `${title}｜オープンソース立法府`,
