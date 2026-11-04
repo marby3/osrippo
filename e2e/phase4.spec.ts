@@ -10,7 +10,7 @@ test.afterEach(async () => {
 
 type Width = 'sp' | 'pc';
 
-// テスト全体は長いので時間を延ばす。ボタンが見つからないときに全体の時間まで待たないよう、操作ごとの時間は短くする
+// テスト全体の時間は長くする（test.setTimeout）ので、ボタンが見つからないときに全体の時間まで待たないよう、操作ごとの時間を決める
 test.use({ actionTimeout: 15_000 });
 
 /**
@@ -41,20 +41,38 @@ async function user(browser: Browser, ip: string, now: string, name?: string): P
 }
 
 const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
-const either = (page: Page, name: string | RegExp) =>
-	page.getByRole('link', { name }).or(page.getByRole('button', { name })).or(page.getByRole('tab', { name }));
+const either = (page: Page, name: string | RegExp) => page.getByRole('link', { name }).or(page.getByRole('button', { name }));
 const robots = (page: Page) => page.locator('meta[name="robots"]');
 
 /** 法案の状態。スマホは「いま：」の1行、PC は段階の並びの「（いまここ）」 */
 const status = (page: Page, w: Width, name: string) => (w === 'sp' ? page.getByText(`いま：${name}`, { exact: true }) : page.getByText(`${name}（いまここ）`, { exact: true }));
 
-/** 投票する。票は締切まで変えられるので、同じ手順で入れ直す */
-async function vote(u: Page, path: string, choice: '賛成' | '反対' | RegExp) {
+/** IF世界の帯（紫の斜線）。テストの目印として data-if-band を付ける（Issue #63 テストの作り方） */
+const band = (page: Page) => page.locator('[data-if-band]');
+
+/** ボタンを押し、書き込みの応答が返るまで待つ（次の移動で送信が中断されないように） */
+async function submit(u: Page, button: string) {
+	const done = u.waitForResponse((r) => r.request().method() === 'POST');
+	await u.getByRole('button', { name: button }).click();
+	expect((await done).status()).toBeLessThan(400);
+}
+
+/** 開いている投票の画面で票を選んで送る */
+async function choose(u: Page, choice: '賛成' | '反対' | RegExp) {
+	await u.getByRole('radio', { name: choice }).check();
+	await submit(u, '投票する');
+}
+
+/** 投票の画面を開く */
+async function openVote(u: Page, path: string) {
 	await u.goto(path);
 	await hydrated(u);
-	await u.getByRole('radio', { name: choice }).check();
-	await u.getByRole('button', { name: '投票する' }).click();
-	await expect(u.getByRole('button', { name: '投票する' })).toBeEnabled();
+}
+
+/** 投票する。票は締切まで変えられるので、同じ手順で入れ直す */
+async function vote(u: Page, path: string, choice: '賛成' | '反対') {
+	await openVote(u, path);
+	await choose(u, choice);
 }
 
 test('法案に質疑し、修正案を取り込み、採決で可決されると、IF世界の条文が変わる', async ({ browser }, info) => {
@@ -71,13 +89,14 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	// 1. 前の月：A・B・C・D と投票者 E〜N が課題に「わかる」を付ける。Z は何もしない
 	const a = await user(browser, ip(1), at(prev, 10), name('A'));
 	const { issueId, ids } = await issueWithSolutions(a.page, `4-${suffix}`, [`解約をいつでもできるようにする ${suffix}`]);
+	expect((await supportRequest(a.page, issueId, 'add')).status()).toBeLessThan(400);
 	const members = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
 	const people: Record<string, User> = {};
 	for (const [i, who] of members.entries()) {
 		people[who] = await user(browser, ip(i + 2), at(prev, 10), name(who));
 		expect((await supportRequest(people[who].page, issueId, 'add')).status(), who).toBeLessThan(400);
 	}
-	const z = await user(browser, ip(30), at(now, 22), name('Z'));
+	const z = await user(browser, ip(30), at(prev, 10), name('Z'));
 	const viewer = await user(browser, ip(31), at(now, 5));
 	const v = viewer.page;
 
@@ -99,33 +118,43 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	const openTab = async (u: Page, tab: RegExp) => {
 		await u.goto(bill);
 		await hydrated(u);
-		await either(u, tab).first().click();
+		await u.getByRole('navigation', { name: '法案のページ' }).getByRole('link', { name: tab }).click();
 		await hydrated(u);
 	};
 	const stance = (u: Page, label: string) => u.getByRole('button', { name: label, exact: true });
 
 	// 自分の考えは、自分にだけ見える
 	await openTab(e.page, /^質疑/);
+	const done = e.page.waitForResponse((r) => r.request().method() === 'POST');
 	await stance(e.page, '賛成寄り').click();
+	await done;
+	await openTab(e.page, /^質疑/);
 	await expect(stance(e.page, '賛成寄り')).toHaveAttribute('aria-pressed', 'true');
 	await openTab(f.page, /^質疑/);
 	await expect(stance(f.page, '賛成寄り')).toHaveAttribute('aria-pressed', 'false');
+	await viewer.setNow(at(now, 15));
+	await openTab(v, /^質疑/);
+	await expect(stance(v, '賛成寄り').and(v.locator('[aria-pressed="true"]'))).toHaveCount(0);
+	const doneF = f.page.waitForResponse((r) => r.request().method() === 'POST');
 	await stance(f.page, '反対寄り').click();
+	await doneF;
+	await openTab(f.page, /^質疑/);
 	await expect(stance(f.page, '反対寄り')).toHaveAttribute('aria-pressed', 'true');
 
 	// E が質疑を書くと「答弁待ち」、A が答弁すると消える
 	const question = `解約の窓口は誰が用意しますか ${suffix}`;
 	const answer = `事業者が自分のサイトに用意します ${suffix}`;
 	await e.page.getByRole('link', { name: '質疑を書く' }).or(e.page.getByRole('button', { name: '質疑を書く' })).first().click();
+	await hydrated(e.page);
 	await e.page.getByLabel('質疑の内容').fill(question);
-	await e.page.getByRole('button', { name: '送る' }).click();
+	await submit(e.page, '送る');
 	const card = (u: Page) => u.locator('article').filter({ hasText: question });
 	await expect(card(e.page).getByText('答弁待ち')).toBeVisible();
 
 	await openTab(a.page, /^質疑/);
 	await card(a.page).getByRole('button', { name: '答弁する' }).click();
 	await a.page.getByLabel('答弁の内容').fill(answer);
-	await a.page.getByRole('button', { name: '送る' }).click();
+	await submit(a.page, '送る');
 	await expect(card(a.page).getByText('答弁待ち')).toHaveCount(0);
 
 	// F が A の答弁に「筋が通っている」を付ける（答弁を読むと、答弁のボタンが出る）
@@ -143,12 +172,13 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	await hydrated(g.page);
 	await g.page.getByLabel('変える条').selectOption({ label: '第1条（目的）' });
 	await g.page.getByLabel('変更後の条文').fill(amended);
-	await g.page.getByRole('button', { name: '修正案を出す' }).click();
+	await submit(g.page, '修正案を出す');
 	await openTab(a.page, /^修正案/);
-	await a.page.getByRole('button', { name: '取り込む' }).click();
-	await viewer.setNow(at(now, 15));
+	await submit(a.page, '取り込む');
 	await v.goto(`${bill}/henkou`);
-	await expect(v.getByRole('main')).toContainText(amendedMark);
+	// 「変更後」の下線の部分が修正案の本文になり、取り込む前の本文（createAmendBill）は消える
+	await expect(v.locator('ins').filter({ hasText: amendedMark }).first()).toBeVisible();
+	await expect(v.getByRole('main')).not.toContainText('いつでも契約をやめられる');
 
 	// 4. 22日：採決
 	const voters = ['E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
@@ -171,21 +201,24 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	await e.page.goto('/saiketsu');
 	await expect(e.page.getByText(/1\s*\/\s*1\s*投票済み/)).toBeVisible();
 	await vote(e.page, voteAt, '反対');
-	await vote(e.page, voteAt, '賛成');
+	await openVote(e.page, voteAt);
+	await expect(e.page.getByRole('radio', { name: '反対' })).toBeChecked();
+	await choose(e.page, '賛成');
+	await openVote(e.page, voteAt);
+	await expect(e.page.getByRole('radio', { name: '賛成' })).toBeChecked();
 	for (const who of ['G', 'H', 'I', 'J', 'K', 'L']) await vote(people[who].page, voteAt, '賛成');
 	for (const who of ['F', 'M']) await vote(people[who].page, voteAt, '反対');
 
-	// 棄権は変更点の一覧を開いてから（PC は最初から開いている）
+	// 棄権は変更点の一覧を開いてから（スマホは SpVote のとおり閉じていて、PC は PcVote のとおり最初から開いている）
 	const n = people.N.page;
-	await n.goto(voteAt);
-	await hydrated(n);
+	await openVote(n, voteAt);
 	const abstain = n.getByRole('radio', { name: /^棄権/ });
 	if (w === 'sp') {
 		await expect(abstain).toBeDisabled();
 		await n.getByRole('button', { name: /^変更点 1か所を見る/ }).click();
 	}
 	await expect(abstain).toBeEnabled();
-	await vote(n, voteAt, /^棄権/);
+	await choose(n, /^棄権/);
 
 	// Z は前の月に何もしていないので、参考の票になる
 	await vote(z.page, voteAt, '賛成');
@@ -196,6 +229,7 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	for (const who of ['B', 'C', 'D']) await people[who].setNow(at(now, 22));
 	for (const u of [a, people.B, people.C, people.D]) {
 		await u.page.goto('/saiketsu');
+		await expect(u.page.getByText(/割り当て法案\s*0\s*\/\s*0/)).toBeVisible();
 		await expect(u.page.getByRole('main').getByRole('link', { name: title })).toHaveCount(0);
 	}
 
@@ -203,23 +237,26 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	await viewer.setNow(at(now, 25));
 	const kekka = `${voteAt}/kekka`;
 	await v.goto(kekka);
-	await expect(v.getByText(/数えた票/)).toHaveCount(0);
+	await expect(v.getByRole('heading', { level: 1, name: title })).toBeVisible();
+	await expect(v.getByRole('main')).not.toContainText(/数えた票|(賛成|反対|棄権)\s*\d/);
 	await expect(v.getByText('可決', { exact: true })).toHaveCount(0);
 
 	// 5. 次の月の1日：その日に最初に読んだときに結果が確定する
 	await viewer.setNow(at(next, 1));
 	await v.goto(kekka);
 	await hydrated(v);
+	await expect(band(v)).toBeVisible();
+	await expect(band(v)).toHaveCSS('background-image', /gradient/);
 	await expect(v.getByText(w === 'sp' ? '架空の法律です' : 'このページの条文は架空のものです。現実の法律ではありません。')).toBeVisible();
 	await expect(robots(v)).toHaveAttribute('content', /noindex/);
 	await expect(v.getByText('可決', { exact: true })).toBeVisible();
 	await expect(v.getByText('IF世界の法律になりました')).toBeVisible();
 	await expect(v.getByText('ゲームの中の結果です。世論調査ではありません。')).toBeVisible();
 	const main = v.getByRole('main');
-	await expect(main).toContainText(/数えた票\s*10/);
-	await expect(main).toContainText(/賛成\s*7/);
-	await expect(main).toContainText(/反対\s*2/);
-	await expect(main).toContainText(/棄権\s*1/);
+	await expect(main).toContainText(/数えた票\s*10(?!\d)/);
+	await expect(main).toContainText(/賛成\s*7(?!\d)/);
+	await expect(main).toContainText(/反対\s*2(?!\d)/);
+	await expect(main).toContainText(/棄権\s*1(?!\d)/);
 	// 参考の票：スマホは開くと出る（SpResult）、PC は横に出ている（PcResult）
 	if (w === 'sp') await v.getByRole('button', { name: /参考の票/ }).click();
 	await expect(v.getByText(/参考の票（可否には使いません）/)).toBeVisible();
@@ -237,6 +274,7 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	await hydrated(v);
 	await v.getByRole('link', { name: 'IF世界の条文を見る' }).click();
 	await expect(v).toHaveURL(new RegExp(`/if/hourei/${LAW}`));
+	await expect(band(v)).toBeVisible();
 	await expect(v.getByText('架空の法令').first()).toBeVisible();
 	await expect(robots(v)).toHaveAttribute('content', /noindex/);
 	await expect(v.getByRole('article', { name: '第1条', exact: true })).toContainText(amended);
@@ -246,6 +284,7 @@ test('法案に質疑し、修正案を取り込み、採決で可決される�
 	const real = v.getByRole('article', { name: '第1条', exact: true });
 	await expect(real).toContainText(REAL_TEXT);
 	await expect(real).not.toContainText(amendedMark);
+	await expect(band(v)).toHaveCount(0);
 	await expect(v.getByText('架空の法令')).toHaveCount(0);
 
 	// 可決した法案が、以後の法案の基になる
