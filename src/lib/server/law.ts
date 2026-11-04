@@ -117,6 +117,11 @@ function articlesAt(rows: Awaited<ReturnType<typeof provisionsAt>>) {
 		}));
 }
 
+/** 版で有効な条（内部IDつき。項と号の木）。法案の基にした版の条に使う */
+export async function articlesOfRevision(db: Db, revisionId: string) {
+	return articlesAt(await provisionsAt(db, revisionId));
+}
+
 /** 法令ページに出すもの。ない法令なら undefined */
 export async function lawPage(db: Db, lawId: string) {
 	const [law] = await db.select().from(laws).where(eq(laws.id, lawId));

@@ -6,6 +6,7 @@ import {
 	countsTowardHide,
 	HIDE_THRESHOLD,
 	LISTED,
+	SOLUTION_SHOWN as SHOWN,
 	type HideReason,
 	type IssueStatus,
 	type SolutionReportReason
@@ -15,9 +16,6 @@ import { PRESS_KINDS, refuse, type Actor } from './issues';
 import type { Db } from './law';
 import { reportsInDay, type Role } from './reports';
 import { indexTexts } from './search';
-
-/** 表示中の解決策の状態（解決策には merged がない） */
-const SHOWN = ['visible', 'restored'] as const;
 
 /** 解決策を書く。上限を確かめ、課題が一覧に出る状態のときだけ1文で入れる（設計書 決めたこと1・2） */
 export async function createSolution(db: Db, actor: Actor, issueId: number, body: string, now: number) {

@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { openMemoryDb } from './memory';
 import { seedStatements, TARGET_LAWS } from './seed';
 import { currentRevision, provisionsAt, type Db } from '../server/law';
-import { billById, createDraft, saveDraft, type DraftInput } from '../server/bills';
+import { billById, candidateSolutions, citedCandidates, createDraft, saveDraft, type DraftInput } from '../server/bills';
 
 const root = new URL('../../../', import.meta.url);
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`tests/fixtures/egov/${name}.json`, root), 'utf8'));
@@ -153,4 +153,13 @@ describe('基準2：版ごとの保存', () => {
 		const winner = a ? { title: 'タブA', text: 'Aの本文', solutions: [1] } : { title: 'タブB', text: 'Bの本文', solutions: [2, 3] };
 		expect({ title: third.title, text: third.laws[0].changes[0].paragraphs![0].text, solutions: third.solutionIds }).toEqual(winner);
 	});
+});
+
+// Issue #46 のレビューの Blocker：候補を30件で切ると、31件目以降を引用した法案を直すときに引用が黙って消えていた
+test('引用の候補は、課題の表示中の解決策をすべて返す', async () => {
+	run("INSERT INTO issues (id, user_id, title, affected, example, topic_id, created_at) VALUES (46, 'u1', '候補の課題', '人', '例', 1, ?)", T0);
+	const ids = Array.from({ length: 31 }, (_, i) => 4600 + i);
+	for (const id of ids) run("INSERT INTO solutions (id, issue_id, user_id, body, created_at) VALUES (?, 46, 'u2', ?, ?)", id, `候補${id}`, T0);
+	expect((await candidateSolutions(db, 46)).map((c) => c.id)).toEqual(ids);
+	expect((await citedCandidates(db, [ids[30]])).map((c) => c.id)).toEqual(ids);
 });

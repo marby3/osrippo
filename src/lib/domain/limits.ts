@@ -26,6 +26,12 @@ export const LIMITS = {
 	solutionPerAccount: 10,
 	solutionPerNewAccount: 3,
 	solutionPerIp: 20,
+	/** 法案の下書きを作る・保存する（Issue #46 決めたこと2）。作る回線ごとの上限は、作るほうだけに掛ける */
+	billDraftPerAccount: 3,
+	billDraftPerIp: 20,
+	billSavePerAccount: 60,
+	/** 下書きを作る・賛同する・発議するのは、登録からこの長さのアカウントだけ（Issue #41 決めたこと6） */
+	billAccountAge: 7 * DAY,
 	banLength: DAY
 } as const;
 
@@ -40,7 +46,10 @@ export type RefusalKind =
 	| 'solution-account'
 	| 'solution-new'
 	| 'solution-ip'
-	| 'reaction-ip';
+	| 'reaction-ip'
+	| 'bill-draft-account'
+	| 'bill-draft-ip'
+	| 'bill-save-account';
 export type Refusal = { kind: RefusalKind; retryAt?: number };
 
 /** 違反に数えるか。回線ごとの上限は同じ回線の別の人のせいで当たることがあり、登録したばかりの上限は試しているうちに締め出されないよう、数えない */
@@ -55,7 +64,10 @@ export const COUNTS_AS_VIOLATION: Record<RefusalKind, boolean> = {
 	'solution-account': true,
 	'solution-new': false,
 	'solution-ip': false,
-	'reaction-ip': false
+	'reaction-ip': false,
+	'bill-draft-account': true,
+	'bill-draft-ip': false,
+	'bill-save-account': true
 };
 
 type PostCounts = { accountPostTimes: number[]; ipPosts: number; registeredAt: number };
@@ -119,4 +131,21 @@ export function checkSupport(
 /** 直近24時間の違反（いまの1回を含む）から、締め出しの期限を決める。締め出さないなら null */
 export function banUntil(violationsInDay: number, now: number): number | null {
 	return violationsInDay >= LIMITS.violationsToBan ? now + LIMITS.banLength : null;
+}
+
+/** 法案の下書きを作る（Issue #46 決めたこと2）。accountDrafts・ipDrafts は直近24時間に作った数 */
+export function checkBillDraft(c: { accountDrafts: number; ipDrafts: number }): Refusal | null {
+	if (c.accountDrafts >= LIMITS.billDraftPerAccount) return { kind: 'bill-draft-account' };
+	if (c.ipDrafts >= LIMITS.billDraftPerIp) return { kind: 'bill-draft-ip' };
+	return null;
+}
+
+/** 法案の下書きを保存する。accountSaves は直近24時間に保存した数 */
+export const checkBillSave = (c: { accountSaves: number }): Refusal | null =>
+	c.accountSaves >= LIMITS.billSavePerAccount ? { kind: 'bill-save-account' } : null;
+
+/** 登録から7日たっていなければ、法案を書けるようになる時刻。たっていれば null */
+export function billWaitUntil(registeredAt: number, now: number): number | null {
+	const at = registeredAt + LIMITS.billAccountAge;
+	return now < at ? at : null;
 }

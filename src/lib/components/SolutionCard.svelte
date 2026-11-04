@@ -58,6 +58,8 @@
 <article id="kaiketsu-{solution.id}">
 	{#if notice}<p class="notice">{notice}</p>{/if}
 	<p id="kaiketsu-body-{solution.id}" class="body">{solution.body}</p>
+	<!-- 法案は解決策から書き始める（Issue #46）。非表示のものには出さない -->
+	{#if !readonly}<p class="to-bill"><a href="/houan/kaku?kaiketsu={solution.id}">{ja.solution.toBill}</a></p>{/if}
 	<div class="reactions">
 		{#if solution.mine || readonly}
 			<!-- 自分の解決策と、非表示のものには押せない。数だけを出す -->
@@ -248,6 +250,17 @@
 		color: var(--color-base);
 		font: inherit;
 		font-weight: bold;
+	}
+
+	.to-bill {
+		margin: 0.25rem 0 0;
+		font-size: var(--font-size-sub);
+	}
+
+	.to-bill a {
+		display: inline-flex;
+		align-items: center;
+		min-height: var(--tap-min);
 	}
 
 	.sr {

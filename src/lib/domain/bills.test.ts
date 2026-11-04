@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { parseLaw, type Article } from './law';
-import { articleBodyText, checkChanges, formalName, parseArticleBody, validateBill, type BillChange, type BillRaw } from './bills';
+import { articleBodyText, changeDiff, checkChanges, formalName, parseArticleBody, validateBill, type BillChange, type BillRaw } from './bills';
 
 const root = new URL('../../../', import.meta.url);
 const dir = new URL('tests/fixtures/egov/', root);
@@ -180,4 +180,28 @@ describe('基準6：正式名', () => {
 		expect(formalName('repeal', [t('repeal', '消費者契約法'), t('repeal', '特定商取引に関する法律')])).toBe('消費者契約法等を廃止する法律案');
 		expect(formalName('enact', [t('enact', 'サブスク解約法'), t('amend', '消費者契約法')])).toBe('サブスク解約法案');
 	});
+});
+
+// Issue #46 のレビューの Major：公開のページで、長さと違いに上限のない文字の比べを走らせないように
+test('changeDiff：違いが大きい条は、全文の置きかえとして返す。使った分を cost で返す', () => {
+	const shape = (parts: ReturnType<typeof changeDiff>['parts']) => parts.map((p) => [p.value, Boolean(p.added), Boolean(p.removed)]);
+	const small = changeDiff('消費者の権利', '消費者の義務', 1000);
+	expect(shape(small.parts)).toEqual([
+		['消費者の', false, false],
+		['権利', false, true],
+		['義務', true, false]
+	]);
+	expect(small.cost).toBe(4);
+	const [before, after] = ['あ'.repeat(10000), 'い'.repeat(10000)];
+	const large = changeDiff(before, after, 1000);
+	expect(shape(large.parts)).toEqual([
+		[before, false, true],
+		[after, true, false]
+	]);
+	expect(large.cost).toBe(1000);
+	// 予算を使い切ったら比べない
+	expect(shape(changeDiff('消費者の権利', '消費者の義務', 0).parts)).toEqual([
+		['消費者の権利', false, true],
+		['消費者の義務', true, false]
+	]);
 });
