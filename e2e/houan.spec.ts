@@ -1,6 +1,6 @@
 // Issue #46 法案を書く画面と法案のページ（改正・廃止）。表とルールは docs/spec/45.md
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { ORIGIN, newUser, postIssue, solutionRequest, solutionStaffRequest } from './helpers';
+import { ORIGIN, newUser, postIssue, solutionRequest, solutionStaffRequest, stubTurnstile } from './helpers';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -202,7 +202,8 @@ test('基準4：書きかえ・新しく追加・削除の条を並べて保存�
 	await row(1).getByLabel('変える条').selectOption({ label: '第1条（目的）' });
 	await expect(row(1).getByLabel('変更後の条文')).toHaveValue(new RegExp(ARTICLE1));
 	const text1 = await row(1).getByLabel('変更後の条文').inputValue();
-	await row(1).getByLabel('変更後の条文').fill(text1.replace('格差に鑑み', '格差と解約の難しさに鑑み'));
+	// 消す文字と足す文字の両方がある書きかえ
+	await row(1).getByLabel('変更後の条文').fill(text1.replace('格差に鑑み', '格差と解約の難しさを踏まえ'));
 
 	await a.getByRole('button', { name: '変える条を足す' }).click();
 	await row(2).getByLabel('変え方').selectOption({ label: '新しく追加' });
@@ -223,8 +224,8 @@ test('基準4：書きかえ・新しく追加・削除の条を並べて保存�
 	await expect(a).toHaveURL(/\/houan\/\d+\/henkou$/);
 	const change = (heading: string) => a.locator('article').filter({ has: a.getByRole('heading', { name: heading }) });
 	const amended = change('1. 第1条 ・ 書きかえ');
-	await expect(amended.locator('del').filter({ hasText: '−' }).first()).toHaveCSS('text-decoration-line', /line-through/);
-	await expect(amended.locator('ins').filter({ hasText: '＋と解約の難しさ' })).toHaveCSS('text-decoration-line', /underline/);
+	await expect(amended.locator('del').filter({ hasText: '−に鑑み' })).toHaveCSS('text-decoration-line', /line-through/);
+	await expect(amended.locator('ins').filter({ hasText: '＋と解約の難しさを踏まえ' })).toHaveCSS('text-decoration-line', /underline/);
 	const added = change('2. 第1条の2 ・ 新しく追加');
 	await expect(added.locator('ins').filter({ hasText: '消費者は、いつでも契約の解約を申し出ることができる。' })).toBeVisible();
 	await expect(added.getByText('（なし）')).toBeVisible();
@@ -305,6 +306,7 @@ test('基準6：提出者だけが直せる。先に保存された画面と、�
 
 	// 別の画面で先に保存されていたら、保存せずに開き直すよう案内する
 	const other = await a.context().newPage();
+	await stubTurnstile(other);
 	await other.goto(`${bill}/kaku`);
 	await hydrated(other);
 	await a.goto(`${bill}/kaku`);
