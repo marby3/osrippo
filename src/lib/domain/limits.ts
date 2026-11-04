@@ -34,6 +34,12 @@ export const LIMITS = {
 	billSupportPerDay: 30,
 	billSupportPerBurst: 10,
 	billSupportAccountsPerIp: 3,
+	/** 質疑・答弁・補足（設計書 docs/spec/66.md 決めたこと5）。答弁が多いのは、提出者がまとめて答えるため */
+	questionPerDay: 10,
+	answerPerDay: 30,
+	supplementPerDay: 10,
+	billPostPerBurst: 10,
+	billPostPerIp: 60,
 	/** 下書きを作る・賛同する・発議するのは、登録からこの長さのアカウントだけ（Issue #41 決めたこと6） */
 	billAccountAge: 7 * DAY,
 	banLength: DAY
@@ -56,7 +62,12 @@ export type RefusalKind =
 	| 'bill-save-account'
 	| 'bill-support-day'
 	| 'bill-support-burst'
-	| 'bill-support-ip';
+	| 'bill-support-ip'
+	| 'question-day'
+	| 'answer-day'
+	| 'supplement-day'
+	| 'bill-post-burst'
+	| 'bill-post-ip';
 export type Refusal = { kind: RefusalKind; retryAt?: number };
 
 /** 違反に数えるか。回線ごとの上限は同じ回線の別の人のせいで当たることがあり、登録したばかりの上限は試しているうちに締め出されないよう、数えない */
@@ -77,7 +88,12 @@ export const COUNTS_AS_VIOLATION: Record<RefusalKind, boolean> = {
 	'bill-save-account': true,
 	'bill-support-day': true,
 	'bill-support-burst': true,
-	'bill-support-ip': false
+	'bill-support-ip': false,
+	'question-day': true,
+	'answer-day': true,
+	'supplement-day': true,
+	'bill-post-burst': true,
+	'bill-post-ip': false
 };
 
 type PostCounts = { accountPostTimes: number[]; ipPosts: number; registeredAt: number };
@@ -171,5 +187,14 @@ export function checkBillSupport(c: {
 	if (c.accountDay >= LIMITS.billSupportPerDay) return { kind: 'bill-support-day' };
 	if (c.accountBurst >= LIMITS.billSupportPerBurst) return { kind: 'bill-support-burst' };
 	if (c.op === 'add' && !c.selfAddedRecently && c.otherAccountsOnIp >= LIMITS.billSupportAccountsPerIp) return { kind: 'bill-support-ip' };
+	return null;
+}
+
+/** 質疑・答弁・補足。accountDay はその種類の、accountBurst と ipDay は3種類を合わせた直近の数 */
+export function checkBillPost(kind: 'question' | 'answer' | 'supplement', c: { accountDay: number; accountBurst: number; ipDay: number }): Refusal | null {
+	const perDay = { question: LIMITS.questionPerDay, answer: LIMITS.answerPerDay, supplement: LIMITS.supplementPerDay }[kind];
+	if (c.accountDay >= perDay) return { kind: `${kind}-day` };
+	if (c.accountBurst >= LIMITS.billPostPerBurst) return { kind: 'bill-post-burst' };
+	if (c.ipDay >= LIMITS.billPostPerIp) return { kind: 'bill-post-ip' };
 	return null;
 }

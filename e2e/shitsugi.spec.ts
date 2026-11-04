@@ -170,8 +170,9 @@ test('基準3：提出者と賛同者が答弁でき、役割だけが出て「�
 	await q.page.goto(qa(bill));
 	const html = await (await q.page.request.get(`${qa(bill)}/__data.json`)).text();
 	expect(html).not.toMatch(/user_?id/i);
-	expect(html).not.toContain(`a-${label}`);
+	// 提出者の名前は法案の見出しに出す（#46）。質疑を書いた人と、答弁した賛同者の名前は出さない
 	expect(html).not.toContain(`q-${label}`);
+	expect(html).not.toContain(`u2-${label}`);
 });
 
 test('基準4：提出者と賛同者のほかの人が3週目に補足でき、「答弁待ち」は消えない', async ({ browser, page }, info) => {
@@ -332,7 +333,8 @@ test('基準7：答弁はスマホでは開くと出て、PC は最初から出�
 	await b.setNow(at(month, 15));
 	expect((await answerRequest(b.page, bill, id, `2つ目の答弁 ${label}`)).status()).toBe(200);
 	await v.goto(qa(bill));
-	await expect(card(v, text).getByRole('button', { name: '答弁を読む（2件）' })).toBeAttached();
+	// PC ではボタンを CSS で隠しているので、隠れたものも探す
+	await expect(card(v, text).getByRole('button', { name: '答弁を読む（2件）', includeHidden: true })).toBeAttached();
 });
 
 test('信頼の境界：形の違う値は 400、ほかの法案の質疑は 404、下書きは 404。本文の誤りはそのカードの欄に入力を残して出す', async ({ browser }, info) => {

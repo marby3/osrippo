@@ -5,6 +5,7 @@ import { CHANGES } from '../domain/law/history';
 import type { Heading } from '../domain/law/parse';
 import { REACTIONS } from '../domain/solutions';
 import { BILL_KINDS, CHANGE_OPS } from '../domain/bills';
+import { POST_KINDS, STANCES, type PostRole } from '../domain/posts';
 import { VOTE_CHOICES } from '../domain/votes';
 
 export const laws = sqliteTable('laws', {
@@ -648,4 +649,78 @@ export const voteAssignments = sqliteTable(
 		unique().on(t.sessionKey, t.userId, t.billId),
 		check('vote_assignments_seq', sql`${t.seq} BETWEEN 0 AND 2`)
 	]
+);
+
+/**
+ * 質疑・答弁・補足（設計書 docs/spec/66.md）。答弁と補足の parent_id はその質疑。
+ * session_key は付託先の会期（要調整で次の会期に審議するときに分けるため）。
+ * role の値と status には CHECK を付けない（#76 と通報の Issue で値を足すときに、自己参照のある表を作り直さないため）
+ */
+export const posts = sqliteTable(
+	'posts',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		sessionKey: text('session_key').notNull(),
+		kind: text('kind', { enum: POST_KINDS }).notNull(),
+		parentId: integer('parent_id'),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		role: text('role').$type<PostRole>(),
+		body: text('body').notNull(),
+		status: text('status').notNull().default('visible'),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }),
+		index('posts_bill').on(t.billId, t.kind, t.id),
+		index('posts_parent').on(t.parentId),
+		index('posts_user').on(t.userId),
+		check('posts_kind', sql`${t.kind} IN (${inList(POST_KINDS)})`),
+		check('posts_parent_kind', sql`(${t.kind} = 'question') = (${t.parentId} IS NULL)`),
+		check('posts_role_kind', sql`(${t.kind} = 'answer') = (${t.role} IS NOT NULL)`)
+	]
+);
+
+/**
+ * いまの立場（設計書 docs/spec/66.md 決めたこと6）。非公開で、本人の行だけを読む。行がなければ未定。
+ * 変更の履歴（stance_log）はトリガーで足す。トリガーは 0012 の末尾に手で足した
+ */
+export const stances = sqliteTable(
+	'stances',
+	{
+		sessionKey: text('session_key').notNull(),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		stance: text('stance', { enum: STANCES }).notNull(),
+		/** 最初に選んだあとで変えた回数 */
+		changes: integer('changes').notNull().default(0),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.sessionKey, t.billId, t.userId] }), check('stances_stance', sql`${t.stance} IN (${inList(STANCES)})`)]
+);
+
+/** 立場の変更の履歴（仕様「変更履歴つき」）。stances のトリガーだけが書く */
+export const stanceLog = sqliteTable(
+	'stance_log',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		sessionKey: text('session_key').notNull(),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		stance: text('stance', { enum: STANCES }).notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [index('stance_log_bill').on(t.billId, t.sessionKey)]
 );

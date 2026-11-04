@@ -1,0 +1,130 @@
+// 質疑・答弁・補足と立場を読む・書く（Issue #66。設計書 docs/spec/66.md）。受け取る値は呼ぶ側（post-actions.ts）が確かめる
+import { and, asc, count, desc, eq, gt, inArray, sql } from 'drizzle-orm';
+import { actions, billSupports, posts, stances } from '../db/schema';
+import { DAY, LIMITS, checkBillPost } from '../domain/limits';
+import { QUESTION_PAGE_SIZE, STANCE_CHANGES, type PostKind, type PostRole, type Stance } from '../domain/posts';
+import type { Session } from '../domain/session';
+import { refuse, type Actor } from './issues';
+import type { Db } from './law';
+
+const POST_ACTION = { question: 'question_post', answer: 'answer_post', supplement: 'supplement_post' } as const;
+const POST_ACTIONS = Object.values(POST_ACTION);
+
+/** 賛同したことがあるか（どの版の行でも。修正案の取り込みで版が進んでも答弁できるように） */
+export async function isSupporter(db: Db, billId: number, userId: string): Promise<boolean> {
+	const rows = await db
+		.select({ userId: billSupports.userId })
+		.from(billSupports)
+		.where(and(eq(billSupports.billId, billId), eq(billSupports.userId, userId)))
+		.limit(1);
+	return rows.length > 0;
+}
+
+/** その法案のその会期の質疑。なければ undefined */
+export async function questionOf(db: Db, questionId: number, billId: number, sessionKey: string) {
+	const [row] = await db
+		.select({ id: posts.id, userId: posts.userId })
+		.from(posts)
+		.where(and(eq(posts.id, questionId), eq(posts.billId, billId), eq(posts.sessionKey, sessionKey), eq(posts.kind, 'question')));
+	return row;
+}
+
+/** 上限を確かめて書く */
+export async function createPost(
+	db: Db,
+	actor: Actor,
+	post: { billId: number; sessionKey: string; kind: PostKind; parentId: number | null; role: PostRole | null; body: string },
+	now: number
+) {
+	const since = now - DAY;
+	const mine = eq(actions.userId, actor.userId);
+	const allKinds = inArray(actions.kind, POST_ACTIONS);
+	const [accountDay] = await db.select({ n: count() }).from(actions).where(and(mine, eq(actions.kind, POST_ACTION[post.kind]), gt(actions.createdAt, since)));
+	const [accountBurst] = await db.select({ n: count() }).from(actions).where(and(mine, allKinds, gt(actions.createdAt, now - LIMITS.burstWindow)));
+	const [ipDay] = await db.select({ n: count() }).from(actions).where(and(eq(actions.ipHash, actor.ipHash), allKinds, gt(actions.createdAt, since)));
+	const refusal = checkBillPost(post.kind, { accountDay: accountDay.n, accountBurst: accountBurst.n, ipDay: ipDay.n });
+	if (refusal) return refuse(db, actor, refusal, now);
+	const [row] = await db
+		.insert(posts)
+		.values({ ...post, userId: actor.userId, createdAt: now })
+		.returning({ id: posts.id });
+	await db.insert(actions).values({ kind: POST_ACTION[post.kind], userId: actor.userId, ipHash: actor.ipHash, targetId: post.billId, createdAt: now });
+	return { ok: true as const, id: row.id };
+}
+
+// 副問い合わせの中の id と混ざらないよう、列は表の名前を付けて書く（drizzle の ${table.col} は表名なしの列名になる）
+const unanswered = sql`NOT EXISTS (SELECT 1 FROM ${posts} a WHERE a.parent_id = ${posts}.id AND a.kind = 'answer' AND a.status = 'visible')`;
+const questions = (billId: number) => and(eq(posts.billId, billId), eq(posts.kind, 'question'), eq(posts.status, 'visible'));
+
+/** 質疑の数と、答弁待ちの数 */
+export async function questionCounts(db: Db, billId: number) {
+	const [total] = await db.select({ n: count() }).from(posts).where(questions(billId));
+	const [waiting] = await db.select({ n: count() }).from(posts).where(and(questions(billId), unanswered));
+	return { total: total.n, waiting: waiting.n };
+}
+
+/**
+ * 質疑のタブのカード。新しい順で、答弁と補足は古い順。返す値に user_id を入れない（自分のものかは mine で返す）。
+ * 答弁と補足は parent_id IN (…) でまとめて引く（1ページ20件なので、D1 の値の数の上限に収まる）
+ */
+export async function listQuestions(db: Db, billId: number, userId: string | null, onlyWaiting: boolean, page: number) {
+	const rows = await db
+		.select({ id: posts.id, body: posts.body, userId: posts.userId })
+		.from(posts)
+		.where(onlyWaiting ? and(questions(billId), unanswered) : questions(billId))
+		.orderBy(desc(posts.id))
+		.limit(QUESTION_PAGE_SIZE + 1)
+		.offset((page - 1) * QUESTION_PAGE_SIZE);
+	const shown = rows.slice(0, QUESTION_PAGE_SIZE);
+	const children = shown.length
+		? await db
+				.select({ id: posts.id, parentId: posts.parentId, kind: posts.kind, role: posts.role, body: posts.body })
+				.from(posts)
+				.where(and(inArray(posts.parentId, shown.map((q) => q.id)), eq(posts.status, 'visible')))
+				.orderBy(asc(posts.id))
+		: [];
+	const of = (id: number, kind: PostKind) => children.filter((c) => c.parentId === id && c.kind === kind);
+	return {
+		rows: shown.map((q) => ({
+			id: q.id,
+			body: q.body,
+			mine: q.userId === userId,
+			answers: of(q.id, 'answer').map((a) => ({ id: a.id, role: a.role as PostRole, body: a.body })),
+			supplements: of(q.id, 'supplement').map((s) => ({ id: s.id, body: s.body }))
+		})),
+		hasNext: rows.length > QUESTION_PAGE_SIZE
+	};
+}
+
+/** 見ている人の立場と、あと何回変えられるか。行がなければ未定（最初に選ぶのは数えない） */
+export async function stanceOf(db: Db, sessionKey: string, billId: number, userId: string): Promise<{ stance: Stance; left: number }> {
+	const [row] = await db
+		.select({ stance: stances.stance, changes: stances.changes })
+		.from(stances)
+		.where(and(eq(stances.sessionKey, sessionKey), eq(stances.billId, billId), eq(stances.userId, userId)));
+	return row ? { stance: row.stance, left: STANCE_CHANGES - row.changes } : { stance: 'undecided', left: STANCE_CHANGES };
+}
+
+/**
+ * 立場を変える。回数の確かめも同じ文の中で行うので、2つのタブから同時に押しても上限を超えない。履歴（stance_log）はトリガーが足す。
+ * 行がないのは未定と同じなので、何も選んでいない人が未定を押しても何も起きない
+ */
+export async function setStance(db: Db, actor: Actor, bill: { id: number }, session: Pick<Session, 'key'>, stance: Stance, now: number) {
+	const changed =
+		stance === 'undecided'
+			? await db.all(sql`
+				UPDATE ${stances} SET stance = 'undecided', changes = changes + 1, updated_at = ${now}
+				WHERE session_key = ${session.key} AND bill_id = ${bill.id} AND user_id = ${actor.userId} AND stance <> 'undecided' AND changes < ${STANCE_CHANGES}
+				RETURNING changes`)
+			: await db.all(sql`
+				INSERT INTO ${stances} (session_key, bill_id, user_id, stance, changes, updated_at) VALUES (${session.key}, ${bill.id}, ${actor.userId}, ${stance}, 0, ${now})
+				ON CONFLICT (session_key, bill_id, user_id) DO UPDATE SET stance = excluded.stance, changes = stances.changes + 1, updated_at = excluded.updated_at
+				WHERE stances.stance <> excluded.stance AND stances.changes < ${STANCE_CHANGES}
+				RETURNING changes`);
+	if (changed.length === 0) {
+		const current = await stanceOf(db, session.key, bill.id, actor.userId);
+		return current.stance === stance ? { ok: true as const, changed: false } : { ok: false as const, reason: 'limit' as const };
+	}
+	await db.insert(actions).values({ kind: 'stance_set', userId: actor.userId, ipHash: actor.ipHash, targetId: bill.id, createdAt: now });
+	return { ok: true as const, changed: true };
+}
