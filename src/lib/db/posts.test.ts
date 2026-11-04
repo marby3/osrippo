@@ -3,7 +3,7 @@ import { beforeAll, expect, test } from 'vitest';
 import type { DatabaseSync } from 'node:sqlite';
 import { openMemoryDb } from './memory';
 import type { Db } from '../server/law';
-import { setStance, stanceOf } from '../server/posts';
+import { isSupporter, setStance, stanceOf } from '../server/posts';
 import { sessionAt } from '../domain/session';
 import { checkBillPost, COUNTS_AS_VIOLATION, LIMITS } from '../domain/limits';
 
@@ -69,4 +69,12 @@ test('基準8：1アカウント24時間に質疑10・答弁30・補足10、合�
 	expect(check('answer', { ipDay: 59 })).toBeNull();
 	expect(check('answer', { ipDay: 60 })).toBe('bill-post-ip');
 	expect(COUNTS_AS_VIOLATION['bill-post-ip']).toBe(false);
+});
+
+test('基準3：賛同者は、いまの版に賛同した人だけ。直される前の版にだけ賛同した人は答弁できる賛同者にならない', async () => {
+	sqlite.exec("INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('u2', 'u2', 'u2@test.invalid', 0, 0), ('u3', 'u3', 'u3@test.invalid', 0, 0)");
+	sqlite.exec("INSERT INTO bills (id, user_id, committee_id, kind, status, rev, next_rev, title, affected, side_effects, created_at, updated_at) VALUES (2, 'u1', 1, 'amend', 'proposed', 2, 3, 't', 'a', 's', 0, 0)");
+	sqlite.exec("INSERT INTO bill_supports (bill_id, rev, user_id, created_at) VALUES (2, 1, 'u2', 0), (2, 2, 'u3', 0)");
+	expect(await isSupporter(db, { id: 2, rev: 2 }, 'u2')).toBe(false);
+	expect(await isSupporter(db, { id: 2, rev: 2 }, 'u3')).toBe(true);
 });

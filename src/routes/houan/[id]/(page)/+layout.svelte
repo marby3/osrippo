@@ -1,5 +1,5 @@
 <script lang="ts">
-	// 法案のページの上の部分とタブ（SpBillSummary・PcBillSummary）。質疑のタブは作るときまで出さない（Issue #46 決めたこと4）
+	// 法案のページの上の部分とタブ（SpBillSummary・PcBillSummary）。質疑のタブは発議から出す（Issue #66）
 	import { page } from '$app/state';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { LayoutProps } from './$types';

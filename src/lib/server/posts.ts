@@ -10,12 +10,15 @@ import type { Db } from './law';
 const POST_ACTION = { question: 'question_post', answer: 'answer_post', supplement: 'supplement_post' } as const;
 const POST_ACTIONS = Object.values(POST_ACTION);
 
-/** 賛同したことがあるか（どの版の行でも。修正案の取り込みで版が進んでも答弁できるように） */
-export async function isSupporter(db: Db, billId: number, userId: string): Promise<boolean> {
+/**
+ * いまの版の賛同者か。「賛同 N人」と同じ行を数える（直される前の版にだけ賛同した人は、賛同者として答弁できない）。
+ * 修正案の取り込みで発議のあとに版が進むようになったら、発議した版の賛同者を保つ（#68）
+ */
+export async function isSupporter(db: Db, bill: { id: number; rev: number }, userId: string): Promise<boolean> {
 	const rows = await db
 		.select({ userId: billSupports.userId })
 		.from(billSupports)
-		.where(and(eq(billSupports.billId, billId), eq(billSupports.userId, userId)))
+		.where(and(eq(billSupports.billId, bill.id), eq(billSupports.rev, bill.rev), eq(billSupports.userId, userId)))
 		.limit(1);
 	return rows.length > 0;
 }
@@ -56,11 +59,16 @@ export async function createPost(
 const unanswered = sql`NOT EXISTS (SELECT 1 FROM ${posts} a WHERE a.parent_id = ${posts}.id AND a.kind = 'answer' AND a.status = 'visible')`;
 const questions = (billId: number) => and(eq(posts.billId, billId), eq(posts.kind, 'question'), eq(posts.status, 'visible'));
 
-/** 質疑の数と、答弁待ちの数 */
-export async function questionCounts(db: Db, billId: number) {
-	const [total] = await db.select({ n: count() }).from(posts).where(questions(billId));
-	const [waiting] = await db.select({ n: count() }).from(posts).where(and(questions(billId), unanswered));
-	return { total: total.n, waiting: waiting.n };
+/** 質疑の数（すべて） */
+export async function questionTotal(db: Db, billId: number) {
+	const [row] = await db.select({ n: count() }).from(posts).where(questions(billId));
+	return row.n;
+}
+
+/** 答弁待ちの質疑の数 */
+export async function waitingQuestions(db: Db, billId: number) {
+	const [row] = await db.select({ n: count() }).from(posts).where(and(questions(billId), unanswered));
+	return row.n;
 }
 
 /**

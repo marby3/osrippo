@@ -2,6 +2,7 @@
 	// 質疑のカード（SpBillQA・PcBillQA）。答弁はスマホでは開くと出て、PC は最初から出ている（ボタンは CSS で隠す）。
 	// 答弁と補足の欄はカードの中に開く。失敗したら、そのカードの欄に入力を残して誤りを出す
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import { ja } from '../copy/ja';
 	import { POST_MAX, type PostRole } from '../domain/posts';
 	import type { IssueError } from '../domain/issues';
@@ -14,7 +15,7 @@
 		answers: { id: number; role: PostRole; body: string }[];
 		supplements: { id: number; body: string }[];
 	};
-	type Failure = { question?: number | null; kind?: 'answer' | 'supplement'; body?: string; error?: IssueError; message?: string };
+	type Failure = { question: number | null; body: string; error?: IssueError; message?: string };
 
 	let {
 		question,
@@ -24,7 +25,8 @@
 		canAnswer,
 		canSupplement,
 		siteKey,
-		form,
+		failure,
+		afterReply,
 		back
 	}: {
 		question: Question;
@@ -35,19 +37,20 @@
 		canAnswer: boolean;
 		canSupplement: boolean;
 		siteKey: string;
-		form: unknown;
+		failure: Failure | null;
+		/** 書けたあとで移る先。なければ今のページを読み直す */
+		afterReply: string | null;
 		back: string;
 	} = $props();
 
-	const failure = $derived((form ?? {}) as Failure);
-	const failedHere = $derived(failure.question === question.id);
+	const failedHere = $derived(failure?.question === question.id);
 	const hasAnswers = $derived(question.answers.length > 0);
 	// 答弁できる人には答弁、ほかの人には補足。提出者と賛同者は自分の質疑にどちらも書けない
 	const kind = $derived(role !== null ? (question.mine || !canAnswer ? null : 'answer') : canSupplement && !waiting ? 'supplement' : null);
 	const label = $derived(kind === 'answer' ? ja.post.answerField : ja.post.supplementField);
 	const openLabel = $derived(kind === 'answer' ? ja.post.answer : ja.post.supplement);
 	const errorText = $derived.by(() => {
-		const e = failedHere ? failure.error : undefined;
+		const e = failedHere ? failure?.error : undefined;
 		if (!e || !kind) return undefined;
 		return e === 'tooLong' ? ja.issue.errors.tooLong(POST_MAX[kind]) : ja.issue.errors[e];
 	});
@@ -59,7 +62,7 @@
 	let turnstile: ReturnType<typeof Turnstile> | undefined = $state();
 	/** 失敗したカードは欄を開いて入力を残す */
 	const open = $derived(writing || failedHere);
-	const body = $derived(edited ?? (failedHere ? (failure.body ?? '') : ''));
+	const body = $derived(edited ?? (failedHere ? (failure?.body ?? '') : ''));
 	const toggleLabel = $derived(question.answers.length > 1 ? ja.post.readAnswers(question.answers.length) : ja.post.readAnswer(ja.post.roles[question.answers[0]?.role ?? 'author']));
 	const fieldId = $derived(`reply-${question.id}`);
 </script>
@@ -102,12 +105,15 @@
 				class="reply"
 				use:enhance={() =>
 					async ({ result, update }) => {
-						await update({ reset: false });
-						// トークンは1回しか使えないので、断られたら作り直す
+						// トークンは1回しか使えない。書けたら欄を閉じて捨て、断られたら作り直す
 						if (result.type === 'success') {
 							writing = false;
 							edited = null;
+							token = '';
+							if (afterReply) return goto(afterReply, { invalidateAll: true });
+							await update({ reset: false });
 						} else {
+							await update({ reset: false });
 							writing = true;
 							turnstile?.reset();
 						}
@@ -128,7 +134,7 @@
 				></textarea>
 				{#if errorText}<p id="{fieldId}-error" class="error">{errorText}</p>{/if}
 				<Turnstile {siteKey} bind:token bind:this={turnstile} />
-				{#if failedHere && failure.message}<p role="alert" class="error">{failure.message}</p>{/if}
+				{#if failedHere && failure?.message}<p role="alert" class="error">{failure.message}</p>{/if}
 				<button class="primary" disabled={!token}>{ja.post.send}</button>
 			</form>
 		{:else}
@@ -176,6 +182,23 @@
 		color: var(--color-text);
 		font: inherit;
 		text-align: left;
+	}
+
+	/* 案の開閉の印 */
+	.toggle::after {
+		content: '';
+		float: right;
+		width: 0.5rem;
+		height: 0.5rem;
+		margin: 0.5rem 0.25rem 0 0;
+		border-right: 2px solid var(--color-text);
+		border-bottom: 2px solid var(--color-text);
+		transform: rotate(45deg);
+	}
+
+	.toggle[aria-expanded='true']::after {
+		margin-top: 0.75rem;
+		transform: rotate(-135deg);
 	}
 
 	.answers {
@@ -247,6 +270,13 @@
 	}
 
 	@media (min-width: 64rem) {
+		/* PC は案（PcBillQA）のとおり区切り線 */
+		article {
+			padding: 1rem 0;
+			border-width: 0 0 1px;
+			border-radius: 0;
+		}
+
 		.toggle {
 			display: none;
 		}

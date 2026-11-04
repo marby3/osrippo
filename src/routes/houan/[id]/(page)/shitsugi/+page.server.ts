@@ -6,7 +6,7 @@ import { billWaitUntil } from '#lib/domain/limits.ts';
 import { answererRole, postWindowOpen, stanceOpen } from '#lib/domain/posts.ts';
 import { nowOf } from '#lib/server/client.ts';
 import { answerAction, postableBill, progressOf, stanceAction, supplementAction } from '#lib/server/post-actions.ts';
-import { isSupporter, listQuestions, questionCounts, stanceOf } from '#lib/server/posts.ts';
+import { isSupporter, listQuestions, questionTotal, stanceOf, waitingQuestions } from '#lib/server/posts.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -23,10 +23,12 @@ export const load: PageServerLoad = async (event) => {
 	const now = nowOf(event);
 	const { progress, session } = progressOf(bill, now);
 	const userId = user?.id ?? null;
-	const role = answererRole(bill, userId, userId !== null && (await isSupporter(db, bill.id, userId)));
+	const role = answererRole(bill, userId, userId !== null && (await isSupporter(db, bill, userId)));
+	const waiting = await waitingQuestions(db, bill.id);
 	return {
 		questions: rows,
-		counts: await questionCounts(db, bill.id),
+		waitingCount: waiting,
+		totalCount: onlyWaiting ? waiting : await questionTotal(db, bill.id),
 		hasNext,
 		page,
 		onlyWaiting,

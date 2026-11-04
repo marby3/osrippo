@@ -8,7 +8,7 @@ import { billWaitUntil } from '#lib/domain/limits.ts';
 import { FIRST_COMMITTEE } from '#lib/server/bill-form.ts';
 import { billById, billSupportState, billView, sessionParticipants } from '#lib/server/bills.ts';
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
-import { questionCounts } from '#lib/server/posts.ts';
+import { questionTotal } from '#lib/server/posts.ts';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async (event) => {
@@ -34,7 +34,7 @@ export const load: LayoutServerLoad = async (event) => {
 		progress: billProgress(bill, now, minutes),
 		next: nextStage(bill, now, minutes),
 		// 下書きには質疑がないのでタブを出さない
-		questionCount: draft ? null : (await questionCounts(db, bill.id)).total,
+		questionCount: draft ? null : await questionTotal(db, bill.id),
 		canEdit: isAuthor && draft,
 		support: {
 			rev: bill.rev,

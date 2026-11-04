@@ -10,7 +10,12 @@
 
 	let { data, form }: PageProps = $props();
 	const base = $derived(`/houan/${data.bill.id}/shitsugi`);
-	const here = $derived(page.url.pathname);
+	// ログインのあとで同じ絞り込みとページに戻る
+	const here = $derived(page.url.pathname + page.url.search);
+	/** 絞り込みの2ページ目以降で答弁すると、そのページが空になることがあるので、1ページ目へ移る */
+	const afterReply = $derived(data.onlyWaiting && data.page > 1 ? `${base}?mati=1` : null);
+	/** 失敗した答弁か補足（そのカードの欄に出す） */
+	const failure = $derived(form?.question !== undefined ? { question: form.question, body: form.body ?? '', error: form.error, message: form.message } : null);
 	const stanceMessage = $derived(form && 'stanceMessage' in form ? form.stanceMessage : undefined);
 	const choices: Stance[] = ['for', 'undecided', 'against'];
 	const nextHref = $derived(`${base}?${data.onlyWaiting ? 'mati=1&' : ''}page=${data.page + 1}`);
@@ -51,7 +56,7 @@
 	<div class="list">
 		<nav class="filters" aria-label={ja.post.filters}>
 			<a href={base} aria-current={data.onlyWaiting ? undefined : 'page'}>{ja.post.all}</a>
-			<a href="{base}?mati=1" aria-current={data.onlyWaiting ? 'page' : undefined}>{ja.post.waitingCount(data.counts.waiting)}</a>
+			<a href="{base}?mati=1" aria-current={data.onlyWaiting ? 'page' : undefined}>{ja.post.waitingCount(data.waitingCount)}</a>
 		</nav>
 		{#each data.questions as question (question.id)}
 			<QuestionCard
@@ -62,13 +67,14 @@
 				canAnswer={data.canAnswer}
 				canSupplement={data.canSupplement}
 				siteKey={data.siteKey}
-				{form}
+				{failure}
+				{afterReply}
 				back={here}
 			/>
 		{:else}
 			<p class="empty">{data.onlyWaiting ? ja.post.emptyWaiting : ja.post.empty}</p>
 		{/each}
-		{#if data.hasNext}<p class="more"><a href={nextHref}>{ja.post.more}</a></p>{/if}
+		{#if data.hasNext}<p class="more"><a href={nextHref}>{ja.post.more(data.totalCount)}</a></p>{/if}
 	</div>
 
 	{#if data.canQuestion}
@@ -142,9 +148,25 @@
 		font-size: var(--font-size-sub);
 	}
 
+	/* スマホの「質疑を書く」は、案（SpBillQA）のとおり画面の下に留める。一覧と同じ行に重ね、下端に置く */
 	.list {
+		grid-column: 1;
+		grid-row: 2;
 		display: grid;
 		gap: 1rem;
+		padding-bottom: calc(var(--tap-primary) + 1rem);
+	}
+
+	.stance {
+		grid-row: 1;
+	}
+
+	.write {
+		position: sticky;
+		bottom: 0.5rem;
+		grid-column: 1;
+		grid-row: 2;
+		align-self: end;
 	}
 
 	.filters {
@@ -196,11 +218,22 @@
 		.list {
 			grid-column: 1;
 			grid-row: 1 / span 2;
+			padding-bottom: 0;
 		}
 
 		.stance,
 		.write {
 			grid-column: 2;
+		}
+
+		.stance {
+			grid-row: 1;
+		}
+
+		.write {
+			position: static;
+			grid-row: 2;
+			align-self: start;
 		}
 
 		.choices {

@@ -50,7 +50,9 @@ const tab = (page: Page) => page.getByRole('navigation', { name: '法案のペ�
 const card = (page: Page, text: string) => page.locator('article').filter({ hasText: text });
 const posted = async (u: Page, act: () => Promise<void>) => {
 	const [res] = await Promise.all([u.waitForResponse((r) => r.request().method() === 'POST'), act()]);
+	// use:enhance の送信は fail() でも HTTP 200 で返るので、本文の type も確かめる
 	expect(res.status()).toBeLessThan(400);
+	if (res.status() < 300) expect(await res.text()).not.toContain('"type":"failure"');
 };
 const writeQuestion = async (u: Page, bill: string, text: string) => {
 	await u.goto(qa(bill));
@@ -115,7 +117,6 @@ test('基準2：登録から7日たった人が3週目に質疑を書ける。�
 	expect((await questionRequest(q.page, bill, '遅すぎる質疑')).status()).toBe(409);
 
 	const fresh = await user(browser, ip(w, 2, 6), at(month, 15), `n-${label}`, 6);
-	await fresh.setNow(at(month, 15));
 	// x-test-now の月では登録から7日を過ぎるので、本当の時刻で確かめる
 	await fresh.page.context().setExtraHTTPHeaders({ 'x-test-ip': ip(w, 2, 6) });
 	await fresh.page.goto(`${qa(bill)}/kaku`);
@@ -227,9 +228,6 @@ test('基準5：「すべて」と「答弁待ち N」で切りかえられる�
 		const res = await questionRequest(writers[Math.floor(i / 10)].page, bill, text);
 		expect(res.status(), await res.text()).toBe(303);
 	}
-	const answered = texts[20];
-	const res = await answerRequest(a.page, bill, await questionId(a.page, bill, answered), `答弁 ${label}`);
-	expect(res.status(), await res.text()).toBe(200);
 
 	const u = a.page;
 	await u.goto(qa(bill));
@@ -237,16 +235,25 @@ test('基準5：「すべて」と「答弁待ち N」で切りかえられる�
 	// 新しい順で、1ページに20件
 	await expect(u.locator('article')).toHaveCount(20);
 	await expect(u.locator('article').first()).toContainText(texts[20]);
-	await u.getByRole('link', { name: '質疑をもっと見る' }).click();
+	await u.getByRole('link', { name: '質疑をもっと見る（21件）' }).click();
 	await expect(u.locator('article')).toHaveCount(1);
 	await expect(u.locator('article').first()).toContainText(texts[0]);
 
-	await u.goto(qa(bill));
-	await u.getByRole('link', { name: '答弁待ち 20' }).click();
+	// 絞り込みの2ページ目で最後の1件に答弁すると、ページが空になるので1ページ目へ移る
+	await u.goto(`${qa(bill)}?mati=1&page=2`);
+	await hydrated(u);
+	const answered = texts[0];
+	await card(u, answered).getByRole('button', { name: '答弁する' }).click();
+	await u.getByLabel('答弁の内容').fill(`答弁 ${label}`);
+	await posted(u, () => u.getByRole('button', { name: '送る' }).click());
 	await expect(u).toHaveURL(new RegExp(`${qa(bill)}\\?mati=1$`));
+
+	await expect(u.getByRole('link', { name: '答弁待ち 20' })).toBeVisible();
 	await expect(card(u, answered)).toHaveCount(0);
 	await expect(u.locator('article')).toHaveCount(20);
 	await u.getByRole('link', { name: 'すべて' }).click();
+	await expect(u.locator('article').first()).toContainText(texts[20]);
+	await u.getByRole('link', { name: '質疑をもっと見る' }).click();
 	await expect(card(u, answered)).toHaveCount(1);
 });
 
@@ -356,7 +363,7 @@ test('信頼の境界：形の違う値は 400、ほかの法案の質疑は 404
 	expect((await answerRequest(other.a.page, other.bill, id, '別の法案への答弁')).status()).toBe(404);
 	expect((await answerRequest(a.page, bill, '999999999', 'ない質疑')).status()).toBe(404);
 
-	// 下書きと、ない法案は 404（ログインより先に）
+	// 下書きと、ない法案は 404
 	const { ids } = await issueWithSolutions(a.page, `q8-${label}`, [`下書きの解決策 ${label}`]);
 	const draft = await createAmendBill(a.page, `境界の下書き ${label}`, ids[0]);
 	expect((await questionRequest(q.page, draft, '下書きへの質疑')).status()).toBe(404);

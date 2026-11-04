@@ -67,7 +67,7 @@ async function replyAction(event: RequestEvent, kind: Extract<PostKind, 'answer'
 	const form = await event.request.formData();
 	const body = String(form.get('body') ?? '');
 	const questionId = parseIssueId(String(form.get('question') ?? ''));
-	const keep = { question: questionId, kind, body };
+	const keep = { question: questionId, body };
 	const checked = await writer(event, db, bill.id, now, form, keep);
 	if (checked.failure) return checked.failure;
 	if (questionId === null) error(400);
@@ -78,7 +78,7 @@ async function replyAction(event: RequestEvent, kind: Extract<PostKind, 'answer'
 	const question = await questionOf(db, questionId, bill.id, session.key);
 	if (!question) error(404);
 	const { userId } = checked.actor;
-	const role = answererRole(bill, userId, await isSupporter(db, bill.id, userId));
+	const role = answererRole(bill, userId, await isSupporter(db, bill, userId));
 	if (kind === 'answer' && role === null) return fail(403, { message: ja.post.notAnswerer, ...keep });
 	if (kind === 'answer' && question.userId === userId) return fail(403, { message: ja.post.ownQuestion, ...keep });
 	if (kind === 'supplement' && role !== null) return fail(403, { message: ja.post.answererSupplement, ...keep });
