@@ -1,6 +1,6 @@
 // Issue #49 賛同と発議（設計書 docs/spec/49.md）。人数と会期の組み合わせは src/lib/db/bill-supports.test.ts
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { billRequest, billSupportRequest, createAmendBill, issueWithSolutions, newUser, proposeRequest, stubTurnstile } from './helpers';
+import { billRequest, billSupportRequest, createAmendBill, issueWithSolutions, newUser, proposeRequest } from './helpers';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -270,7 +270,6 @@ test('信頼の境界：賛同のフォームの op と rev が決まった形�
 test('信頼の境界：賛同と発議の送り先の法案の番号が違う・ないときは 404', async ({ browser }, info) => {
 	const p = info.project.name;
 	const b = await user(browser, `sc-b-${p}-${stamp()}`, ip(p, 11, 1));
-	await stubTurnstile(b);
 	for (const id of ['abc', '0', '01', '-1', '1.5', '99999999']) {
 		expect((await billSupportRequest(b, `/houan/${id}`, { op: 'add', rev: '1' })).status(), id).toBe(404);
 		expect((await proposeRequest(b, `/houan/${id}`)).status(), id).toBe(404);

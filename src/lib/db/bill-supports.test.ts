@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, test } from 'vitest';
 import type { DatabaseSync } from 'node:sqlite';
 import { openMemoryDb } from './memory';
 import type { Db } from '../server/law';
-import { proposeBill, sessionParticipants, setBillSupport } from '../server/bills';
+import { billById, listBills, proposeBill, sessionParticipants, setBillSupport } from '../server/bills';
 import { proposalRequirement } from '../domain/bills';
 import { sessionAt } from '../domain/session';
 
@@ -75,5 +75,21 @@ describe('賛同の持ち越し', () => {
 		const id = bill(0);
 		expect(await setBillSupport(db, actor('u1'), id, 0, 'add', 1)).toEqual({ ok: false, reason: 'closed' });
 		expect(await proposeBill(db, actor('u0'), id, 0, 1)).toEqual({ ok: false, reason: 'closed' });
+		// 送り先の 404 は billById が undefined を返すことに頼る
+		expect(await billById(db, id)).toBeUndefined();
+	});
+
+	// Issue #49 のレビューの Blocker：一覧の数が古い版の賛同も数えていた
+	test('基準6・9：一覧の賛同の数は、いまの版の賛同だけを数える', async () => {
+		const id = bill(1);
+		const count = async () => (await listBills(db, 'shitagaki', 1)).rows.find((r) => r.id === id)?.supports;
+		for (const u of ['u1', 'u2']) expect((await setBillSupport(db, actor(u), id, 1, 'add', 1)).ok).toBe(true);
+		expect(await count()).toBe(2);
+		// 保存して版が変わると0人に戻る
+		run('UPDATE bills SET rev = 2, next_rev = 3 WHERE id = ?', id);
+		expect(await count()).toBe(0);
+		// 同じ人が賛同し直しても1人
+		expect((await setBillSupport(db, actor('u1'), id, 2, 'add', 2)).ok).toBe(true);
+		expect(await count()).toBe(1);
 	});
 });
