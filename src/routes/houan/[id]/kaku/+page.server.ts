@@ -32,6 +32,7 @@ export const load: PageServerLoad = async (event) => {
 	const initial: BillFormValues = {
 		kind: bill.kind,
 		title: bill.title,
+		newTitle: law?.newTitle ?? '',
 		law: law?.lawId ?? '',
 		base: articles?.revisionId ?? '',
 		affected: bill.affected,

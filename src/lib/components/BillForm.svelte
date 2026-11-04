@@ -42,6 +42,7 @@
 	const toRow = (r: RowValues): Row => ({ ...r, key: key++ });
 	let kind = $state(start.kind);
 	let title = $state(start.title);
+	let newTitle = $state(start.newTitle);
 	let law = $state(start.law);
 	let base = $state(start.base);
 	let affected = $state(start.affected);
@@ -49,7 +50,11 @@
 	let summary = $state(start.summary);
 	let supplementary = $state(start.supplementary);
 	let chosen = $state<string[]>([...start.solutions]);
-	let rows = $state<Row[]>(start.rows.map(toRow));
+	const template = (): RowValues => ({ op: 'add', target: '', num: '', caption: ja.bill.write.enactTemplate.caption, body: ja.bill.write.enactTemplate.body });
+	const emptyRow = (): RowValues => ({ op: 'amend', target: '', num: '', caption: '', body: '' });
+	let rows = $state<Row[]>((start.kind === 'enact' ? [emptyRow()] : start.rows).map(toRow));
+	/** 制定の条。種類を切り替えても、改正の行とは別に残す。第1条はひな形から始める */
+	let enactRows = $state<Row[]>((start.kind === 'enact' && start.rows.length ? start.rows : [template()]).map(toRow));
 	// svelte-ignore state_referenced_locally
 	let articles = $state<Article[] | null>(loaded && loaded.revisionId ? loaded.articles : null);
 	let loading = $state(false);
@@ -62,7 +67,7 @@
 	const fieldError = (f: keyof BillFormErrors['fields']) => errors?.fields[f];
 	/** 送ったときの行の並び。行の誤りは送ったときの位置で返るので、「この変更を外す」のあとも同じ行に出す */
 	// svelte-ignore state_referenced_locally
-	let sentKeys = $state(rows.map((r) => r.key));
+	let sentKeys = $state((start.kind === 'enact' ? enactRows : rows).map((r) => r.key));
 	const rowError = (row: Row, f: RowField) => {
 		const e = errors?.rows[sentKeys.indexOf(row.key)];
 		return e?.field === f ? e.message : undefined;
@@ -73,7 +78,6 @@
 	);
 	let formEl: HTMLFormElement;
 	const byNum = $derived(new Map((articles ?? []).map((a) => [a.num, a])));
-	const emptyRow = (): RowValues => ({ op: 'amend', target: '', num: '', caption: '', body: '' });
 
 	/** 法令の条を取りに行く。法令を選び直したときは、その版を基にした版にする */
 	let asked = 0;
@@ -133,7 +137,7 @@
 	method="post"
 	bind:this={formEl}
 	use:enhance={() => {
-		sentKeys = rows.map((r) => r.key);
+		sentKeys = (kind === 'enact' ? enactRows : rows).map((r) => r.key);
 		return async ({ result, update }) => {
 			await update({ reset: false });
 			// 失敗でも 500 などでも、トークンはサーバーで使い終わっている
@@ -147,15 +151,15 @@
 	}}
 >
 	{#if edit}<input type="hidden" name="rev" value={edit.rev} />{/if}
-	<input type="hidden" name="base" value={base} />
+	{#if kind !== 'enact'}<input type="hidden" name="base" value={base} />{/if}
 
 	{#if edit}
 		<input type="hidden" name="kind" value={kind} />
-		<p class="fixed">{ja.bill.write.kind}：{ja.bill.kinds[kind as 'amend' | 'repeal']}　<span>{ja.bill.write.kindFixed}</span></p>
+		<p class="fixed">{ja.bill.write.kind}：{ja.bill.kinds[kind as 'amend' | 'repeal' | 'enact']}　<span>{ja.bill.write.kindFixed}</span></p>
 	{:else}
 		<fieldset class="kinds">
 			<legend>{ja.bill.write.kind}</legend>
-			{#each ['amend', 'repeal'] as const as k (k)}
+			{#each ['amend', 'repeal', 'enact'] as const as k (k)}
 				<label class="radio"><input type="radio" name="kind" value={k} bind:group={kind} />{ja.bill.kinds[k]}</label>
 			{/each}
 		</fieldset>
@@ -175,25 +179,84 @@
 	/>
 	{#if fieldError('title')}<p class="error" id="bill-title-error">{fieldError('title')}</p>{/if}
 
-	<label for="bill-law">{ja.bill.write.law}</label>
-	<select
-		id="bill-law"
-		name="law"
-		value={law}
-		onchange={(e) => changeLaw(e.currentTarget.value)}
-		required
-		aria-invalid={fieldError('laws') ? 'true' : undefined}
-		aria-describedby={fieldError('laws') ? 'bill-law-error' : undefined}
-	>
-		<option value="">{ja.bill.write.lawPlaceholder}</option>
-		{#each laws as l (l.id)}<option value={l.id}>{l.title}</option>{/each}
-	</select>
-	{#if fieldError('laws')}<p class="error" id="bill-law-error">{fieldError('laws')}</p>{/if}
+	{#if kind === 'enact'}
+		<label for="bill-new-title">{ja.bill.write.newTitle}</label>
+		<p class="hint" id="bill-new-title-hint">{ja.bill.write.newTitleHint}</p>
+		<input
+			id="bill-new-title"
+			name="newTitle"
+			bind:value={newTitle}
+			required
+			maxlength={BILL_MAX.lawTitle}
+			aria-describedby={fieldError('newTitle') ? 'bill-new-title-hint bill-new-title-error' : 'bill-new-title-hint'}
+			aria-invalid={fieldError('newTitle') ? 'true' : undefined}
+		/>
+		{#if fieldError('newTitle')}<p class="error" id="bill-new-title-error">{fieldError('newTitle')}</p>{/if}
+
+		<div class="changes">
+			<h2>{ja.bill.write.enactHeading}</h2>
+			<p class="hint">{ja.bill.write.enactHint}</p>
+			{#each enactRows as row, i (row.key)}
+				<fieldset class="row">
+					<legend>{ja.bill.write.article(i + 1)}</legend>
+					<input type="hidden" name="op.{i}" value="add" />
+					<input type="hidden" name="num.{i}" value={i + 1} />
+					<label for="caption-{row.key}">{ja.bill.write.caption}</label>
+					<input
+						id="caption-{row.key}"
+						name="caption.{i}"
+						bind:value={row.caption}
+						maxlength={BILL_MAX.caption}
+						aria-invalid={rowError(row, 'caption') ? 'true' : undefined}
+						aria-describedby={rowError(row, 'caption') ? `caption-error-${row.key}` : undefined}
+					/>
+					{#if rowError(row, 'caption')}<p class="error" id="caption-error-{row.key}">{rowError(row, 'caption')}</p>{/if}
+
+					<label for="body-{row.key}">{ja.bill.write.articleBody}</label>
+					<p class="hint" id="body-hint-{row.key}">{ja.bill.write.bodyHint}</p>
+					<textarea
+						id="body-{row.key}"
+						name="body.{i}"
+						bind:value={row.body}
+						required
+						rows="6"
+						maxlength={BILL_MAX.body}
+						aria-describedby="body-hint-{row.key}{rowError(row, 'body') ? ` body-error-${row.key}` : ''}"
+						aria-invalid={rowError(row, 'body') ? 'true' : undefined}
+					></textarea>
+					{#if rowError(row, 'body')}<p class="error" id="body-error-{row.key}">{rowError(row, 'body')}</p>{/if}
+					{#if i > 0}
+						<button type="button" class="link" onclick={() => (enactRows = enactRows.filter((r) => r !== row))}>{ja.bill.write.removeArticle}</button>
+					{/if}
+				</fieldset>
+			{/each}
+			{#if errors?.changes}<p class="error">{errors.changes}</p>{/if}
+			{#if enactRows.length < BILL_MAX.changes}
+				<button type="button" onclick={() => enactRows.push(toRow({ op: 'add', target: '', num: '', caption: '', body: '' }))}>{ja.bill.write.addArticle}</button>
+			{/if}
+		</div>
+	{:else}
+		<label for="bill-law">{ja.bill.write.law}</label>
+		<select
+			id="bill-law"
+			name="law"
+			value={law}
+			onchange={(e) => changeLaw(e.currentTarget.value)}
+			required
+			aria-invalid={fieldError('laws') ? 'true' : undefined}
+			aria-describedby={fieldError('laws') ? 'bill-law-error' : undefined}
+		>
+			<option value="">{ja.bill.write.lawPlaceholder}</option>
+			{#each laws as l (l.id)}<option value={l.id}>{l.title}</option>{/each}
+		</select>
+		{#if fieldError('laws')}<p class="error" id="bill-law-error">{fieldError('laws')}</p>{/if}
+
+	{/if}
 
 	{#if kind === 'repeal'}
 		<p class="note">{ja.bill.write.repealNote}</p>
 		{#if errors?.changes}<p class="error">{errors.changes}</p>{/if}
-	{:else}
+	{:else if kind === 'amend'}
 		<div class="changes">
 			<h2>{ja.bill.write.changes}</h2>
 			<p class="hint">{ja.bill.write.changesHint}</p>
@@ -353,7 +416,7 @@
 	{#if alertText}<p role="alert" class="error">{alertText}</p>{/if}
 	<div class="buttons">
 		<!-- 条文を読み込むまでは、基にした版が決まらないので送らない -->
-		<button class="primary" disabled={!token || (law !== '' && base === '') || !candidates.length}>{ja.bill.write.submit}</button>
+		<button class="primary" disabled={!token || (kind !== 'enact' && law !== '' && base === '') || !candidates.length}>{ja.bill.write.submit}</button>
 		<a href={back}>{ja.bill.write.cancel}</a>
 	</div>
 </form>

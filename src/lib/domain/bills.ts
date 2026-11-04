@@ -329,6 +329,11 @@ export function formalName(kind: BillKind, laws: { action: BillKind; title: stri
 	return laws.length > 1 ? `${main}等の一部を改正する法律案` : `${main}の一部を改正する法律案`;
 }
 
+// ---- 制定のひな形（Issue #47） ----
+
+/** ひな形の第1条の、書きかえてもらう印。残っていたら保存しない */
+export const ENACT_PLACEHOLDER = '○○';
+
 // ---- 変更点の出し方（Issue #46） ----
 
 /** 文字の比べで調べる違いの上限（1条あたり）。超える条は全文の置きかえとして出す */

@@ -23,6 +23,7 @@ export const load: PageServerLoad = async (event) => {
 	const initial: BillFormValues = {
 		kind: 'amend',
 		title: '',
+		newTitle: '',
 		law: '',
 		base: '',
 		affected: '',
