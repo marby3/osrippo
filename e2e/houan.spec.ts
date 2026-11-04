@@ -1,6 +1,6 @@
 // Issue #46 法案を書く画面と法案のページ（改正・廃止）。表とルールは docs/spec/45.md
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { ORIGIN, newUser, postIssue, solutionRequest, solutionStaffRequest, stubTurnstile } from './helpers';
+import { ORIGIN, newUser, postIssue, solutionRequest, solutionStaffRequest, staffRequest, stubTurnstile } from './helpers';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -8,7 +8,7 @@ test.afterEach(async () => {
 });
 
 type Width = 'sp' | 'pc';
-const ip = (project: string, test: number, n: number) => `10.${project === 'sp' ? 40 : 41}.${test}.${n}`;
+const ip = (project: string, group: number, n: number) => `10.${project === 'sp' ? 40 : 41}.${group}.${n}`;
 const stamp = () => Date.now() % 1e8;
 const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
 
@@ -228,7 +228,9 @@ test('基準4：書きかえ・新しく追加・削除の条を並べて保存�
 	await expect(amended.locator('ins').filter({ hasText: '＋と解約の難しさを踏まえ' })).toHaveCSS('text-decoration-line', /underline/);
 	const added = change('2. 第1条の2 ・ 新しく追加');
 	await expect(added.locator('ins').filter({ hasText: '消費者は、いつでも契約の解約を申し出ることができる。' })).toBeVisible();
-	await expect(added.getByText('（なし）')).toBeVisible();
+	// 新しく追加した条：スマホは変更後だけ（SpBillChanges）、PC は表の「いま」の欄に（なし）（PcBillChanges）
+	if (w === 'pc') await expect(added.getByText('（なし）')).toBeVisible();
+	else await expect(added.getByText('（なし）')).toBeHidden();
 	const deleted = change('3. 第2条 ・ 削除');
 	await expect(deleted.locator('del').filter({ hasText: '「消費者」とは' })).toBeVisible();
 	await expect(deleted.getByText('削除', { exact: true })).toBeVisible();
@@ -356,6 +358,9 @@ test('基準7：誤りは欄のそばに出し、入力を残す。変更後の�
 	await a.getByRole('group', { name: '元になった解決策' }).getByRole('checkbox').uncheck();
 	await a.getByRole('button', { name: '下書きを保存する' }).click();
 
+	// 長いフォームなので、押したボタンのそばでも誤りがあることを知らせ、最初の誤りの欄へ移す
+	await expect(a.getByRole('alert')).toContainText('入力を直してください');
+	await expect(a.getByLabel('変更後の条文')).toBeFocused();
 	await expect(a.getByText('2行目：項の番号が順になっていません（2、3、4…と続けてください）。')).toBeVisible();
 	await expect(a.getByLabel('変更後の条文')).toHaveAttribute('aria-invalid', 'true');
 	await expect(a.getByText('長すぎます。字数を減らしてください。')).toBeVisible();
@@ -383,20 +388,22 @@ test('基準8：国・締め出し・Turnstile を確かめ、作るのは24時�
 	const { ids } = await solutions(a, `h8-${p}-${s}`, [`上限の解決策 ${p}-${s}`]);
 	const base = await currentBase(a);
 	const form = (n: string | number, extra: Form = {}) => amendForm(base, ids[0], `上限 ${n} ${p}-${s}`, extra);
+	// フォームと同じく ?kaiketsu= の付いた画面へ送る（断りの文言が画面に出ることを確かめるため）
+	const kaku = `/houan/kaku?kaiketsu=${ids[0]}`;
 
 	// 日本からだけ、Turnstile を通ったものだけ
 	const us = await user(browser, `h8-us-${p}-${s}`, ip(p, 8, 2), { country: 'US', now });
-	const outside = await billRequest(us, '/houan/kaku', form('us'));
+	const outside = await billRequest(us, kaku, form('us'));
 	expect(outside.status()).toBe(403);
 	expect(await outside.text()).toContain('日本国内からのみ参加できます');
-	const badToken = await billRequest(a, '/houan/kaku', form('token', { 'cf-turnstile-response': 'bad' }));
+	const badToken = await billRequest(a, kaku, form('token', { 'cf-turnstile-response': 'bad' }));
 	expect(badToken.status()).toBe(400);
 	expect(await badToken.text()).toContain('確認できませんでした');
 
 	// 作るのは24時間に3件
-	const bill = billPath(await billRequest(a, '/houan/kaku', form(0)));
-	for (let i = 1; i < 3; i++) billPath(await billRequest(a, '/houan/kaku', form(i)));
-	const over = await billRequest(a, '/houan/kaku', form(3));
+	const bill = billPath(await billRequest(a, kaku, form(0)));
+	for (let i = 1; i < 3; i++) billPath(await billRequest(a, kaku, form(i)));
+	const over = await billRequest(a, kaku, form(3));
 	expect(over.status()).toBe(429);
 	expect(await over.text()).toContain('法案の下書きは24時間に3件まで作れます');
 
@@ -411,8 +418,8 @@ test('基準8：国・締め出し・Turnstile を確かめ、作るのは24時�
 	expect(await saveOver.text()).toContain('法案の下書きの保存は24時間に60回までです');
 
 	// 3回目の違反で締め出す
-	expect((await billRequest(a, '/houan/kaku', form(4))).status()).toBe(429);
-	const banned = await billRequest(a, '/houan/kaku', form(5));
+	expect((await billRequest(a, kaku, form(4))).status()).toBe(429);
+	const banned = await billRequest(a, kaku, form(5));
 	expect(banned.status()).toBe(429);
 	expect(await banned.text()).toContain('制限を何度も超えたため');
 
@@ -421,7 +428,7 @@ test('基準8：国・締め出し・Turnstile を確かめ、作るのは24時�
 	for (let n = 0; n < 7; n++) {
 		const u = await user(browser, `h8-ip${n}-${p}-${s}`, shared, { now });
 		for (let i = 0; i < 3; i++) {
-			const res = await billRequest(u, '/houan/kaku', form(`回線 ${n}-${i}`));
+			const res = await billRequest(u, kaku, form(`回線 ${n}-${i}`));
 			if (n * 3 + i < 20) {
 				billPath(res);
 				continue;
@@ -432,14 +439,14 @@ test('基準8：国・締め出し・Turnstile を確かめ、作るのは24時�
 	}
 });
 
-test('基準9：引用した解決策があとで非表示になったら、本文の代わりに「この解決策は非表示になっています」と出す', async ({ browser, page }, info) => {
+test('基準9：引用した解決策や課題があとで非表示になったら、本文の代わりに「この解決策は非表示になっています」と出す。直すときは引用から外れることを知らせる', async ({ browser, page }, info) => {
 	const p = info.project.name;
 	const s = stamp();
 	const a = await user(browser, `h9-a-${p}-${s}`, ip(p, 9, 1));
-	const body = `あとで非表示になる解決策 ${p}-${s}`;
-	const { ids } = await solutions(a, `h9-${p}-${s}`, [body]);
+	const [body, kept] = [`あとで非表示になる解決策 ${p}-${s}`, `残る解決策 ${p}-${s}`];
+	const { ids } = await solutions(a, `h9-${p}-${s}`, [body, kept]);
 	const title = `非表示を引用した法案 ${p}-${s}`;
-	const bill = billPath(await billRequest(a, '/houan/kaku', amendForm(await currentBase(a), ids[0], title)));
+	const bill = billPath(await billRequest(a, '/houan/kaku', amendForm(await currentBase(a), ids[0], title, { solution: ids })));
 
 	const mod = await user(browser, `h9-mod-${p}-${s}`, ip(p, 9, 2), { role: 'moderator' });
 	const hide = await solutionStaffRequest(mod, 'hideSolution', { solution: ids[0], reason: 'spam', note: '法案の引用' });
@@ -449,6 +456,27 @@ test('基準9：引用した解決策があとで非表示になったら、本�
 	await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
 	await expect(page.getByText('この解決策は非表示になっています')).toBeVisible();
 	await expect(page.getByText(body)).toHaveCount(0);
+	await expect(page.getByText(kept)).toBeVisible();
+
+	// 直す画面：非表示の解決策は候補に出ず、引用から外れることを知らせる。残りの引用で保存できる
+	await a.goto(`${bill}/kaku`);
+	await hydrated(a);
+	const cited = a.getByRole('group', { name: '元になった解決策' });
+	await expect(cited.getByText('非表示になった解決策1件は、保存すると引用から外れます。')).toBeVisible();
+	await expect(cited.getByRole('checkbox')).toHaveCount(1);
+	await expect(cited.getByRole('checkbox', { name: kept })).toBeChecked();
+	await a.getByRole('button', { name: '下書きを保存する' }).click();
+	await expect(a.getByRole('heading', { level: 1, name: title })).toBeVisible();
+	await expect(a.getByText('この解決策は非表示になっています')).toHaveCount(0);
+
+	// 課題が非表示になったら、表示中の解決策の本文も出さない（非表示の課題の解決策は本人と運営にしか渡さない。docs/spec/28.md 決めたこと4）
+	const issueId = (await page.goto(bill), await page.getByRole('link', { name: `法案の元の課題 h9-${p}-${s}` }).getAttribute('href'))!.replace('/kadai/', '');
+	const hideIssue = await staffRequest(mod, 'hide', { issue: issueId, reason: 'spam', note: '法案の引用' });
+	expect(hideIssue.status()).toBeLessThan(400);
+	await page.goto(bill);
+	await expect(page.getByText('この解決策は非表示になっています')).toBeVisible();
+	await expect(page.getByText(kept)).toHaveCount(0);
+	await expect(page.getByRole('link', { name: `法案の元の課題 h9-${p}-${s}` })).toHaveCount(0);
 });
 
 test('信頼の境界：作り変えたフォームの値は 400 で、保存しない', async ({ browser }, info) => {
@@ -456,8 +484,11 @@ test('信頼の境界：作り変えたフォームの値は 400 で、保存し
 	const s = stamp();
 	const a = await user(browser, `hb1-a-${p}-${s}`, ip(p, 10, 1));
 	const { ids } = await solutions(a, `hb1-${p}-${s}`, [`境界の解決策 ${p}-${s}`, `隠す解決策 ${p}-${s}`]);
+	const other = await solutions(a, `hb1-other-${p}-${s}`, [`別の課題の解決策 ${p}-${s}`]);
+	const hiddenIssue = await solutions(a, `hb1-hidden-${p}-${s}`, [`隠した課題の解決策 ${p}-${s}`]);
 	const mod = await user(browser, `hb1-mod-${p}-${s}`, ip(p, 10, 2), { role: 'moderator' });
 	expect((await solutionStaffRequest(mod, 'hideSolution', { solution: ids[1], reason: 'spam', note: '境界' })).status()).toBeLessThan(400);
+	expect((await staffRequest(mod, 'hide', { issue: String(hiddenIssue.issueId), reason: 'spam', note: '境界' })).status()).toBeLessThan(400);
 	const base = await currentBase(a);
 	const form = (extra: Form) => amendForm(base, ids[0], `作り変え ${p}-${s}`, extra);
 	const rows = Object.fromEntries(
@@ -477,6 +508,9 @@ test('信頼の境界：作り変えたフォームの値は 400 で、保存し
 		['ほかの法令の版', form({ base: '337AC0000000134_20160401_426AC0000000069' })],
 		['非表示の解決策', form({ solution: ids[1] })],
 		['数字でない解決策', form({ solution: 'abc' })],
+		['別の課題の解決策', form({ solution: [ids[0], other.ids[0]] })],
+		['非表示の課題の解決策', form({ solution: hiddenIssue.ids[0] })],
+		['多すぎる解決策', form({ solution: Array.from({ length: 200 }, (_, i) => String(i + 1)) })],
 		['種類「制定」', form({ kind: 'enact' })],
 		['ない種類', form({ kind: 'bogus' })],
 		['ない変え方', form({ 'op.0': 'rename' })],
@@ -488,7 +522,12 @@ test('信頼の境界：作り変えたフォームの値は 400 で、保存し
 		expect(res.status(), label).toBe(400);
 	}
 	// どれも保存していない（作れる3件の上限に1件も数えていない）
-	for (let i = 0; i < 3; i++) billPath(await billRequest(a, '/houan/kaku', form({ title: `通る ${i} ${p}-${s}` })));
+	const bills: string[] = [];
+	for (let i = 0; i < 3; i++) bills.push(billPath(await billRequest(a, '/houan/kaku', form({ title: `通る ${i} ${p}-${s}` }))));
+	// 直すときの版の番号
+	for (const rev of ['', 'abc', '0', '-1', '1.5']) {
+		expect((await billRequest(a, `${bills[0]}/kaku`, { ...form({}), rev })).status(), `rev ${rev}`).toBe(400);
+	}
 });
 
 test('信頼の境界：?kaiketsu= の形が違う・ないときは、解決策から書き始めることを案内する', async ({ browser }, info) => {
@@ -507,5 +546,12 @@ test('信頼の境界：法案のページのパスの番号が違う・ない�
 		for (const path of [`/houan/${id}`, `/houan/${id}/henkou`, `/houan/${id}/kaku`]) {
 			expect((await request.get(path, { maxRedirects: 0 })).status(), path).toBe(404);
 		}
+	}
+});
+
+test('信頼の境界：条文を取りに行く law が委員会の対象の法令でなければ 404', async ({ request }) => {
+	expect((await request.get(`/houan/kaku/joubun?law=${LAW}`)).status()).toBe(200);
+	for (const law of ['', 'nope', '129AC0000000089', `${LAW}' OR 1=1`]) {
+		expect((await request.get(`/houan/kaku/joubun?law=${encodeURIComponent(law)}`)).status(), law).toBe(404);
 	}
 });
