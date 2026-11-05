@@ -33,6 +33,7 @@ export const load: PageServerLoad = async (event) => {
 		place: !voided && result.outcome === 'passed' ? await ifPlaceOf(db, bill.id, result.rev) : null,
 		adjustment: !voided && result.outcome === 'passed' ? await adjustmentOf(db, result.sessionKey, bill.id) : null,
 		now,
-		amendments: (await priorAmendmentResults(db, bill.id, session.key)).map((a) => ({ id: a.id, location: articleLabel(a.num), status: a.status as 'passed' | 'failed' | 'superseded' | 'lapsed' }))
+		// 無効は本案ごと廃案なので、修正案の可否も出さない
+		amendments: (voided ? [] : await priorAmendmentResults(db, bill.id, session.key)).map((a) => ({ id: a.id, location: articleLabel(a.num), status: a.status as 'passed' | 'failed' | 'superseded' | 'lapsed' }))
 	};
 };

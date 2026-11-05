@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { ja } from '#lib/copy/ja.ts';
+	import { REVIEW_NOTE_MAX } from '#lib/domain/anomalies.ts';
 	import {
 		HIDE_REASONS,
 		HIDEABLE,
@@ -27,7 +28,7 @@
 <main>
 	<h1>{ja.kanri.heading}</h1>
 	<!-- 断った文言は、その課題・解決策のところに出す（どれか分からないときだけ上に） -->
-	{#if form && 'message' in form && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('reviewBill' in form && form.reviewBill)}
+	{#if form && 'message' in form && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
 		<p role="alert">{form.message}</p>
 	{/if}
 	{#if data.rows.length === 0}
@@ -134,7 +135,7 @@
 						<input type="hidden" name="session" value={row.sessionKey} />
 						<label for="review-note-{row.billId}">{ja.review.voidNote}</label>
 						<p class="hint">{ja.review.voidHint}</p>
-						<textarea id="review-note-{row.billId}" name="note" required maxlength="400" rows="2"></textarea>
+						<textarea id="review-note-{row.billId}" name="note" required maxlength={REVIEW_NOTE_MAX} rows="2"></textarea>
 						<button>{ja.review.void}</button>
 					</form>
 				{/if}

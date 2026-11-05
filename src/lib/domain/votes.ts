@@ -7,11 +7,11 @@ export type VoteCounts = Record<VoteChoice, number>;
 export const BILL_OUTCOMES = ['passed', 'rejected', 'lapsed'] as const;
 export type BillOutcome = (typeof BILL_OUTCOMES)[number];
 
-/** 要調整の理由（docs/spec/72.md）。article は先に変わった条と重なる、repealed は対象の法令が先に廃止された（直せない）、title は同じ名前の法律が先にできた */
 /** 票の偏りの確認の状態（docs/spec/73.md）。noted は保留しなかった行 */
 export const REVIEW_STATUSES = ['noted', 'open', 'confirmed', 'voided'] as const;
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
+/** 要調整の理由（docs/spec/72.md）。article は先に変わった条と重なる、repealed は対象の法令が先に廃止された（直せない）、title は同じ名前の法律が先にできた */
 export const ADJUSTMENT_REASONS = ['article', 'repealed', 'title'] as const;
 export type AdjustmentReason = (typeof ADJUSTMENT_REASONS)[number];
 

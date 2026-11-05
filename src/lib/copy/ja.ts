@@ -227,8 +227,8 @@ export const ja = {
 		logHeading: '採決の確認の記録',
 		logCriteria: '票の偏りが見つかり、結果を左右するときは、運営が確かめるまで結果を公開しません。回線や人数やアカウントは、ここには出しません。',
 		logEmpty: 'まだ記録はありません',
-		logColumns: { at: '日時', bill: '法案', kind: '見つかった偏り', status: 'どうなったか', actor: 'だれが', note: '理由' },
-		logStatus: { noted: '結果を左右しないので保留していません', open: '結果を確認しています', confirmed: '結果を確定した', voided: '無効にした' },
+		logColumns: { at: '見つかった日時', bill: '法案', kind: '見つかった偏り', status: 'どうなったか', decidedAt: '対応した日時', actor: 'だれが', note: '理由' },
+		logStatus: { noted: '可決かどうかを左右しないので保留していません', open: '結果を確認しています', confirmed: '結果を確定した', voided: '無効にした' },
 		logPages: '採決の確認の記録のページ'
 	},
 	/** IF世界の法令と要調整（Issue #72。SpLaw・PcLaw。設計書 docs/spec/72.md）。「分岐」「反映」は画面に出さない */

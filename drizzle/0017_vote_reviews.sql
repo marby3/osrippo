@@ -14,4 +14,5 @@ CREATE TABLE `vote_reviews` (
 	CONSTRAINT "vote_reviews_status_check" CHECK("vote_reviews"."status" IN ('noted', 'open', 'confirmed', 'voided'))
 );
 --> statement-breakpoint
-CREATE INDEX `vote_reviews_status` ON `vote_reviews` (`status`);
+CREATE INDEX `vote_reviews_status` ON `vote_reviews` (`status`);--> statement-breakpoint
+CREATE INDEX `vote_reviews_bill` ON `vote_reviews` (`bill_id`);

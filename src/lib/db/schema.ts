@@ -972,5 +972,5 @@ export const voteReviews = sqliteTable(
 		decidedAt: integer('decided_at'),
 		createdAt: integer('created_at').notNull()
 	},
-	(t) => [primaryKey({ columns: [t.sessionKey, t.billId] }), index('vote_reviews_status').on(t.status), check('vote_reviews_status_check', sql`${t.status} IN (${inList(REVIEW_STATUSES)})`)]
+	(t) => [primaryKey({ columns: [t.sessionKey, t.billId] }), index('vote_reviews_status').on(t.status), index('vote_reviews_bill').on(t.billId), check('vote_reviews_status_check', sql`${t.status} IN (${inList(REVIEW_STATUSES)})`)]
 );

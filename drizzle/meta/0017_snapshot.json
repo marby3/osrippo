@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d676ca1c-0c57-4eb0-a4da-5da59751d923",
+  "id": "d257a012-be3b-49f0-a245-26ed2a171f4b",
   "prevId": "b3c690cf-ab14-4541-9eae-78825c8666e2",
   "tables": {
     "account": {
@@ -4010,6 +4010,13 @@
           "name": "vote_reviews_status",
           "columns": [
             "status"
+          ],
+          "isUnique": false
+        },
+        "vote_reviews_bill": {
+          "name": "vote_reviews_bill",
+          "columns": [
+            "bill_id"
           ],
           "isUnique": false
         }

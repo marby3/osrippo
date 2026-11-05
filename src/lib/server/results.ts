@@ -314,6 +314,8 @@ export async function reviewLogPage(db: Db, page: number) {
 		})
 		.from(voteReviews)
 		.innerJoin(bills, eq(bills.id, voteReviews.billId))
+		// 結果の行が入る前の確認の行は出さない（法案のページの集計中と食い違わないように）
+		.innerJoin(billResults, and(eq(billResults.sessionKey, voteReviews.sessionKey), eq(billResults.billId, voteReviews.billId)))
 		.orderBy(desc(voteReviews.createdAt), desc(voteReviews.billId))
 		.limit(PAGE_SIZE + 1)
 		.offset((page - 1) * PAGE_SIZE);

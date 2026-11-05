@@ -28,7 +28,9 @@ export const load: PageServerLoad = async (event) => {
 	// 2ページ目以降で法案がなければ 404（課題の一覧と同じ）
 	if (page > 1 && rows.length === 0) error(404);
 	const ids = rows.map((r) => r.id);
-	const [results, adjustments, reviews] = tab === 'owari' ? await Promise.all([resultsFor(db, ids), adjustmentsFor(db, ids), reviewsFor(db, ids)]) : [[], [], []];
+	// 確認の行は結果の行より先に入るので、結果を読んでから確認の行を読む（結果だけが見えて可否が漏れないように。docs/spec/73.md 決めたこと3）
+	const results = tab === 'owari' ? await resultsFor(db, ids) : [];
+	const [adjustments, reviews] = tab === 'owari' ? await Promise.all([adjustmentsFor(db, ids), reviewsFor(db, ids)]) : [[], []];
 	const keyOf = (proposedAt: number) => referralSession(proposedAt, minutes).key;
 	const outcomeOf = (id: number, proposedAt: number) => results.find((r) => r.billId === id && r.sessionKey === keyOf(proposedAt))?.outcome ?? null;
 	const reviewOf = (id: number, proposedAt: number) => reviews.find((r) => r.billId === id && r.sessionKey === keyOf(proposedAt))?.status ?? null;
