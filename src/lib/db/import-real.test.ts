@@ -260,6 +260,23 @@ test('基準2：変わった条を IF世界に取り込み、ぶつかった条�
 	expect(page?.articles.find((a) => a.num === '2')).toMatchObject({ conflict: true });
 	expect(page?.articles.find((a) => a.num === '1')).toMatchObject({ conflict: false });
 
+	// IF世界で変えた条が内部IDを変えたあと、現実の新しい条がまた変わっても、衝突に記録されて IF世界の条だけが残る
+	const twice = world();
+	const twiceLaw = await twice.addLaw(articles([1, 2, 3]));
+	await twice.pass(s, twiceLaw, [
+		{ num: '1', op: 'amend', provisionId: await twice.idOf(twiceLaw.baseId, '1'), text: 'IFの本文1' },
+		{ num: '2', op: 'amend', provisionId: await twice.idOf(twiceLaw.baseId, '2'), text: 'IFの本文2' }
+	]);
+	await twiceLaw.revise('2030-05-10', [{ num: '1', text: textOf(70) }, { num: '2', text: textOf(71) }, { num: '3', text: textOf(3) }]);
+	const movedAway = await twiceLaw.revise('2030-05-20', [{ num: '3', text: textOf(3) }, { num: '40', text: textOf(70) }]);
+	await importReal(twice.db, s, after(s));
+	expect(twice.records(twiceLaw).filter((r) => r.revision_id === movedAway).map((r) => ({ num: r.num, change: r.change, conflict: r.conflict, if_num: r.if_num })).sort((x, y) => String(x.num).localeCompare(String(y.num)))).toEqual([
+		{ num: '2', change: 'removed', conflict: 1, if_num: '2' },
+		{ num: '40', change: 'renumbered', conflict: 1, if_num: '1' }
+	]);
+	expect((await twice.latest(twiceLaw)).map((x) => x.num)).toEqual(['1', '2', '3']);
+	expect(await twice.bodyOf(twiceLaw, '1')).toBe('IFの本文1');
+
 	// 範囲：その会期の最終日までに施行された版だけ。途中の版が施行予定なら後ろも取り込まない
 	const range = world();
 	const inRange = await range.addLaw(articles([1]));
