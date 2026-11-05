@@ -324,7 +324,7 @@ export async function citedCandidates(db: Db, solutionIds: number[]) {
 
 // ---- 法案の一覧（Issue #48） ----
 
-/** 賛同の数：いまの版（bills.rev）の行だけを数える（設計書 docs/spec/49.md 決めたこと1） */
+/** 賛同の数：発議した版の行を数える。下書きはいまの版（設計書 docs/spec/49.md 決めたこと1、docs/spec/68.md 決めたこと8） */
 // 列の値（${bills.rev}）を埋めると、drizzle が表名なしの "rev" にして副問い合わせの中の rev を指すので、表の名前を書く
 const supportCount = sql<number>`(SELECT count(*) FROM ${billSupports} s WHERE s.bill_id = ${bills}.id AND s.rev = COALESCE(${bills}.proposed_rev, ${bills}.rev))`;
 

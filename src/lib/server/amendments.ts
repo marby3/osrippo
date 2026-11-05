@@ -1,7 +1,7 @@
 // 修正案を読む・書く（Issue #68。設計書 docs/spec/68.md）。受け取る値は呼ぶ側（amendment-actions.ts）が確かめる
 import { and, asc, count, countDistinct, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { actions, amendments, amendmentSupports, amendmentVotes, billChanges, bills, laws, user } from '../db/schema';
-import { adoptedAmendments, AMENDMENT_PAGE_SIZE, applyAmendments, articleKey, priorVoteRequirement, type AmendmentStatus } from '../domain/amendments';
+import { adoptedAmendments, AMENDMENT_PAGE_SIZE, applyAmendments, articleKey, inPriorVote, priorVoteRequirement, type AmendmentStatus } from '../domain/amendments';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
 import { changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET } from '../domain/bills';
 import { checkAmendment, checkAmendmentSupport, DAY, LIMITS } from '../domain/limits';
@@ -13,6 +13,10 @@ import { articlesOfRevision, type BatchDb, type Db } from './law';
 import { assignedBills, countedVote, emptyCounts } from './votes';
 
 type LoadedBill = NonNullable<Bill>;
+
+/** D1 は1文に100個までしか値を結び付けられないので、番号の一覧を分ける */
+const ID_CHUNK = 50;
+const chunks = (ids: number[]) => Array.from({ length: Math.ceil(ids.length / ID_CHUNK) }, (_, i) => ids.slice(i * ID_CHUNK, (i + 1) * ID_CHUNK));
 
 /** 選べる条（docs/spec/68.md 決めたこと2）。current はいまの本案の本文、base は基にした版の本文（足した条と制定の条は null） */
 export async function amendableArticles(db: Db, bill: LoadedBill) {
@@ -120,12 +124,11 @@ export async function updateAmendment(db: Db, actor: Actor, bill: { id: number; 
 
 /**
  * 修正案を当てた新しい版を作り、本案の版を進める。版を進める文と修正案に書く文を1つのトランザクションにするので、
- * 本文だけが入って提案者の記録が失われることはない。進めたら新しい版を返す
+ * 本文だけが入って提案者の記録が失われることはない。expected は当てる先の版で、いまの版と違えば何もしない。進めたら新しい版を返す
  */
-async function advanceBill(db: BatchDb, billId: number, targets: AmendmentRow[], patch: { status?: AmendmentStatus }, onlyOpen: boolean, now: number) {
+async function advanceBill(db: BatchDb, billId: number, expected: number, targets: AmendmentRow[], patch: { status?: AmendmentStatus }, onlyOpen: boolean, now: number) {
 	const bill = await billById(db, billId);
-	if (!bill) return null;
-	const expected = bill.rev;
+	if (!bill || bill.rev !== expected) return null;
 	const [taken] = await db
 		.update(bills)
 		.set({ nextRev: sql`${bills.nextRev} + 1` })
@@ -135,16 +138,17 @@ async function advanceBill(db: BatchDb, billId: number, targets: AmendmentRow[],
 	const rev = taken.next - 1;
 	const input = draftInputOf(bill);
 	await insertContent(db, billId, rev, { ...input, laws: applyAmendments(input.laws, targets) });
-	const ids = targets.map((t) => t.id);
 	await db.batch([
 		db
 			.update(bills)
 			.set({ rev, updatedAt: now })
 			.where(and(eq(bills.id, billId), eq(bills.rev, expected))),
-		db
-			.update(amendments)
-			.set({ ...patch, appliedRev: rev, updatedAt: now })
-			.where(and(inArray(amendments.id, ids), onlyOpen ? eq(amendments.status, 'open') : undefined, sql`(SELECT b.rev FROM ${bills} b WHERE b.id = ${billId}) = ${rev}`))
+		...chunks(targets.map((t) => t.id)).map((ids) =>
+			db
+				.update(amendments)
+				.set({ ...patch, appliedRev: rev, updatedAt: now })
+				.where(and(inArray(amendments.id, ids), onlyOpen ? eq(amendments.status, 'open') : undefined, sql`(SELECT b.rev FROM ${bills} b WHERE b.id = ${billId}) = ${rev}`))
+		)
 	]);
 	const [row] = await db.select({ rev: bills.rev }).from(bills).where(eq(bills.id, billId));
 	return row.rev === rev ? rev : null;
@@ -154,18 +158,21 @@ async function advanceBill(db: BatchDb, billId: number, targets: AmendmentRow[],
 export async function acceptAmendment(db: BatchDb, actor: Actor, billId: number, amendmentId: number, revision: number, now: number) {
 	const [amendment, bill] = await Promise.all([amendmentOf(db, amendmentId, billId), billById(db, billId)]);
 	if (!amendment || !bill || amendment.status !== 'open' || amendment.revision !== revision || amendment.baseRev !== bill.rev) return false;
-	const rev = await advanceBill(db, billId, [amendment], { status: 'accepted' }, true, now);
+	const rev = await advanceBill(db, billId, amendment.baseRev, [amendment], { status: 'accepted' }, true, now);
 	if (rev === null) return false;
 	await db.insert(actions).values({ kind: 'amendment_accept', userId: actor.userId, ipHash: actor.ipHash, targetId: billId, createdAt: now });
 	return true;
 }
 
-export type AmendmentSupportClosed = 'stale';
-
 /** 先議の賛同。いまと同じ状態への操作は何もせず、数えない。記録は行が変わったときだけ足す */
 export async function setAmendmentSupport(db: Db, actor: Actor, amendment: AmendmentRow, billRev: number, revision: number, op: 'add' | 'remove', now: number) {
 	// 取り消しは状態を問わず受け付ける（更新が必要なあいだも）
 	if (op === 'add' && (amendment.status !== 'open' || amendment.baseRev !== billRev || amendment.revision !== revision)) return { ok: false as const, reason: 'stale' as const };
+	const [own] = await db
+		.select({ id: amendmentSupports.amendmentId })
+		.from(amendmentSupports)
+		.where(and(eq(amendmentSupports.amendmentId, amendment.id), eq(amendmentSupports.revision, amendment.revision), eq(amendmentSupports.userId, actor.userId)));
+	if ((op === 'add') === Boolean(own)) return { ok: true as const, changed: false };
 
 	const who = eq(actions.userId, actor.userId);
 	const kinds = inArray(actions.kind, ['amendment_support_add', 'amendment_support_remove']);
@@ -197,16 +204,15 @@ export async function setAmendmentSupport(db: Db, actor: Actor, amendment: Amend
 	return { ok: true as const, changed: true };
 }
 
-/** いまの本文（revision）の賛同の数 */
-async function supportCounts(db: Db, rows: { id: number; revision: number }[]) {
-	if (rows.length === 0) return new Map<number, number>();
+/** その法案の修正案ごとの、いまの本文（revision）の賛同の数。番号を並べず結合で求める（修正案が多くても D1 の値の数の上限に当たらないように） */
+async function supportCounts(db: Db, billId: number) {
 	const counted = await db
-		.select({ id: amendmentSupports.amendmentId, revision: amendmentSupports.revision, n: count() })
+		.select({ id: amendmentSupports.amendmentId, n: count() })
 		.from(amendmentSupports)
-		.where(inArray(amendmentSupports.amendmentId, rows.map((r) => r.id)))
-		.groupBy(amendmentSupports.amendmentId, amendmentSupports.revision);
-	const revisions = new Map(rows.map((r) => [r.id, r.revision]));
-	return new Map(counted.filter((c) => revisions.get(c.id) === c.revision).map((c) => [c.id, c.n]));
+		.innerJoin(amendments, and(eq(amendments.id, amendmentSupports.amendmentId), eq(amendments.revision, amendmentSupports.revision)))
+		.where(eq(amendments.billId, billId))
+		.groupBy(amendmentSupports.amendmentId);
+	return new Map(counted.map((c) => [c.id, c.n]));
 }
 
 /**
@@ -259,14 +265,17 @@ export async function settleAmendments(db: BatchDb, session: Session, billId: nu
 	if (!bill) return;
 	const rows = (await db.select().from(amendments).where(eq(amendments.billId, billId)).orderBy(asc(amendments.id))).map(toRow);
 	const open = rows.filter((r) => r.status === 'open');
-	const supports = await supportCounts(db, open);
+	const supports = await supportCounts(db, billId);
 	const required = priorVoteRequirement(participants);
 	const quorum = quorumRequirement(participants);
 
+	const writeStatus = async (ids: number[], status: AmendmentStatus) => {
+		for (const part of chunks(ids)) await db.update(amendments).set({ status, updatedAt: now }).where(and(inArray(amendments.id, part), eq(amendments.status, 'open')));
+	};
 	const results: Parameters<typeof adoptedAmendments>[0] = [];
 	const unvoted: number[] = [];
 	for (const a of open) {
-		if (a.baseRev !== bill.rev || (supports.get(a.id) ?? 0) < required) {
+		if (!inPriorVote(a, supports.get(a.id) ?? 0, bill.rev, required)) {
 			unvoted.push(a.id);
 			continue;
 		}
@@ -278,15 +287,21 @@ export async function settleAmendments(db: BatchDb, session: Session, billId: nu
 		rows.filter((r) => r.status === 'passed')
 	);
 	for (const status of ['passed', 'failed', 'superseded', 'lapsed'] as const) {
-		const ids = [...decided].filter(([, s]) => s === status).map(([id]) => id);
-		if (ids.length) await db.update(amendments).set({ status, updatedAt: now }).where(and(inArray(amendments.id, ids), eq(amendments.status, 'open')));
+		await writeStatus(
+			[...decided].filter(([, s]) => s === status).map(([id]) => id),
+			status
+		);
 	}
-	if (unvoted.length) await db.update(amendments).set({ status: 'unvoted', updatedAt: now }).where(and(inArray(amendments.id, unvoted), eq(amendments.status, 'open')));
+	await writeStatus(unvoted, 'unvoted');
 
 	const pending = (await db.select().from(amendments).where(and(eq(amendments.billId, billId), eq(amendments.status, 'passed'))).orderBy(asc(amendments.id)))
 		.map(toRow)
 		.filter((r) => r.appliedRev === null);
-	if (pending.length) await advanceBill(db, billId, pending, {}, false, now);
+	// 条件に使う版は読み直したいまの版（修正案の base_rev ではない。やり直しのときに合わなくなるので）
+	if (pending.length) {
+		const [latest] = await db.select({ rev: bills.rev }).from(bills).where(eq(bills.id, billId));
+		await advanceBill(db, billId, latest.rev, pending, {}, false, now);
+	}
 }
 
 /** 共同起草者（取り込まれたか可決した修正案の提案者）の名前。重複なし、先に採用された順 */
@@ -311,6 +326,8 @@ export type AmendmentView = {
 	revision: number;
 	mine: boolean;
 	stale: boolean;
+	/** 本案より先に採決する修正案か（要件に届いていて、本案の版が同じ） */
+	prior: boolean;
 	supports: number;
 	supported: boolean;
 	myVote: VoteChoice | null;
@@ -332,7 +349,7 @@ async function beforeText(db: Db, bill: LoadedBill, row: AmendmentRow, baseArtic
  * 修正案のタブのカード。古い順（先に出したものが先に採られる）。名前と user_id を返さない。
  * 変更点は書いたときの本案と比べる（取り込まれたあとも変更点が消えないように）
  */
-export async function listAmendments(db: Db, bill: LoadedBill, userId: string | null, sessionKey: string | null, page: number) {
+export async function listAmendments(db: Db, bill: LoadedBill, userId: string | null, sessionKey: string | null, required: number | null, page: number) {
 	const rows = (
 		await db
 			.select()
@@ -344,7 +361,7 @@ export async function listAmendments(db: Db, bill: LoadedBill, userId: string | 
 	).map(toRow);
 	const shown = rows.slice(0, AMENDMENT_PAGE_SIZE);
 	const ids = shown.map((r) => r.id);
-	const supports = await supportCounts(db, shown);
+	const supports = await supportCounts(db, bill.id);
 	const mineSupports =
 		userId && ids.length
 			? await db
@@ -381,6 +398,7 @@ export async function listAmendments(db: Db, bill: LoadedBill, userId: string | 
 			revision: row.revision,
 			mine: row.userId === userId,
 			stale: row.status === 'open' && row.baseRev !== bill.rev,
+			prior: required !== null && inPriorVote(row, supports.get(row.id) ?? 0, bill.rev, required),
 			supports: supports.get(row.id) ?? 0,
 			supported: mineSupports.some((s) => s.id === row.id && s.revision === row.revision),
 			myVote: myVotes.find((v) => v.id === row.id)?.choice ?? null

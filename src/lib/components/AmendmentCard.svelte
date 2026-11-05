@@ -42,9 +42,8 @@
 	const choices: VoteChoice[] = ['yes', 'no', 'abstain'];
 	const open = $derived(amendment.status === 'open');
 	const current = $derived(open && !amendment.stale);
-	const reached = $derived(required !== null && amendment.supports >= required);
 	const deliberation = $derived(progress === 'deliberation');
-	const votable = $derived(progress === 'vote' && current && reached);
+	const votable = $derived(progress === 'vote' && amendment.prior);
 	const statusText = $derived.by(() => {
 		if (!open) return ja.amendment.statuses[amendment.status as Exclude<typeof amendment.status, 'open'>];
 		if (deliberation) {
@@ -95,7 +94,7 @@
 		{/if}
 	{/if}
 
-	{#if deliberation && !amendment.mine && !isAuthor && !waiting && (current || amendment.supported)}
+	{#if deliberation && open && !amendment.mine && !isAuthor && !waiting && (current || amendment.supported)}
 		{#if loggedIn}
 			<form method="post" action="?/support" use:enhance={() => async ({ update }) => update({ reset: false })}>
 				<input type="hidden" name="amendment" value={amendment.id} />

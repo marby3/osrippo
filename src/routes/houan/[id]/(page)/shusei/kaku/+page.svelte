@@ -43,6 +43,12 @@
 		<p class="note">{data.blocked}</p>
 	{:else}
 		<p class="note">{ja.amendment.coDrafterNotice}</p>
+		{#if data.update?.current}
+			<section class="current">
+				<h3>{ja.amendment.currentBill}</h3>
+				<p>{data.update.current}</p>
+			</section>
+		{/if}
 		<form
 			method="post"
 			use:enhance={() =>
@@ -74,6 +80,7 @@
 			<label for="reason">{ja.amendment.reasonField}</label>
 			<textarea id="reason" name="reason" bind:value={reason} rows="3" maxlength={AMENDMENT_REASON_MAX}></textarea>
 			{#if form?.reasonError}<p class="error">{form.reasonError}</p>{/if}
+			{#if form?.ruleError}<p class="error">{form.ruleError}</p>{/if}
 			<Turnstile siteKey={data.siteKey} bind:token bind:this={turnstile} />
 			{#if form?.message}<p role="alert" class="error">{form.message}</p>{/if}
 			<button disabled={!token}>{data.update ? ja.amendment.update : ja.amendment.write}</button>
@@ -112,6 +119,25 @@
 
 	select {
 		min-height: var(--tap-min);
+	}
+
+	.current {
+		margin-top: 0.75rem;
+		padding: 0.5rem 1rem;
+		border-left: 3px solid var(--color-divider);
+		background: var(--color-surface);
+	}
+
+	.current h3 {
+		margin: 0;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+
+	.current p {
+		margin: 0;
+		white-space: pre-line;
+		overflow-wrap: anywhere;
 	}
 
 	button {

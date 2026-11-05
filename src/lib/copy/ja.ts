@@ -147,6 +147,7 @@ export const ja = {
 		bodyField: '変更後の条文',
 		reasonField: '理由（任意）',
 		before: 'もとの本案',
+		currentBill: 'いまの本案の条文',
 		after: '修正案',
 		reason: '理由',
 		accept: '取り込む',

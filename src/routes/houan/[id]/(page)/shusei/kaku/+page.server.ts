@@ -4,6 +4,7 @@ import { env } from 'cloudflare:workers';
 import { ja } from '#lib/copy/ja.ts';
 import { amendmentOpen } from '#lib/domain/amendments.ts';
 import { articleBodyText } from '#lib/domain/bills.ts';
+import { articleLabel } from '#lib/domain/law/index.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { billWaitUntil } from '#lib/domain/limits.ts';
 import { amendableBill, amendmentPostAction } from '#lib/server/amendment-actions.ts';
@@ -29,11 +30,14 @@ export const load: PageServerLoad = async (event) => {
 	if (!blocked && target && (target.status !== 'open' || target.baseRev === bill.rev)) blocked = ja.amendment.noUpdate;
 	if (!blocked && !target && bill.userId === user.id) blocked = ja.amendment.author;
 
-	const articles = blocked ? [] : await amendableArticles(db, bill);
+	const all = blocked ? [] : await amendableArticles(db, bill);
+	const updating = target && all.find((a) => a.lawSeq === target.lawSeq && a.num === target.num);
+	// 更新の画面は条を選ばないので、いまの本案の本文だけを返す
+	const articles = target ? [] : all;
 	return {
 		blocked,
 		rev: bill.rev,
-		update: target ? { id: target.id, body: articleBodyText(target.paragraphs), reason: target.reason ?? '', label: articles.find((a) => a.lawSeq === target.lawSeq && a.num === target.num)?.label ?? '' } : null,
+		update: target ? { id: target.id, body: articleBodyText(target.paragraphs), reason: target.reason ?? '', label: articleLabel(target.num), current: updating ? articleBodyText(updating.current) : null } : null,
 		multipleLaws: bill.laws.length > 1,
 		articles: articles.map((a) => ({ key: a.key, lawTitle: a.lawTitle, label: `${a.label}${a.caption ?? ''}`, body: articleBodyText(a.current) })),
 		siteKey: env.TURNSTILE_SITE_KEY

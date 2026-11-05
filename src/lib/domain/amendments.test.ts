@@ -1,6 +1,6 @@
 // Issue #68 基準1・2・3・5・7・9 のルール（設計書 docs/spec/68.md 決めたこと1〜3・7・11・14）
 import { expect, test } from 'vitest';
-import { acceptOpen, adoptedAmendments, hasAmendableLaw, parseArticleKey, priorVoteRequirement, validateAmendmentBody, validateAmendmentReason } from './amendments';
+import { acceptOpen, adoptedAmendments, checkAmendedLaw, hasAmendableLaw, parseArticleKey, priorVoteRequirement, validateAmendmentBody, validateAmendmentReason } from './amendments';
 import { checkAmendment, checkAmendmentSupport, COUNTS_AS_VIOLATION, DAY, LIMITS } from './limits';
 
 const para = (text: string) => [{ num: '1', text, items: [] }] as never;
@@ -25,6 +25,12 @@ test('基準2：本文の形が違う、いまの本案と同じ、基にした�
 	expect(validateAmendmentReason('理由\n2行目')).toEqual({ ok: true, reason: '理由\n2行目' });
 	expect(validateAmendmentReason('あ'.repeat(400))).toMatchObject({ ok: true });
 	expect(validateAmendmentReason('あ'.repeat(401))).toMatchObject({ ok: false, error: 'tooLong' });
+
+	// 修正案を当てた本案にも、下書きと同じ決まりをかける
+	const purpose = (text: string) => [{ op: 'add' as const, num: '1', provisionId: null, caption: '（目的）', paragraphs: para(text) }];
+	expect(checkAmendedLaw('enact', null, purpose('消費者を守ることを目的とする。'), 1)).toBeNull();
+	expect(checkAmendedLaw('enact', null, purpose('○○を目的とする。'), 1)).toBe('enactPlaceholder');
+	expect(checkAmendedLaw('enact', null, purpose('消費者を守ることを目的とする。'), 51)).toBe('changeCount');
 
 	expect(parseArticleKey('0:1')).toEqual({ lawSeq: 0, num: '1' });
 	expect(parseArticleKey('4:3_2')).toEqual({ lawSeq: 4, num: '3_2' });

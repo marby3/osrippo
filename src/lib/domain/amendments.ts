@@ -1,8 +1,8 @@
 // 修正案の決まり（Issue #68。設計書 docs/spec/68.md 決めたこと1〜3・7・11）。DB にも画面にも触れない
-import { articleBodyText, parseArticleBody, proposalRequirement, type BillChange, type BillKind, type BillProgress, type BodyError } from './bills';
+import { BILL_MAX, checkChanges, parseArticleBody, proposalRequirement, type BaseArticle, type BillChange, type BillKind, type BillProgress, type BodyError, type ChangeError } from './bills';
 import { checkText, type IssueError } from './issues';
 import { DAY } from './limits';
-import type { Paragraph } from './law';
+import { articleBodyText, type Paragraph } from './law';
 import type { BillOutcome } from './votes';
 
 export const AMENDMENT_STATUSES = ['open', 'accepted', 'passed', 'failed', 'superseded', 'lapsed', 'unvoted'] as const;
@@ -37,6 +37,16 @@ export function validateAmendmentBody(
 	if (article.base && text === articleBodyText(article.base)) return { ok: false, error: 'sameAsBase' };
 	return { ok: true, paragraphs: parsed.paragraphs };
 }
+
+/** 修正案を当てた本案の決まり（制定の第1条のひな形など）と、変える条の数の上限。下書きで断られる本文を、修正案で入れられないように */
+export function checkAmendedLaw(action: BillKind, base: BaseArticle[] | null, changes: BillChange[], totalChanges: number): ChangeError | 'changeCount' | null {
+	if (totalChanges > BILL_MAX.changes) return 'changeCount';
+	const checked = checkChanges(action, base, changes);
+	return checked.ok ? null : checked.errors[0].error;
+}
+
+/** 本案より先に採決する修正案か。票を入れる文（castAmendmentVote）も同じ条件を SQL で確かめる */
+export const inPriorVote = (a: { status: AmendmentStatus; baseRev: number }, supports: number, billRev: number, required: number) => a.status === 'open' && a.baseRev === billRev && supports >= required;
 
 /** 理由：任意で400字まで。改行可 */
 export function validateAmendmentReason(raw: string | null): { ok: true; reason: string | null } | { ok: false; error: IssueError } {

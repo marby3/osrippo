@@ -1,14 +1,14 @@
 // 修正案の受け付け（Issue #68。設計書 docs/spec/68.md 決めたこと4〜7・9）
 import { error, fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import { ja } from '../copy/ja';
-import { acceptOpen, AMENDMENT_REASON_MAX, amendmentOpen, amendmentVoteOpen, hasAmendableLaw, parseArticleKey, priorVoteRequirement, validateAmendmentBody, validateAmendmentReason } from '../domain/amendments';
+import { acceptOpen, AMENDMENT_REASON_MAX, amendmentOpen, amendmentVoteOpen, applyAmendments, checkAmendedLaw, hasAmendableLaw, parseArticleKey, priorVoteRequirement, validateAmendmentBody, validateAmendmentReason } from '../domain/amendments';
 import { parseIssueId } from '../domain/issues';
 import { billWaitUntil } from '../domain/limits';
 import { VOTE_CHOICES, type VoteChoice } from '../domain/votes';
 import { acceptAmendment, amendableArticles, amendmentOf, castAmendmentVote, createAmendment, setAmendmentSupport, updateAmendment, type AmendmentRow } from './amendments';
 import { sessionParticipants } from './bills';
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
-import type { BatchDb } from './law';
+import { articlesOfRevision, type BatchDb } from './law';
 import { postableBill, progressOf } from './post-actions';
 
 export const amendmentsPath = (billId: number) => `/houan/${billId}/shusei`;
@@ -75,6 +75,15 @@ export async function amendmentPostAction(event: RequestEvent) {
 	if (!article) return fail(400, { message: ja.amendment.invalid, ...keep });
 	const checked = validateAmendmentBody(body, article);
 	if (!checked.ok) return fail(400, { error: checked.error, updating: target !== undefined, ...keep });
+	const law = bill.laws[key.lawSeq];
+	const amended = applyAmendments(bill.laws, [{ lawSeq: key.lawSeq, num: key.num, provisionId: article.provisionId, caption: article.caption, paragraphs: checked.paragraphs }]);
+	const rule = checkAmendedLaw(
+		law.action,
+		law.baseRevisionId ? await articlesOfRevision(db, law.baseRevisionId) : null,
+		amended[key.lawSeq].changes,
+		amended.reduce((n, l) => n + l.changes.length, 0)
+	);
+	if (rule) return fail(400, { ruleError: rule === 'changeCount' ? ja.bill.errors.changeCount : ja.bill.changeErrors[rule], ...keep });
 
 	const result = target
 		? await updateAmendment(db, guard.actor, bill, target, checked.paragraphs, reason.reason, now)

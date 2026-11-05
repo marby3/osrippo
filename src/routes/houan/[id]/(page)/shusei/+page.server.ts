@@ -19,7 +19,9 @@ export const load: PageServerLoad = async (event) => {
 	const user = event.locals.user;
 	const { progress, session } = progressOf(bill, now);
 	const voting = amendmentVoteOpen(progress);
-	const { rows, hasNext } = await listAmendments(db, bill, user?.id ?? null, session.key, page);
+	// 賛同の要件はその会期に固定した今月の参加者から求める。3週目と4週目のときだけ読む
+	const required = amendmentOpen(progress) || voting ? await priorRequirementAt(db, bill.committeeId, now) : null;
+	const { rows, hasNext } = await listAmendments(db, bill, user?.id ?? null, session.key, required, page);
 	if (page > 1 && rows.length === 0) error(404);
 	const isAuthor = user?.id === bill.userId;
 	return {
@@ -33,8 +35,7 @@ export const load: PageServerLoad = async (event) => {
 		waitUntil: user ? billWaitUntil(user.createdAt.getTime(), now) : null,
 		canPost: amendmentOpen(progress) && !isAuthor,
 		canAccept: isAuthor && acceptOpen(progress, now, session.voteAt),
-		// 賛同の要件はその会期に固定した今月の参加者から求める。3週目と4週目のときだけ読む
-		required: amendmentOpen(progress) || voting ? await priorRequirementAt(db, bill.committeeId, now) : null,
+		required,
 		eligible: voting && user ? await isEligibleVoter(db, user.id, session) : null,
 		siteKey: env.TURNSTILE_SITE_KEY
 	};

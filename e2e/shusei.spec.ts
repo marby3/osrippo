@@ -250,6 +250,16 @@ test('基準4：本案の版が変わると「更新が必要」になり、取�
 	expect(res.status(), await res.text()).toBe(303);
 	await open(g.page, bill);
 	await expect(card(g.page, rewritten)).toContainText('賛同 0人');
+
+	// 本案が変えていなかった条（第2条）を取り込むと、変更点が条の順に並ぶ
+	const res2 = await act(a.page, bill, 'accept', { amendment: keptId, revision: '1' });
+	expect(res2.status(), await res2.text()).toBe(200);
+	await a.page.goto(`${bill}/henkou`);
+	const headings = a.page.getByRole('main').locator('article h2');
+	await expect(headings).toHaveCount(2);
+	await expect(headings.first()).toContainText('第1条');
+	await expect(headings.last()).toContainText('第2条');
+	await expect(a.page.getByRole('main').locator('article').last()).toContainText('＋');
 });
 
 test('基準5：提案者と提出者のほかの人が賛同でき、取り消せる。要件と今の人数が出る。時期の外と本人は断る', async ({ browser }, info) => {
