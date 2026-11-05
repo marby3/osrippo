@@ -7,6 +7,10 @@ export type VoteCounts = Record<VoteChoice, number>;
 export const BILL_OUTCOMES = ['passed', 'rejected', 'lapsed'] as const;
 export type BillOutcome = (typeof BILL_OUTCOMES)[number];
 
+/** 要調整の理由（docs/spec/72.md）。article は先に変わった条と重なる、repealed は対象の法令が先に廃止された（直せない）、title は同じ名前の法律が先にできた */
+export const ADJUSTMENT_REASONS = ['article', 'repealed', 'title'] as const;
+export type AdjustmentReason = (typeof ADJUSTMENT_REASONS)[number];
+
 /** 締切からこの時間は結果を数えない。締切の直前に受け付けた票の書き込みが、数えたあとに届かないように（docs/spec/71.md 決めたことA2） */
 export const SETTLE_GRACE = 60_000;
 
@@ -39,14 +43,16 @@ export function drawAssignments<T>(candidates: readonly T[], count: number, rand
 	return pool.slice(0, picks);
 }
 
-export type BillStage = Exclude<BillProgress, 'lapsed'> | BillOutcome | 'counting';
+export type BillStage = Exclude<BillProgress, 'lapsed'> | BillOutcome | 'counting' | 'adjusting';
 
 /**
  * 画面に出す法案の段階。時刻から求めた進みを先に見る。会期が終わった法案だけ結果を使い、結果がなければ集計中。
- * 会期が終わる前に結果の行があっても可決と出さない
+ * 会期が終わる前に結果の行があっても可決と出さない。要調整は期限の前だけで、直せない理由（法令の廃止）と期限切れは廃案。
+ * adjustment はいまの付託先の会期の行で、未解決のもの
  */
-export function billStage(progress: BillProgress, outcome: BillOutcome | null): BillStage {
+export function billStage(progress: BillProgress, outcome: BillOutcome | null, adjustment: { reason: AdjustmentReason; dueAt: number } | null = null, now = 0): BillStage {
 	if (progress !== 'lapsed') return progress;
+	if (adjustment) return adjustment.reason !== 'repealed' && now < adjustment.dueAt ? 'adjusting' : 'lapsed';
 	return outcome ?? 'counting';
 }
 

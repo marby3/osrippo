@@ -9,6 +9,8 @@
 
 <svelte:head>
 	<title>{ja.vote.pageTitle(data.bill.title)}</title>
+	<!-- 架空の条文を出すので検索に載せない（docs/spec/72.md の F） -->
+	<meta name="robots" content="noindex" />
 </svelte:head>
 
 {#key data.bill.id}

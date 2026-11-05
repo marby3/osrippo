@@ -7,6 +7,7 @@ import { sessionAt, type Session } from '../domain/session';
 import { billOutcome, quorumRequirement, SETTLE_GRACE } from '../domain/votes';
 import { settleAmendments } from './amendments';
 import { sessionParticipants } from './bills';
+import { adjustmentRowOf, applySession, ifPlaceOf } from './if-world';
 import type { BatchDb, Db } from './law';
 import { inVote, tallyVotes } from './votes';
 
@@ -47,15 +48,18 @@ async function settleBill(db: BatchDb, session: Session, billId: number, partici
 
 /**
  * 会期の処理。結果のない法案を発議の早い順に処理する。何度呼んでも結果は変わらない。
- * 締切から1分は何もしない。1本が失敗しても残りを続け、最後にまとめて投げ直す
+ * 締切から1分は何もしない。1本が失敗しても残りを続け、最後にまとめて投げ直す。
+ * すべての結果が入ったら、可決した法案を IF世界に反映する（docs/spec/72.md 決めたこと5）。minutes は開発用の短い会期（Cron は null）
  */
-export async function settleSession(db: BatchDb, session: Session, previous: Session, now: number): Promise<void> {
+export async function settleSession(db: BatchDb, session: Session, previous: Session, now: number, minutes: number | null = null): Promise<void> {
 	if (now < session.endsAt + SETTLE_GRACE) return;
-	const pending = await db
-		.select({ id: bills.id, committeeId: bills.committeeId })
-		.from(bills)
-		.where(and(inVote(session, previous), sql`NOT EXISTS (SELECT 1 FROM ${billResults} r WHERE r.session_key = ${session.key} AND r.bill_id = ${bills}.id)`))
-		.orderBy(asc(bills.proposedAt), asc(bills.id));
+	const unsettled = () =>
+		db
+			.select({ id: bills.id, committeeId: bills.committeeId })
+			.from(bills)
+			.where(and(inVote(session, previous), sql`NOT EXISTS (SELECT 1 FROM ${billResults} r WHERE r.session_key = ${session.key} AND r.bill_id = ${bills}.id)`))
+			.orderBy(asc(bills.proposedAt), asc(bills.id));
+	const pending = await unsettled();
 	const participants = new Map<number, number>();
 	const failed: number[] = [];
 	const causes: unknown[] = [];
@@ -71,12 +75,15 @@ export async function settleSession(db: BatchDb, session: Session, previous: Ses
 		}
 	}
 	if (failed.length) throw new AggregateError(causes, `会期 ${session.key} の法案 ${failed.join(', ')} を処理できませんでした`);
+	// 修正案の処理が重なって結果を書かなかった法案があれば、次の実行に任せる
+	if (pending.length && (await unsettled()).length) return;
+	await applySession(db, session, minutes, now);
 }
 
 /** 読むときの処理。失敗してもページは出す。次に読まれたときか次の Cron でやり直す */
-export async function settleOnRead(db: BatchDb, session: Session, previous: Session, now: number): Promise<void> {
+export async function settleOnRead(db: BatchDb, session: Session, previous: Session, now: number, minutes: number | null = null): Promise<void> {
 	try {
-		await settleSession(db, session, previous, now);
+		await settleSession(db, session, previous, now, minutes);
 	} catch (e) {
 		console.error(e);
 	}
@@ -96,8 +103,10 @@ export async function resultOnRead(db: BatchDb, bill: { id: number; proposedAt: 
 	if (bill.proposedAt === null) return null;
 	const session = referralSession(bill.proposedAt, minutes);
 	const known = await resultOf(db, session.key, bill.id);
-	if (known) return known;
-	await settleOnRead(db, session, sessionAt(session.startsAt - 1, minutes), now);
+	if (known && known.outcome !== 'passed') return known;
+	// 可決で反映済みか要調整なら終わり。どちらでもなければ、反映の前に失敗していたのでやり直す（docs/spec/72.md 決めたこと5）
+	if (known && ((await ifPlaceOf(db, bill.id, known.rev)) || (await adjustmentRowOf(db, known.sessionKey, bill.id)))) return known;
+	await settleOnRead(db, session, sessionAt(session.startsAt - 1, minutes), now, minutes);
 	return (await resultOf(db, session.key, bill.id)) ?? null;
 }
 

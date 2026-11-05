@@ -18,6 +18,9 @@
 		siteKey,
 		edit = null,
 		dropped = 0,
+		conflicts = [],
+		adjusting = false,
+		titleFree = false,
 		back,
 		form
 	}: {
@@ -29,14 +32,20 @@
 		edit?: { id: number; rev: number } | null;
 		/** 非表示になって引用から外れる解決策の数（直すとき） */
 		dropped?: number;
+		/** 基にしたあとで変わった条のいまの条文（docs/spec/72.md の B2） */
+		conflicts?: { num: string; label: string; caption: string; body: string }[];
+		/** 要調整を直す：題名と対象の法令は変えられない。titleFree は法令名の重なりで、法令名は変えられる */
+		adjusting?: boolean;
+		titleFree?: boolean;
 		/** 「やめる」の行き先 */
 		back: string;
-		form: { values?: BillFormValues; errors?: BillFormErrors; message?: string } | null | undefined;
+		form: { values?: BillFormValues; errors?: BillFormErrors; message?: string; conflicts?: { num: string; label: string; caption: string; body: string }[] } | null | undefined;
 	} = $props();
 
 	// 断られた結果を読み込み直したときは、送った値から始める
 	// svelte-ignore state_referenced_locally
 	const start = form?.values ?? initial;
+	const shownConflicts = $derived(form?.conflicts ?? conflicts);
 	let key = 0;
 	type Row = RowValues & { key: number };
 	const toRow = (r: RowValues): Row => ({ ...r, key: key++ });
@@ -172,6 +181,7 @@
 		id="bill-title"
 		name="title"
 		bind:value={title}
+		readonly={adjusting}
 		required
 		maxlength={BILL_MAX.title}
 		aria-describedby={fieldError('title') ? 'bill-title-hint bill-title-error' : 'bill-title-hint'}
@@ -186,6 +196,7 @@
 			id="bill-new-title"
 			name="newTitle"
 			bind:value={newTitle}
+			readonly={adjusting && !titleFree}
 			required
 			maxlength={BILL_MAX.lawTitle}
 			aria-describedby={fieldError('newTitle') ? 'bill-new-title-hint bill-new-title-error' : 'bill-new-title-hint'}
@@ -242,6 +253,7 @@
 			name="law"
 			value={law}
 			onchange={(e) => changeLaw(e.currentTarget.value)}
+			disabled={adjusting}
 			required
 			aria-invalid={fieldError('laws') ? 'true' : undefined}
 			aria-describedby={fieldError('laws') ? 'bill-law-error' : undefined}
@@ -249,7 +261,9 @@
 			<option value="">{ja.bill.write.lawPlaceholder}</option>
 			{#each laws as l (l.id)}<option value={l.id}>{l.title}</option>{/each}
 		</select>
+		{#if adjusting}<input type="hidden" name="law" value={law} />{/if}
 		{#if fieldError('laws')}<p class="error" id="bill-law-error">{fieldError('laws')}</p>{/if}
+		<p class="hint">{ja.ifLaw.formNote}</p>
 	{/if}
 
 	{#if kind === 'repeal'}
@@ -411,16 +425,46 @@
 	</fieldset>
 	{#if fieldError('solutions')}<p class="error" id="bill-solutions-error">{fieldError('solutions')}</p>{/if}
 
+	{#if shownConflicts.length}
+		<section class="conflicts">
+			<h2>{ja.ifLaw.conflictsHeading}</h2>
+			<p class="hint">{ja.ifLaw.conflictsHint}</p>
+			{#each shownConflicts as c (c.num)}
+				<h3>{c.label}{c.caption}</h3>
+				<p class="law-text">{c.body}</p>
+			{/each}
+			<label class="radio"><input type="checkbox" name="confirmConflicts" />{ja.ifLaw.confirmLabel}</label>
+		</section>
+	{/if}
+
 	<Turnstile {siteKey} bind:token bind:this={turnstile} />
 	{#if alertText}<p role="alert" class="error">{alertText}</p>{/if}
 	<div class="buttons">
 		<!-- 条文を読み込むまでは、基にした版が決まらないので送らない -->
-		<button class="primary" disabled={!token || (kind !== 'enact' && law !== '' && base === '') || !candidates.length}>{ja.bill.write.submit}</button>
+		<button class="primary" disabled={!token || (kind !== 'enact' && law !== '' && base === '') || !candidates.length}>{adjusting ? ja.ifLaw.fixSubmit : ja.bill.write.submit}</button>
 		<a href={back}>{ja.bill.write.cancel}</a>
 	</div>
 </form>
 
 <style>
+	.conflicts {
+		padding: 1rem;
+		border: 1px solid var(--color-caution);
+		border-radius: var(--radius-m);
+		background: var(--color-caution-bg);
+	}
+
+	.conflicts h3 {
+		margin: 0.75rem 0 0;
+		font-size: var(--font-size-body);
+	}
+
+	.law-text {
+		margin: 0.25rem 0;
+		white-space: pre-line;
+		overflow-wrap: anywhere;
+	}
+
 	form {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);

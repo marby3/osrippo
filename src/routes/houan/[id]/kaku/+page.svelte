@@ -12,8 +12,10 @@
 
 <main>
 	<p class="sub"><a href="/houan/{data.edit.id}">{data.edit.title}</a></p>
-	<h1>{ja.bill.write.editHeading}</h1>
-	{#if data.supports > 0}<p class="notice">{ja.bill.support.resetNotice(data.supports)}</p>{/if}
+	<h1>{data.adjusting ? ja.ifLaw.fixHeading : ja.bill.write.editHeading}</h1>
+	{#if data.repealed}<p class="notice">{ja.ifLaw.lawRepealed}</p>{/if}
+	<!-- 要調整を直しても賛同は保つ（docs/spec/72.md の B） -->
+	{#if data.supports > 0 && !data.adjusting}<p class="notice">{ja.bill.support.resetNotice(data.supports)}</p>{/if}
 	<BillForm
 		laws={data.laws}
 		candidates={data.candidates}
@@ -22,6 +24,9 @@
 		siteKey={data.siteKey}
 		edit={{ id: data.edit.id, rev: data.edit.rev }}
 		dropped={data.dropped}
+		conflicts={data.conflicts}
+		adjusting={data.adjusting}
+		titleFree={data.adjustmentReason === 'title'}
 		back="/houan/{data.edit.id}"
 		{form}
 	/>

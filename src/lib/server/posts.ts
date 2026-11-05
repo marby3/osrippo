@@ -75,9 +75,9 @@ export async function questionTotal(db: Db, billId: number, related: number[] = 
 	return row.n;
 }
 
-/** 答弁待ちの質疑の数 */
-export async function waitingQuestions(db: Db, billId: number) {
-	const [row] = await db.select({ n: count() }).from(posts).where(and(questions(billId), unanswered));
+/** 答弁待ちの質疑の数。いまの付託先の会期の質疑だけ（前の会期の質疑には答弁できない。docs/spec/72.md の C） */
+export async function waitingQuestions(db: Db, billId: number, sessionKey: string) {
+	const [row] = await db.select({ n: count() }).from(posts).where(and(questions(billId), eq(posts.sessionKey, sessionKey), unanswered));
 	return row.n;
 }
 
@@ -86,11 +86,11 @@ export async function waitingQuestions(db: Db, billId: number) {
  * 答弁と補足は parent_id IN (…) でまとめて引く（1ページ20件なので、D1 の値の数の上限に収まる）。
  * related を渡すと関連法案の質疑も一緒に返す（Issue #69。どの法案の質疑かは billId で分かる）
  */
-export async function listQuestions(db: Db, billId: number, userId: string | null, onlyWaiting: boolean, page: number, related: number[] = []) {
+export async function listQuestions(db: Db, billId: number, userId: string | null, onlyWaiting: boolean, page: number, related: number[] = [], sessionKey?: string) {
 	const rows = await db
-		.select({ id: posts.id, billId: posts.billId, body: posts.body, userId: posts.userId })
+		.select({ id: posts.id, billId: posts.billId, sessionKey: posts.sessionKey, body: posts.body, userId: posts.userId })
 		.from(posts)
-		.where(onlyWaiting ? and(questions(billId), unanswered) : questions(billId, related))
+		.where(onlyWaiting ? and(questions(billId), sessionKey ? eq(posts.sessionKey, sessionKey) : undefined, unanswered) : questions(billId, related))
 		.orderBy(desc(posts.id))
 		.limit(QUESTION_PAGE_SIZE + 1)
 		.offset((page - 1) * QUESTION_PAGE_SIZE);
@@ -110,6 +110,7 @@ export async function listQuestions(db: Db, billId: number, userId: string | nul
 		rows: shown.map((q) => ({
 			id: q.id,
 			billId: q.billId,
+			sessionKey: q.sessionKey,
 			body: q.body,
 			mine: q.userId === userId,
 			pressed: pressedOf(q.id),

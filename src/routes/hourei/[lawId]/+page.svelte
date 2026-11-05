@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { ja, jaDate } from '#lib/copy/ja.ts';
-	import { fullYears, itemLabel } from '#lib/domain/law/display.ts';
+	import { fullYears } from '#lib/domain/law/display.ts';
 	import DiffText from '#lib/components/DiffText.svelte';
+	import LawParagraphs from '#lib/components/LawParagraphs.svelte';
+	import LawSwitch from '#lib/components/LawSwitch.svelte';
 	import { changedLines, type DiffPart } from '#lib/domain/law/compare.ts';
 	import type { PageProps } from './$types';
 
@@ -99,6 +101,7 @@
 </svelte:head>
 
 <main>
+	<LawSwitch lawId={data.law.id} current="real" />
 	<header class="law-head">
 		<h1>{data.law.title}</h1>
 		<p class="sub">{ja.law.meta(data.law.lawNum, data.current.enforcementDate)}</p>
@@ -124,18 +127,7 @@
 		{#if article.band}<h2 class="band">{ja.law.band(article.band)}</h2>{/if}
 		<article id="jo-{article.num}" aria-labelledby="article-{article.num}" class:selected={openNum === article.num}>
 			<h3><span id="article-{article.num}">{article.label}</span><span class="caption">{article.caption}</span></h3>
-			{#each article.paragraphs as paragraph, i (paragraph.num)}
-				<div class="paragraph">
-					<p>{#if i > 0}<span class="num">{paragraph.num}</span>{/if}{paragraph.text}</p>
-					{#if paragraph.items.length}
-						<ol>
-							{#each paragraph.items as item (item.num)}
-								<li><span class="num">{itemLabel(item.num)}</span>{item.text}</li>
-							{/each}
-						</ol>
-					{/if}
-				</div>
-			{/each}
+			<LawParagraphs paragraphs={article.paragraphs} />
 			<p class="amended">
 				{#if article.lastAmended}
 					<strong>{ja.law.amended(article.lastAmended, fullYears(article.lastAmended, data.today))}</strong>
@@ -236,24 +228,6 @@
 		margin-left: 0.5em;
 		color: var(--color-text-sub);
 		font-weight: normal;
-	}
-
-	.paragraph p,
-	.paragraph li {
-		margin: 0;
-		line-height: var(--line-height-law);
-		/* 号の細分（イ、ロ、ハ）は改行して出す */
-		white-space: pre-line;
-	}
-
-	.paragraph ol {
-		margin: 0;
-		padding-left: 1em;
-		list-style: none;
-	}
-
-	.num {
-		margin-right: 1em;
 	}
 
 	section {

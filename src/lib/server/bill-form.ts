@@ -2,12 +2,13 @@
 // 基にした版の比べ（docs/spec/45.md 決めたこと7）を通して、createDraft・saveDraft に渡す形にする
 import { and, eq, inArray } from 'drizzle-orm';
 import { ja } from '../copy/ja';
-import { committeeLaws, issues, laws, lawRevisions, solutions } from '../db/schema';
+import { committeeLaws, ifLaws, issues, laws, lawRevisions, solutions } from '../db/schema';
 import {
 	BILL_MAX,
 	CHANGE_OPS,
 	checkChanges,
 	parseArticleBody,
+	parseBaseToken,
 	validateBill,
 	type BaseArticle,
 	type BillChange,
@@ -17,7 +18,8 @@ import {
 	type ChangeOp
 } from '../domain/bills';
 import { LISTED, SOLUTION_SHOWN } from '../domain/reports';
-import { articlesOfRevision, currentRevision, type Db } from './law';
+import { ifArticles, ifHeadOf } from './if-world';
+import type { Db } from './law';
 import type { DraftInput } from './bills';
 
 /** 第1委員会（消費者保護）。委員会が1つのあいだは、法案はすべてここに出す */
@@ -155,14 +157,16 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 	if (!kind) return invalid();
 
 	// 基にする版の条。制定は空の法令から書くのでない
-	let articles: Awaited<ReturnType<typeof articlesOfRevision>> | null = null;
+	let articles: Awaited<ReturnType<typeof ifArticles>> | null = null;
 	let baseId: string | null = null;
+	let baseIfSeq = 0;
 	if (kind === 'enact') {
 		// 制定に法令の番号や版は付かない（作り変えた値）
 		if (v.law || v.base) return invalid();
 		if (!errors.fields.newTitle) {
 			const [same] = await db.select({ id: laws.id }).from(laws).where(eq(laws.title, v.newTitle.trim()));
-			if (same) errors.fields.newTitle = ja.bill.lawTitleExists;
+			const [taken] = same ? [] : await db.select({ id: ifLaws.id }).from(ifLaws).where(eq(ifLaws.title, v.newTitle.trim()));
+			if (same || taken) errors.fields.newTitle = ja.bill.lawTitleExists;
 		}
 	} else {
 		// 選ばれていない法令は「選んでください」。それ以外の対象外の法令は作り変えた値
@@ -171,14 +175,18 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 			return { ok: false, status: 400, errors };
 		}
 		if (!checked.ok && checked.errors.laws) return invalid();
-		// 基にした版：その法令の版でなければ作り変えた値。いまの版でなければ、開いたあとで新しい版が施行された
-		const [base] = await db.select({ id: lawRevisions.id, lawId: lawRevisions.lawId }).from(lawRevisions).where(eq(lawRevisions.id, v.base));
+		// 基にした版の印：形が違うか、その法令の版でなければ作り変えた値。いまの IF世界の最新でなければ、開いたあとで変わった
+		const token = parseBaseToken(v.base);
+		if (!token) return invalid();
+		const [base] = await db.select({ id: lawRevisions.id, lawId: lawRevisions.lawId }).from(lawRevisions).where(eq(lawRevisions.id, token.revisionId));
 		if (!base || base.lawId !== v.law) return invalid();
+		const head = await ifHeadOf(db, v.law);
+		if (head.repealed) return { ok: false, status: 400, errors: { fields: { laws: ja.ifLaw.lawRepealed }, rows: {}, message: ja.ifLaw.lawRepealed } };
 		// 誤りを直してから開き直すのは手間なので、版が変わったことを先に知らせる
-		const current = await currentRevision(db, v.law);
-		if (current?.id !== base.id) return { ok: false, status: 409, errors: { fields: {}, rows: {}, message: ja.bill.baseChanged } };
+		if (head.branchRevisionId !== base.id || head.seq !== token.ifSeq) return { ok: false, status: 409, errors: { fields: {}, rows: {}, message: ja.bill.baseChanged } };
 		baseId = base.id;
-		articles = await articlesOfRevision(db, base.id);
+		baseIfSeq = token.ifSeq;
+		articles = await ifArticles(db, v.law, base.id, token.ifSeq);
 	}
 
 	// 変更点
@@ -253,8 +261,8 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 			supplementary: value.supplementary,
 			laws: [
 				kind === 'enact'
-					? { action: kind, lawId: null, baseRevisionId: null, newTitle: value.newTitle, changes }
-					: { action: kind, lawId: v.law, baseRevisionId: baseId, newTitle: null, changes }
+					? { action: kind, lawId: null, baseRevisionId: null, baseIfSeq: 0, newTitle: value.newTitle, changes }
+					: { action: kind, lawId: v.law, baseRevisionId: baseId, baseIfSeq, newTitle: null, changes }
 			],
 			solutionIds: value.solutionIds
 		}

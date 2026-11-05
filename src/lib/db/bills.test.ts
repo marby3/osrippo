@@ -99,6 +99,7 @@ describe('基準2：版ごとの保存', () => {
 					action: 'amend',
 					lawId: LAW,
 					baseRevisionId: base.id,
+					baseIfSeq: 0,
 					newTitle: null,
 					changes: [{ op: 'amend', num: '1', provisionId: article1.id, caption: '（目的）', paragraphs: [{ num: '1', text, items: [] }] }]
 				}

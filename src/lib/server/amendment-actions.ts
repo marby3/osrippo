@@ -8,7 +8,8 @@ import { VOTE_CHOICES, type VoteChoice } from '../domain/votes';
 import { acceptAmendment, amendableArticles, amendmentOf, castAmendmentVote, createAmendment, myAmendmentVote, setAmendmentSupport, updateAmendment, type AmendmentRow } from './amendments';
 import { sessionParticipants } from './bills';
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
-import { articlesOfRevision, type BatchDb, type Db } from './law';
+import { baseArticlesOf } from './if-world';
+import type { BatchDb, Db } from './law';
 import { postableBill, progressOf } from './post-actions';
 import { voteLimit } from './votes';
 
@@ -80,7 +81,7 @@ export async function amendmentPostAction(event: RequestEvent) {
 	const amended = applyAmendments(bill.laws, [{ lawSeq: key.lawSeq, num: key.num, provisionId: article.provisionId, caption: article.caption, paragraphs: checked.paragraphs }]);
 	const rule = checkAmendedLaw(
 		law.action,
-		law.baseRevisionId ? await articlesOfRevision(db, law.baseRevisionId) : null,
+		law.baseRevisionId ? await baseArticlesOf(db, law) : null,
 		amended[key.lawSeq].changes,
 		amended.reduce((n, l) => n + l.changes.length, 0)
 	);
@@ -140,8 +141,9 @@ export async function amendmentSupportAction(event: RequestEvent) {
 	if (id === null || revision === null || (op !== 'add' && op !== 'remove')) error(400);
 	const amendment = await amendmentOf(db, id, bill.id);
 	if (!amendment) error(404);
-	const { progress } = progressOf(bill, now);
-	if (!amendmentOpen(progress)) return fail(409, { message: ja.amendment.closed, ...keep });
+	const { progress, session } = progressOf(bill, now);
+	// 前の会期の修正案は読むだけ（要調整を直した法案。docs/spec/72.md の C）
+	if (!amendmentOpen(progress) || amendment.sessionKey !== session.key) return fail(409, { message: ja.amendment.closed, ...keep });
 	if (amendment.userId === user.id || bill.userId === user.id) return fail(403, { message: ja.amendment.ownSupport, ...keep });
 	const result = await setAmendmentSupport(db, guard.actor, amendment, bill.rev, revision, op, now);
 	if (!result.ok) return 'refusal' in result ? fail(429, { message: refusalMessage(result.refusal), ...keep }) : fail(409, { message: ja.amendment.stale, ...keep });

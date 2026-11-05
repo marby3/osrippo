@@ -24,17 +24,19 @@ export const load: PageServerLoad = async (event) => {
 	if (withRelated && relatedShown.length === 0) error(404);
 	const relatedIds = relatedShown.map((r) => r.id);
 	const user = event.locals.user;
-	const { rows, hasNext } = await listQuestions(db, bill.id, user?.id ?? null, onlyWaiting, page, relatedIds);
-	if (page > 1 && rows.length === 0) error(404);
-
 	const now = nowOf(event);
 	const { progress, session } = progressOf(bill, now);
+	const { rows, hasNext } = await listQuestions(db, bill.id, user?.id ?? null, onlyWaiting, page, relatedIds, session.key);
+	if (page > 1 && rows.length === 0) error(404);
+
 	const userId = user?.id ?? null;
 	const role = answererRole(bill, userId, userId !== null && (await isSupporter(db, bill, userId)));
-	const waiting = await waitingQuestions(db, bill.id);
+	const waiting = await waitingQuestions(db, bill.id, session.key);
 	const waitUntil = user ? billWaitUntil(user.createdAt.getTime(), now) : null;
 	return {
 		questions: rows,
+		// 前の会期の質疑は読むだけ（要調整を直した法案。docs/spec/72.md の C）
+		sessionKey: session.key,
 		waitingCount: waiting,
 		totalCount: onlyWaiting ? waiting : await questionTotal(db, bill.id, relatedIds),
 		hasNext,

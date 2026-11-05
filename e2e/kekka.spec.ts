@@ -1,6 +1,6 @@
 // Issue #71 会期の終わりの処理と結果のページ。処理の中身は src/lib/db/results.test.ts
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { billRequest, billSupportRequest, createAmendBill, issueWithSolutions, newUser, postIssue, proposeRequest } from './helpers';
+import { billRequest, billSupportRequest, createAmendBill, ifTarget, issueWithSolutions, newUser, postIssue, proposeRequest } from './helpers';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -43,10 +43,12 @@ function setup(browser: Browser, w: string, group: number) {
 		return user(browser, address, now, `u${seq}-${label}`);
 	};
 	const anonymous = (now: string) => user(browser, nextIp(), now);
-	async function bill(title: string) {
+	/** slot を渡すと可決するテスト用に IF_LAW のその位置の条を書きかえる（IF世界はテストのあいだで共有する） */
+	async function bill(title: string, slot?: number) {
 		const a = await person(at(month, 5));
 		const { ids } = await issueWithSolutions(a.page, title, [`解決策 ${title}`]);
-		const path = await createAmendBill(a.page, title, ids[0]);
+		const target = slot === undefined ? undefined : await ifTarget(a.page, slot);
+		const path = await createAmendBill(a.page, title, ids[0], slot === undefined ? {} : { 'body.0': `本文 ${title}` }, target);
 		for (let i = 0; i < 3; i++) {
 			const b = await person(at(month, 5));
 			const res = await billSupportRequest(b.page, path, { op: 'add', rev: '1' });
@@ -98,7 +100,7 @@ async function ownedRow(u: Page, title: string) {
 test('基準4：Cron の入口で、読まれなくても結果が記録される。サーバーの入口のファイルは公開されない', async ({ browser }, info) => {
 	const w = info.project.name;
 	const s = setup(browser, w, 1);
-	const { id, title } = await s.bill(`Cron の法案 ${s.label}`);
+	const { id, title } = await s.bill(`Cron の法案 ${s.label}`, w === 'sp' ? 0 : 1);
 	await s.cast(id, 'yes', 10);
 	// 参考の票も定足数に届き、可否は数えた票と同じ
 	await s.cast(id, 'yes', 10, false);
@@ -156,12 +158,13 @@ test('基準5：次の会期で最初に読まれると確定する。古い会�
 test('基準6：結果のページ（可決）に帯・noindex・文言・数えた票と内訳・参考の票・修正案の結果が出る', async ({ browser }, info) => {
 	const w = info.project.name as Width;
 	const s = setup(browser, w, 4);
-	const { id, title, path } = await s.bill(`可決の法案 ${s.label}`);
+	const { id, title, path } = await s.bill(`可決の法案 ${s.label}`, w === 'sp' ? 2 : 3);
 
 	// 2人の賛同で本案より先に採決する修正案（第2条）
 	const proposer = await s.person(at(s.month, 15));
 	const body = `可決する修正案の本文 ${s.label}`;
-	const posted = await billRequest(proposer.page, `${path}/shusei/kaku`, { rev: '1', reason: '', article: '0:2', body, 'cf-turnstile-response': 'test-pass' });
+	const other = await ifTarget(proposer.page, w === 'sp' ? 4 : 5);
+	const posted = await billRequest(proposer.page, `${path}/shusei/kaku`, { rev: '1', reason: '', article: `0:${other.num}`, body, 'cf-turnstile-response': 'test-pass' });
 	expect(posted.status(), await posted.text()).toBe(303);
 	await proposer.page.goto(`${path}/shusei`);
 	const amendment = ((await proposer.page.locator('article').filter({ hasText: body }).getAttribute('id')) as string).replace('shusei-', '');
@@ -206,7 +209,7 @@ test('基準6：結果のページ（可決）に帯・noindex・文言・数え
 	await expect(v.page.getByText(/可否が逆/)).toHaveCount(0);
 
 	// 修正案の結果
-	await expect(main(v.page)).toContainText(/第2条\s*・\s*可決/);
+	await expect(main(v.page)).toContainText(new RegExp(`${other.label}\\s*・\\s*可決`));
 	await expect(v.page.getByRole('link', { name: '修正案を見る' })).toHaveAttribute('href', `${path}/shusei`);
 	await expect(v.page.getByRole('link', { name: '法案のページへ' })).toHaveAttribute('href', path);
 });
@@ -242,7 +245,7 @@ test('基準7：否決と廃案の文言と定足数。参考の票が定足数�
 test('基準8：法案のページに段階と「結果を見る」、一覧の「終わった」のタブに段階が出る。投票の画面から結果のページへ移る。処理の前は「結果を集計しています」', async ({ browser }, info) => {
 	const w = info.project.name as Width;
 	const s = setup(browser, w, 7);
-	const { id, path, title } = await s.bill(`段階の法案 ${s.label}`);
+	const { id, path, title } = await s.bill(`段階の法案 ${s.label}`, w === 'sp' ? 6 : 7);
 	await s.cast(id, 'yes', 10);
 
 	// 締切から1分のあいだは処理しない

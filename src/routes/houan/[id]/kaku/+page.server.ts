@@ -1,12 +1,15 @@
-// 法案の下書きを直す（Issue #46）。提出者だけ、下書きのあいだだけ
+// 法案の下書きと要調整の法案を直す（Issue #46・#72）。提出者だけ
 import { error } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
+import { billProgress, referralSession } from '#lib/domain/bills.ts';
 import { articleBodyText, articleLabel } from '#lib/domain/law/index.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { submitBill } from '#lib/server/bill-actions.ts';
 import { FIRST_COMMITTEE, type BillFormValues } from '#lib/server/bill-form.ts';
 import { billById, billSupportState, citedCandidates, committeeLawList, draftArticles } from '#lib/server/bills.ts';
+import { nowOf, sessionsAt } from '#lib/server/client.ts';
+import { adjustmentOf, staleArticles } from '#lib/server/if-world.ts';
 import { requireUser } from '#lib/server/require-user.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
@@ -16,15 +19,21 @@ async function editable(event: RequestEvent) {
 	const bill = id === null ? undefined : await billById(drizzle(env.DB), id);
 	if (!bill) error(404);
 	const user = requireUser(event);
-	if (bill.userId !== user.id || bill.status !== 'draft') error(403);
-	return { bill, user };
+	const db = drizzle(env.DB);
+	const now = nowOf(event);
+	// 要調整の法案は、期限までに提出者が直せる（docs/spec/72.md 決めたこと7）
+	const { minutes } = sessionsAt(now);
+	const stage = bill.status === 'proposed' && bill.proposedAt !== null && billProgress(bill, now, minutes) === 'lapsed' ? await adjustmentOf(db, referralSession(bill.proposedAt, minutes).key, bill.id) : null;
+	const adjusting = stage !== null && stage.reason !== 'repealed' && now < stage.dueAt;
+	if (bill.userId !== user.id || (bill.status !== 'draft' && !adjusting)) error(403);
+	return { bill, user, adjusting, adjustment: adjusting ? stage : null };
 }
 
 export const load: PageServerLoad = async (event) => {
-	const { bill } = await editable(event);
+	const { bill, adjusting, adjustment } = await editable(event);
 	const db = drizzle(env.DB);
 	const law = bill.laws[0];
-	// 条文はいま施行されている版を出し、それを基にした版として送る（docs/spec/45.md 決めたこと7）
+	// 条文は IF世界の最新を出し、それを基にした版として送る（docs/spec/72.md 決めたこと4）
 	const articles = law?.lawId ? await draftArticles(db, FIRST_COMMITTEE, law.lawId) : undefined;
 	const candidates = await citedCandidates(db, bill.solutionIds);
 	// 非表示になった解決策は候補に出ないので、引用からも外して、そのことを知らせる
@@ -56,13 +65,18 @@ export const load: PageServerLoad = async (event) => {
 		supports: (await billSupportState(db, bill.id, bill.rev, null)).supports,
 		initial,
 		articles: articles ?? null,
+		// 基にしたあとで変わった条（docs/spec/72.md の B2）
+		conflicts: law ? await staleArticles(db, law) : [],
+		repealed: Boolean(law?.lawId && !articles),
+		adjusting,
+		adjustmentReason: adjustment?.reason ?? null,
 		siteKey: env.TURNSTILE_SITE_KEY
 	};
 };
 
 export const actions: Actions = {
 	default: async (event) => {
-		const { bill, user } = await editable(event);
-		return submitBill(event, user, { id: bill.id, kind: bill.kind });
+		const { bill, user, adjusting } = await editable(event);
+		return submitBill(event, user, { ...bill, adjusting });
 	}
 };

@@ -81,21 +81,23 @@
 		</nav>
 		{#each data.questions as question (question.id)}
 			{@const relatedBill = relatedOf(question.billId)}
+			{@const past = !relatedBill && question.sessionKey !== data.sessionKey}
 			<QuestionCard
 				{question}
 				{relatedBill}
 				role={relatedBill ? null : data.role}
 				loggedIn={data.loggedIn}
 				waiting={data.waitUntil !== null}
-				canAnswer={!relatedBill && data.canAnswer}
-				canSupplement={!relatedBill && data.canSupplement}
+				canAnswer={!relatedBill && !past && data.canAnswer}
+				canSupplement={!relatedBill && !past && data.canSupplement}
+				{past}
 				siteKey={data.siteKey}
 				{failure}
 				{afterReply}
 				back={here}
-				evaluationShown={!relatedBill && data.evaluationShown}
+				evaluationShown={!relatedBill && !past && data.evaluationShown}
 				{evaluationFailure}
-				track={relatedBill ? null : track}
+				track={relatedBill || past ? null : track}
 			/>
 		{:else}
 			<p class="empty">{data.onlyWaiting ? ja.post.emptyWaiting : ja.post.empty}</p>

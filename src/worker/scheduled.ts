@@ -10,5 +10,5 @@ export async function scheduled(controller: ScheduledController, env: Env): Prom
 	// 分の会期は pnpm dev だけの機能で、Cron がない
 	const session = sessionAt(now, null);
 	const previous = sessionAt(session.startsAt - 1, null);
-	await settleSession(drizzle(env.DB) as unknown as BatchDb, previous, sessionAt(previous.startsAt - 1, null), now);
+	await settleSession(drizzle(env.DB) as unknown as BatchDb, previous, sessionAt(previous.startsAt - 1, null), now, null);
 }

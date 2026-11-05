@@ -30,6 +30,7 @@
 		loggedIn,
 		waiting,
 		canAnswer,
+		past = false,
 		canSupplement,
 		siteKey,
 		failure,
@@ -47,6 +48,8 @@
 		/** 登録から7日たっていない */
 		waiting: boolean;
 		canAnswer: boolean;
+		/** 前の会期の質疑（読むだけ） */
+		past?: boolean;
 		canSupplement: boolean;
 		siteKey: string;
 		failure: Failure | null;
@@ -127,7 +130,7 @@
 			/>
 		{/if}
 	{:else}
-		<p class="waiting">{ja.post.waiting}</p>
+		{#if !past}<p class="waiting">{ja.post.waiting}</p>{/if}
 		{#if evaluationShown && !question.mine}
 			<EvaluationButtons postId={question.id} pressed={question.pressed} {loggedIn} {back} message={messageFor(question.id)} />
 		{/if}

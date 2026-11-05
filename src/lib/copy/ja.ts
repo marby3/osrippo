@@ -205,6 +205,41 @@ export const ja = {
 		amendmentsLink: '修正案を見る',
 		billLink: '法案のページへ'
 	},
+	/** IF世界の法令と要調整（Issue #72。SpLaw・PcLaw。設計書 docs/spec/72.md）。「分岐」「反映」は画面に出さない */
+	ifLaw: {
+		pageTitle: (title: string) => `${title}（IF世界）｜オープンソース立法府`,
+		fictional: '架空の法令',
+		real: '現実の法律',
+		ifWorld: 'IF世界の法律',
+		switchLabel: '現実の法律とIF世界の法律',
+		changedBy: 'IF世界で変わりました：',
+		enactedBy: 'IF世界で新しくできた法律です：',
+		repealedBy: 'IF世界では廃止されました：',
+		toLaw: 'IF世界の条文を見る',
+		formNote: 'ここに出る条文は IF世界の最新です（架空の法令）',
+		lawRepealed: 'この法令は IF世界で廃止されたので、法案の対象にできません。',
+		conflictsHeading: 'ぶつかった条文',
+		conflictsHint: '基にしたあとで、次の条文が変わりました。いまの条文を確かめて、変更後の条文を見直してください。',
+		confirmLabel: 'いまの条文を確かめました',
+		confirmRequired: 'いまの条文を確かめて、チェックを入れてください。',
+		proposeBlocked: {
+			repealed: 'この法令は IF世界で廃止されたので、発議できません。',
+			title: '同じ名前の法律が IF世界にできたので、発議できません。法令名を直してください。',
+			stale: '基にしたあとで条文が変わりました。編集の画面でいまの条文を確かめてから、発議してください。'
+		},
+		locked: '要調整の法案は、題名と種類と対象の法令を変えられません。',
+		fix: '直す',
+		fixHeading: '要調整の法案を直す',
+		fixSubmit: '直して質疑に戻す',
+		applying: 'IF世界の法律にする手続きをしています',
+		adjusting: {
+			article: '可決しましたが、先に変わった条と重なるので、調整が要ります。',
+			title: '可決しましたが、同じ名前の法律が先にできたので、調整が要ります。'
+		},
+		repealedNote: '可決しましたが、対象の法令が先に廃止されたので、IF世界の法律になりません。',
+		expired: '調整の期限までに直されなかったので、廃案になりました',
+		due: (at: number) => `直す期限：${jaDateTime(at)}まで`
+	},
 	/** IF世界の帯（Issue #63 テストの作り方：SpResult・PcResult の帯に合わせる） */
 	ifBand: { label: 'IF世界', short: '架空の法律です', long: 'このページの条文は架空のものです。現実の法律ではありません。' },
 	/** 修正案（設計書 docs/spec/68.md）。「先議」は使わず「本案より先に採決」と書く */
@@ -360,7 +395,7 @@ export const ja = {
 		kinds: { amend: '改正', repeal: '廃止', enact: '制定' },
 		ops: { amend: '書きかえ', add: '新しく追加', delete: '削除', supplementary: '新しく追加' },
 		/** 法案のいまの進み（Issue #50。一覧の言葉は list.stages） */
-		progress: { draft: '下書き', proposed: '発議', deliberation: '質疑', vote: '採決', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中' },
+		progress: { draft: '下書き', proposed: '発議', deliberation: '質疑', vote: '採決', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中', adjusting: '要調整' },
 		/** 賛同と発議（Issue #49） */
 		support: {
 			count: (n: number) => `賛同 ${n}人`,
@@ -391,7 +426,7 @@ export const ja = {
 			kind: '種類',
 			bill: '法案',
 			stage: '段階',
-			stages: { draft: '下書き', proposed: '発議', deliberation: '質疑中', vote: '採決中', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中' },
+			stages: { draft: '下書き', proposed: '発議', deliberation: '質疑中', vote: '採決中', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中', adjusting: '要調整' },
 			support: '賛同',
 			supportCell: (n: number) => `${n}人`,
 			supportPrefix: ' ・ 賛同 ',
