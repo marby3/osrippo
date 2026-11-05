@@ -6,7 +6,8 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { laws, lawRevisions, provisions, provisionVersions } from '../db/schema';
 import { extendHistory } from '../domain/law';
 import { searchTexts } from '../domain/search';
-import { checkRevision, readLawText, readRevisionList, REVISION_STATUS, type EgovRevision, type FetchJson } from '../egov/client';
+import { checkRevision, readLawText, readRevisionList, type FetchJson } from '../egov/client';
+import { revisionStatus, type EgovRevision } from '../egov/revision';
 import { ifBranchOf } from './if-world';
 import { provisionsAt, type BatchDb } from './law';
 
@@ -16,15 +17,15 @@ const VERSIONS_PER_STATEMENT = 10;
 const SEARCH_PER_STATEMENT = 33;
 
 // 検索の表は FTS5 で、スキーマでは管理しない（drizzle/0008_search.sql）。D1 の batch は値つきの db.run を受け付けないので、builder で書くためにここで形だけ宣言する
-const searchColumns = { kind: text('kind').notNull(), refId: integer('ref_id').notNull(), text: text('text').notNull() };
-const searchTrigram = sqliteTable('search_trigram', searchColumns);
-const searchBigram = sqliteTable('search_bigram', searchColumns);
+const searchTable = (name: string) => sqliteTable(name, { kind: text('kind').notNull(), refId: integer('ref_id').notNull(), text: text('text').notNull() });
+const searchTrigram = searchTable('search_trigram');
+const searchBigram = searchTable('search_bigram');
 
 const chunks = <T>(rows: T[], size: number) => Array.from({ length: Math.ceil(rows.length / size) }, (_, i) => rows.slice(i * size, (i + 1) * size));
 const inJson = (values: unknown[]) => sql`(SELECT value FROM json_each(${JSON.stringify(values)}))`;
 
 /** 施行済みの最新の版の題名（施行予定の改正で題名が変わることがある） */
-const latestEnforced = (revisions: EgovRevision[]) => revisions.findLast((r) => REVISION_STATUS[r.current_revision_status] === 'enforced') as EgovRevision;
+const latestEnforced = (revisions: EgovRevision[]) => revisions.findLast((r) => revisionStatus(r.current_revision_status) === 'enforced') as EgovRevision;
 
 export type SyncResult = {
 	/** 固定の版より後を作り直したか */
@@ -50,14 +51,17 @@ export async function syncLaw(db: BatchDb, lawId: string, fetchJson: FetchJson):
 	const pinPosition = listed.findIndex((r) => r.law_revision_id === pinId);
 	if (pinPosition < 0) throw new Error(`${lawId}：固定の版 ${pinId} が一覧にありません`);
 	const pin = checkRevision(listed[pinPosition]);
-	if (REVISION_STATUS[pin.current_revision_status] !== 'enforced') throw new Error(`${lawId}：固定の版 ${pinId} が施行済みではありません`);
+	if (revisionStatus(pin.current_revision_status) !== 'enforced') throw new Error(`${lawId}：固定の版 ${pinId} が施行済みではありません`);
 
 	// DB の先頭の版より前（2017年より前）は比べない
-	const firstPosition = Math.max(listed.findIndex((r) => r.law_revision_id === existing[0].id), 0);
-	const skipped = listed
-		.slice(firstPosition, pinPosition)
-		.map((r) => r.law_revision_id)
-		.filter((id) => !pinned.has(id));
+	const firstPosition = listed.findIndex((r) => r.law_revision_id === existing[0].id);
+	const skipped =
+		firstPosition < 0
+			? []
+			: listed
+					.slice(firstPosition, pinPosition)
+					.map((r) => r.law_revision_id)
+					.filter((id) => !pinned.has(id));
 	const tail = listed
 		.slice(pinPosition + 1)
 		.filter((r) => !pinned.has(r.law_revision_id))
@@ -66,7 +70,7 @@ export async function syncLaw(db: BatchDb, lawId: string, fetchJson: FetchJson):
 	const latest = latestEnforced([pin, ...tail]);
 	const saveTitle = db.update(laws).set({ title: latest.law_title, titleKana: latest.law_title_kana }).where(eq(laws.id, lawId));
 
-	const same = oldTail.length === tail.length && tail.every((r, i) => r.law_revision_id === oldTail[i].id && REVISION_STATUS[r.current_revision_status] === oldTail[i].status);
+	const same = oldTail.length === tail.length && tail.every((r, i) => r.law_revision_id === oldTail[i].id && revisionStatus(r.current_revision_status) === oldTail[i].status);
 	if (same) {
 		await saveTitle;
 		return { changed: false, skipped };
@@ -109,7 +113,7 @@ export async function syncLaw(db: BatchDb, lawId: string, fetchJson: FetchJson):
 	const pinSeq = existing[pinIndex].seq;
 
 	const oldSearchRows = sql`kind = 'provision' AND ref_id IN (SELECT id FROM provision_versions WHERE from_revision_id IN ${inJson(oldIds)})`;
-	const insertSearch = (table: typeof searchTrigram, column: 'trigram' | 'bigram') =>
+	const insertSearch = (table: ReturnType<typeof searchTable>, column: 'trigram' | 'bigram') =>
 		chunks(searchRows, SEARCH_PER_STATEMENT).map((rows) => db.insert(table).values(rows.map((r) => ({ kind: 'provision', refId: r.id, text: r[column] }))));
 
 	const statements: BatchItem<'sqlite'>[] = [
@@ -127,7 +131,7 @@ export async function syncLaw(db: BatchDb, lawId: string, fetchJson: FetchJson):
 				branch: 'real',
 				seq: pinSeq + 1 + i,
 				enforcementDate: r.amendment_enforcement_date,
-				status: REVISION_STATUS[r.current_revision_status],
+				status: revisionStatus(r.current_revision_status) as 'enforced' | 'scheduled',
 				amendmentLawTitle: r.amendment_law_title,
 				amendmentLawNum: r.amendment_law_num,
 				amendmentPromulgateDate: r.amendment_promulgate_date,

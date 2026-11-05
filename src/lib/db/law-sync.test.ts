@@ -1,5 +1,5 @@
 // Issue #74 基準2・3と信頼の境界：現実の改正の同期（設計書 docs/spec/74.md）。e-Gov は呼ばず、テストデータで過去の一覧を再現する
-import { afterEach, beforeAll, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 import { provisionsAt } from '../server/law';
@@ -69,7 +69,7 @@ const snapshot = (sqlite: DatabaseSync) => ({
 	bigram: all(sqlite, 'SELECT kind, ref_id, text FROM search_bigram ORDER BY ref_id')
 });
 
-/** 内部IDと行の番号の値を除いた中身。内部IDは最初の版の番号と木の位置に置き換える */
+/** 内部IDと行の番号の値を除いた中身。内部IDは最初の版の番号と木の位置に置き換える。行のない内部IDや消えた行を指す検索の行があれば、一度に作った場合と違いが出る（この DB は1つの法令だけ） */
 function canonical(sqlite: DatabaseSync, lawId: string) {
 	const rows = all(
 		sqlite,
@@ -86,12 +86,12 @@ function canonical(sqlite: DatabaseSync, lawId: string) {
 		return `${keyOf(r.parent as number | null) ?? ''}/${r.kind}:${r.from}:${r.num}`;
 	};
 	const vidKey = new Map(rows.map((r) => [r.vid as number, `${keyOf(r.pid as number)}@${r.from}`]));
-	const search = (table: string) => all(sqlite, `SELECT ref_id, text FROM ${table} WHERE kind = 'provision'`).filter((s) => vidKey.has(s.ref_id as number)).map((s) => `${vidKey.get(s.ref_id as number)}=${s.text}`).sort();
+	const search = (table: string) => all(sqlite, `SELECT ref_id, text FROM ${table} WHERE kind = 'provision'`).map((s) => `${vidKey.get(s.ref_id as number)}=${s.text}`).sort();
 	return {
 		law: all(sqlite, 'SELECT * FROM laws WHERE id = ?', lawId),
 		revisions: all(sqlite, 'SELECT * FROM law_revisions WHERE law_id = ? ORDER BY seq', lawId),
 		rows: rows.map((r) => ({ key: keyOf(r.pid as number), from: r.from, to: r.to, num: r.num, caption: r.caption, text: r.text, change: r.change, similarity: r.similarity, unconfirmed: keyOf(r.unconfirmed as number | null) })).sort((a, b) => `${a.key}@${a.from}`.localeCompare(`${b.key}@${b.from}`)),
-		provisions: all(sqlite, 'SELECT id, kind FROM provisions WHERE law_id = ?', lawId).filter((p) => first.has(p.id as number)).length,
+		provisions: all(sqlite, 'SELECT id, kind FROM provisions WHERE law_id = ?', lawId).map((p) => `${keyOf(p.id as number)}`).sort(),
 		trigram: search('search_trigram'),
 		bigram: search('search_bigram')
 	};
@@ -104,8 +104,8 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
-beforeAll(() => {
-	// 同期の失敗と飛ばした版はログに出る。テストの出力を埋めない
+beforeEach(() => {
+	// 同期の失敗はログに出る。テストの出力を埋めない
 	vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
@@ -118,7 +118,8 @@ test.each([SHOHIN, TOKUSHO, SHOHISHA])(
 			.filter((d): d is string => d !== null && d > START && d <= FINAL)
 			.sort();
 		const [branch] = all(sqlite, `SELECT id FROM law_revisions WHERE law_id = ? AND status = 'enforced' ORDER BY seq DESC LIMIT 1`, lawId);
-		const pinned = await provisionsAt(db, branch.id as string);
+		const byId = (rows: Awaited<ReturnType<typeof provisionsAt>>) => [...rows].sort((a, b) => a.id - b.id);
+		const pinned = byId(await provisionsAt(db, branch.id as string));
 
 		let skipped = 0;
 		for (const date of [...events, FINAL]) {
@@ -130,7 +131,7 @@ test.each([SHOHIN, TOKUSHO, SHOHISHA])(
 
 		const once = seeded([lawId], FINAL);
 		expect(canonical(sqlite, lawId)).toEqual(canonical(once.sqlite, lawId));
-		expect(await provisionsAt(db, branch.id as string)).toEqual(pinned);
+		expect(byId(await provisionsAt(db, branch.id as string))).toEqual(pinned);
 
 		// 何度走っても同じで、本文を読み直さない
 		const before = snapshot(sqlite);
@@ -245,13 +246,15 @@ test('信頼の境界：e-Gov の応答の形が違えば、その法令の同�
 		['行に番号がない', () => [{}, ...next()]],
 		['行が物でない', () => [null, ...next()]],
 		['知らない状態', edit(NEW, { current_revision_status: 'Repeal' })],
+		['オブジェクトの持つ名前の状態', edit(NEW, { current_revision_status: 'constructor' })],
 		['固定の版の知らない状態', edit(PIN, { current_revision_status: 'Unknown' })],
 		['廃止', edit(NEW, { repeal_status: 'Repeal' })],
 		['固定の版の廃止', edit(PIN, { repeal_status: 'Expire' })],
 		['施行日の形', edit(NEW, { amendment_enforcement_date: '2024年10月1日' })],
 		['施行日がない', edit(NEW, { amendment_enforcement_date: null })],
 		['題名がない', edit(NEW, { law_title: 1 })],
-		['読みの形', edit(NEW, { law_title_kana: 1 })]
+		['読みの形', edit(NEW, { law_title_kana: 1 })],
+		['読みがない', edit(NEW, { law_title_kana: undefined })]
 	];
 	for (const [name, list] of lists) {
 		await expect(syncLaw(db, SHOHIN, fakeEgov(list).fetchJson), name).rejects.toThrow();

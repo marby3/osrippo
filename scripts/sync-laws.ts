@@ -12,7 +12,7 @@ const { values } = parseArgs({ options: { 'persist-to': { type: 'string' } } });
 const { env, dispose } = await getPlatformProxy<Env>({ persist: values['persist-to'] ? { path: join(values['persist-to'], 'v3') } : true });
 try {
 	const { failed, skipped } = await syncAll(drizzle(env.DB) as unknown as BatchDb, fetchEgovJson);
-	for (const s of skipped) console.warn(`${s.lawId}：固定の版より前に遅れて来た版を履歴に入れませんでした：${s.revisionId}。次の版が入るまで、その改正は法令ページに出ません`);
+	for (const s of skipped) console.warn(`${s.lawId}：固定の版より前に遅れて来た版は履歴に入っていません：${s.revisionId}`);
 	if (failed.length) process.exitCode = 1;
 	console.log(failed.length ? `同期に失敗した法令：${failed.join(', ')}` : '同期が終わりました');
 } finally {

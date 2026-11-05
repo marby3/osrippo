@@ -154,22 +154,19 @@ export function extendHistory(start: { revisionId: string; rows: StartRow[] }, r
 	const writer = historyWriter(opts.nextId);
 	const adopted: VersionRow[] = [];
 	const byNum = (a: StartRow, b: StartRow) => compareNum(a.num, b.num);
-	const childrenOf = (kind: ProvisionKind, parentId: number) => start.rows.filter((r) => r.kind === kind && r.parentId === parentId).sort(byNum);
-	const adopt = (row: StartRow, node: Node) => {
-		adopted.push(writer.adopt(row.id, row.parentId, node, start.revisionId));
-		return node;
-	};
+	const childRows = (kind: ProvisionKind, parentId: number) => start.rows.filter((r) => r.kind === kind && r.parentId === parentId).sort(byNum);
+	const adopt = (row: StartRow, node: Node) => void adopted.push(writer.adopt(row.id, row.parentId, node, start.revisionId));
 	const articles = start.rows
 		.filter((r) => r.kind === 'article')
 		.sort(byNum)
 		.map((a) => {
 			const article: Article = { num: a.num, label: articleLabel(a.num), caption: a.caption ?? '', paragraphs: [] };
 			adopt(a, article);
-			for (const p of childrenOf('paragraph', a.id)) {
+			for (const p of childRows('paragraph', a.id)) {
 				const paragraph: Paragraph = { num: p.num, text: p.text ?? '', items: [] };
 				adopt(p, paragraph);
 				article.paragraphs.push(paragraph);
-				for (const i of childrenOf('item', p.id)) {
+				for (const i of childRows('item', p.id)) {
 					const item: Item = { num: i.num, text: i.text ?? '' };
 					adopt(i, item);
 					paragraph.items.push(item);

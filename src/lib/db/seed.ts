@@ -1,7 +1,7 @@
 // e-Gov のデータ（今はテストデータ）から、法令と版の DB に入れる SQL を作る（設計書 docs/spec/8.md）
 import { BASELINE_DATE, buildHistory, parseHeadings, parseLaw, type EgovNode } from '../domain/law';
 import { searchTexts } from '../domain/search';
-import { REVISION_STATUS as STATUS, type EgovRevision } from '../egov/client';
+import { revisionStatus, type EgovRevision } from '../egov/revision';
 
 /** 対象3法：景品表示法、特定商取引法、消費者契約法（法令ID順） */
 export const TARGET_LAWS = ['337AC0000000134', '351AC0000000057', '412AC0000000061'];
@@ -38,7 +38,7 @@ function inserts({ name, columns, rows }: Table): string[] {
 }
 
 function statusOf(r: EgovRevision): 'enforced' | 'scheduled' {
-	const status = STATUS[r.current_revision_status];
+	const status = revisionStatus(r.current_revision_status);
 	if (!status) throw new Error(`${r.law_revision_id}：知らない状態 ${r.current_revision_status}`);
 	return status;
 }
@@ -71,7 +71,7 @@ export function seedStatements(lawIds: string[], load: (name: string) => unknown
 		const base = all.findLastIndex((r) => r.amendment_enforcement_date <= BASELINE_DATE);
 		const chosen = all.slice(Math.max(base, 0));
 		// 題名は施行済みのうち最新の版から取る（施行予定の改正で題名が変わることがある）
-		const latest = data.revisions.find((r) => STATUS[r.current_revision_status] === 'enforced')!;
+		const latest = data.revisions.find((r) => revisionStatus(r.current_revision_status) === 'enforced')!;
 		laws.rows.push([lawId, latest.law_title, latest.law_title_kana, data.law_info.law_num]);
 		const texts = chosen.map((r) => (load(`law_data_${r.law_revision_id}`) as { law_full_text: EgovNode }).law_full_text);
 		chosen.forEach((r, seq) =>
