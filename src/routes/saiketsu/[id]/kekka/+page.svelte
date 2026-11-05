@@ -76,7 +76,7 @@
 			<aside>
 				<section class="reference">
 					<h2>{ja.result.referenceHeading}</h2>
-					<button type="button" class="opener" aria-label={ja.result.referenceOpen} aria-expanded={opened} onclick={() => (opened = !opened)}>
+					<button type="button" class="opener" class:opened aria-label={ja.result.referenceOpen} aria-expanded={opened} onclick={() => (opened = !opened)}>
 						<svg class:up={opened} viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" /></svg>
 					</button>
 					<div class="panel" class:opened>
@@ -240,6 +240,12 @@
 		border-radius: var(--radius-l);
 		background: none;
 		color: var(--color-text);
+	}
+
+	/* 開いたら見出しの行だけを押せるようにする（参考の票の文字を選べるように） */
+	.opener.opened {
+		bottom: auto;
+		height: var(--tap-primary);
 	}
 
 	.opener svg.up {

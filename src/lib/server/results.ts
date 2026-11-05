@@ -18,7 +18,10 @@ const AMENDMENT_ROWS = 50;
  * 修正案の処理が別の実行と重なったら結果を書かない。次の実行が続きから進む（docs/spec/71.md 決めたこと1）
  */
 async function settleBill(db: BatchDb, session: Session, billId: number, participants: number, now: number) {
-	if (!(await settleAmendments(db, session, billId, participants, now))) return;
+	if (!(await settleAmendments(db, session, billId, participants, now))) {
+		console.warn(`法案 ${billId} の修正案の処理が別の実行と重なりました。結果は次の実行で記録します（会期 ${session.key}）`);
+		return;
+	}
 	const { counted, reference } = await tallyVotes(db, session, billId);
 	const quorum = quorumRequirement(participants);
 	const [bill] = await db.select({ rev: bills.rev }).from(bills).where(eq(bills.id, billId));
@@ -53,15 +56,21 @@ export async function settleSession(db: BatchDb, session: Session, previous: Ses
 		.from(bills)
 		.where(and(inVote(session, previous), sql`NOT EXISTS (SELECT 1 FROM ${billResults} r WHERE r.session_key = ${session.key} AND r.bill_id = ${bills}.id)`))
 		.orderBy(asc(bills.proposedAt), asc(bills.id));
-	const failures: unknown[] = [];
+	const participants = new Map<number, number>();
+	const failed: number[] = [];
+	const causes: unknown[] = [];
 	for (const bill of pending) {
 		try {
-			await settleBill(db, session, bill.id, await sessionParticipants(db, bill.committeeId, session, previous, now), now);
+			const n = participants.get(bill.committeeId) ?? (await sessionParticipants(db, bill.committeeId, session, previous, now));
+			participants.set(bill.committeeId, n);
+			await settleBill(db, session, bill.id, n, now);
 		} catch (e) {
-			failures.push(e);
+			console.error(e);
+			failed.push(bill.id);
+			causes.push(e);
 		}
 	}
-	if (failures.length) throw new AggregateError(failures, `会期 ${session.key} の ${failures.length} 本の法案を処理できませんでした`);
+	if (failed.length) throw new AggregateError(causes, `会期 ${session.key} の法案 ${failed.join(', ')} を処理できませんでした`);
 }
 
 /** 読むときの処理。失敗してもページは出す。次に読まれたときか次の Cron でやり直す */
@@ -99,11 +108,11 @@ export async function resultsFor(db: Db, billIds: number[]) {
 }
 
 /** 本案より先に採決した修正案の状態。票の数は記録していない */
-export async function priorAmendmentResults(db: Db, billId: number) {
+export async function priorAmendmentResults(db: Db, billId: number, sessionKey: string) {
 	return db
 		.select({ id: amendments.id, num: amendments.num, status: amendments.status })
 		.from(amendments)
-		.where(and(eq(amendments.billId, billId), inArray(amendments.status, ['passed', 'failed', 'superseded', 'lapsed'])))
+		.where(and(eq(amendments.billId, billId), eq(amendments.sessionKey, sessionKey), inArray(amendments.status, ['passed', 'failed', 'superseded', 'lapsed'])))
 		.orderBy(asc(amendments.id))
 		.limit(AMENDMENT_ROWS);
 }

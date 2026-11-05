@@ -24,6 +24,6 @@ export const load: PageServerLoad = async (event) => {
 		counted: { yes: result.yes, no: result.no, abstain: result.abstain },
 		reference,
 		comparison: referenceComparison(result.outcome, reference, result.quorum),
-		amendments: (await priorAmendmentResults(db, bill.id)).map((a) => ({ id: a.id, location: articleLabel(a.num), status: a.status as 'passed' | 'failed' | 'superseded' | 'lapsed' }))
+		amendments: (await priorAmendmentResults(db, bill.id, session.key)).map((a) => ({ id: a.id, location: articleLabel(a.num), status: a.status as 'passed' | 'failed' | 'superseded' | 'lapsed' }))
 	};
 };

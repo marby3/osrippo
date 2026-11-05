@@ -1,7 +1,6 @@
 // 採決のルール（Issue #65。設計書 docs/spec/65.md 決めたこと3・4・7。結果は docs/spec/71.md）。DB にも画面にも触れない
 import type { BillProgress } from './bills';
 
-
 export const VOTE_CHOICES = ['yes', 'no', 'abstain'] as const;
 export type VoteChoice = (typeof VOTE_CHOICES)[number];
 export type VoteCounts = Record<VoteChoice, number>;
@@ -40,11 +39,12 @@ export function drawAssignments<T>(candidates: readonly T[], count: number, rand
 	return pool.slice(0, picks);
 }
 
+export type BillStage = Exclude<BillProgress, 'lapsed'> | BillOutcome | 'counting';
+
 /**
  * 画面に出す法案の段階。時刻から求めた進みを先に見る。会期が終わった法案だけ結果を使い、結果がなければ集計中。
  * 会期が終わる前に結果の行があっても可決と出さない
  */
-export type BillStage = Exclude<BillProgress, 'lapsed'> | BillOutcome | 'counting';
 export function billStage(progress: BillProgress, outcome: BillOutcome | null): BillStage {
 	if (progress !== 'lapsed') return progress;
 	return outcome ?? 'counting';
