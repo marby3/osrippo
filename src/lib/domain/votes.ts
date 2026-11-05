@@ -1,9 +1,14 @@
-// 採決のルール（Issue #65。設計書 docs/spec/65.md 決めたこと3・4・7）。DB にも画面にも触れない
+// 採決のルール（Issue #65。設計書 docs/spec/65.md 決めたこと3・4・7。結果は docs/spec/71.md）。DB にも画面にも触れない
+import type { BillProgress } from './bills';
 
 export const VOTE_CHOICES = ['yes', 'no', 'abstain'] as const;
 export type VoteChoice = (typeof VOTE_CHOICES)[number];
 export type VoteCounts = Record<VoteChoice, number>;
-export type BillOutcome = 'passed' | 'rejected' | 'lapsed';
+export const BILL_OUTCOMES = ['passed', 'rejected', 'lapsed'] as const;
+export type BillOutcome = (typeof BILL_OUTCOMES)[number];
+
+/** 締切からこの時間は結果を数えない。締切の直前に受け付けた票の書き込みが、数えたあとに届かないように（docs/spec/71.md 決めたことA2） */
+export const SETTLE_GRACE = 60_000;
 
 /** 1人に割り当てる法案の数（仕様の初期値。4本以上にするときは vote_assignments の CHECK も直す） */
 export const ASSIGNMENT_COUNT = 3;
@@ -32,4 +37,25 @@ export function drawAssignments<T>(candidates: readonly T[], count: number, rand
 		[pool[i], pool[j]] = [pool[j], pool[i]];
 	}
 	return pool.slice(0, picks);
+}
+
+export type BillStage = Exclude<BillProgress, 'lapsed'> | BillOutcome | 'counting';
+
+/**
+ * 画面に出す法案の段階。時刻から求めた進みを先に見る。会期が終わった法案だけ結果を使い、結果がなければ集計中。
+ * 会期が終わる前に結果の行があっても可決と出さない
+ */
+export function billStage(progress: BillProgress, outcome: BillOutcome | null): BillStage {
+	if (progress !== 'lapsed') return progress;
+	return outcome ?? 'counting';
+}
+
+/**
+ * 数えた票の結果と参考の票を比べる。どちらにも可否があるときだけ比べる。
+ * 参考の票が定足数に届かないときは比べない（1票だけの参考の票で「可否が逆」と出さない）。廃案には可否がない
+ */
+export function referenceComparison(outcome: BillOutcome, reference: VoteCounts, quorum: number): 'same' | 'reversed' | null {
+	const other = billOutcome(reference, quorum);
+	if (outcome === 'lapsed' || other === 'lapsed') return null;
+	return other === outcome ? 'same' : 'reversed';
 }

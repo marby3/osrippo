@@ -40,6 +40,10 @@
 		// 本番とステージングの値はデプロイの Issue で決める
 		"TURNSTILE_SITE_KEY": "1x00000000000000000000AA"
 	},
+	// 会期の終わりの処理（設計書 docs/spec/71.md 決めたこと3）。UTC で書くので、日本時間の 0時1分
+	"triggers": {
+		"crons": ["1 15 * * *"]
+	},
 	"workers_dev": true,
 	"preview_urls": true
 }

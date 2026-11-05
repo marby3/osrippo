@@ -8,7 +8,7 @@ import { BILL_KINDS, CHANGE_OPS } from '../domain/bills';
 import { POST_KINDS, STANCES, type PostRole } from '../domain/posts';
 import { EVALUATION_KINDS } from '../domain/evaluations';
 import type { AmendmentStatus } from '../domain/amendments';
-import { VOTE_CHOICES } from '../domain/votes';
+import { BILL_OUTCOMES, VOTE_CHOICES } from '../domain/votes';
 
 export const laws = sqliteTable('laws', {
 	/** e-Gov の law_id */
@@ -835,4 +835,30 @@ export const amendmentVotes = sqliteTable(
 		updatedAt: integer('updated_at').notNull()
 	},
 	(t) => [primaryKey({ columns: [t.sessionKey, t.amendmentId, t.userId] }), check('amendment_votes_choice', sql`${t.choice} IN (${inList(VOTE_CHOICES)})`)]
+);
+
+/**
+ * 法案の採決の結果（設計書 docs/spec/71.md）。行は一度入れたら変えない。
+ * 要調整の法案は次の会期にもう一度採決するので、主キーに会期を入れる（votes と同じ）。rev は数えたときの本案の版で、修正案を当てたあと
+ */
+export const billResults = sqliteTable(
+	'bill_results',
+	{
+		sessionKey: text('session_key').notNull(),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		outcome: text('outcome', { enum: BILL_OUTCOMES }).notNull(),
+		yes: integer('yes').notNull(),
+		no: integer('no').notNull(),
+		abstain: integer('abstain').notNull(),
+		refYes: integer('ref_yes').notNull(),
+		refNo: integer('ref_no').notNull(),
+		refAbstain: integer('ref_abstain').notNull(),
+		participants: integer('participants').notNull(),
+		quorum: integer('quorum').notNull(),
+		rev: integer('rev').notNull(),
+		settledAt: integer('settled_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.sessionKey, t.billId] }), index('bill_results_bill').on(t.billId), check('bill_results_outcome', sql`${t.outcome} IN (${inList(BILL_OUTCOMES)})`)]
 );

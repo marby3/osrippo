@@ -181,6 +181,32 @@ export const ja = {
 		amendmentLink: '修正案を見る',
 		closed: 'いまはこの法案に投票できません。'
 	},
+	/** 採決の結果（Issue #71。SpResult・PcResult。設計書 docs/spec/71.md） */
+	result: {
+		pageTitle: (title: string) => `${title}の採決の結果｜オープンソース立法府`,
+		crumb: (s: Session) => `${ja.session.name(s)}の結果`,
+		link: '結果を見る',
+		before: '結果は締切のあとに出ます',
+		counting: '結果を集計しています',
+		words: { passed: '可決', rejected: '否決', lapsed: '廃案' },
+		passedNote: 'IF世界の法律になりました',
+		rejectedNote: 'IF世界の法律にはなりません',
+		lapsedNote: (quorum: number) => `数えた票が定足数（${quorum}票）に届きませんでした`,
+		notice: 'ゲームの中の結果です。世論調査ではありません。',
+		reversed: '数えた票と参考の票で、可否が逆になりました',
+		same: '結果は数えた票と同じでした',
+		counted: (n: number) => `数えた票 ${n}`,
+		choices: { yes: '賛成', no: '反対', abstain: '棄権' },
+		referenceHeading: '参考の票（可否には使いません）',
+		referenceOpen: '参考の票を開く',
+		referenceLine: (yes: number, no: number, abstain: number) => `賛成 ${yes} ・ 反対 ${no} ・ 棄権 ${abstain}`,
+		amendmentsHeading: '本案より先に採決した修正案',
+		amendmentRow: (location: string, status: string) => `${location} ・ ${status}`,
+		amendmentsLink: '修正案を見る',
+		billLink: '法案のページへ'
+	},
+	/** IF世界の帯（Issue #63 テストの作り方：SpResult・PcResult の帯に合わせる） */
+	ifBand: { label: 'IF世界', short: '架空の法律です', long: 'このページの条文は架空のものです。現実の法律ではありません。' },
 	/** 修正案（設計書 docs/spec/68.md）。「先議」は使わず「本案より先に採決」と書く */
 	amendment: {
 		pageTitle: (title: string) => `${title}の修正案｜オープンソース立法府`,
@@ -334,7 +360,7 @@ export const ja = {
 		kinds: { amend: '改正', repeal: '廃止', enact: '制定' },
 		ops: { amend: '書きかえ', add: '新しく追加', delete: '削除', supplementary: '新しく追加' },
 		/** 法案のいまの進み（Issue #50。一覧の言葉は list.stages） */
-		progress: { draft: '下書き', proposed: '発議', deliberation: '質疑', vote: '採決', lapsed: '廃案' },
+		progress: { draft: '下書き', proposed: '発議', deliberation: '質疑', vote: '採決', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中' },
 		/** 賛同と発議（Issue #49） */
 		support: {
 			count: (n: number) => `賛同 ${n}人`,
@@ -365,7 +391,7 @@ export const ja = {
 			kind: '種類',
 			bill: '法案',
 			stage: '段階',
-			stages: { draft: '下書き', proposed: '発議', deliberation: '質疑中', vote: '採決中', lapsed: '廃案' },
+			stages: { draft: '下書き', proposed: '発議', deliberation: '質疑中', vote: '採決中', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中' },
 			support: '賛同',
 			supportCell: (n: number) => `${n}人`,
 			supportPrefix: ' ・ 賛同 ',
