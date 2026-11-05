@@ -3,10 +3,10 @@
 import { and, asc, count, countDistinct, desc, eq, gt, gte, inArray, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { actions, billChanges, billLaws, bills, billSolutions, billSupports, committeeLaws, issues, laws, sessionParticipantCounts, solutions, user } from '../db/schema';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
-import { changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, PARTICIPANT_KINDS, type BillChange, type BillKind, type BillTab } from '../domain/bills';
+import { changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, PARTICIPANT_KINDS, referralSession, type BillChange, type BillKind, type BillTab } from '../domain/bills';
 import { PAGE_SIZE } from '../domain/issues';
 import { checkBillDraft, checkBillSave, checkBillSupport, DAY, LIMITS } from '../domain/limits';
-import type { Session } from '../domain/session';
+import { sessionAt, type Session } from '../domain/session';
 import { LISTED, SOLUTION_SHOWN as SHOWN } from '../domain/reports';
 import { refuse, type Actor } from './issues';
 import { articlesOfRevision, currentRevision, type Db } from './law';
@@ -465,4 +465,29 @@ export async function proposeBill(db: Db, actor: Actor, billId: number, required
 	}
 	await db.insert(actions).values({ kind: 'bill_propose', userId: actor.userId, ipHash: actor.ipHash, targetId: billId, createdAt: now });
 	return { ok: true };
+}
+
+/**
+ * 関連法案（Issue #69）：付託先の会期が同じで、発議した版で同じ法令の同じ条に触れる法案。廃止はその法令のすべての条に触れるものとする。
+ * 発議した版と発議の時刻は発議のあとに変わらないので、保存せずに毎回求める。直接触れる法案だけで、つながりをたどらない
+ */
+export async function relatedBills(db: Db, bill: { id: number; rev: number; proposedRev: number | null; proposedAt: number | null }, minutes: number | null) {
+	if (bill.proposedAt === null) return [];
+	const session = referralSession(bill.proposedAt, minutes);
+	const previous = sessionAt(session.startsAt - 1, minutes);
+	const rev = supportRev(bill);
+	// 副問い合わせの中の列と混ざらないよう、外側の列は表の名前を付けて書く
+	const touches = sql`EXISTS (
+		SELECT 1 FROM ${billLaws} ol JOIN ${billLaws} ml ON ml.law_id = ol.law_id
+		WHERE ol.bill_id = ${bills}.id AND ol.rev = COALESCE(${bills}.proposed_rev, ${bills}.rev) AND ml.bill_id = ${bill.id} AND ml.rev = ${rev}
+		AND (ol.action = 'repeal' OR ml.action = 'repeal' OR EXISTS (
+			SELECT 1 FROM ${billChanges} oc JOIN ${billChanges} mc ON mc.num = oc.num
+			WHERE oc.bill_id = ol.bill_id AND oc.rev = ol.rev AND oc.law_seq = ol.seq AND mc.bill_id = ml.bill_id AND mc.rev = ml.rev AND mc.law_seq = ml.seq
+		))
+	)`;
+	return db
+		.select({ id: bills.id, title: bills.title })
+		.from(bills)
+		.where(and(ne(bills.id, bill.id), gte(bills.proposedAt, previous.deliberationAt), lt(bills.proposedAt, session.deliberationAt), touches))
+		.orderBy(asc(bills.id));
 }

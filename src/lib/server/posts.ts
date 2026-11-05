@@ -61,11 +61,17 @@ export async function createPost(
 
 // 副問い合わせの中の id と混ざらないよう、列は表の名前を付けて書く（drizzle の ${table.col} は表名なしの列名になる）
 const unanswered = sql`NOT EXISTS (SELECT 1 FROM ${posts} a WHERE a.parent_id = ${posts}.id AND a.kind = 'answer' AND a.status = 'visible')`;
-const questions = (billId: number) => and(eq(posts.billId, billId), eq(posts.kind, 'question'), eq(posts.status, 'visible'));
+// 関連法案の数に上限がないので、番号は JSON の1つの値で渡す（D1 は1文に100個までしか値を結び付けられない）
+const questions = (billId: number, related: number[] = []) =>
+	and(
+		related.length ? sql`${posts}.bill_id IN (SELECT value FROM json_each(${JSON.stringify([billId, ...related])}))` : eq(posts.billId, billId),
+		eq(posts.kind, 'question'),
+		eq(posts.status, 'visible')
+	);
 
-/** 質疑の数（すべて） */
-export async function questionTotal(db: Db, billId: number) {
-	const [row] = await db.select({ n: count() }).from(posts).where(questions(billId));
+/** 質疑の数（すべて）。related は一緒に数える関連法案 */
+export async function questionTotal(db: Db, billId: number, related: number[] = []) {
+	const [row] = await db.select({ n: count() }).from(posts).where(questions(billId, related));
 	return row.n;
 }
 
@@ -77,13 +83,14 @@ export async function waitingQuestions(db: Db, billId: number) {
 
 /**
  * 質疑のタブのカード。新しい順で、答弁と補足は古い順。返す値に user_id と立場を入れない（自分のものかは mine、押したかは pressed で返す）。
- * 答弁と補足は parent_id IN (…) でまとめて引く（1ページ20件なので、D1 の値の数の上限に収まる）
+ * 答弁と補足は parent_id IN (…) でまとめて引く（1ページ20件なので、D1 の値の数の上限に収まる）。
+ * related を渡すと関連法案の質疑も一緒に返す（Issue #69。どの法案の質疑かは billId で分かる）
  */
-export async function listQuestions(db: Db, billId: number, userId: string | null, onlyWaiting: boolean, page: number) {
+export async function listQuestions(db: Db, billId: number, userId: string | null, onlyWaiting: boolean, page: number, related: number[] = []) {
 	const rows = await db
-		.select({ id: posts.id, body: posts.body, userId: posts.userId })
+		.select({ id: posts.id, billId: posts.billId, body: posts.body, userId: posts.userId })
 		.from(posts)
-		.where(onlyWaiting ? and(questions(billId), unanswered) : questions(billId))
+		.where(onlyWaiting ? and(questions(billId), unanswered) : questions(billId, related))
 		.orderBy(desc(posts.id))
 		.limit(QUESTION_PAGE_SIZE + 1)
 		.offset((page - 1) * QUESTION_PAGE_SIZE);
@@ -102,6 +109,7 @@ export async function listQuestions(db: Db, billId: number, userId: string | nul
 	return {
 		rows: shown.map((q) => ({
 			id: q.id,
+			billId: q.billId,
 			body: q.body,
 			mine: q.userId === userId,
 			pressed: pressedOf(q.id),

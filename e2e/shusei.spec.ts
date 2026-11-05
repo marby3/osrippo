@@ -7,6 +7,8 @@ test.afterEach(async () => {
 	await Promise.all(contexts.splice(0).map((c) => c.close()));
 });
 test.use({ actionTimeout: 15_000 });
+// 発議までの準備が重く、並列で流すと30秒を超えることがある
+test.beforeEach(() => test.setTimeout(120_000));
 
 const ip = (w: string, group: number, n: number) => `10.${w === 'sp' ? 66 : 67}.${group}.${n}`;
 const stamp = () => Date.now() % 1e8;

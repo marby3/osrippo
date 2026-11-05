@@ -13,12 +13,18 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async (event) => {
 	const { db, bill } = await postableBill(event);
 	const mati = event.url.searchParams.get('mati');
+	const kanren = event.url.searchParams.get('kanren');
 	const page = parsePage(event.url.searchParams.get('page'));
 	// 同じ内容の URL を2つ作らない
-	if (page === null || (mati !== null && mati !== '1')) error(404);
+	if (page === null || (mati !== null && mati !== '1') || (kanren !== null && kanren !== '1') || (mati !== null && kanren !== null)) error(404);
 	const onlyWaiting = mati === '1';
+	const withRelated = kanren === '1';
+	// 関連法案を使うときだけレイアウトの値を読む（ほかの絞り込みやページ送りでレイアウトの問い合わせを走らせない）
+	const relatedShown = withRelated ? (await event.parent()).related : [];
+	if (withRelated && relatedShown.length === 0) error(404);
+	const relatedIds = relatedShown.map((r) => r.id);
 	const user = event.locals.user;
-	const { rows, hasNext } = await listQuestions(db, bill.id, user?.id ?? null, onlyWaiting, page);
+	const { rows, hasNext } = await listQuestions(db, bill.id, user?.id ?? null, onlyWaiting, page, relatedIds);
 	if (page > 1 && rows.length === 0) error(404);
 
 	const now = nowOf(event);
@@ -30,10 +36,12 @@ export const load: PageServerLoad = async (event) => {
 	return {
 		questions: rows,
 		waitingCount: waiting,
-		totalCount: onlyWaiting ? waiting : await questionTotal(db, bill.id),
+		totalCount: onlyWaiting ? waiting : await questionTotal(db, bill.id, relatedIds),
 		hasNext,
 		page,
 		onlyWaiting,
+		withRelated,
+		relatedShown,
 		role,
 		loggedIn: user !== undefined && user !== null,
 		waitUntil,
