@@ -12,6 +12,8 @@ const TEMPLATE = 'この法律は、○○することを目的とする。';
 const PURPOSE = 'この法律は、定期購入の解約をいつでもできるようにすることを目的とする。';
 const ip = (project: string, group: number, n: number) => `10.${project === 'sp' ? 42 : 43}.${group}.${n}`;
 const stamp = () => Date.now() % 1e8;
+// 全部を並列で流すと、準備だけで30秒を超えることがある
+test.beforeEach(() => test.setTimeout(120_000));
 const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
 
 async function user(browser: Browser, name: string, ipAddress: string) {

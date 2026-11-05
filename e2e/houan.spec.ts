@@ -296,7 +296,7 @@ test('基準6：提出者だけが直せる。先に保存された画面と、�
 	const current = await base.inputValue();
 	const older = (await other.request.get(`/hourei/${LAW}/hikaku`).then((r) => r.text())).match(new RegExp(`value="(${LAW}_\\d{8}_\\w+)"`, 'g'))!
 		.map((m) => m.slice(7, -1))
-		.find((id) => id < current)!;
+		.find((id) => id < current.split('@')[0])!;
 	expect(older).toBeTruthy();
 	// 印は「分岐した版@IF世界の版」（docs/spec/72.md 決めたこと4）
 	await base.evaluate((el, v) => ((el as HTMLInputElement).value = v), `${older}@0`);
