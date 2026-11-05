@@ -86,15 +86,13 @@ const open = async (u: Page, path: string) => {
 };
 /** 「終わった」のタブから法案の行を探す。新しい発議が先に並ぶので、ページをたどる */
 async function ownedRow(u: Page, title: string) {
-	await u.goto('/houan?tab=owari');
-	for (;;) {
+	for (let page = 1; page <= 30; page++) {
+		await u.goto(page === 1 ? '/houan?tab=owari' : `/houan?tab=owari&page=${page}`);
 		const row = u.getByRole('row').filter({ hasText: title });
 		if (await row.count()) return row;
-		const next = u.getByRole('link', { name: '次のページ' });
-		expect(await next.count(), `一覧に ${title} がない`).toBeGreaterThan(0);
-		await next.click();
-		await u.waitForLoadState();
+		expect(await u.getByRole('link', { name: '次のページ' }).count(), `一覧に ${title} がない`).toBeGreaterThan(0);
 	}
+	throw new Error('一覧が30ページを超えました');
 }
 
 test('基準4：Cron の入口で、読まれなくても結果が記録される。サーバーの入口のファイルは公開されない', async ({ browser }, info) => {

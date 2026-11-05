@@ -106,15 +106,12 @@ test('基準4：一覧の段階の列は 発議・質疑中・採決中・廃案
 
 	// 未来の日付で作った法案が1ページ目を埋めることがあるので、ページをたどる
 	const openRow = async (path: string) => {
-		await v.page.goto(path);
 		for (let page = 1; page <= 30; page++) {
+			await v.page.goto(page === 1 ? path : `${path}${path.includes('?') ? '&' : '?'}page=${page}`);
 			if (await row(v.page).count()) return true;
-			const next = v.page.getByRole('link', { name: '次のページ' });
-			if ((await next.count()) === 0) return false;
-			await next.click();
-			await v.page.waitForLoadState();
+			if ((await v.page.getByRole('link', { name: '次のページ' }).count()) === 0) return false;
 		}
-		return false;
+		throw new Error('一覧が30ページを超えました');
 	};
 
 	expect(await openRow('/houan')).toBe(true);
