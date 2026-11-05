@@ -20,7 +20,8 @@
 		"test:phase": "playwright test -c playwright.phase.config.ts",
 		"gen": "wrangler types",
 		"db:generate": "drizzle-kit generate",
-		"db:reset": "tsx scripts/db-reset.ts"
+		"db:reset": "tsx scripts/db-reset.ts",
+		"sync:laws": "tsx scripts/sync-laws.ts"
 	},
 	"imports": {
 		"#lib": "./src/lib/index.js",
