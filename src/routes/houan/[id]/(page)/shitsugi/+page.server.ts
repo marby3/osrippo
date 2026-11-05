@@ -19,9 +19,10 @@ export const load: PageServerLoad = async (event) => {
 	if (page === null || (mati !== null && mati !== '1') || (kanren !== null && kanren !== '1') || (mati !== null && kanren !== null)) error(404);
 	const onlyWaiting = mati === '1';
 	const withRelated = kanren === '1';
-	const { related } = await event.parent();
-	if (withRelated && related.length === 0) error(404);
-	const relatedIds = withRelated ? related.map((r) => r.id) : [];
+	// 関連法案を使うときだけレイアウトの値を読む（ほかの絞り込みやページ送りでレイアウトの問い合わせを走らせない）
+	const relatedShown = withRelated ? (await event.parent()).related : [];
+	if (withRelated && relatedShown.length === 0) error(404);
+	const relatedIds = relatedShown.map((r) => r.id);
 	const user = event.locals.user;
 	const { rows, hasNext } = await listQuestions(db, bill.id, user?.id ?? null, onlyWaiting, page, relatedIds);
 	if (page > 1 && rows.length === 0) error(404);
@@ -40,6 +41,7 @@ export const load: PageServerLoad = async (event) => {
 		page,
 		onlyWaiting,
 		withRelated,
+		relatedShown,
 		role,
 		loggedIn: user !== undefined && user !== null,
 		waitUntil,

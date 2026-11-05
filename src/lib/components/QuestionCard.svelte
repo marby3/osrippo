@@ -204,6 +204,7 @@
 	.from {
 		margin: 0 0 0.5rem;
 		font-size: var(--font-size-sub);
+		overflow-wrap: anywhere;
 	}
 
 	.body {

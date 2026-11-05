@@ -38,7 +38,7 @@
 	const choices: Stance[] = ['for', 'undecided', 'against'];
 	const nextHref = $derived(`${base}?${data.onlyWaiting ? 'mati=1&' : data.withRelated ? 'kanren=1&' : ''}page=${data.page + 1}`);
 	/** 関連法案の質疑は読むだけ（Issue #69）。書くのと評価はその法案のページで行う */
-	const relatedOf = (billId: number) => data.related.find((r) => r.id === billId) ?? null;
+	const relatedOf = (billId: number) => (billId === data.bill.id ? null : (data.relatedShown.find((r) => r.id === billId) ?? { id: billId, title: '' }));
 </script>
 
 <svelte:head>

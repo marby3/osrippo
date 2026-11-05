@@ -75,10 +75,8 @@ test('基準1：同じ会期で同じ法令の同じ条に触れる法案が関�
 	]);
 
 	expect(await related(a)).toEqual([sameArticle, repeal, movedAway, secondLaw]);
-	// 互いに関連になる
+	// 互いに関連になる。直接触れる法案だけで、a を通じて secondLaw へはつながらない
 	expect(await related(sameArticle)).toEqual([a, repeal]);
-	// 直接触れる法案だけ（sameArticle は a と触れるが、secondLaw とは触れない）
-	expect(await related(sameArticle)).not.toContain(secondLaw);
 	expect(await related(otherArticle)).toEqual([repeal]);
 	expect(await related(otherLaw)).toEqual([]);
 	// 廃止は同じ法令の法案すべてと関連になる

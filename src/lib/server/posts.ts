@@ -61,7 +61,13 @@ export async function createPost(
 
 // 副問い合わせの中の id と混ざらないよう、列は表の名前を付けて書く（drizzle の ${table.col} は表名なしの列名になる）
 const unanswered = sql`NOT EXISTS (SELECT 1 FROM ${posts} a WHERE a.parent_id = ${posts}.id AND a.kind = 'answer' AND a.status = 'visible')`;
-const questions = (billId: number, related: number[] = []) => and(inArray(posts.billId, [billId, ...related]), eq(posts.kind, 'question'), eq(posts.status, 'visible'));
+// 関連法案の数に上限がないので、番号は JSON の1つの値で渡す（D1 は1文に100個までしか値を結び付けられない）
+const questions = (billId: number, related: number[] = []) =>
+	and(
+		related.length ? sql`${posts}.bill_id IN (SELECT value FROM json_each(${JSON.stringify([billId, ...related])}))` : eq(posts.billId, billId),
+		eq(posts.kind, 'question'),
+		eq(posts.status, 'visible')
+	);
 
 /** 質疑の数（すべて）。related は一緒に数える関連法案 */
 export async function questionTotal(db: Db, billId: number, related: number[] = []) {
