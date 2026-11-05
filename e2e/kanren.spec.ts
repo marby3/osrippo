@@ -7,6 +7,8 @@ test.afterEach(async () => {
 	await Promise.all(contexts.splice(0).map((c) => c.close()));
 });
 test.use({ actionTimeout: 15_000 });
+// 発議までの準備が重く、並列で流すと30秒を超えることがある
+test.beforeEach(() => test.setTimeout(120_000));
 
 const stamp = () => Date.now() % 1e8;
 const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });

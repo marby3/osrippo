@@ -125,8 +125,16 @@ test('基準4：賛同が届くと発議でき、状態・編集・賛同のボ�
 	await late.goto(bill);
 	await expect(late.getByText('賛同 3人')).toBeVisible();
 
-	await a.goto('/houan');
-	await expect(a.getByRole('link', { name: title, exact: true })).toBeVisible();
+	// DB はテスト間で共有で、未来の日付で作った法案が先に並ぶので、ページをたどって探す
+	const inList = async () => {
+		for (let page = 1; page <= 20; page++) {
+			await a.goto(page === 1 ? '/houan' : `/houan?page=${page}`);
+			if (await a.getByRole('link', { name: title, exact: true }).count()) return true;
+			if ((await a.getByRole('link', { name: /もっと見る/ }).count()) === 0) return false;
+		}
+		return false;
+	};
+	expect(await inList()).toBe(true);
 	await a.goto('/houan?tab=shitagaki');
 	await expect(a.getByRole('link', { name: title, exact: true })).toHaveCount(0);
 });
