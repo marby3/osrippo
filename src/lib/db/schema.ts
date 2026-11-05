@@ -6,6 +6,7 @@ import type { Heading } from '../domain/law/parse';
 import { REACTIONS } from '../domain/solutions';
 import { BILL_KINDS, CHANGE_OPS } from '../domain/bills';
 import { POST_KINDS, STANCES, type PostRole } from '../domain/posts';
+import { EVALUATION_KINDS } from '../domain/evaluations';
 import { VOTE_CHOICES } from '../domain/votes';
 
 export const laws = sqliteTable('laws', {
@@ -672,10 +673,13 @@ export const posts = sqliteTable(
 		role: text('role').$type<PostRole>(),
 		body: text('body').notNull(),
 		status: text('status').notNull().default('visible'),
-		createdAt: integer('created_at').notNull()
+		createdAt: integer('created_at').notNull(),
+		/** 書いた時点の立場（設計書 docs/spec/67.md 決めたこと6）。非公開。CHECK を足すと表が作り直されるので、値は型で絞る */
+		stance: text('stance', { enum: STANCES }).notNull().default('undecided')
 	},
 	(t) => [
 		foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }),
+		index('posts_session').on(t.sessionKey),
 		index('posts_bill').on(t.billId, t.kind, t.id),
 		index('posts_parent').on(t.parentId),
 		index('posts_user').on(t.userId),
@@ -723,4 +727,42 @@ export const stanceLog = sqliteTable(
 		createdAt: integer('created_at').notNull()
 	},
 	(t) => [index('stance_log_bill').on(t.billId, t.sessionKey)]
+);
+
+/** 読んだ記録（設計書 docs/spec/67.md 決めたこと4）。読んだ時点の立場で1行。非公開 */
+export const postViews = sqliteTable(
+	'post_views',
+	{
+		postId: integer('post_id')
+			.notNull()
+			.references(() => posts.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		stance: text('stance', { enum: STANCES }).notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.postId, t.userId] }), check('post_views_stance', sql`${t.stance} IN (${inList(STANCES)})`)]
+);
+
+/** 質疑と答弁の評価（設計書 docs/spec/67.md 決めたこと2・5）。押した時点の立場で1行。取り消すと行を消す。非公開 */
+export const evaluations = sqliteTable(
+	'evaluations',
+	{
+		postId: integer('post_id')
+			.notNull()
+			.references(() => posts.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		kind: text('kind', { enum: EVALUATION_KINDS }).notNull(),
+		stance: text('stance', { enum: STANCES }).notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.postId, t.userId, t.kind] }),
+		index('evaluations_user').on(t.userId),
+		check('evaluations_kind', sql`${t.kind} IN (${inList(EVALUATION_KINDS)})`),
+		check('evaluations_stance', sql`${t.stance} IN (${inList(STANCES)})`)
+	]
 );

@@ -49,7 +49,7 @@ const qa = (bill: string) => `${bill}/shitsugi`;
 const tab = (page: Page) => page.getByRole('navigation', { name: '法案のページ' }).getByRole('link', { name: /^質疑/ });
 const card = (page: Page, text: string) => page.locator('article').filter({ hasText: text });
 const posted = async (u: Page, act: () => Promise<void>) => {
-	const [res] = await Promise.all([u.waitForResponse((r) => r.request().method() === 'POST'), act()]);
+	const [res] = await Promise.all([u.waitForResponse((r) => r.request().method() === 'POST' && !r.url().includes('?/read')), act()]);
 	// use:enhance の送信は fail() でも HTTP 200 で返るので、本文の type も確かめる
 	expect(res.status()).toBeLessThan(400);
 	if (res.status() < 300) expect(await res.text()).not.toContain('"type":"failure"');
