@@ -91,7 +91,10 @@ test('基準1：採決の一覧に、会期と締切・進み具合・割り当�
 	await expect(v.page.getByText(/5月の会期.*締切 6月1日.*0時/)).toBeVisible();
 	await expect(v.page.locator('[data-vote-progress] li')).toHaveCount(3);
 	await expect(v.page.locator('[data-assignment]')).toHaveCount(3);
-	await expect(v.page.locator('[data-assignment]').first()).toContainText('まだ');
+	// スマホは「まだ」（SpVoteList）、PC は「投票する」（PcVoteList）
+	const firstRow = v.page.locator('[data-assignment]').first();
+	await expect(firstRow.getByText(w === 'sp' ? 'まだ' : '投票する', { exact: true })).toBeVisible();
+	await expect(firstRow.getByText(w === 'sp' ? '投票する' : 'まだ', { exact: true })).toBeHidden();
 	const titles = await v.page.locator('[data-assignment] a').allInnerTexts();
 	expect(titles).toHaveLength(3);
 	await expect(v.page.getByRole('link', { name: 'ほかの法案にも投票する' })).toHaveAttribute('href', '/saiketsu/hoka');
