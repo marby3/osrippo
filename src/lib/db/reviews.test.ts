@@ -116,7 +116,18 @@ test('基準3：見つかると確認の行ができ、可決が絡むときだ�
 	const plain = addBill(s, addLaw(), 5);
 	for (let i = 0; i < 10; i++) cast(s, plain, 'yes', 1, `plain-${i}`);
 
+	// 数えない票（前に行動していない人）が同じ回線に集まっても見ない
+	const uncounted = addBill(s, addLaw(), 6);
+	for (let i = 0; i < 10; i++) cast(s, uncounted, 'yes', 1, `uncounted-${i}`);
+	for (let i = 0; i < 6; i++) {
+		const v = addUser();
+		const at = s.voteAt + unique() * 3 * MINUTE;
+		sqlite.prepare("INSERT INTO votes (session_key, bill_id, user_id, choice, created_at, updated_at) VALUES (?, ?, ?, 'no', ?, ?)").run(s.key, uncounted, v, at, at);
+		sqlite.prepare("INSERT INTO actions (kind, user_id, ip_hash, target_id, created_at) VALUES ('vote_cast', ?, 'uncounted-line', ?, ?)").run(v, uncounted, at);
+	}
+
 	await settle(s);
+	expect(reviewOf(s, uncounted)).toBeUndefined();
 	expect(reviewOf(s, held)).toMatchObject({ status: 'open', signals: '["same_line"]' });
 	expect(JSON.parse((reviewOf(s, held) as unknown as { detail: string }).detail)).toMatchObject({ flagged: 5, without: 'lapsed' });
 	expect(reviewOf(s, noted)).toMatchObject({ status: 'noted' });
@@ -172,9 +183,12 @@ test('前の会期の基準には、確認中と無効の法案の票を入れ�
 		const at = s.voteAt + i * 3 * MINUTE;
 		sqlite.prepare("INSERT INTO votes (session_key, bill_id, user_id, choice, created_at, updated_at) VALUES (?, ?, ?, 'yes', ?, ?)").run(s.key, bill, v, at, at);
 	}
+	// 古いアカウントの票を足して、新しいアカウントの割合を 40%（12 / 30）にする
+	for (let i = 0; i < 18; i++) cast(s, bill, i % 3 ? 'yes' : 'no', 1, `old-${i}`);
 	await settle(s);
-	// 基準は 0%（前の会期の通常の法案だけ）なので見つかる。確認中の法案を入れると基準は 57% になり見つからない
-	expect(reviewOf(s, bill)).toMatchObject({ signals: '["new_accounts"]', status: 'open' });
+	// 基準は 0%（前の会期の通常の法案だけ）なので 40 ポイント高く、見つかる。確認中の法案を入れると基準は 57% になり、見つからない。
+	// 除いても可決のままなので保留しない
+	expect(reviewOf(s, bill)).toMatchObject({ signals: '["new_accounts"]', status: 'noted' });
 });
 
 test('基準5：確定すると反映される。次の会期にずれ込んでも、新しい変更と重なれば要調整。無効は反映しない。確定は1回だけ。Cron でもやり直せる', async () => {

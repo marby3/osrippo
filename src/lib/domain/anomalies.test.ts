@@ -19,7 +19,7 @@ test('新しいアカウント：10票以上で、前の会期の割合より30�
 	// 40票のうち16票（40%）は基準の10%より30ポイント高い
 	const votes = [...mixed(16, { registeredAt: NEW }), ...mixed(24)];
 	expect(check(votes, base).signals).toEqual(['new_accounts']);
-	// 39.9%相当：40票のうち新しいアカウント15票（37.5%）は 27.5 ポイントで届かない
+	// 40票のうち新しいアカウント15票（37.5%）は 27.5 ポイントで届かない
 	expect(check([...mixed(15, { registeredAt: NEW }), ...mixed(25)], base).signals).toEqual([]);
 	// 9票は割合が高くても数に届かない
 	expect(check(mixed(9, { registeredAt: NEW }), base).signals).toEqual([]);
