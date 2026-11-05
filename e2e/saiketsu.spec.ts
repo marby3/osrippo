@@ -262,7 +262,7 @@ test('基準7：投票資格がなければ参考の票と理由を出す。資�
 	await choose(v.page, '反対');
 	await openPage(v.page, '/saiketsu');
 	await expect(v.page.getByText(/2本すべてに投票すると/)).toHaveCount(0);
-	await expect(v.page.getByText(/すべて投票しました。あなたの票は\s*数えた票\s*になります/)).toBeVisible();
+	await expect(v.page.getByText(/すべて投票済みです。あなたの票は\s*数えた票\s*になります/)).toBeVisible();
 });
 
 /** 第2条を変える修正案を出し、2人の賛同で本案より先に採決する形にして、番号を返す */
@@ -310,14 +310,24 @@ test('基準9：Turnstile・国・期間の外・採決の対象でない法案�
 	expect((await post(v.page, bill.id, voteForm('yes', 'bad-token'))).status()).toBe(400);
 	const abroad = await s.person(at(s.month, 22), { country: 'US' });
 	expect((await post(abroad.page, bill.id, voteForm('yes'))).status()).toBe(403);
-	expect((await post(v.page, later.id, voteForm('yes'))).status()).toBe(409);
+	// 期間の外と対象でない法案：断ったあとのページの読み込みで法案のページへ移す（フォームの送信の形）
+	const movedTo = async (id: string, to: string) => {
+		const res = await post(v.page, id, voteForm('yes'));
+		expect(res.status()).toBe(303);
+		expect(res.headers()['location']).toBe(to);
+	};
+	await movedTo(later.id, later.path);
 	await v.setNow(at(s.month, 15));
-	expect((await post(v.page, bill.id, voteForm('yes'))).status()).toBe(409);
+	await movedTo(bill.id, bill.path);
 	await v.setNow(at(s.month, 22));
 
-	// どれも保存されていない
+	// どれも保存されていない（次の会期の法案は、その会期の採決の期間に確かめる）
 	await openPage(v.page, votePath(bill.id));
 	await expect(radio(v.page, '賛成')).not.toBeChecked();
+	await v.setNow(at(s.month.replace(/-05$/, '-06'), 22));
+	await openPage(v.page, votePath(later.id));
+	await expect(radio(v.page, '賛成')).not.toBeChecked();
+	await v.setNow(at(s.month, 22));
 
 	// 発議済みで今は対象でない法案の画面は、法案のページへ移す
 	const moved = await v.page.request.get(votePath(later.id), { maxRedirects: 0 });
