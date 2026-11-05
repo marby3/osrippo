@@ -1,13 +1,13 @@
 // 修正案を読む・書く（Issue #68。設計書 docs/spec/68.md）。受け取る値は呼ぶ側（amendment-actions.ts）が確かめる
 import { and, asc, count, countDistinct, eq, gt, inArray, ne, sql } from 'drizzle-orm';
-import { actions, amendments, amendmentSupports, amendmentVotes, billChanges, bills, laws, user } from '../db/schema';
+import { actions, amendments, amendmentSupports, amendmentVotes, billChanges, bills, user } from '../db/schema';
 import { adoptedAmendments, AMENDMENT_PAGE_SIZE, applyAmendments, articleKey, inPriorVote, priorVoteRequirement, type AmendmentStatus } from '../domain/amendments';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
 import { changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET } from '../domain/bills';
 import { checkAmendment, checkAmendmentSupport, DAY, LIMITS } from '../domain/limits';
 import type { Session } from '../domain/session';
 import { billOutcome, quorumRequirement, type VoteChoice, type VoteCounts } from '../domain/votes';
-import { billById, draftInputOf, insertContent, textOf, type Bill } from './bills';
+import { billById, draftInputOf, insertContent, lawTitlesOf, textOf, type Bill } from './bills';
 import { refuse, type Actor } from './issues';
 import { articlesOfRevision, type BatchDb, type Db } from './law';
 import { assignedBills, countedVote, emptyCounts } from './votes';
@@ -20,8 +20,7 @@ const chunks = (ids: number[]) => Array.from({ length: Math.ceil(ids.length / ID
 
 /** 選べる条（docs/spec/68.md 決めたこと2）。current はいまの本案の本文、base は基にした版の本文（足した条と制定の条は null） */
 export async function amendableArticles(db: Db, bill: LoadedBill) {
-	const lawIds = bill.laws.map((l) => l.lawId).filter((id): id is string => id !== null);
-	const titles = new Map((lawIds.length ? await db.select({ id: laws.id, title: laws.title }).from(laws).where(inArray(laws.id, lawIds)) : []).map((r) => [r.id, r.title]));
+	const titles = await lawTitlesOf(db, bill);
 	const out: { key: string; lawSeq: number; lawTitle: string; num: string; label: string; caption: string | null; provisionId: number | null; current: Paragraph[]; base: Paragraph[] | null }[] = [];
 	for (const law of bill.laws) {
 		if (law.action === 'repeal') continue;
@@ -124,9 +123,10 @@ export async function updateAmendment(db: Db, actor: Actor, bill: { id: number; 
 
 /**
  * 修正案を当てた新しい版を作り、本案の版を進める。版を進める文と修正案に書く文を1つのトランザクションにするので、
- * 本文だけが入って提案者の記録が失われることはない。expected は当てる先の版で、いまの版と違えば何もしない。進めたら新しい版を返す
+ * 本文だけが入って提案者の記録が失われることはない。expected は当てる先の版で、いまの版と違えば何もしない。進めたら新しい版を返す。
+ * status を渡すと、open の修正案だけをその状態にする（取り込み）。渡さなければ applied_rev だけを書く（状態は先に書いてある）
  */
-async function advanceBill(db: BatchDb, billId: number, expected: number, targets: AmendmentRow[], patch: { status?: AmendmentStatus }, onlyOpen: boolean, now: number) {
+async function advanceBill(db: BatchDb, billId: number, expected: number, targets: AmendmentRow[], status: AmendmentStatus | null, now: number) {
 	const bill = await billById(db, billId);
 	if (!bill || bill.rev !== expected) return null;
 	const [taken] = await db
@@ -146,8 +146,8 @@ async function advanceBill(db: BatchDb, billId: number, expected: number, target
 		...chunks(targets.map((t) => t.id)).map((ids) =>
 			db
 				.update(amendments)
-				.set({ ...patch, appliedRev: rev, updatedAt: now })
-				.where(and(inArray(amendments.id, ids), onlyOpen ? eq(amendments.status, 'open') : undefined, sql`(SELECT b.rev FROM ${bills} b WHERE b.id = ${billId}) = ${rev}`))
+				.set({ ...(status ? { status } : {}), appliedRev: rev, updatedAt: now })
+				.where(and(inArray(amendments.id, ids), status ? eq(amendments.status, 'open') : undefined, sql`(SELECT b.rev FROM ${bills} b WHERE b.id = ${billId}) = ${rev}`))
 		)
 	]);
 	const [row] = await db.select({ rev: bills.rev }).from(bills).where(eq(bills.id, billId));
@@ -158,7 +158,7 @@ async function advanceBill(db: BatchDb, billId: number, expected: number, target
 export async function acceptAmendment(db: BatchDb, actor: Actor, billId: number, amendmentId: number, revision: number, now: number) {
 	const [amendment, bill] = await Promise.all([amendmentOf(db, amendmentId, billId), billById(db, billId)]);
 	if (!amendment || !bill || amendment.status !== 'open' || amendment.revision !== revision || amendment.baseRev !== bill.rev) return false;
-	const rev = await advanceBill(db, billId, amendment.baseRev, [amendment], { status: 'accepted' }, true, now);
+	const rev = await advanceBill(db, billId, amendment.baseRev, [amendment], 'accepted', now);
 	if (rev === null) return false;
 	await db.insert(actions).values({ kind: 'amendment_accept', userId: actor.userId, ipHash: actor.ipHash, targetId: billId, createdAt: now });
 	return true;
@@ -231,7 +231,8 @@ export async function castAmendmentVote(db: Db, actor: Actor, session: Session, 
 		WHERE amendment_votes.choice <> excluded.choice
 		RETURNING amendment_id`);
 	if (changed.length > 0) {
-		await db.insert(actions).values({ kind: 'vote_cast', userId: actor.userId, ipHash: actor.ipHash, targetId: amendmentId, createdAt: now });
+		// target_id は入れない（本案の票の記録の番号と意味が混ざらないように）
+		await db.insert(actions).values({ kind: 'vote_cast', userId: actor.userId, ipHash: actor.ipHash, createdAt: now });
 		return true;
 	}
 	// 同じ票を入れ直したときは行が返らない
@@ -258,11 +259,11 @@ export async function tallyAmendmentVotes(db: Db, session: Session, amendmentId:
 
 /**
  * 締切のあとの処理（呼ぶのは #71）。何度呼んでも結果が変わらない。対象の判定は bills.rev と比べるので、状態を全部書いてから版を進める。
- * 状態を書いたあとで失敗しても、やり直すと版を進めるところから続く
+ * 状態を書いたあとで失敗しても、やり直すと版を進めるところから続く。可決した修正案を本案に当て終えたかを返す（別の実行と重なったら false で、やり直す）
  */
-export async function settleAmendments(db: BatchDb, session: Session, billId: number, participants: number, now: number) {
+export async function settleAmendments(db: BatchDb, session: Session, billId: number, participants: number, now: number): Promise<boolean> {
 	const [bill] = await db.select({ rev: bills.rev }).from(bills).where(eq(bills.id, billId));
-	if (!bill) return;
+	if (!bill) return false;
 	const rows = (await db.select().from(amendments).where(eq(amendments.billId, billId)).orderBy(asc(amendments.id))).map(toRow);
 	const open = rows.filter((r) => r.status === 'open');
 	const supports = await supportCounts(db, billId);
@@ -294,14 +295,14 @@ export async function settleAmendments(db: BatchDb, session: Session, billId: nu
 	}
 	await writeStatus(unvoted, 'unvoted');
 
+	// 条件に使う版は読み直したいまの版（修正案の base_rev ではない。やり直しのときに合わなくなるので）。
+	// 版を先に読むので、別の実行が重なっても、その実行が進めたあとでは条件に合わず、同じ修正案を2回当てない
+	const [latest] = await db.select({ rev: bills.rev }).from(bills).where(eq(bills.id, billId));
 	const pending = (await db.select().from(amendments).where(and(eq(amendments.billId, billId), eq(amendments.status, 'passed'))).orderBy(asc(amendments.id)))
 		.map(toRow)
 		.filter((r) => r.appliedRev === null);
-	// 条件に使う版は読み直したいまの版（修正案の base_rev ではない。やり直しのときに合わなくなるので）
-	if (pending.length) {
-		const [latest] = await db.select({ rev: bills.rev }).from(bills).where(eq(bills.id, billId));
-		await advanceBill(db, billId, latest.rev, pending, {}, false, now);
-	}
+	if (pending.length === 0) return true;
+	return (await advanceBill(db, billId, latest.rev, pending, null, now)) !== null;
 }
 
 /** 共同起草者（取り込まれたか可決した修正案の提案者）の名前。重複なし、先に採用された順 */
@@ -376,8 +377,7 @@ export async function listAmendments(db: Db, bill: LoadedBill, userId: string | 
 					.from(amendmentVotes)
 					.where(and(eq(amendmentVotes.userId, userId), eq(amendmentVotes.sessionKey, sessionKey), inArray(amendmentVotes.amendmentId, ids)))
 			: [];
-	const lawIds = bill.laws.map((l) => l.lawId).filter((id): id is string => id !== null);
-	const titles = new Map((lawIds.length ? await db.select({ id: laws.id, title: laws.title }).from(laws).where(inArray(laws.id, lawIds)) : []).map((r) => [r.id, r.title]));
+	const titles = await lawTitlesOf(db, bill);
 	const baseArticles = new Map<string, Awaited<ReturnType<typeof articlesOfRevision>>>();
 
 	let budget = DIFF_PAGE_BUDGET;

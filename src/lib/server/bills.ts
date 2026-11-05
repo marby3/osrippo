@@ -51,7 +51,7 @@ export async function insertContent(db: Db, billId: number, rev: number, input: 
 	for (let i = 0; i < changes.length; i += CHANGE_ROWS_PER_STATEMENT) {
 		await db.insert(billChanges).values(changes.slice(i, i + CHANGE_ROWS_PER_STATEMENT));
 	}
-	if (input.solutionIds.length) await db.insert(billSolutions).values(input.solutionIds.map((solutionId, seq) => ({ billId, rev, seq, solutionId })));
+	await db.insert(billSolutions).values(input.solutionIds.map((solutionId, seq) => ({ billId, rev, seq, solutionId })));
 }
 
 const fields = (input: DraftInput) => ({
@@ -115,7 +115,7 @@ export const draftInputOf = (bill: NonNullable<Bill>): DraftInput => ({
 });
 
 /** 賛同者を数える版：発議した版。下書きはいまの版（docs/spec/68.md 決めたこと8） */
-export const supportRev = (bill: { rev: number; proposedRev?: number | null }) => bill.proposedRev ?? bill.rev;
+export const supportRev = (bill: { rev: number; proposedRev: number | null }) => bill.proposedRev ?? bill.rev;
 
 /** 法案（bills.rev の版の中身）。作りかけか、ない番号なら undefined */
 export async function billById(db: Db, billId: number) {
@@ -238,13 +238,16 @@ export type ChangeView = { location: string; op: 'amend' | 'add' | 'delete' | 's
 
 const changesOf = (bill: NonNullable<Bill>) => bill.laws.reduce((n, l) => n + l.changes.length, 0);
 
+/** 法案の対象の法令（現実の法令）の名前 */
+export async function lawTitlesOf(db: Db, bill: { laws: { lawId: string | null }[] }) {
+	const lawIds = bill.laws.map((l) => l.lawId).filter((id): id is string => id !== null);
+	return new Map((lawIds.length ? await db.select({ id: laws.id, title: laws.title }).from(laws).where(inArray(laws.id, lawIds)) : []).map((r) => [r.id, r.title]));
+}
+
 /** 法案のページの上の部分と概要のタブに出すもの。文字の比べは変更点のタブだけで行う（billChangeViews） */
 export async function billView(db: Db, bill: NonNullable<Bill>) {
 	const [author] = await db.select({ name: user.name }).from(user).where(eq(user.id, bill.userId));
-	const lawIds = bill.laws.map((l) => l.lawId).filter((id): id is string => id !== null);
-	const titles = new Map(
-		(lawIds.length ? await db.select({ id: laws.id, title: laws.title }).from(laws).where(inArray(laws.id, lawIds)) : []).map((r) => [r.id, r.title])
-	);
+	const titles = await lawTitlesOf(db, bill);
 	const lawTitle = (l: (typeof bill.laws)[number]) => (l.lawId ? (titles.get(l.lawId) ?? '') : (l.newTitle ?? ''));
 
 	const cited = bill.solutionIds.length

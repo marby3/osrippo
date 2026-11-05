@@ -23,7 +23,7 @@
 		if (!e) return undefined;
 		if (e === 'unchanged') return form?.updating ? ja.amendment.unchangedOnUpdate : ja.amendment.unchanged;
 		if (e === 'sameAsBase') return ja.amendment.sameAsBase;
-		return ja.bill.bodyErrors[e];
+		return form?.line ? ja.bill.bodyErrorAt(form.line, ja.bill.bodyErrors[e]) : ja.bill.bodyErrors[e];
 	});
 
 	/** 条を選ぶと、いまの本案の本文を入れる */

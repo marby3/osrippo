@@ -17,6 +17,7 @@ const actor = (userId: string) => ({ userId, registeredAt: 0, ipHash: `ip-${user
 const para = (text: string) => [{ num: '1', text, items: [] }];
 const firstRandom = () => 0;
 let nextBill = 1;
+const SOLUTION_ROWS = "INSERT INTO issues (id, user_id, title, affected, example, topic_id, created_at) VALUES (1, 'issuer', '課題', '人', '例', NULL, 0); INSERT INTO solutions (id, issue_id, user_id, body, created_at) VALUES (1, 1, 'issuer', '解決策', 0);";
 /** レート制限（24時間に5件）に当たらないよう、出すたびに時刻を進める */
 let clock = NOW;
 const tick = () => (clock += 2 * 86_400_000);
@@ -35,6 +36,7 @@ function addBill(author = 'author') {
 		.prepare("INSERT INTO bills (id, user_id, committee_id, kind, status, rev, next_rev, proposed_rev, title, affected, side_effects, created_at, updated_at, proposed_at) VALUES (?, ?, 1, 'enact', 'proposed', 1, 2, 1, 't', 'a', 's', 0, 0, ?)")
 		.run(id, author, proposedAt);
 	sqlite.prepare("INSERT INTO bill_laws (bill_id, rev, seq, action, new_title) VALUES (?, 1, 0, 'enact', '新しい法律')").run(id);
+	sqlite.prepare('INSERT INTO bill_solutions (bill_id, rev, seq, solution_id) VALUES (?, 1, 0, 1)').run(id);
 	for (const num of ['1', '2', '3']) {
 		sqlite.prepare("INSERT INTO bill_changes (bill_id, rev, law_seq, num, op, caption, body) VALUES (?, 1, 0, ?, 'add', '（見出し）', ?)").run(id, num, JSON.stringify(para(`第${num}条のもとの本文`)));
 	}
@@ -63,10 +65,22 @@ async function voteFor(amendmentId: number, users: string[], choice: 'yes' | 'no
 		for (const { bill_id } of assigned) await castVote(db, u, session, previous, bill_id, 'yes', NOW, firstRandom);
 	}
 }
+const loaded = async (id: number) => {
+	const bill = await billById(db, id);
+	if (!bill) throw new Error('法案がない');
+	return bill;
+};
+const row = async (id: number, billId: number) => {
+	const amendment = await amendmentOf(db, id, billId);
+	if (!amendment) throw new Error('修正案がない');
+	return amendment;
+};
 const accept = (billId: number, amendmentId: number, revision = 1) => acceptAmendment(db, actor('author'), billId, amendmentId, revision, NOW);
 
 beforeAll(() => {
 	({ sqlite, db } = openMemoryDb());
+	sqlite.exec("INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('issuer', 'issuer', 'issuer@test.invalid', 0, 0)");
+	sqlite.exec(SOLUTION_ROWS);
 	for (const u of ['author', 'p1', 'p2', 'p3', 's1', 's2', 's3', ...voters('v', 16), ...voters('w', 10)]) addUser(u);
 });
 
@@ -102,22 +116,22 @@ test('基準4：更新で本文を変えるか同じ条が取り込まれてい�
 	const otherEdited = await addAmendment(id, 'p2', '3', '別の条の本文その2');
 	const sameArticle = await addAmendment(id, 'p3', '1', '同じ条の本文');
 	await accept(id, accepted);
-	const bill = (await billById(db, id)) as never;
+	const bill = await loaded(id);
 	const revisionOf = async (a: number) => (await amendmentOf(db, a, id))?.revision;
 	const baseRevOf = async (a: number) => (await amendmentOf(db, a, id))?.baseRev;
 
 	// 本文も条も変わらない：賛同を保つ
-	expect(await updateAmendment(db, actor('p2'), bill, (await amendmentOf(db, otherArticle, id)) as never, para('別の条の本文'), null, tick())).toEqual({ ok: true });
+	expect(await updateAmendment(db, actor('p2'), bill, await row(otherArticle, id), para('別の条の本文'), null, tick())).toEqual({ ok: true });
 	expect(await revisionOf(otherArticle)).toBe(1);
 	expect(await baseRevOf(otherArticle)).toBe(2);
 	// 本文を変えた：数え直し
-	await updateAmendment(db, actor('p2'), bill, (await amendmentOf(db, otherEdited, id)) as never, para('書き直した本文'), null, tick());
+	await updateAmendment(db, actor('p2'), bill, await row(otherEdited, id), para('書き直した本文'), null, tick());
 	expect(await revisionOf(otherEdited)).toBe(2);
 	// 本文は同じでも、同じ条が取り込まれていた：数え直し
-	await updateAmendment(db, actor('p3'), bill, (await amendmentOf(db, sameArticle, id)) as never, para('同じ条の本文'), null, tick());
+	await updateAmendment(db, actor('p3'), bill, await row(sameArticle, id), para('同じ条の本文'), null, tick());
 	expect(await revisionOf(sameArticle)).toBe(2);
 	// 版が同じものは更新できない
-	expect(await updateAmendment(db, actor('p3'), bill, (await amendmentOf(db, sameArticle, id)) as never, para('もう一度'), null, tick())).toEqual({ ok: false, reason: 'closed' });
+	expect(await updateAmendment(db, actor('p3'), bill, await row(sameArticle, id), para('もう一度'), null, tick())).toEqual({ ok: false, reason: 'closed' });
 	expect((await amendmentOf(db, sameArticle, id))?.paragraphs[0].text).toBe('同じ条の本文');
 });
 
@@ -190,7 +204,7 @@ test('基準7：修正案の票は、投票資格があり割り当てを本案�
 	// 票を変えられる。数えるのは最後の票で、変えていなければ記録を足さない
 	await castAmendmentVote(db, actor('v10'), session, previous, a, 2, 'abstain', NOW, firstRandom);
 	expect((await tallyAmendmentVotes(db, session, a)).counted).toEqual({ yes: 0, no: 0, abstain: 1 });
-	const records = () => (sqlite.prepare("SELECT count(*) AS n FROM actions WHERE kind = 'vote_cast' AND user_id = 'v11' AND target_id = ?").get(a) as { n: number }).n;
+	const records = () => (sqlite.prepare("SELECT count(*) AS n FROM actions WHERE kind = 'vote_cast' AND user_id = 'v11' AND target_id IS NULL").get() as { n: number }).n;
 	expect(records()).toBe(1);
 	await castAmendmentVote(db, actor('v11'), session, previous, a, 2, 'no', NOW, firstRandom);
 	expect(records()).toBe(1);
@@ -202,7 +216,7 @@ test('基準8：版が進んでも、発議した版の賛同者が賛同者の�
 	const a = await addAmendment(id, 'p1', '1', '賛同者の本文');
 	await accept(id, a);
 
-	const bill = (await billById(db, id)) as NonNullable<Awaited<ReturnType<typeof billById>>>;
+	const bill = await loaded(id);
 	expect(bill.rev).toBe(2);
 	expect(supportRev(bill)).toBe(1);
 	expect(await isSupporter(db, bill, 's1')).toBe(true);

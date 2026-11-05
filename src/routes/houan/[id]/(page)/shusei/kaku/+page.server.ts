@@ -34,6 +34,8 @@ export const load: PageServerLoad = async (event) => {
 	const updating = target && all.find((a) => a.lawSeq === target.lawSeq && a.num === target.num);
 	// 更新の画面は条を選ばないので、いまの本案の本文だけを返す
 	const articles = target ? [] : all;
+	// 法案が条をすべて削除していると、変えられる条がない
+	if (!blocked && all.length === 0) blocked = ja.amendment.noArticles;
 	return {
 		blocked,
 		rev: bill.rev,

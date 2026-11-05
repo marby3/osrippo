@@ -75,6 +75,6 @@ test('基準3：賛同者は、いまの版に賛同した人だけ。直され�
 	sqlite.exec("INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('u2', 'u2', 'u2@test.invalid', 0, 0), ('u3', 'u3', 'u3@test.invalid', 0, 0)");
 	sqlite.exec("INSERT INTO bills (id, user_id, committee_id, kind, status, rev, next_rev, title, affected, side_effects, created_at, updated_at) VALUES (2, 'u1', 1, 'amend', 'proposed', 2, 3, 't', 'a', 's', 0, 0)");
 	sqlite.exec("INSERT INTO bill_supports (bill_id, rev, user_id, created_at) VALUES (2, 1, 'u2', 0), (2, 2, 'u3', 0)");
-	expect(await isSupporter(db, { id: 2, rev: 2 }, 'u2')).toBe(false);
-	expect(await isSupporter(db, { id: 2, rev: 2 }, 'u3')).toBe(true);
+	expect(await isSupporter(db, { id: 2, rev: 2, proposedRev: null }, 'u2')).toBe(false);
+	expect(await isSupporter(db, { id: 2, rev: 2, proposedRev: null }, 'u3')).toBe(true);
 });

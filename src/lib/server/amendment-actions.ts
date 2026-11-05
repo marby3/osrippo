@@ -74,7 +74,7 @@ export async function amendmentPostAction(event: RequestEvent) {
 	const article = (await amendableArticles(db, bill)).find((a) => a.lawSeq === key.lawSeq && a.num === key.num);
 	if (!article) return fail(400, { message: ja.amendment.invalid, ...keep });
 	const checked = validateAmendmentBody(body, article);
-	if (!checked.ok) return fail(400, { error: checked.error, updating: target !== undefined, ...keep });
+	if (!checked.ok) return fail(400, { error: checked.error, line: checked.line, updating: target !== undefined, ...keep });
 	const law = bill.laws[key.lawSeq];
 	const amended = applyAmendments(bill.laws, [{ lawSeq: key.lawSeq, num: key.num, provisionId: article.provisionId, caption: article.caption, paragraphs: checked.paragraphs }]);
 	const rule = checkAmendedLaw(

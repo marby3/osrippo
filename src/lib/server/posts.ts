@@ -17,7 +17,7 @@ const POST_ACTIONS = Object.values(POST_ACTION);
  * 賛同者か。「賛同 N人」と同じ行を数える（発議した版。下書きはいまの版）。直される前の版にだけ賛同した人は、賛同者として答弁できない。
  * 修正案の取り込みで発議のあとに版が進んでも、発議した版の賛同者のまま（docs/spec/68.md 決めたこと8）
  */
-export async function isSupporter(db: Db, bill: { id: number; rev: number; proposedRev?: number | null }, userId: string): Promise<boolean> {
+export async function isSupporter(db: Db, bill: { id: number; rev: number; proposedRev: number | null }, userId: string): Promise<boolean> {
 	const rows = await db
 		.select({ userId: billSupports.userId })
 		.from(billSupports)
