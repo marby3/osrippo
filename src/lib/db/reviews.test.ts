@@ -5,7 +5,7 @@ import { beforeAll, expect, test, vi } from 'vitest';
 import { openMemoryDb, type MemoryDb } from './memory';
 import { sessionAt, type Session } from '../domain/session';
 import { ifHeadOf } from '../server/if-world';
-import { decideReview, resultOnRead, runSessionEnd, settleSession } from '../server/results';
+import { decideReview, involvedInBill, pendingReviews, resultOnRead, runSessionEnd, settleSession } from '../server/results';
 
 let sqlite: DatabaseSync;
 let db: MemoryDb;
@@ -130,6 +130,20 @@ test('基準3：見つかると確認の行ができ、可決が絡むときだ�
 	const before = reviewOf(s, held);
 	await settle(s, after(s) + MINUTE);
 	expect(reviewOf(s, held)).toEqual(before);
+
+	// 運営の画面：提出者と賛同者（どの版でも）には賛否の数と集計を渡さない
+	const heldAuthor = (sqlite.prepare('SELECT user_id FROM bills WHERE id = ?').get(held) as { user_id: string }).user_id;
+	const backer = addUser();
+	sqlite.prepare('INSERT INTO bill_supports (bill_id, rev, user_id, created_at) VALUES (?, 0, ?, 0)').run(held, backer);
+	const rowFor = async (userId: string) => (await pendingReviews(db, userId)).find((r) => r.billId === held);
+	expect(await rowFor('staff')).toMatchObject({ involved: false, counts: { yes: 8, no: 2, abstain: 0 }, detail: { flagged: 5 }, signals: ['same_line'] });
+	for (const who of [heldAuthor, backer]) {
+		expect(await rowFor(who)).toMatchObject({ involved: true, counts: null, detail: null, signals: ['same_line'] });
+		expect(await involvedInBill(db, held, who)).toBe(true);
+	}
+	expect(await involvedInBill(db, held, 'staff')).toBe(false);
+	// 確認の行がない法案や保留しない法案は出ない
+	expect((await pendingReviews(db, 'staff')).some((r) => r.billId === noted)).toBe(false);
 
 	// 読むときは確認の状態も一緒に返す
 	expect(await resultOnRead(db, { id: held, proposedAt: s.startsAt + 1 }, null, after(s))).toMatchObject({ outcome: 'passed', review: { status: 'open' } });

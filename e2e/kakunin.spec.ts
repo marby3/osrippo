@@ -221,8 +221,6 @@ test('基準7：運営と運営協力者のほかは確認できない。提出�
 		await expect(card).toContainText('自分が関わった法案は確認できません');
 		await expect(card.getByRole('button', { name: '結果を確定する' })).toHaveCount(0);
 		await expect(card).not.toContainText(/賛成\s*\d/);
-		const data = await (await involved.page.request.get('/kanri/__data.json')).text();
-		expect(data).not.toContain('"flagged"');
 		expect((await decide(involved.page, 'confirmReview', form)).status()).toBe(403);
 	}
 
@@ -275,7 +273,7 @@ test('信頼の境界：確認のフォームの値が決まった形でなけ�
 		['会期の違い', 'confirmReview', { bill: id, session: '2000-01' }],
 		['ない法案', 'confirmReview', { bill: '9999999999', session }],
 		['理由が長い', 'voidReview', { bill: id, session, note: 'あ'.repeat(401) }],
-		['理由に制御文字', 'voidReview', { bill: id, session, note: '‮あ' }]
+		['理由に制御文字', 'voidReview', { bill: id, session, note: '\u202eあ' }]
 	] as const) {
 		const res = await decide(op.page, action, form as Record<string, string>);
 		expect(res.status(), label).toBeGreaterThanOrEqual(400);
