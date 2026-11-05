@@ -25,6 +25,7 @@
 		edit={{ id: data.edit.id, rev: data.edit.rev }}
 		dropped={data.dropped}
 		conflicts={data.conflicts}
+		goneRows={data.goneRows}
 		adjusting={data.adjusting}
 		titleFree={data.adjustmentReason === 'title'}
 		back="/houan/{data.edit.id}"

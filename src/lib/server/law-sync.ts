@@ -8,7 +8,7 @@ import { extendHistory } from '../domain/law';
 import { searchTexts } from '../domain/search';
 import { checkRevision, readLawText, readRevisionList, type FetchJson } from '../egov/client';
 import { revisionStatus, type EgovRevision } from '../egov/revision';
-import { ifBranchOf } from './if-world';
+import { pinnedRevision } from './if-world';
 import { provisionsAt, type BatchDb } from './law';
 
 // D1 の1文の値の上限は100個
@@ -35,8 +35,8 @@ export type SyncResult = {
 };
 
 export async function syncLaw(db: BatchDb, lawId: string, fetchJson: FetchJson): Promise<SyncResult> {
-	// 現実の版が進む前に固定する
-	const pinId = await ifBranchOf(db, lawId);
+	// 現実の版が進む前に分岐を固定する（pinnedRevision が ifBranchOf を通る）
+	const pinId = await pinnedRevision(db, lawId);
 	if (!pinId) throw new Error(`${lawId}：DB にない法令です`);
 	const existing = await db
 		.select({ id: lawRevisions.id, seq: lawRevisions.seq, status: lawRevisions.status })

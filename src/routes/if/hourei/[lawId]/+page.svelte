@@ -36,6 +36,7 @@
 		{#if data.law.lawNum}<p class="sub">{data.law.lawNum}</p>{/if}
 		{#if data.repealedBy}<p class="notice">{ja.ifLaw.repealedBy}<a href="/houan/{data.repealedBy.id}">{data.repealedBy.title}</a></p>{/if}
 		{#if data.enactedBy}<p class="notice">{ja.ifLaw.enactedBy}<a href="/houan/{data.enactedBy.id}">{data.enactedBy.title}</a></p>{/if}
+		{#if data.real}<p class="torikomi"><a href="/if/hourei/{data.law.id}/torikomi">{ja.torikomi.heading}</a></p>{/if}
 	</header>
 
 	<div class="layout">
@@ -50,6 +51,7 @@
 				{#if article.band}<h2 class="band">{ja.law.band(article.band)}</h2>{/if}
 				<article id="jo-{article.num}" aria-labelledby="article-{article.num}" class:changed={article.changedBy}>
 					<h3><span id="article-{article.num}">{article.label}</span><span class="caption">{article.caption}</span></h3>
+					{#if article.conflict}<p class="conflict-mark">{ja.torikomi.mark}</p>{/if}
 					<LawParagraphs paragraphs={article.paragraphs} />
 					{#if article.changedBy}
 						<p class="changed-by">{ja.ifLaw.changedBy}<a href="/houan/{article.changedBy.id}">{article.changedBy.title}</a></p>
@@ -96,6 +98,22 @@
 		border-radius: var(--radius-m);
 		background: var(--color-if-bg);
 		overflow-wrap: anywhere;
+	}
+
+	.torikomi {
+		margin: 0.75rem 0 0;
+		font-size: var(--font-size-sub);
+	}
+
+	.conflict-mark {
+		display: inline-block;
+		margin: 0 0 0.5rem;
+		padding: 0 0.5rem;
+		border: 1px solid var(--color-if);
+		border-radius: var(--radius-s);
+		color: var(--color-if);
+		font-size: var(--font-size-sub);
+		font-weight: bold;
 	}
 
 	nav h2 {

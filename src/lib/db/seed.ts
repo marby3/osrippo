@@ -43,8 +43,8 @@ function statusOf(r: EgovRevision): 'enforced' | 'scheduled' {
 	return status;
 }
 
-/** load(name) は tests/fixtures/egov/<name>.json の中身を返す */
-export function seedStatements(lawIds: string[], load: (name: string) => unknown): string[] {
+/** load(name) は tests/fixtures/egov/<name>.json の中身を返す。start は内部IDと行の番号の始まり（すでに行のある DB に足すとき） */
+export function seedStatements(lawIds: string[], load: (name: string) => unknown, start = { provisionId: 1, versionId: 1 }): string[] {
 	const laws: Table = { name: 'laws', columns: ['id', 'title', 'title_kana', 'law_num'], rows: [] };
 	const revisions: Table = {
 		name: 'law_revisions',
@@ -62,8 +62,8 @@ export function seedStatements(lawIds: string[], load: (name: string) => unknown
 	const trigram: Table = { name: 'search_trigram', columns: ['kind', 'ref_id', 'text'], rows: [] };
 	const bigram: Table = { name: 'search_bigram', columns: ['kind', 'ref_id', 'text'], rows: [] };
 
-	let nextId = 1;
-	let nextVersionId = 1;
+	let nextId = start.provisionId;
+	let nextVersionId = start.versionId;
 	for (const lawId of [...lawIds].sort()) {
 		const data = load(`law_revisions_${lawId}`) as { law_info: { law_num: string }; revisions: EgovRevision[] };
 		// 一覧は新しい順（同じ施行日の版も新しいものが前）なので、逆にすると古い順になる

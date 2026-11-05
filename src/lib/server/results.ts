@@ -9,7 +9,7 @@ import { sessionAt, type Session } from '../domain/session';
 import { billOutcome, quorumRequirement, SETTLE_GRACE } from '../domain/votes';
 import { settleAmendments } from './amendments';
 import { sessionParticipants } from './bills';
-import { adjustmentRowOf, applySession, ifPlaceOf } from './if-world';
+import { adjustmentRowOf, applySession, ifPlaceOf, importReal } from './if-world';
 import type { BatchDb, Db } from './law';
 import { countedCondition, inVote, tallyVotes } from './votes';
 
@@ -97,8 +97,8 @@ async function settleBill(db: BatchDb, session: Session, billId: number, partici
  * 締切から1分は何もしない。1本が失敗しても残りを続け、最後にまとめて投げ直す。
  * すべての結果が入ったら、可決した法案を IF世界に反映する（docs/spec/72.md 決めたこと5）。minutes は開発用の短い会期（Cron は null）
  */
-export async function settleSession(db: BatchDb, session: Session, previous: Session, now: number, minutes: number | null = null): Promise<void> {
-	if (now < session.endsAt + SETTLE_GRACE) return;
+export async function settleSession(db: BatchDb, session: Session, previous: Session, now: number, minutes: number | null = null): Promise<boolean> {
+	if (now < session.endsAt + SETTLE_GRACE) return false;
 	const unsettled = () =>
 		db
 			.select({ id: bills.id, committeeId: bills.committeeId })
@@ -125,8 +125,9 @@ export async function settleSession(db: BatchDb, session: Session, previous: Ses
 	}
 	if (failed.length) throw new AggregateError(causes, `会期 ${session.key} の法案 ${failed.join(', ')} を処理できませんでした`);
 	// 修正案の処理が重なって結果を書かなかった法案があれば、次の実行に任せる
-	if (pending.length && (await unsettled()).length) return;
+	if (pending.length && (await unsettled()).length) return false;
 	await applySession(db, session, minutes, now);
+	return true;
 }
 
 /** 読むときの処理。失敗してもページは出す。次に読まれたときか次の Cron でやり直す */
@@ -205,11 +206,21 @@ export async function runSessionEnd(db: BatchDb, now: number) {
 	sessions.delete(last.key);
 	sessions.set(last.key, last);
 	const causes: unknown[] = [];
+	let lastDone = false;
 	for (const session of sessions.values()) {
 		try {
-			await settleSession(db, session, sessionAt(session.startsAt - 1, null), now, null);
+			const done = await settleSession(db, session, sessionAt(session.startsAt - 1, null), now, null);
+			if (session.key === last.key) lastDone = done;
 		} catch (e) {
 			console.error(e);
+			causes.push(e);
+		}
+	}
+	// 可決法案の反映のあとで、現実の改正を取り込む（docs/spec/95.md 決めたこと1）。読むときの処理では走らない
+	if (lastDone && !causes.length) {
+		try {
+			await importReal(db, last, now);
+		} catch (e) {
 			causes.push(e);
 		}
 	}

@@ -43,7 +43,7 @@ const lawNode = (rows: A[]) => ({
 
 function world() {
 	const { sqlite, db } = openMemoryDb();
-	sqlite.exec("INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('issuer', 'i', 'i@test.invalid', 0, 0); INSERT INTO issues (id, user_id, title, affected, example, topic_id, created_at) VALUES (1, 'issuer', '課題', '人', '例', NULL, 0); INSERT INTO solutions (id, issue_id, user_id, body, created_at) VALUES (1, 'issuer' = 'x', 'issuer', '解決策', 0);".replace("1, 'issuer' = 'x'", '1, 1'));
+	sqlite.exec("INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('issuer', 'i', 'i@test.invalid', 0, 0); INSERT INTO issues (id, user_id, title, affected, example, topic_id, created_at) VALUES (1, 'issuer', '課題', '人', '例', NULL, 0); INSERT INTO solutions (id, issue_id, user_id, body, created_at) VALUES (1, 1, 'issuer', '解決策', 0);");
 	let counter = 0;
 	const unique = () => ++counter;
 	const addUser = () => {
@@ -75,7 +75,8 @@ function world() {
 			return { revision_info: { law_revision_id: id }, law_full_text: lawNode(texts.get(id) as A[]) };
 		};
 		const load = (name: string) => (name.startsWith('law_revisions_') ? { law_info: { law_num: '番号' }, revisions: [...list].reverse() } : { law_full_text: lawNode(base) });
-		for (const statement of seedStatements([lawId], load)) sqlite.exec(statement);
+		const next = sqlite.prepare('SELECT (SELECT COALESCE(MAX(id), 0) + 1 FROM provisions) AS provisionId, (SELECT COALESCE(MAX(id), 0) + 1 FROM provision_versions) AS versionId').get() as { provisionId: number; versionId: number };
+		for (const statement of seedStatements([lawId], load, next)) sqlite.exec(statement);
 		await syncLaw(db, lawId, fetchJson);
 		let n = 0;
 		return {

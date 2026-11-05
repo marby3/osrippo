@@ -901,6 +901,73 @@ export const ifRevisions = sqliteTable(
 	]
 );
 
+/**
+ * 現実の改正の取り込み（設計書 docs/spec/95.md）。「ここから基にする現実の版が変わる」行で、seq は if_revisions と同じ番号の列。
+ * 反映と取り込みの行は、両方の表の MAX + 1 を求める1つの文で入れる
+ */
+export const ifImports = sqliteTable(
+	'if_imports',
+	{
+		lawId: text('law_id')
+			.notNull()
+			.references(() => laws.id),
+		seq: integer('seq').notNull(),
+		revisionId: text('revision_id')
+			.notNull()
+			.references(() => lawRevisions.id),
+		/** 取り込んだ会期 */
+		sessionKey: text('session_key').notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.lawId, t.seq] }), unique('if_imports_revision').on(t.lawId, t.revisionId)]
+);
+
+/** 取り込みで変わった条。ぶつかった行は当時の条文を写す（あとで IF世界が変わっても当時の内容を読めるように） */
+export const ifImportArticles = sqliteTable(
+	'if_import_articles',
+	{
+		lawId: text('law_id').notNull(),
+		revisionId: text('revision_id').notNull(),
+		/** 新しい版の条（なくなった条は前の版の条） */
+		provisionId: integer('provision_id')
+			.notNull()
+			.references(() => provisions.id),
+		/** 現実の番号（なくなった条は前の番号） */
+		num: text('num').notNull(),
+		prevNum: text('prev_num'),
+		change: text('change', { enum: ['amended', 'renumbered', 'added', 'removed'] }).notNull(),
+		conflict: integer('conflict').notNull(),
+		realCaption: text('real_caption'),
+		/** NULL は現実でなくなった条（ぶつかった行のとき） */
+		realBody: text('real_body'),
+		ifNum: text('if_num'),
+		ifCaption: text('if_caption'),
+		/** NULL は IF世界で削除した条（ぶつかった行のとき） */
+		ifBody: text('if_body'),
+		billId: integer('bill_id').references(() => bills.id),
+		/** 似ていなくて内部IDが変わった条の、閉じた内部ID */
+		closedProvisionId: integer('closed_provision_id').references(() => provisions.id)
+	},
+	(t) => [
+		primaryKey({ columns: [t.lawId, t.revisionId, t.provisionId] }),
+		foreignKey({ columns: [t.lawId, t.revisionId], foreignColumns: [ifImports.lawId, ifImports.revisionId] }),
+		check('if_import_articles_change', sql`${t.change} IN ('amended', 'renumbered', 'added', 'removed')`)
+	]
+);
+
+/** その会期のその法令の取り込みが終わった記録。会期の途中で IF世界の条文が変わらないように */
+export const ifImportRuns = sqliteTable(
+	'if_import_runs',
+	{
+		sessionKey: text('session_key').notNull(),
+		lawId: text('law_id')
+			.notNull()
+			.references(() => laws.id),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.sessionKey, t.lawId] })]
+);
+
 /** IF世界で足した条の内部ID。bill_changes の足す行には内部IDがないので、ここに持つ */
 export const ifAddedArticles = sqliteTable(
 	'if_added_articles',

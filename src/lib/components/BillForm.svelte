@@ -19,6 +19,7 @@
 		edit = null,
 		dropped = 0,
 		conflicts = [],
+		goneRows = [],
 		adjusting = false,
 		titleFree = false,
 		back,
@@ -34,6 +35,8 @@
 		dropped?: number;
 		/** 基にしたあとで変わった条のいまの条文（docs/spec/72.md の B2） */
 		conflicts?: { num: string; label: string; caption: string; body: string }[];
+		/** なくなった条を指している行の位置（docs/spec/95.md 決めたこと4） */
+		goneRows?: number[];
 		/** 要調整を直す：題名と対象の法令は変えられない。titleFree は法令名の重なりで、法令名は変えられる */
 		adjusting?: boolean;
 		titleFree?: boolean;
@@ -71,7 +74,10 @@
 	let token = $state('');
 	let turnstile: ReturnType<typeof Turnstile> | undefined = $state();
 
-	const errors = $derived(form?.errors);
+	const gone = $derived<BillFormErrors | undefined>(
+		goneRows.length ? { fields: {}, rows: Object.fromEntries(goneRows.map((i) => [i, { field: 'target' as const, message: ja.torikomi.goneRow }])) } : undefined
+	);
+	const errors = $derived(form?.errors ?? gone);
 	const message = $derived(form?.message);
 	const fieldError = (f: keyof BillFormErrors['fields']) => errors?.fields[f];
 	/** 送ったときの行の並び。行の誤りは送ったときの位置で返るので、「この変更を外す」のあとも同じ行に出す */
@@ -431,7 +437,7 @@
 			<p class="hint">{ja.ifLaw.conflictsHint}</p>
 			{#each shownConflicts as c (c.num)}
 				<h3>{c.label}{c.caption}</h3>
-				<p class="law-text">{c.body}</p>
+				<p class="law-text">{c.body || ja.torikomi.goneBody}</p>
 			{/each}
 			<label class="radio"><input type="checkbox" name="confirmConflicts" />{ja.ifLaw.confirmLabel}</label>
 		</section>
