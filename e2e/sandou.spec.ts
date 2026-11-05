@@ -130,7 +130,7 @@ test('基準4：賛同が届くと発議でき、状態・編集・賛同のボ�
 		for (let page = 1; page <= 20; page++) {
 			await a.goto(page === 1 ? '/houan' : `/houan?page=${page}`);
 			if (await a.getByRole('link', { name: title, exact: true }).count()) return true;
-			if ((await a.getByRole('link', { name: /もっと見る/ }).count()) === 0) return false;
+			if ((await a.getByRole('link', { name: '次のページ' }).count()) === 0) return false;
 		}
 		return false;
 	};
