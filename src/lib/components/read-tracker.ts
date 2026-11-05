@@ -1,10 +1,10 @@
 // 読んだ記録の画面の側（Issue #67。設計書 docs/spec/67.md 決めたこと4）。
 // 投稿が3秒続けて画面に出たら読んだことにし、番号をためて送る
 import type { Action } from 'svelte/action';
+import { READ_BATCH } from '../domain/evaluations';
 
 const DWELL = 3000;
 const FLUSH = 1000;
-const CHUNK = 50;
 /** 高い要素は比率が上がらないので、途中の比率でも判定する */
 const THRESHOLDS = [0, 0.25, 0.5, 0.75, 1];
 
@@ -22,7 +22,7 @@ export function createReadTracker(send: (ids: number[]) => void) {
 	function flush() {
 		if (flushTimer !== null) clearTimeout(flushTimer);
 		flushTimer = null;
-		while (queue.length > 0) send(queue.splice(0, CHUNK));
+		while (queue.length > 0) send(queue.splice(0, READ_BATCH));
 	}
 
 	/** 読んだことにする（開いたときはすぐに） */
@@ -90,7 +90,7 @@ export function createReadTracker(send: (ids: number[]) => void) {
 		};
 	}
 
-	return { mark, watch, unwatch, start };
+	return { mark, flush, watch, unwatch, start };
 }
 
 type Target = { tracker: ReadTracker; id: number } | null;

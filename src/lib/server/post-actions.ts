@@ -4,7 +4,7 @@ import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '../copy/ja';
 import { billProgress, referralSession } from '../domain/bills';
-import { evaluationOpen, parseEvaluationKind, parseEvaluationOp } from '../domain/evaluations';
+import { evaluationOpen, parseEvaluationKind, parseEvaluationOp, READ_BATCH } from '../domain/evaluations';
 import { parseIssueId } from '../domain/issues';
 import { billWaitUntil } from '../domain/limits';
 import { answererRole, parseStance, postWindowOpen, stanceOpen, validatePost, type PostKind } from '../domain/posts';
@@ -12,9 +12,6 @@ import { billById } from './bills';
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
 import { evaluationTarget, recordViews, setEvaluation } from './evaluations';
 import { createPost, isSupporter, questionOf, setStance } from './posts';
-
-/** 読んだ記録の1回の番号の数の上限 */
-const READ_MAX = 50;
 
 /** 送り先の法案。ない番号と下書きは 404（ログインより先に。下書きの有無が他人に分からないように） */
 export async function postableBill(event: Pick<RequestEvent, 'params'>) {
@@ -131,9 +128,10 @@ export async function evaluationAction(event: RequestEvent) {
 	const op = parseEvaluationOp(form.has('op') ? String(form.get('op')) : null);
 	if (postId === null || kind === null || op === null) error(400);
 	const { progress, session } = progressOf(bill, now);
-	if (!evaluationOpen(progress)) return fail(409, { message: ja.post.closed, ...keep });
+	if (!evaluationOpen(progress)) return fail(409, { message: ja.post.evaluationClosed, ...keep });
 	const target = await evaluationTarget(db, postId, { id: bill.id, sessionKey: session.key });
-	if (!target) error(404);
+	// 開いたあとで非表示になることもあるので、画面全体をエラーにせず、ボタンの下に理由を出す
+	if (!target) return fail(404, { message: ja.post.evaluationGone, ...keep });
 	if (target.userId === user.id) return fail(403, { message: ja.post.ownPost, ...keep });
 	const role = answererRole(bill, user.id, await isSupporter(db, bill, user.id));
 	const result = await setEvaluation(db, guard.actor, { id: postId, billId: bill.id, sessionKey: session.key }, kind, op, role, now);
@@ -152,8 +150,8 @@ export async function readAction(event: RequestEvent) {
 	if (!guard.ok) return fail(guard.failure.status);
 	if (billWaitUntil(guard.actor.registeredAt, now) !== null) return fail(403);
 	const raw = form.getAll('post');
+	if (raw.length === 0 || raw.length > READ_BATCH) error(400);
 	const ids = raw.map((v) => parseIssueId(String(v)));
-	if (raw.length === 0 || raw.length > READ_MAX) error(400);
 	if (ids.some((id) => id === null)) error(400);
 	const { progress, session } = progressOf(bill, now);
 	if (!evaluationOpen(progress)) return fail(409);

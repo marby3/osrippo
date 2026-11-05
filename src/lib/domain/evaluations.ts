@@ -13,6 +13,9 @@ const MIN_READERS = 3;
 /** 同じ人から同じ投稿者へ、会期で数える件数（種類ごと） */
 const PAIR_CAP = 3;
 
+/** 読んだ記録を1回に送れる番号の数 */
+export const READ_BATCH = 50;
+
 /** 押せる時期と読んだ記録を取る時期：3週目から採決の締切まで */
 export const evaluationOpen = (progress: BillProgress) => progress === 'deliberation' || progress === 'vote';
 

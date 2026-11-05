@@ -135,7 +135,8 @@ test('基準7：投稿者の立場は書いた時点で固定する。提出者�
 	await stance('f', 'for', 32);
 	expect(sqlite.prepare('SELECT stance FROM posts WHERE id = ?').get(first.id)).toMatchObject({ stance: 'against' });
 
-	// 提出者が反対寄りを選んでいれば、そのまま（基準6のテストで反対寄りにした）
+	// 提出者が反対寄りを選んでいれば、そのまま
+	await setStance(db, actor('author'), { id: 1 }, { key: SESSION }, 'against', 33);
 	expect(await write('author', 'author')).toBe('against');
 });
 

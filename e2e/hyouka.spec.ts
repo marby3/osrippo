@@ -374,21 +374,26 @@ test('信頼の境界：?/evaluate は形の違う値を 400、ほかの法案�
 	await expect(reasonable(card(v.page, `境界の質疑 ${label}`))).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('信頼の境界：?/read は形の違う番号と51個以上を 400、ログインなしを 401、ほかの法案の番号は黙って無視する', async ({ browser, page }, info) => {
+test('信頼の境界：?/read は形の違う番号と51個以上を 400、ログインなしを 401。ほかの法案と自分の投稿の番号は断らずに無視する', async ({ browser, page }, info) => {
 	const w = info.project.name;
 	const month = monthOf(w, 8);
 	const { bill, label } = await proposed(browser, w, 8, month);
+	const other = await proposed(browser, w, 9, month);
 	const now = at(month, 15);
 	const q = await user(browser, ip(w, 8, 5), now, `q-${label}`);
 	const v = await user(browser, ip(w, 8, 6), now, `v-${label}`);
 	const id = await writeQuestion(q.page, bill, `読む境界の質疑 ${label}`);
+	const otherId = await writeQuestion(q.page, other.bill, `別の法案の質疑 ${label}`);
+	const ownId = await writeQuestion(v.page, bill, `自分の質疑 ${label}`);
 	await open(v.page, bill);
 
 	expect((await readRequest(v.page, bill, [])).status()).toBe(400);
 	expect((await readRequest(v.page, bill, ['abc'])).status()).toBe(400);
 	expect((await readRequest(v.page, bill, [id, '-1'])).status()).toBe(400);
 	expect((await readRequest(v.page, bill, Array.from({ length: 51 }, (_, i) => String(i + 1)))).status()).toBe(400);
-	// 50個までは受け付け、この法案の見える投稿でない番号は無視する（保存の絞り込みは DB のテスト）
+	// 50個までは受け付ける。ほかの法案と自分の投稿の番号は断らない（保存されないことは DB のテストの基準6で確かめる）
+	expect((await readRequest(v.page, bill, [otherId])).status()).toBe(200);
+	expect((await readRequest(v.page, bill, [ownId])).status()).toBe(200);
 	expect((await readRequest(v.page, bill, Array.from({ length: 50 }, (_, i) => String(90_000_000 + i)))).status()).toBe(200);
 	expect((await readRequest(v.page, bill, [id])).status()).toBe(200);
 	expect((await billRequest(v.page, '/houan/abc/shitsugi?/read', { post: id })).status()).toBe(404);

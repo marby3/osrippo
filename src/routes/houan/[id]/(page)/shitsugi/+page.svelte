@@ -2,6 +2,7 @@
 	// 法案の質疑のタブ（SpBillQA・PcBillQA）。スマホは 考え → 絞り込み → カード → 質疑を書く、PC はカードの右に考えと質疑を書く。
 	// 同じものを2つ描かず、1つの要素を CSS の格子で動かす
 	import { enhance } from '$app/forms';
+	import { beforeNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
@@ -31,6 +32,8 @@
 		}).catch(() => {});
 	});
 	onMount(() => tracker.start());
+	// 同じ画面のまま別の法案へ移ると送り先が変わるので、移る前に送る
+	beforeNavigate(() => tracker.flush());
 	const track = $derived(data.loggedIn && data.evaluationShown ? tracker : null);
 	const choices: Stance[] = ['for', 'undecided', 'against'];
 	const nextHref = $derived(`${base}?${data.onlyWaiting ? 'mati=1&' : ''}page=${data.page + 1}`);

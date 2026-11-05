@@ -127,7 +127,9 @@ export const ja = {
 		answererSupplement: '提出者と賛同者は、補足ではなく答弁を書いてください。',
 		evaluations: { reasonable: '筋が通っている', changed: '考えが変わった' },
 		evaluationHint: '考えが違っても、筋が通っていると思えば「筋が通っている」を押してください。',
-		ownPost: '自分の投稿には評価を付けられません。'
+		ownPost: '自分の投稿には評価を付けられません。',
+		evaluationClosed: 'いまは評価できない時期です。',
+		evaluationGone: 'この投稿は評価できません。'
 	},
 	/** 法案の下書きの誤り（設計書 docs/spec/45.md 決めたこと9。画面は #46・#47） */
 	bill: {
