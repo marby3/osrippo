@@ -84,6 +84,8 @@ const open = async (u: Page, path: string) => {
 	await hydrated(u);
 };
 const status = (u: Page, w: Width, name: string) => (w === 'sp' ? u.getByText(`いま：${name}`, { exact: true }) : u.getByText(`${name}（いまここ）`, { exact: true }));
+/** IF世界はテストのあいだで共有するので、画面を開いて保存するまでに別のテストの可決が入ると印が古くなる。開くところからやり直す */
+const retryOnNewer = (steps: () => Promise<void>) => expect(steps).toPass({ timeout: 90_000 });
 const articleOf = (u: Page, label: string) => u.getByRole('article', { name: label, exact: true });
 
 test('基準4：IF世界の法令ページに帯・架空の法令・noindex・変わった条と元の法案が出て、現実の法令ページは元のまま。切り替えがある。制定の新法も読める', async ({ browser }, info) => {
@@ -191,8 +193,12 @@ test('基準5：書く画面の条文が IF世界の最新から始まり、架�
 	expect(await refused.text()).toContain('条文が新しくなりました');
 
 	// 最新を基にした法案の変更点の「いま」は IF世界の本文
-	const { revisionId } = (await (await a.page.request.get(`/houan/kaku/joubun?law=${IF_LAW}`)).json()) as { revisionId: string };
-	const saved = await billRequest(a.page, '/houan/kaku', { ...form, title: `新しい印の法案 ${s.label}`, base: revisionId });
+	const saveLatest = async () => {
+		const { revisionId } = (await (await a.page.request.get(`/houan/kaku/joubun?law=${IF_LAW}`)).json()) as { revisionId: string };
+		return billRequest(a.page, '/houan/kaku', { ...form, title: `新しい印の法案 ${s.label}`, base: revisionId });
+	};
+	const firstTry = await saveLatest();
+	const saved = firstTry.status() === 409 ? await saveLatest() : firstTry;
 	expect(saved.status(), await saved.text()).toBe(303);
 	await open(a.page, `${saved.headers()['location']}/henkou`);
 	await expect(main(a.page).locator('section').filter({ hasText: 'いま' })).toContainText(/次の法案の基になる/);
@@ -237,20 +243,21 @@ test('基準6・7：同じ条の後の法案は要調整と出て、提出者が
 	// 提出者が直す。いまの条文が出て、確かめなしでは保存できない（基準8）
 	const a = second.a;
 	await a.setNow(at(next, 3));
-	await open(a.page, second.path);
-	await a.page.getByRole('link', { name: '直す' }).click();
-	await expect(a.page).toHaveURL(new RegExp(`${second.path}/kaku$`));
-	await hydrated(a.page);
-	await expect(a.page.getByText(`先の本文 ${s.label}`).first()).toBeVisible();
-	await expect(a.page.getByLabel('題名')).toHaveAttribute('readonly', '');
-	const fixedBody = `直した本文 ${s.label}`;
-	await a.page.getByLabel('変更後の条文').fill(fixedBody);
-	const save = a.page.getByRole('button', { name: '直して質疑に戻す' });
-	await save.click();
-	await expect(a.page.getByRole('alert')).toContainText('いまの条文を確かめて');
-	await a.page.getByLabel('いまの条文を確かめました').check();
-	await save.click();
-	await expect(a.page).toHaveURL(new RegExp(`${second.path}$`));
+	await retryOnNewer(async () => {
+		await open(a.page, second.path);
+		await a.page.getByRole('link', { name: '直す' }).click();
+		await expect(a.page).toHaveURL(new RegExp(`${second.path}/kaku$`));
+		await hydrated(a.page);
+		await expect(a.page.getByText(`先の本文 ${s.label}`).first()).toBeVisible();
+		await expect(a.page.getByLabel('題名')).toHaveAttribute('readonly', '');
+		await a.page.getByLabel('変更後の条文').fill(`直した本文 ${s.label}`);
+		const save = a.page.getByRole('button', { name: '直して質疑に戻す' });
+		await save.click();
+		await expect(a.page.getByRole('alert')).toContainText('いまの条文を確かめて');
+		await a.page.getByLabel('いまの条文を確かめました').check();
+		await save.click();
+		await expect(a.page).toHaveURL(new RegExp(`${second.path}$`));
+	});
 	await expect(status(a.page, w, '発議')).toBeVisible();
 	await expect(main(a.page)).toContainText('賛同 3人');
 
@@ -315,16 +322,18 @@ test('基準8：基にしたあとで変わった条に触れる下書きを開�
 	expect(proposed.status()).toBe(409);
 	expect(await proposed.text()).toContain('基にしたあとで条文が変わりました');
 
-	await open(a.page, `${draft}/kaku`);
-	await expect(a.page.getByRole('heading', { name: 'ぶつかった条文' })).toBeVisible();
-	await expect(a.page.getByText(`先に可決した本文 ${s.label}`).first()).toBeVisible();
-	await a.page.getByLabel('変更後の条文').fill(`確かめた本文 ${s.label}`);
-	const save = a.page.getByRole('button', { name: '下書きを保存する' });
-	await save.click();
-	await expect(a.page.getByRole('alert')).toContainText('いまの条文を確かめて');
-	await a.page.getByLabel('いまの条文を確かめました').check();
-	await save.click();
-	await expect(a.page).toHaveURL(new RegExp(`${draft}$`));
+	await retryOnNewer(async () => {
+		await open(a.page, `${draft}/kaku`);
+		await expect(a.page.getByRole('heading', { name: 'ぶつかった条文' })).toBeVisible();
+		await expect(a.page.getByText(`先に可決した本文 ${s.label}`).first()).toBeVisible();
+		await a.page.getByLabel('変更後の条文').fill(`確かめた本文 ${s.label}`);
+		const save = a.page.getByRole('button', { name: '下書きを保存する' });
+		await save.click();
+		await expect(a.page.getByRole('alert')).toContainText('いまの条文を確かめて');
+		await a.page.getByLabel('いまの条文を確かめました').check();
+		await save.click();
+		await expect(a.page).toHaveURL(new RegExp(`${draft}$`));
+	});
 	await open(a.page, `${draft}/kaku`);
 	await expect(a.page.getByRole('heading', { name: 'ぶつかった条文' })).toHaveCount(0);
 });

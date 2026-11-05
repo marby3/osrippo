@@ -264,7 +264,7 @@ describe('基準3：衝突', () => {
 		expect(revisionsOf(passed.id)).toBe(1);
 		expect(revisionsOf(broken.id)).toBe(1);
 
-		// 反映の途中で失敗したら止める：先の法案の足す条の番号が不正で失敗すると、後の法案を先に反映しない
+		// 反映の途中で失敗したら止める：先の法案の反映が失敗すると（トリガーで失敗させる）、後の法案を先に反映しない
 		const s2 = monthOf('2207-05');
 		fix(s2);
 		const law2 = addLaw();
