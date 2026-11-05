@@ -14,11 +14,11 @@
 	const remaining = $derived(support.required === null ? null : Math.max(0, support.required - support.count));
 	/** いまの段の位置 */
 	const current = $derived(BILL_PROGRESS_STEP[data.progress]);
-	/** 段の名前：次の段には日付を出し、廃案のときは最後の段「結果」を「廃案」にする（docs/spec/50.md 決めたこと6） */
+	/** 段の名前：次の段には日付を出し、会期が終わったら最後の段「結果」を可決・否決・廃案にする（docs/spec/50.md 決めたこと6、docs/spec/71.md 決めたこと9） */
 	const stageName = (name: string, i: number) => {
 		const next = data.next;
 		if (next && i === BILL_PROGRESS_STEP[next.stage]) return ja.bill.page.stageFrom(name, next.session, next.at);
-		return data.progress === 'lapsed' && i === BILL_PROGRESS_STEP.lapsed ? ja.bill.progress.lapsed : name;
+		return data.progress === 'lapsed' && i === BILL_PROGRESS_STEP.lapsed ? ja.bill.progress[data.stage] : name;
 	};
 </script>
 
@@ -29,6 +29,7 @@
 <div class="layout">
 	<div class="content">
 		{#if data.progress === 'vote'}<p class="to-vote"><a href="/saiketsu/{bill.id}">{ja.vote.billLink}</a></p>{/if}
+		{#if data.progress === 'lapsed'}<p class="to-vote"><a href="/saiketsu/{bill.id}/kekka">{ja.result.link}</a></p>{/if}
 		{#if bill.summary.length}
 			<section class="summary">
 				<h2>{ja.bill.page.summaryHeading}</h2>

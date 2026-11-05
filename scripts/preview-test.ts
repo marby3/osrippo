@@ -36,6 +36,8 @@ const args = [
 	'--port',
 	port,
 	...Object.entries(vars).flatMap(([k, v]) => ['--var', `${k}:${v}`]),
-	...(values['persist-to'] ? ['--persist-to', values['persist-to']] : [])
+	...(values['persist-to'] ? ['--persist-to', values['persist-to']] : []),
+	// Cron の入口を /cdn-cgi/handler/scheduled から呼べるようにする（Issue #71。本番にこの入口はない）
+	...(values['test-login'] ? ['--test-scheduled'] : [])
 ];
 spawn(process.execPath, args, { cwd: root, stdio: 'inherit' }).on('exit', (code) => process.exit(code ?? 0));

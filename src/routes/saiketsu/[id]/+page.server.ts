@@ -18,7 +18,8 @@ export const load: PageServerLoad = async (event) => {
 	const user = requireUser(event);
 	const now = nowOf(event);
 	const { progress, session } = progressOf(bill, now);
-	// 発議済みで今は採決の対象でない法案は、行き止まりにせず法案のページへ
+	// 会期が終わった法案は結果のページへ。発議済みで今は採決の対象でない法案は、行き止まりにせず法案のページへ
+	if (progress === 'lapsed') redirect(303, `/saiketsu/${bill.id}/kekka`);
 	if (progress !== 'vote') redirect(303, `/houan/${bill.id}`);
 	const { previous } = sessionsAt(now);
 	const rows = await assignmentRows(db, user.id, session, previous, now, Math.random);

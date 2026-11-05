@@ -463,7 +463,7 @@ export function referralSession(proposedAt: number, minutes: number | null): Ses
 	return proposedAt < session.deliberationAt ? session : sessionAt(session.endsAt, minutes);
 }
 
-/** いまの進み。v0.3 には採決がないので、付託先の会期が終わった法案はすべて廃案 */
+/** いまの進み（時刻から求める）。lapsed は付託先の会期が終わったこと。可決・否決・廃案のどれかは結果の行で決まる（billStage。domain/votes.ts） */
 export function billProgress(bill: BillClock, now: number, minutes: number | null): BillProgress {
 	if (bill.status === 'draft') return 'draft';
 	if (bill.proposedAt === null) return 'proposed';

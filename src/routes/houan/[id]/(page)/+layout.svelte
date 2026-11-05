@@ -23,7 +23,7 @@
 	<h1>{bill.title}</h1>
 	<p class="formal">{bill.formalName}</p>
 	<p class="now sp">
-		{ja.bill.page.now}<strong>{ja.bill.progress[data.progress]}</strong>{#if data.progress === 'deliberation'}{ja.session.week(3)}{:else if data.progress === 'vote'}{ja.session.week(4)}{/if}
+		{ja.bill.page.now}<strong>{ja.bill.progress[data.stage]}</strong>{#if data.progress === 'deliberation'}{ja.session.week(3)}{:else if data.progress === 'vote'}{ja.session.week(4)}{/if}
 	</p>
 	{#if data.next}<p class="next sp">{ja.bill.page.nextLine(ja.bill.progress[data.next.stage], data.next.session, data.next.at)}</p>{/if}
 	{#if data.canEdit}<p class="edit"><a href="{base}/kaku">{ja.bill.page.edit}</a></p>{/if}

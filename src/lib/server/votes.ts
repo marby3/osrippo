@@ -30,7 +30,7 @@ export async function isEligibleVoter(db: Db, userId: string, session: Session):
 }
 
 /** その会期に採決する法案の条件。付託先の会期（referralSession）が session になる法案と同じ */
-const inVote = (session: Session, previous: Session) =>
+export const inVote = (session: Session, previous: Session) =>
 	and(savedBill, eq(bills.status, 'proposed'), gte(bills.proposedAt, previous.deliberationAt), lt(bills.proposedAt, session.deliberationAt));
 
 /** その会期に採決する法案 */
