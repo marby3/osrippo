@@ -5,14 +5,19 @@
 	import { goto } from '$app/navigation';
 	import { ja } from '../copy/ja';
 	import { POST_MAX, type PostRole } from '../domain/posts';
+	import type { EvaluationKind } from '../domain/evaluations';
 	import type { IssueError } from '../domain/issues';
+	import EvaluationButtons from './EvaluationButtons.svelte';
+	import { readWhenSeen, type ReadTracker } from './read-tracker';
 	import Turnstile from './Turnstile.svelte';
 
+	type Pressed = Record<EvaluationKind, boolean>;
 	type Question = {
 		id: number;
 		body: string;
 		mine: boolean;
-		answers: { id: number; role: PostRole; body: string }[];
+		pressed: Pressed;
+		answers: { id: number; role: PostRole; body: string; mine: boolean; pressed: Pressed }[];
 		supplements: { id: number; body: string }[];
 	};
 	type Failure = { question: number | null; body: string; error?: IssueError; message?: string };
@@ -27,7 +32,10 @@
 		siteKey,
 		failure,
 		afterReply,
-		back
+		back,
+		evaluationShown,
+		evaluationFailure,
+		track
 	}: {
 		question: Question;
 		role: PostRole | null;
@@ -41,6 +49,11 @@
 		/** 書けたあとで移る先。なければ今のページを読み直す */
 		afterReply: string | null;
 		back: string;
+		/** 評価のボタンを出すか（時期の中で、登録から7日未満でない） */
+		evaluationShown: boolean;
+		evaluationFailure: { post: number; message: string } | null;
+		/** 読んだ記録を取るときだけ渡す */
+		track: ReadTracker | null;
 	} = $props();
 
 	const failedHere = $derived(failure?.question === question.id);
@@ -65,23 +78,54 @@
 	const body = $derived(edited ?? (failedHere ? (failure?.body ?? '') : ''));
 	const toggleLabel = $derived(question.answers.length > 1 ? ja.post.readAnswers(question.answers.length) : ja.post.readAnswer(ja.post.roles[question.answers[0]?.role ?? 'author']));
 	const fieldId = $derived(`reply-${question.id}`);
+	const messageFor = (id: number) => (evaluationFailure?.post === id ? evaluationFailure.message : undefined);
+	/** 読んだ記録を取る投稿。自分の投稿と、答弁のある質疑（押せないので）は取らない */
+	const trackIf = (id: number, shouldTrack: boolean) => (track && shouldTrack ? { tracker: track, id } : null);
+
+	function toggleAnswers() {
+		answersOpen = !answersOpen;
+		// 開いたら、カードの答弁をすぐに読んだことにする
+		if (answersOpen && track) for (const a of question.answers) if (!a.mine) track.mark(a.id);
+	}
 </script>
 
 <article id="shitsugi-{question.id}">
-	<p class="body">{question.body}</p>
+	<p class="body" use:readWhenSeen={trackIf(question.id, !hasAnswers && !question.mine)}>{question.body}</p>
+
+	{#if evaluationShown && hasAnswers && !question.mine}
+		<!-- 答弁がつく前に質疑に押した人が、取り消せるように -->
+		<EvaluationButtons postId={question.id} pressed={question.pressed} {loggedIn} onlyPressed {back} message={messageFor(question.id)} />
+	{/if}
 
 	{#if hasAnswers}
-		<button type="button" class="toggle" aria-expanded={answersOpen} onclick={() => (answersOpen = !answersOpen)}>{toggleLabel}</button>
+		<button type="button" class="toggle" aria-expanded={answersOpen} onclick={toggleAnswers}>{toggleLabel}</button>
 		<div class="answers" class:open={answersOpen}>
 			{#each question.answers as answer (answer.id)}
-				<section class="answer">
+				<section class="answer" use:readWhenSeen={trackIf(answer.id, !answer.mine)}>
 					<h3>{ja.post.answerHeading(ja.post.roles[answer.role])}</h3>
 					<p class="body">{answer.body}</p>
+					{#if evaluationShown && question.answers.length > 1 && !answer.mine}
+						<EvaluationButtons postId={answer.id} pressed={answer.pressed} {loggedIn} {back} message={messageFor(answer.id)} />
+					{/if}
 				</section>
 			{/each}
 		</div>
+		{#if evaluationShown && question.answers.length === 1 && !question.answers[0].mine}
+			<!-- 案のとおり開閉の外に置く。閉じたまま押したら、評価した答弁が読めるように開く -->
+			<EvaluationButtons
+				postId={question.answers[0].id}
+				pressed={question.answers[0].pressed}
+				{loggedIn}
+				{back}
+				message={messageFor(question.answers[0].id)}
+				onpress={() => (answersOpen = true)}
+			/>
+		{/if}
 	{:else}
 		<p class="waiting">{ja.post.waiting}</p>
+		{#if evaluationShown && !question.mine}
+			<EvaluationButtons postId={question.id} pressed={question.pressed} {loggedIn} {back} message={messageFor(question.id)} />
+		{/if}
 	{/if}
 
 	{#each question.supplements as supplement (supplement.id)}

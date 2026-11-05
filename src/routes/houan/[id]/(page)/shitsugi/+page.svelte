@@ -3,7 +3,9 @@
 	// 同じものを2つ描かず、1つの要素を CSS の格子で動かす
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
+	import { onMount } from 'svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
+	import { createReadTracker } from '#lib/components/read-tracker.ts';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { Stance } from '#lib/domain/posts.ts';
 	import type { PageProps } from './$types';
@@ -17,6 +19,19 @@
 	/** 失敗した答弁か補足（そのカードの欄に出す） */
 	const failure = $derived(form?.question !== undefined ? { question: form.question, body: form.body ?? '', error: form.error, message: form.message } : null);
 	const stanceMessage = $derived(form && 'stanceMessage' in form ? form.stanceMessage : undefined);
+	/** 断られた評価（そのボタンの下に出す） */
+	const evaluationFailure = $derived(form && 'evaluationPost' in form && form.evaluationPost != null ? { post: form.evaluationPost, message: form.message ?? '' } : null);
+	// 読んだ記録：応答は画面に出さない。失敗しても黙って捨てる（docs/spec/67.md 決めたこと4）
+	const tracker = createReadTracker((ids) => {
+		fetch(`${base}?/read`, {
+			method: 'POST',
+			headers: { 'x-sveltekit-action': 'true' },
+			body: new URLSearchParams(ids.map((id) => ['post', String(id)])),
+			keepalive: true
+		}).catch(() => {});
+	});
+	onMount(() => tracker.start());
+	const track = $derived(data.loggedIn && data.evaluationShown ? tracker : null);
 	const choices: Stance[] = ['for', 'undecided', 'against'];
 	const nextHref = $derived(`${base}?${data.onlyWaiting ? 'mati=1&' : ''}page=${data.page + 1}`);
 </script>
@@ -70,6 +85,9 @@
 				{failure}
 				{afterReply}
 				back={here}
+				evaluationShown={data.evaluationShown}
+				{evaluationFailure}
+				{track}
 			/>
 		{:else}
 			<p class="empty">{data.onlyWaiting ? ja.post.emptyWaiting : ja.post.empty}</p>
@@ -77,13 +95,16 @@
 		{#if data.hasNext}<p class="more"><a href={nextHref}>{ja.post.more(data.totalCount)}</a></p>{/if}
 	</div>
 
-	{#if data.canQuestion}
+	{#if data.canQuestion || data.evaluationShown}
 		<div class="write">
-			{#if data.waitUntil !== null}
-				<p class="note">{ja.post.tooNew(data.waitUntil)}</p>
-			{:else}
-				<a href="{base}/kaku">{ja.post.writeQuestion}</a>
+			{#if data.canQuestion}
+				{#if data.waitUntil !== null}
+					<p class="note">{ja.post.tooNew(data.waitUntil)}</p>
+				{:else}
+					<a href="{base}/kaku">{ja.post.writeQuestion}</a>
+				{/if}
 			{/if}
+			{#if data.evaluationShown}<p class="hint">{ja.post.evaluationHint}</p>{/if}
 		</div>
 	{/if}
 </div>
@@ -195,6 +216,14 @@
 		margin: 0;
 	}
 
+	/* 案（PcBillQA）の右の列の説明文。スマホの案にはない */
+	.hint {
+		display: none;
+		margin: 1rem 0 0;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+
 	.write a {
 		display: flex;
 		align-items: center;
@@ -234,6 +263,10 @@
 			position: static;
 			grid-row: 2;
 			align-self: start;
+		}
+
+		.hint {
+			display: block;
 		}
 
 		.choices {

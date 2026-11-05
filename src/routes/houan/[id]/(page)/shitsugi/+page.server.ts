@@ -3,9 +3,10 @@ import { error } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { parsePage } from '#lib/domain/issues.ts';
 import { billWaitUntil } from '#lib/domain/limits.ts';
+import { evaluationOpen } from '#lib/domain/evaluations.ts';
 import { answererRole, postWindowOpen, stanceOpen } from '#lib/domain/posts.ts';
 import { nowOf } from '#lib/server/client.ts';
-import { answerAction, postableBill, progressOf, stanceAction, supplementAction } from '#lib/server/post-actions.ts';
+import { answerAction, evaluationAction, postableBill, progressOf, readAction, stanceAction, supplementAction } from '#lib/server/post-actions.ts';
 import { isSupporter, listQuestions, questionTotal, stanceOf, waitingQuestions } from '#lib/server/posts.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -25,6 +26,7 @@ export const load: PageServerLoad = async (event) => {
 	const userId = user?.id ?? null;
 	const role = answererRole(bill, userId, userId !== null && (await isSupporter(db, bill, userId)));
 	const waiting = await waitingQuestions(db, bill.id);
+	const waitUntil = user ? billWaitUntil(user.createdAt.getTime(), now) : null;
 	return {
 		questions: rows,
 		waitingCount: waiting,
@@ -34,7 +36,9 @@ export const load: PageServerLoad = async (event) => {
 		onlyWaiting,
 		role,
 		loggedIn: user !== undefined && user !== null,
-		waitUntil: user ? billWaitUntil(user.createdAt.getTime(), now) : null,
+		waitUntil,
+		// 評価のボタン。登録から7日未満の人と時期の外には出さない（docs/spec/67.md 決めたこと1）
+		evaluationShown: evaluationOpen(progress) && waitUntil === null,
 		canQuestion: postWindowOpen('question', progress),
 		canAnswer: postWindowOpen('answer', progress),
 		canSupplement: postWindowOpen('supplement', progress),
@@ -48,5 +52,7 @@ export const load: PageServerLoad = async (event) => {
 export const actions: Actions = {
 	answer: answerAction,
 	supplement: supplementAction,
-	stance: stanceAction
+	stance: stanceAction,
+	evaluate: evaluationAction,
+	read: readAction
 };

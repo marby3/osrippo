@@ -40,6 +40,10 @@ export const LIMITS = {
 	supplementPerDay: 10,
 	billPostPerBurst: 10,
 	billPostPerIp: 60,
+	/** 評価（設計書 docs/spec/67.md 決めたこと3）。カードごとに2つのボタンがあり、読みながら押すので「わかる」の2倍 */
+	evaluationPerDay: 100,
+	evaluationPerBurst: 20,
+	evaluationAccountsPerIp: 3,
 	/** 下書きを作る・賛同する・発議するのは、登録からこの長さのアカウントだけ（Issue #41 決めたこと6） */
 	billAccountAge: 7 * DAY,
 	banLength: DAY
@@ -67,7 +71,10 @@ export type RefusalKind =
 	| 'answer-day'
 	| 'supplement-day'
 	| 'bill-post-burst'
-	| 'bill-post-ip';
+	| 'bill-post-ip'
+	| 'evaluation-day'
+	| 'evaluation-burst'
+	| 'evaluation-ip';
 export type Refusal = { kind: RefusalKind; retryAt?: number };
 
 /** 違反に数えるか。回線ごとの上限は同じ回線の別の人のせいで当たることがあり、登録したばかりの上限は試しているうちに締め出されないよう、数えない */
@@ -93,7 +100,10 @@ export const COUNTS_AS_VIOLATION: Record<RefusalKind, boolean> = {
 	'answer-day': true,
 	'supplement-day': true,
 	'bill-post-burst': true,
-	'bill-post-ip': false
+	'bill-post-ip': false,
+	'evaluation-day': true,
+	'evaluation-burst': true,
+	'evaluation-ip': false
 };
 
 type PostCounts = { accountPostTimes: number[]; ipPosts: number; registeredAt: number };
@@ -196,5 +206,13 @@ export function checkBillPost(kind: 'question' | 'answer' | 'supplement', c: { a
 	if (c.accountDay >= perDay) return { kind: `${kind}-day` };
 	if (c.accountBurst >= LIMITS.billPostPerBurst) return { kind: 'bill-post-burst' };
 	if (c.ipDay >= LIMITS.billPostPerIp) return { kind: 'bill-post-ip' };
+	return null;
+}
+
+/** 評価。付けるのも取り消すのも1回。取り消しと、24時間のうちに自分が付けたことのある投稿は回線の上限を見ない */
+export function checkEvaluation(c: { op: 'add' | 'remove'; accountDay: number; accountBurst: number; otherAccountsOnIp: number; selfAddedRecently: boolean }): Refusal | null {
+	if (c.accountDay >= LIMITS.evaluationPerDay) return { kind: 'evaluation-day' };
+	if (c.accountBurst >= LIMITS.evaluationPerBurst) return { kind: 'evaluation-burst' };
+	if (c.op === 'add' && !c.selfAddedRecently && c.otherAccountsOnIp >= LIMITS.evaluationAccountsPerIp) return { kind: 'evaluation-ip' };
 	return null;
 }

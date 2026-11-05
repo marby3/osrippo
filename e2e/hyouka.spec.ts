@@ -202,7 +202,6 @@ test('基準2：Turnstile なしで押せ、読み直しても残り、もう一
 	const data = await (await other.page.request.get(`${qa(bill)}/__data.json`)).text();
 	expect(data).not.toContain('"for"');
 	expect(data).not.toContain('"against"');
-	expect(data).not.toContain('"reasonable"');
 	expect(data).not.toContain(`v-${label}`);
 
 	// もう一度押すと外れる

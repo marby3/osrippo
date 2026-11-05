@@ -2,8 +2,10 @@
 import { and, asc, count, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { actions, billSupports, posts, stances } from '../db/schema';
 import { DAY, LIMITS, checkBillPost } from '../domain/limits';
+import { EVALUATION_KINDS, type EvaluationKind } from '../domain/evaluations';
 import { QUESTION_PAGE_SIZE, STANCE_CHANGES, type PostKind, type PostRole, type Stance } from '../domain/posts';
 import type { Session } from '../domain/session';
+import { pressedOnBill, stanceNow } from './evaluations';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
 
@@ -32,12 +34,13 @@ export async function questionOf(db: Db, questionId: number, billId: number, ses
 	return row;
 }
 
-/** 上限を確かめて書く */
+/** 上限を確かめて書く。writerRole は書く人の役割（posts.role は答弁だけに入れるので別に受け取る）。書いた時点の立場を残す（docs/spec/67.md 決めたこと6） */
 export async function createPost(
 	db: Db,
 	actor: Actor,
 	post: { billId: number; sessionKey: string; kind: PostKind; parentId: number | null; role: PostRole | null; body: string },
-	now: number
+	now: number,
+	writerRole: PostRole | null
 ) {
 	const since = now - DAY;
 	const mine = eq(actions.userId, actor.userId);
@@ -49,7 +52,7 @@ export async function createPost(
 	if (refusal) return refuse(db, actor, refusal, now);
 	const [row] = await db
 		.insert(posts)
-		.values({ ...post, userId: actor.userId, createdAt: now })
+		.values({ ...post, userId: actor.userId, createdAt: now, stance: stanceNow(post.sessionKey, post.billId, actor.userId, writerRole) })
 		.returning({ id: posts.id });
 	await db.insert(actions).values({ kind: POST_ACTION[post.kind], userId: actor.userId, ipHash: actor.ipHash, targetId: post.billId, createdAt: now });
 	return { ok: true as const, id: row.id };
@@ -72,7 +75,7 @@ export async function waitingQuestions(db: Db, billId: number) {
 }
 
 /**
- * 質疑のタブのカード。新しい順で、答弁と補足は古い順。返す値に user_id を入れない（自分のものかは mine で返す）。
+ * 質疑のタブのカード。新しい順で、答弁と補足は古い順。返す値に user_id と立場を入れない（自分のものかは mine、押したかは pressed で返す）。
  * 答弁と補足は parent_id IN (…) でまとめて引く（1ページ20件なので、D1 の値の数の上限に収まる）
  */
 export async function listQuestions(db: Db, billId: number, userId: string | null, onlyWaiting: boolean, page: number) {
@@ -86,18 +89,22 @@ export async function listQuestions(db: Db, billId: number, userId: string | nul
 	const shown = rows.slice(0, QUESTION_PAGE_SIZE);
 	const children = shown.length
 		? await db
-				.select({ id: posts.id, parentId: posts.parentId, kind: posts.kind, role: posts.role, body: posts.body })
+				.select({ id: posts.id, parentId: posts.parentId, kind: posts.kind, role: posts.role, body: posts.body, userId: posts.userId })
 				.from(posts)
 				.where(and(inArray(posts.parentId, shown.map((q) => q.id)), eq(posts.status, 'visible')))
 				.orderBy(asc(posts.id))
 		: [];
 	const of = (id: number, kind: PostKind) => children.filter((c) => c.parentId === id && c.kind === kind);
+	const pressedRows = userId !== null && shown.length ? await pressedOnBill(db, userId, billId) : [];
+	const pressedOf = (id: number) =>
+		Object.fromEntries(EVALUATION_KINDS.map((kind) => [kind, pressedRows.some((r) => r.postId === id && r.kind === kind)])) as Record<EvaluationKind, boolean>;
 	return {
 		rows: shown.map((q) => ({
 			id: q.id,
 			body: q.body,
 			mine: q.userId === userId,
-			answers: of(q.id, 'answer').map((a) => ({ id: a.id, role: a.role as PostRole, body: a.body })),
+			pressed: pressedOf(q.id),
+			answers: of(q.id, 'answer').map((a) => ({ id: a.id, role: a.role as PostRole, body: a.body, mine: a.userId === userId, pressed: pressedOf(a.id) })),
 			supplements: of(q.id, 'supplement').map((s) => ({ id: s.id, body: s.body }))
 		})),
 		hasNext: rows.length > QUESTION_PAGE_SIZE

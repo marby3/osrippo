@@ -159,8 +159,8 @@ describe('基準8：同じ相手の上限', () => {
 });
 
 test('基準9：1アカウント24時間に100回、5分に20回、同じ投稿に同じ回線から3アカウントまで。アカウントの上限は違反に数え、回線は数えない', () => {
-	const ok = { op: 'add' as const, accountDay: 0, accountBurst: 0, otherAccountsOnIp: 0, selfAddedRecently: false };
-	const kind = (c: Partial<typeof ok> | { op: 'remove' }) => checkEvaluation({ ...ok, ...c })?.kind ?? null;
+	const ok = { op: 'add' as 'add' | 'remove', accountDay: 0, accountBurst: 0, otherAccountsOnIp: 0, selfAddedRecently: false };
+	const kind = (c: Partial<typeof ok>) => checkEvaluation({ ...ok, ...c })?.kind ?? null;
 	expect(LIMITS.evaluationPerDay).toBe(100);
 	expect(LIMITS.evaluationPerBurst).toBe(20);
 	expect(kind({ accountDay: 99 })).toBeNull();

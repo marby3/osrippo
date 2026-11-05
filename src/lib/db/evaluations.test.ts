@@ -12,15 +12,13 @@ const SESSION = '2046-05';
 const actor = (userId: string) => ({ userId, registeredAt: 0, ipHash: `ip-${userId}` });
 const bill1 = { id: 1, sessionKey: SESSION };
 const bill2 = { id: 2, sessionKey: SESSION };
-let nextPost = 1000;
 
 /** 行を直接足す（立場は引数のとおり）。createPost の確かめは基準7のテストでだけ通す */
 function addPost(billId: number, userId: string, kind: 'question' | 'answer' = 'question', parentId: number | null = null, status = 'visible') {
-	const id = nextPost++;
-	sqlite
-		.prepare('INSERT INTO posts (id, bill_id, session_key, kind, parent_id, user_id, role, body, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)')
-		.run(id, billId, SESSION, kind, parentId, userId, kind === 'answer' ? 'author' : null, 'b', status);
-	return id;
+	const { lastInsertRowid } = sqlite
+		.prepare('INSERT INTO posts (bill_id, session_key, kind, parent_id, user_id, role, body, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)')
+		.run(billId, SESSION, kind, parentId, userId, kind === 'answer' ? 'author' : null, 'b', status);
+	return Number(lastInsertRowid);
 }
 const view = (postId: number, userId: string) =>
 	sqlite.prepare('SELECT stance FROM post_views WHERE post_id = ? AND user_id = ?').all(postId, userId).map((r) => (r as { stance: string }).stance);
@@ -144,9 +142,8 @@ test('基準7：投稿者の立場は書いた時点で固定する。提出者�
 test('基準8：同じ相手の上限は法案をまたいで数え、スコアと考えが変わったを投稿ごとに返す。誰が押したかを返さない', async () => {
 	const key = '2046-07';
 	const add = (billId: number) => {
-		const id = nextPost++;
-		sqlite.prepare("INSERT INTO posts (id, bill_id, session_key, kind, user_id, body, stance, created_at) VALUES (?, ?, ?, 'question', 'g', 'b', 'for', 0)").run(id, billId, key);
-		return { id, billId, sessionKey: key };
+		const { lastInsertRowid } = sqlite.prepare("INSERT INTO posts (bill_id, session_key, kind, user_id, body, stance, created_at) VALUES (?, ?, 'question', 'g', 'b', 'for', 0)").run(billId, key);
+		return { id: Number(lastInsertRowid), billId, sessionKey: key };
 	};
 	const ps = [add(1), add(1), add(2), add(2)];
 	sqlite.exec(`INSERT INTO stances (session_key, bill_id, user_id, stance, changes, updated_at) VALUES ('${key}', 1, 'h', 'against', 0, 0), ('${key}', 2, 'h', 'against', 0, 0)`);
@@ -170,8 +167,7 @@ test('基準8：同じ相手の上限は法案をまたいで数え、スコア�
 test('信頼の境界：評価できる投稿は、同じ法案の同じ会期の見える質疑と答弁だけ', async () => {
 	const question = addPost(1, 't');
 	const answer = addPost(1, 't', 'answer', question);
-	const supplement = nextPost++;
-	sqlite.prepare("INSERT INTO posts (id, bill_id, session_key, kind, parent_id, user_id, body, created_at) VALUES (?, 1, ?, 'supplement', ?, 't', 'b', 0)").run(supplement, SESSION, question);
+	const supplement = Number(sqlite.prepare("INSERT INTO posts (bill_id, session_key, kind, parent_id, user_id, body, created_at) VALUES (1, ?, 'supplement', ?, 't', 'b', 0)").run(SESSION, question).lastInsertRowid);
 	const hidden = addPost(1, 't', 'question', null, 'hidden');
 	expect(await evaluationTarget(db, question, bill1)).toMatchObject({ id: question, userId: 't' });
 	expect(await evaluationTarget(db, answer, bill1)).toMatchObject({ id: answer });

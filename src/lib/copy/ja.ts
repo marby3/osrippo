@@ -120,11 +120,14 @@ export const ja = {
 		supplementHeading: '補足',
 		readAnswer: (role: string) => `答弁を読む（${role}）`,
 		readAnswers: (n: number) => `答弁を読む（${n}件）`,
-		tooNew: (at: number) => `登録から7日たつと、質疑や答弁を書けます。${jaDateTime(at)}から書けます。`,
+		tooNew: (at: number) => `登録から7日たつと、質疑や答弁を書いたり、評価したりできます。${jaDateTime(at)}からできます。`,
 		closed: 'いまは書けない時期です。',
 		notAnswerer: '答弁できるのは提出者と賛同者だけです。',
 		ownQuestion: '自分の質疑には答弁できません。',
-		answererSupplement: '提出者と賛同者は、補足ではなく答弁を書いてください。'
+		answererSupplement: '提出者と賛同者は、補足ではなく答弁を書いてください。',
+		evaluations: { reasonable: '筋が通っている', changed: '考えが変わった' },
+		evaluationHint: '考えが違っても、筋が通っていると思えば「筋が通っている」を押してください。',
+		ownPost: '自分の投稿には評価を付けられません。'
 	},
 	/** 法案の下書きの誤り（設計書 docs/spec/45.md 決めたこと9。画面は #46・#47） */
 	bill: {
@@ -357,6 +360,9 @@ export const ja = {
 			'supplement-day': '補足は24時間に10件まで書けます。しばらくしてからお試しください。',
 			'bill-post-burst': '短いあいだに質疑や答弁を何度も書きました。しばらくしてからお試しください。',
 			'bill-post-ip': 'この回線から書ける質疑や答弁の数を超えました。しばらくしてからお試しください。',
+			'evaluation-day': '評価は24時間に100回まで押せます（取り消しも1回に数えます）。しばらくしてからお試しください。',
+			'evaluation-burst': '短いあいだに評価を何度も押しました。しばらくしてからお試しください。',
+			'evaluation-ip': 'この回線からは、この投稿にこれ以上評価を付けられません。',
 			'bill-support-day': '賛同は24時間に30回まで押せます（取り消しも1回に数えます）。しばらくしてからお試しください。',
 			'bill-support-burst': '短いあいだに賛同を何度も押しました。しばらくしてからお試しください。',
 			'bill-support-ip': 'この回線からは、この法案にこれ以上賛同できません。'
