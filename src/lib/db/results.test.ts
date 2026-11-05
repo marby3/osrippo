@@ -58,7 +58,7 @@ const resultOf = (s: Session, bill: number) => {
 	const row = sqlite.prepare('SELECT * FROM bill_results WHERE session_key = ? AND bill_id = ?').get(s.key, bill);
 	return row ? { ...row } : undefined;
 };
-const fixParticipants = (s: Session, n: number) => sqlite.prepare('INSERT INTO session_participant_counts (committee_id, session_key, active_count, fixed_at) VALUES (1, ?, ?, 0)').run(s.key, n);
+const fixParticipants = (s: Session, n: number) => sqlite.prepare('INSERT INTO session_participants (committee_id, session_key, active_count, fixed_at) VALUES (1, ?, ?, 0)').run(s.key, n);
 
 beforeAll(() => {
 	({ sqlite, db } = openMemoryDb());
