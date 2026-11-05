@@ -386,7 +386,7 @@ test('信頼の境界：取り込む・賛同・票のフォームは形の違�
 	const g = await user(browser, ip(w, 8, 5), at(month, 15), `g-${label}`);
 	const s = await user(browser, ip(w, 8, 6), at(month, 15), `s-${label}`);
 	const id = await amend(g, bill, ARTICLE_1, `境界の修正案 ${label}`);
-	const otherId = await amend(g, other.bill, ARTICLE_1, `別の法案の修正案 ${label}`);
+	const otherId = await amend(g, other.bill, ARTICLE_1, `別案別文 ${label}`);
 
 	for (const bad of [
 		{ amendment: 'abc', revision: '1' },

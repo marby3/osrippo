@@ -7,6 +7,7 @@ import { REACTIONS } from '../domain/solutions';
 import { BILL_KINDS, CHANGE_OPS } from '../domain/bills';
 import { POST_KINDS, STANCES, type PostRole } from '../domain/posts';
 import { EVALUATION_KINDS } from '../domain/evaluations';
+import type { AmendmentStatus } from '../domain/amendments';
 import { VOTE_CHOICES } from '../domain/votes';
 
 export const laws = sqliteTable('laws', {
@@ -483,7 +484,9 @@ export const bills = sqliteTable(
 		createdAt: integer('created_at').notNull(),
 		updatedAt: integer('updated_at').notNull(),
 		/** 発議した時刻。締切の前か後かは会期と比べて求める（#50） */
-		proposedAt: integer('proposed_at')
+		proposedAt: integer('proposed_at'),
+		/** 発議した版。賛同者はこの版の行を数える（設計書 docs/spec/68.md 決めたこと8） */
+		proposedRev: integer('proposed_rev')
 	},
 	(t) => [
 		index('bills_user').on(t.userId),
@@ -765,4 +768,71 @@ export const evaluations = sqliteTable(
 		check('evaluations_kind', sql`${t.kind} IN (${inList(EVALUATION_KINDS)})`),
 		check('evaluations_stance', sql`${t.stance} IN (${inList(STANCES)})`)
 	]
+);
+
+/**
+ * 修正案（設計書 docs/spec/68.md）。1つの条の本文の書きかえ。base_rev は基にした本案の版、revision は本文の版（賛同を結び付ける）。
+ * status に CHECK を付けない（通報の Issue で値を足すときに表を作り直さないため。値は型で絞る）。applied_rev は本案に当てた版
+ */
+export const amendments = sqliteTable(
+	'amendments',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		sessionKey: text('session_key').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		baseRev: integer('base_rev').notNull(),
+		revision: integer('revision').notNull().default(1),
+		lawSeq: integer('law_seq').notNull(),
+		num: text('num').notNull(),
+		provisionId: integer('provision_id').references(() => provisions.id),
+		/** 書いたときの見出し。見出しは変えない */
+		caption: text('caption'),
+		/** 変更後の項と号の JSON（parse.ts の Paragraph[]） */
+		body: text('body').notNull(),
+		reason: text('reason'),
+		status: text('status').$type<AmendmentStatus>().notNull().default('open'),
+		appliedRev: integer('applied_rev'),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(t) => [index('amendments_bill').on(t.billId, t.id), index('amendments_user').on(t.userId)]
+);
+
+/** 本案より先に採決するための賛同。amendments.revision と同じ値の行だけを数える */
+export const amendmentSupports = sqliteTable(
+	'amendment_supports',
+	{
+		amendmentId: integer('amendment_id')
+			.notNull()
+			.references(() => amendments.id),
+		revision: integer('revision').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.amendmentId, t.revision, t.userId] })]
+);
+
+/** 修正案の票。votes と同じ形 */
+export const amendmentVotes = sqliteTable(
+	'amendment_votes',
+	{
+		sessionKey: text('session_key').notNull(),
+		amendmentId: integer('amendment_id')
+			.notNull()
+			.references(() => amendments.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		choice: text('choice', { enum: VOTE_CHOICES }).notNull(),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.sessionKey, t.amendmentId, t.userId] }), check('amendment_votes_choice', sql`${t.choice} IN (${inList(VOTE_CHOICES)})`)]
 );

@@ -31,7 +31,7 @@ export type DraftInput = {
 const CHANGE_ROWS_PER_STATEMENT = 12;
 
 /** 版 rev の子の行（対象の法令 → 変更点 → 元になった解決策の順。変更点は法令への外部キーを持つ） */
-async function insertContent(db: Db, billId: number, rev: number, input: DraftInput) {
+export async function insertContent(db: Db, billId: number, rev: number, input: DraftInput) {
 	await db.insert(billLaws).values(
 		input.laws.map((l, seq) => ({ billId, rev, seq, action: l.action, lawId: l.lawId, baseRevisionId: l.baseRevisionId, newTitle: l.newTitle }))
 	);
@@ -51,7 +51,7 @@ async function insertContent(db: Db, billId: number, rev: number, input: DraftIn
 	for (let i = 0; i < changes.length; i += CHANGE_ROWS_PER_STATEMENT) {
 		await db.insert(billChanges).values(changes.slice(i, i + CHANGE_ROWS_PER_STATEMENT));
 	}
-	await db.insert(billSolutions).values(input.solutionIds.map((solutionId, seq) => ({ billId, rev, seq, solutionId })));
+	if (input.solutionIds.length) await db.insert(billSolutions).values(input.solutionIds.map((solutionId, seq) => ({ billId, rev, seq, solutionId })));
 }
 
 const fields = (input: DraftInput) => ({
@@ -100,6 +100,22 @@ export async function saveDraft(db: Db, billId: number, userId: string, expected
 }
 
 export type Bill = Awaited<ReturnType<typeof billById>>;
+
+/** 読んだ法案を、版を書くときの形にする（修正案を当てるときに使う） */
+export const draftInputOf = (bill: NonNullable<Bill>): DraftInput => ({
+	kind: bill.kind,
+	committeeId: bill.committeeId,
+	title: bill.title,
+	affected: bill.affected,
+	sideEffects: bill.sideEffects,
+	summary: bill.summary,
+	supplementary: bill.supplementary,
+	laws: bill.laws.map((l) => ({ action: l.action, lawId: l.lawId, baseRevisionId: l.baseRevisionId, newTitle: l.newTitle, changes: l.changes })),
+	solutionIds: bill.solutionIds
+});
+
+/** 賛同者を数える版：発議した版。下書きはいまの版（docs/spec/68.md 決めたこと8） */
+export const supportRev = (bill: { rev: number; proposedRev?: number | null }) => bill.proposedRev ?? bill.rev;
 
 /** 法案（bills.rev の版の中身）。作りかけか、ない番号なら undefined */
 export async function billById(db: Db, billId: number) {
@@ -216,7 +232,7 @@ export async function saveDraftLimited(db: Db, actor: Actor, billId: number, exp
 }
 
 /** 条の文字列（見出しがなければ本文だけ） */
-const textOf = (caption: string | null, paragraphs: Paragraph[]) => [caption ?? '', articleBodyText(paragraphs)].filter(Boolean).join('\n');
+export const textOf = (caption: string | null, paragraphs: Paragraph[]) => [caption ?? '', articleBodyText(paragraphs)].filter(Boolean).join('\n');
 
 export type ChangeView = { location: string; op: 'amend' | 'add' | 'delete' | 'supplementary'; before: DiffPart[] | null; after: DiffPart[] | null };
 
@@ -310,7 +326,7 @@ export async function citedCandidates(db: Db, solutionIds: number[]) {
 
 /** 賛同の数：いまの版（bills.rev）の行だけを数える（設計書 docs/spec/49.md 決めたこと1） */
 // 列の値（${bills.rev}）を埋めると、drizzle が表名なしの "rev" にして副問い合わせの中の rev を指すので、表の名前を書く
-const supportCount = sql<number>`(SELECT count(*) FROM ${billSupports} s WHERE s.bill_id = ${bills}.id AND s.rev = ${bills}.rev)`;
+const supportCount = sql<number>`(SELECT count(*) FROM ${billSupports} s WHERE s.bill_id = ${bills}.id AND s.rev = COALESCE(${bills}.proposed_rev, ${bills}.rev))`;
 
 /**
  * タブの法案。下書きは保存が新しい順、審議中は作ったのが新しい順、終わったは発議が新しい順。
@@ -436,7 +452,7 @@ export async function proposeBill(db: Db, actor: Actor, billId: number, required
 	if (!b || b.status !== 'draft') return { ok: false, reason: 'closed' };
 	if (b.userId !== actor.userId) return { ok: false, reason: 'notAuthor' };
 	const done = await db.all<{ id: number }>(sql`
-		UPDATE ${bills} SET status = 'proposed', proposed_at = ${now}, updated_at = ${now}
+		UPDATE ${bills} SET status = 'proposed', proposed_at = ${now}, proposed_rev = rev, updated_at = ${now}
 		WHERE id = ${billId} AND user_id = ${actor.userId} AND status = 'draft' AND rev > 0
 		AND (SELECT count(*) FROM ${billSupports} s WHERE s.bill_id = ${billId} AND s.rev = ${bills}.rev AND s.user_id <> ${bills}.user_id) >= ${required}
 		RETURNING id`);
