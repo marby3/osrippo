@@ -298,7 +298,8 @@ test('基準6：提出者だけが直せる。先に保存された画面と、�
 		.map((m) => m.slice(7, -1))
 		.find((id) => id < current)!;
 	expect(older).toBeTruthy();
-	await base.evaluate((el, v) => ((el as HTMLInputElement).value = v), older);
+	// 印は「分岐した版@IF世界の版」（docs/spec/72.md 決めたこと4）
+	await base.evaluate((el, v) => ((el as HTMLInputElement).value = v), `${older}@0`);
 	await other.getByLabel('題名').fill(`${title} 古い版`);
 	await other.getByRole('button', { name: '下書きを保存する' }).click();
 	await expect(other.getByRole('alert')).toContainText('条文が新しくなりました。開き直してください。');

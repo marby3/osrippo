@@ -204,27 +204,48 @@ export function billPath(res: { status(): number; headers(): Record<string, stri
 	return path;
 }
 
-/** 消費者契約法の第1条を書きかえる改正の下書きを作り、法案のページのパスを返す */
-export async function createAmendBill(page: Page, title: string, solution: string, extra: BillForm = {}) {
-	const law = '412AC0000000061';
-	const { revisionId } = (await (await page.request.get(`/houan/kaku/joubun?law=${law}`)).json()) as { revisionId: string };
-	return billPath(
-		await billRequest(page, '/houan/kaku', {
+/**
+ * 可決するテストが使う法令（景品表示法）。IF世界はテストのあいだで共有するので、ほかのテストの条文を変えないように、
+ * 可決するテストはこの法令の、テストと幅ごとに別の条を使う（ifTarget）
+ */
+export const IF_LAW = '337AC0000000134';
+export type IfTarget = { law: string; num: string; caption: string; label: string };
+
+/** IF_LAW の n 番目の条（削除された条を除く）。条を足すテストがないので、順は変わらない */
+export async function ifTarget(page: Page, n: number): Promise<IfTarget> {
+	const { articles } = (await (await page.request.get(`/houan/kaku/joubun?law=${IF_LAW}`)).json()) as { articles: { num: string; label: string; caption: string; body: string }[] };
+	const usable = articles.filter((a) => a.body !== '削除');
+	expect(usable.length, 'IF_LAW の条の数').toBeGreaterThan(n);
+	const a = usable[n];
+	return { law: IF_LAW, num: a.num, caption: a.caption, label: a.label };
+}
+
+/**
+ * 改正の下書きを作り、法案のページのパスを返す。target を省くと消費者契約法の第1条を書きかえる。
+ * IF世界が変わると印が古くなるので、断られたら読み直す（ほかのテストの可決と重なったとき）
+ */
+export async function createAmendBill(page: Page, title: string, solution: string, extra: BillForm = {}, target?: IfTarget) {
+	const law = target?.law ?? '412AC0000000061';
+	const post = async () => {
+		const { revisionId } = (await (await page.request.get(`/houan/kaku/joubun?law=${law}`)).json()) as { revisionId: string };
+		return billRequest(page, '/houan/kaku', {
 			kind: 'amend',
 			title,
 			law,
 			base: revisionId,
 			'op.0': 'amend',
-			'target.0': '1',
-			'caption.0': '（目的）',
+			'target.0': target?.num ?? '1',
+			'caption.0': target?.caption ?? '（目的）',
 			'body.0': 'この法律は、消費者がいつでも契約をやめられるようにすることを目的とする。',
 			affected: '解約できずに困っている人',
 			sideEffects: '事業者の負担が増える',
 			solution,
 			'cf-turnstile-response': 'test-pass',
 			...extra
-		})
-	);
+		});
+	};
+	const first = await post();
+	return billPath(first.status() === 409 ? await post() : first);
 }
 
 /** 賛同のフォームと同じ POST */
