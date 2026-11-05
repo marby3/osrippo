@@ -205,7 +205,7 @@ export function billPath(res: { status(): number; headers(): Record<string, stri
 }
 
 /** 消費者契約法の第1条を書きかえる改正の下書きを作り、法案のページのパスを返す */
-export async function createAmendBill(page: Page, title: string, solution: string) {
+export async function createAmendBill(page: Page, title: string, solution: string, extra: BillForm = {}) {
 	const law = '412AC0000000061';
 	const { revisionId } = (await (await page.request.get(`/houan/kaku/joubun?law=${law}`)).json()) as { revisionId: string };
 	return billPath(
@@ -221,7 +221,8 @@ export async function createAmendBill(page: Page, title: string, solution: strin
 			affected: '解約できずに困っている人',
 			sideEffects: '事業者の負担が増える',
 			solution,
-			'cf-turnstile-response': 'test-pass'
+			'cf-turnstile-response': 'test-pass',
+			...extra
 		})
 	);
 }

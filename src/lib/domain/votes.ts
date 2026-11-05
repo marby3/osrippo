@@ -8,6 +8,12 @@ export type BillOutcome = 'passed' | 'rejected' | 'lapsed';
 /** 1人に割り当てる法案の数（仕様の初期値。4本以上にするときは vote_assignments の CHECK も直す） */
 export const ASSIGNMENT_COUNT = 3;
 
+/** 票のフォームの値。決まった値でなければ null */
+export const parseVoteChoice = (raw: unknown): VoteChoice | null => ((VOTE_CHOICES as readonly unknown[]).includes(raw) ? (raw as VoteChoice) : null);
+
+/** ほかの法案のページの1ページの件数 */
+export const VOTE_PAGE_SIZE = 50;
+
 /** 定足数：今月の参加者の 20% を切り上げ、最低10人。割合は小数を使わず整数で計算する */
 export const quorumRequirement = (participants: number) => Math.max(10, Math.ceil((participants * 20) / 100));
 

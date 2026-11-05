@@ -236,11 +236,33 @@ export async function castAmendmentVote(db: Db, actor: Actor, session: Session, 
 		return true;
 	}
 	// 同じ票を入れ直したときは行が返らない
-	const [same] = await db
+	return (await myAmendmentVote(db, session.key, amendmentId, actor.userId)) === choice;
+}
+
+/** いま入っている、修正案への自分の票 */
+export async function myAmendmentVote(db: Db, sessionKey: string, amendmentId: number, userId: string): Promise<VoteChoice | null> {
+	const [row] = await db
 		.select({ choice: amendmentVotes.choice })
 		.from(amendmentVotes)
-		.where(and(eq(amendmentVotes.sessionKey, session.key), eq(amendmentVotes.amendmentId, amendmentId), eq(amendmentVotes.userId, actor.userId)));
-	return same?.choice === choice;
+		.where(and(eq(amendmentVotes.sessionKey, sessionKey), eq(amendmentVotes.amendmentId, amendmentId), eq(amendmentVotes.userId, userId)));
+	return row?.choice ?? null;
+}
+
+/** 本案より先に採決する修正案の数。条件は castAmendmentVote と同じ（inPriorVote をこの会期の行に当てはめたもの） */
+export async function priorVoteCount(db: Db, sessionKey: string, bill: { id: number; rev: number }, required: number) {
+	const [row] = await db
+		.select({ n: count() })
+		.from(amendments)
+		.where(
+			and(
+				eq(amendments.billId, bill.id),
+				eq(amendments.sessionKey, sessionKey),
+				eq(amendments.status, 'open'),
+				eq(amendments.baseRev, bill.rev),
+				sql`(SELECT count(*) FROM ${amendmentSupports} s WHERE s.amendment_id = ${amendments}.id AND s.revision = ${amendments}.revision) >= ${required}`
+			)
+		);
+	return row.n;
 }
 
 /** 修正案の票の数。本案と同じ条件（投票資格があり、割り当てのすべてに本案の票を入れた人の票が有効票）。割り当てを済ませる条件に修正案の票は入らない */

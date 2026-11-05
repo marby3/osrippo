@@ -62,7 +62,7 @@ async function voteFor(amendmentId: number, users: string[], choice: 'yes' | 'no
 	for (const u of users) {
 		expect(await castAmendmentVote(db, actor(u), session, previous, amendmentId, required, choice, NOW, firstRandom)).toBe(true);
 		const assigned = sqlite.prepare('SELECT bill_id FROM vote_assignments WHERE user_id = ?').all(u) as { bill_id: number }[];
-		for (const { bill_id } of assigned) await castVote(db, u, session, previous, bill_id, 'yes', NOW, firstRandom);
+		for (const { bill_id } of assigned) await castVote(db, actor(u), session, previous, bill_id, 'yes', NOW, firstRandom);
 	}
 }
 const loaded = async (id: number) => {

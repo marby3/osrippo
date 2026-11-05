@@ -5,11 +5,12 @@ import { acceptOpen, AMENDMENT_REASON_MAX, amendmentOpen, amendmentVoteOpen, app
 import { parseIssueId } from '../domain/issues';
 import { billWaitUntil } from '../domain/limits';
 import { VOTE_CHOICES, type VoteChoice } from '../domain/votes';
-import { acceptAmendment, amendableArticles, amendmentOf, castAmendmentVote, createAmendment, setAmendmentSupport, updateAmendment, type AmendmentRow } from './amendments';
+import { acceptAmendment, amendableArticles, amendmentOf, castAmendmentVote, createAmendment, myAmendmentVote, setAmendmentSupport, updateAmendment, type AmendmentRow } from './amendments';
 import { sessionParticipants } from './bills';
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
-import { articlesOfRevision, type BatchDb } from './law';
+import { articlesOfRevision, type BatchDb, type Db } from './law';
 import { postableBill, progressOf } from './post-actions';
+import { voteLimit } from './votes';
 
 export const amendmentsPath = (billId: number) => `/houan/${billId}/shusei`;
 
@@ -21,7 +22,7 @@ export async function amendableBill(event: Pick<RequestEvent, 'params'>) {
 }
 
 /** その会期に固定した今月の参加者から求めた、本案より先に採決するのに要る賛同 */
-export async function priorRequirementAt(db: BatchDb, committeeId: number, now: number) {
+export async function priorRequirementAt(db: Db, committeeId: number, now: number) {
 	const { session, previous } = sessionsAt(now);
 	return priorVoteRequirement(await sessionParticipants(db, committeeId, session, previous, now));
 }
@@ -166,6 +167,11 @@ export async function amendmentVoteAction(event: RequestEvent) {
 	if (!amendmentVoteOpen(progress)) return fail(409, { message: ja.amendment.voteClosed, ...keep });
 	const { session, previous } = sessionsAt(now);
 	const required = await priorRequirementAt(db, bill.committeeId, now);
+	// 同じ票の入れ直しは上限に数えない
+	if ((await myAmendmentVote(db, session.key, id, guard.actor.userId)) !== choice) {
+		const limited = await voteLimit(db, guard.actor, now);
+		if (limited) return fail(429, { message: refusalMessage(limited.refusal), ...keep });
+	}
 	if (!(await castAmendmentVote(db, guard.actor, session, previous, id, required, choice as VoteChoice, now, Math.random))) {
 		return fail(409, { message: ja.amendment.notVoting, ...keep });
 	}
