@@ -80,6 +80,17 @@
 			<span class="sep" aria-hidden="true">{ja.bill.support.separator}</span>
 			<p class="supports">{ja.bill.support.count(support.count)}</p>
 		</div>
+		{#if data.related.length}
+			<section class="related" aria-labelledby="related-heading">
+				<h2 id="related-heading">{ja.bill.page.relatedHeading}</h2>
+				<p class="note">{ja.bill.page.relatedNote}</p>
+				<ul>
+					{#each data.related as other (other.id)}
+						<li><a href="/houan/{other.id}">{other.title}</a></li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
 		<!-- 賛同と発議（docs/spec/49.md 決めたこと7） -->
 		{#if remaining !== null}
 			<form method="post" action="?/propose" use:enhance class="act">
@@ -289,5 +300,19 @@
 		.sep {
 			display: none;
 		}
+	}
+
+	.related {
+		margin-top: 1.5rem;
+	}
+
+	.related ul {
+		margin: 0.5rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.related li {
+		margin-top: 0.25rem;
 	}
 </style>

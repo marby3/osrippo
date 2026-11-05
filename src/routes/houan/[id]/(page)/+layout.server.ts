@@ -8,7 +8,7 @@ import { parseIssueId } from '#lib/domain/issues.ts';
 import { billWaitUntil } from '#lib/domain/limits.ts';
 import { FIRST_COMMITTEE } from '#lib/server/bill-form.ts';
 import { amendmentCount, coDrafters } from '#lib/server/amendments.ts';
-import { billById, billSupportState, billView, sessionParticipants, supportRev } from '#lib/server/bills.ts';
+import { billById, billSupportState, billView, relatedBills, sessionParticipants, supportRev } from '#lib/server/bills.ts';
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import { questionTotal } from '#lib/server/posts.ts';
 import type { LayoutServerLoad } from './$types';
@@ -40,6 +40,7 @@ export const load: LayoutServerLoad = async (event) => {
 		// 変えられる条のない法案（廃止だけの法案）には修正案のタブを出さない
 		amendmentTotal: draft || !hasAmendableLaw(bill.laws) ? null : await amendmentCount(db, bill.id),
 		coDrafters: draft ? [] : await coDrafters(db, bill.id),
+		related: draft ? [] : await relatedBills(db, bill, minutes),
 		canEdit: isAuthor && draft,
 		support: {
 			rev: bill.rev,

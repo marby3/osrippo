@@ -14,6 +14,7 @@
 	type Pressed = Record<EvaluationKind, boolean>;
 	type Question = {
 		id: number;
+		billId: number;
 		body: string;
 		mine: boolean;
 		pressed: Pressed;
@@ -24,6 +25,7 @@
 
 	let {
 		question,
+		relatedBill = null,
 		role,
 		loggedIn,
 		waiting,
@@ -38,6 +40,8 @@
 		track
 	}: {
 		question: Question;
+		/** 関連法案の質疑のとき、その法案。読むだけで、リンクからその法案へ移って書く */
+		relatedBill?: { id: number; title: string } | null;
 		role: PostRole | null;
 		loggedIn: boolean;
 		/** 登録から7日たっていない */
@@ -90,6 +94,7 @@
 </script>
 
 <article id="shitsugi-{question.id}">
+	{#if relatedBill}<p class="from"><a href="/houan/{relatedBill.id}/shitsugi#shitsugi-{question.id}">{ja.post.fromBill(relatedBill.title)}</a></p>{/if}
 	<p class="body" use:readWhenSeen={trackIf(question.id, !hasAnswers && !question.mine)}>{question.body}</p>
 
 	{#if evaluationShown && hasAnswers && !question.mine}
@@ -194,6 +199,11 @@
 		padding: 1rem;
 		border: 1px solid var(--color-divider);
 		border-radius: var(--radius-l);
+	}
+
+	.from {
+		margin: 0 0 0.5rem;
+		font-size: var(--font-size-sub);
 	}
 
 	.body {

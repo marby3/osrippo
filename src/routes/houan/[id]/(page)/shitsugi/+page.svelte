@@ -36,7 +36,9 @@
 	beforeNavigate(() => tracker.flush());
 	const track = $derived(data.loggedIn && data.evaluationShown ? tracker : null);
 	const choices: Stance[] = ['for', 'undecided', 'against'];
-	const nextHref = $derived(`${base}?${data.onlyWaiting ? 'mati=1&' : ''}page=${data.page + 1}`);
+	const nextHref = $derived(`${base}?${data.onlyWaiting ? 'mati=1&' : data.withRelated ? 'kanren=1&' : ''}page=${data.page + 1}`);
+	/** 関連法案の質疑は読むだけ（Issue #69）。書くのと評価はその法案のページで行う */
+	const relatedOf = (billId: number) => data.related.find((r) => r.id === billId) ?? null;
 </script>
 
 <svelte:head>
@@ -73,24 +75,27 @@
 
 	<div class="list">
 		<nav class="filters" aria-label={ja.post.filters}>
-			<a href={base} aria-current={data.onlyWaiting ? undefined : 'page'}>{ja.post.all}</a>
+			<a href={base} aria-current={data.onlyWaiting || data.withRelated ? undefined : 'page'}>{ja.post.all}</a>
 			<a href="{base}?mati=1" aria-current={data.onlyWaiting ? 'page' : undefined}>{ja.post.waitingCount(data.waitingCount)}</a>
+			{#if data.related.length}<a href="{base}?kanren=1" aria-current={data.withRelated ? 'page' : undefined}>{ja.post.withRelated}</a>{/if}
 		</nav>
 		{#each data.questions as question (question.id)}
+			{@const relatedBill = relatedOf(question.billId)}
 			<QuestionCard
 				{question}
-				role={data.role}
+				{relatedBill}
+				role={relatedBill ? null : data.role}
 				loggedIn={data.loggedIn}
 				waiting={data.waitUntil !== null}
-				canAnswer={data.canAnswer}
-				canSupplement={data.canSupplement}
+				canAnswer={!relatedBill && data.canAnswer}
+				canSupplement={!relatedBill && data.canSupplement}
 				siteKey={data.siteKey}
 				{failure}
 				{afterReply}
 				back={here}
-				evaluationShown={data.evaluationShown}
+				evaluationShown={!relatedBill && data.evaluationShown}
 				{evaluationFailure}
-				{track}
+				track={relatedBill ? null : track}
 			/>
 		{:else}
 			<p class="empty">{data.onlyWaiting ? ja.post.emptyWaiting : ja.post.empty}</p>
@@ -195,6 +200,7 @@
 
 	.filters {
 		display: flex;
+		flex-wrap: wrap;
 		gap: 0.5rem;
 	}
 
