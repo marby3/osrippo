@@ -95,7 +95,8 @@ async function settleBill(db: BatchDb, session: Session, billId: number, partici
 /**
  * 会期の処理。結果のない法案を発議の早い順に処理する。何度呼んでも結果は変わらない。
  * 締切から1分は何もしない。1本が失敗しても残りを続け、最後にまとめて投げ直す。
- * すべての結果が入ったら、可決した法案を IF世界に反映する（docs/spec/72.md 決めたこと5）。minutes は開発用の短い会期（Cron は null）
+ * すべての結果が入ったら、可決した法案を IF世界に反映する（docs/spec/72.md 決めたこと5）。minutes は開発用の短い会期（Cron は null）。
+ * 反映まで終えたら true（そのあとで現実の改正を取り込んでよい）
  */
 export async function settleSession(db: BatchDb, session: Session, previous: Session, now: number, minutes: number | null = null): Promise<boolean> {
 	if (now < session.endsAt + SETTLE_GRACE) return false;

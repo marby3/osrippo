@@ -30,7 +30,7 @@
 	{#each data.imports as item (item.seq)}
 		<section data-import>
 			<h2>{ja.torikomi.enforced(item.date)}</h2>
-			{#if item.amendmentTitle}<p class="sub">{item.amendmentTitle}{item.amendmentNum ? `（${item.amendmentNum}）` : ''}</p>{/if}
+			{#if item.amendmentTitle}<p class="sub">{ja.torikomi.amendment(item.amendmentTitle, item.amendmentNum)}</p>{/if}
 
 			{#if item.changed.length === 0 && item.conflicts.length === 0}
 				<p>{ja.torikomi.noChange}</p>
@@ -51,11 +51,11 @@
 				{#each item.conflicts as row (`${row.change}:${row.num}`)}
 					<article data-conflict>
 						<div class="side">
-							<h4>{ja.torikomi.real}：{row.prevLabel ? ja.torikomi.moved(row.prevLabel, row.label) : row.label}<span class="caption">{row.realCaption}</span></h4>
+							<h4>{ja.torikomi.side(ja.torikomi.real, row.prevLabel ? ja.torikomi.moved(row.prevLabel, row.label) : row.label)}<span class="caption">{row.realCaption}</span></h4>
 							{#if row.realBody === null}<p class="note">{ja.torikomi.realGone}</p>{:else}<p class="law-text">{row.realBody}</p>{/if}
 						</div>
 						<div class="side if">
-							<h4>{ja.torikomi.ifWorld}：{row.ifLabel}<span class="caption">{row.ifCaption}</span></h4>
+							<h4>{ja.torikomi.side(ja.torikomi.ifWorld, row.ifLabel)}<span class="caption">{row.ifCaption}</span></h4>
 							{#if row.ifBody === null}<p class="note">{ja.torikomi.ifDeleted}</p>{:else}<p class="law-text">{row.ifBody}</p>{/if}
 							{#if row.bill}<p class="by">{ja.torikomi.changedBy}<a href="/houan/{row.bill.id}">{row.bill.title}</a></p>{/if}
 						</div>

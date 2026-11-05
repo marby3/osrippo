@@ -274,6 +274,8 @@ export const ja = {
 		empty: '取り込んだ現実の改正はまだありません',
 		enforced: (date: string) => `${jaDate(date)}施行`,
 		noChange: '条文の変更はありません',
+		amendment: (title: string, num: string | null) => (num ? `${title}（${num}）` : title),
+		side: (world: string, label: string) => `${world}：${label}`,
 		changedHeading: '変わった条',
 		conflictsHeading: 'ぶつかった条文',
 		real: '現実の法律',

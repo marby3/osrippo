@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "fc51542e-5109-46e9-a7dc-d0cd89763fbb",
+  "id": "540ed9e7-2d31-46ae-8573-73c1b9acd29d",
   "prevId": "d257a012-be3b-49f0-a245-26ed2a171f4b",
   "tables": {
     "account": {
@@ -1931,6 +1931,10 @@
         "if_import_articles_change": {
           "name": "if_import_articles_change",
           "value": "\"if_import_articles\".\"change\" IN ('amended', 'renumbered', 'added', 'removed')"
+        },
+        "if_import_articles_conflict": {
+          "name": "if_import_articles_conflict",
+          "value": "\"if_import_articles\".\"conflict\" IN (0, 1)"
         }
       }
     },

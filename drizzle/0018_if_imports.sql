@@ -18,7 +18,8 @@ CREATE TABLE `if_import_articles` (
 	FOREIGN KEY (`bill_id`) REFERENCES `bills`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`closed_provision_id`) REFERENCES `provisions`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`law_id`,`revision_id`) REFERENCES `if_imports`(`law_id`,`revision_id`) ON UPDATE no action ON DELETE no action,
-	CONSTRAINT "if_import_articles_change" CHECK("if_import_articles"."change" IN ('amended', 'renumbered', 'added', 'removed'))
+	CONSTRAINT "if_import_articles_change" CHECK("if_import_articles"."change" IN ('amended', 'renumbered', 'added', 'removed')),
+	CONSTRAINT "if_import_articles_conflict" CHECK("if_import_articles"."conflict" IN (0, 1))
 );
 --> statement-breakpoint
 CREATE TABLE `if_import_runs` (

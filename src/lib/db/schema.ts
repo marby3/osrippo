@@ -951,7 +951,8 @@ export const ifImportArticles = sqliteTable(
 	(t) => [
 		primaryKey({ columns: [t.lawId, t.revisionId, t.provisionId] }),
 		foreignKey({ columns: [t.lawId, t.revisionId], foreignColumns: [ifImports.lawId, ifImports.revisionId] }),
-		check('if_import_articles_change', sql`${t.change} IN ('amended', 'renumbered', 'added', 'removed')`)
+		check('if_import_articles_change', sql`${t.change} IN ('amended', 'renumbered', 'added', 'removed')`),
+		check('if_import_articles_conflict', sql`${t.conflict} IN (0, 1)`)
 	]
 );
 

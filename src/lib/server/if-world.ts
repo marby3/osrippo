@@ -113,6 +113,15 @@ export async function ifArticles(db: Db, lawId: string, branchRevisionId: string
 			byId.set(id, { id, num: r.num, label: articleLabel(r.num), caption: r.caption ?? '', paragraphs: JSON.parse(r.body as string) as Paragraph[], changedBy });
 		}
 	}
+	// IF世界で変えた条が現実で内部IDを変えたら、現実の新しい条は同じ条なので出さない（番号が変わったときも）
+	if (imported) {
+		const replaced = new Set([...byId.values()].filter((a) => a.changedBy).map((a) => a.id));
+		for (const r of (await importedRows(db, lawId)).filter((r) => r.seq <= seq && r.closedProvisionId !== null)) {
+			if (!replaced.has(r.closedProvisionId as number) || byId.get(r.provisionId)?.changedBy) continue;
+			byId.delete(r.provisionId);
+			replaced.add(r.provisionId);
+		}
+	}
 	const byNum = new Map<string, (typeof base)[number] & { changedBy: { id: number; title: string } | null }>();
 	for (const a of byId.values()) {
 		const other = byNum.get(a.num);
@@ -333,8 +342,14 @@ async function importLaw(db: BatchDb, session: Session, lawId: string, lastDay: 
 		if (revision.status !== 'enforced' || revision.date > lastDay) break;
 		const [before, after, head] = await Promise.all([articlesOfRevision(db, base), articlesOfRevision(db, revision.id), ifHeadOf(db, lawId)]);
 		const changedInIf = (await ifArticles(db, lawId, branchRevisionId, head.seq)).filter((a): a is typeof a & IfArticle => a.changedBy !== null);
+		const closedOf = new Map((await importedRows(db, lawId)).map((r) => [r.provisionId, r.closedProvisionId]));
+		const earlierIds = (id: number | null) => {
+			const ids: number[] = [];
+			for (let at = id === null ? null : (closedOf.get(id) ?? null); at !== null; at = closedOf.get(at) ?? null) ids.push(at);
+			return ids;
+		};
 		const rows = changedArticles(before, after).map((c) => {
-			const conflict = articleConflict(c, changedInIf);
+			const conflict = articleConflict(c, changedInIf, [...earlierIds(c.provisionId), ...earlierIds(c.closedProvisionId)]);
 			return {
 				lawId,
 				revisionId: revision.id,

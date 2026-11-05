@@ -42,7 +42,7 @@ export function changedArticles(before: ArticleRow[], after: ArticleRow[]): Arti
 	return changes;
 }
 
-export type IfArticle = ArticleRow & { changedBy: { id: number } | null };
+export type IfArticle = ArticleRow & { changedBy: { id: number } };
 export type Conflict = { realCaption: string | null; realBody: string | null; ifNum: string; ifCaption: string | null; ifBody: string | null; billId: number };
 
 /** IF世界の削除、現実の「削除」の本文、現実でなくなった条は同じ中身 */
@@ -50,11 +50,11 @@ const DELETED_TEXT = articleText({ caption: '', paragraphs: [{ num: '1', text: '
 
 /**
  * ぶつかりの判定。相手は、同じ内部IDの IF世界の条を先に見て、なければ同じ番号の IF世界の別の条。
- * IF世界で変えていない条はぶつからない。中身が同じで番号も同じならぶつからない。changedInIf は IF世界で変えた条だけ
+ * IF世界で変えていない条はぶつからない。中身が同じで番号も同じならぶつからない。changedInIf は IF世界で変えた条だけ。
+ * earlierIds は、その条が前の取り込みまでに持っていた内部ID（似ていなくて内部IDが変わった条をさかのぼる）
  */
-export function articleConflict(change: ArticleChange, changedInIf: IfArticle[]): Conflict | null {
-	const byId = (id: number | null) => changedInIf.find((a) => a.id === id);
-	const own = byId(change.provisionId) ?? byId(change.closedProvisionId);
+export function articleConflict(change: ArticleChange, changedInIf: IfArticle[], earlierIds: number[] = []): Conflict | null {
+	const own = [change.provisionId, change.closedProvisionId, ...earlierIds].map((id) => changedInIf.find((a) => a.id === id)).find((a) => a !== undefined);
 	const target = own ?? (change.after ? changedInIf.find((a) => a.num === change.num) : undefined);
 	if (!target) return null;
 	const realText = change.after ? articleText(change.after) : DELETED_TEXT;
@@ -67,6 +67,6 @@ export function articleConflict(change: ArticleChange, changedInIf: IfArticle[])
 		ifNum: target.num,
 		ifCaption: ifText === DELETED_TEXT ? null : target.caption,
 		ifBody: ifText === DELETED_TEXT ? null : articleBodyText(target.paragraphs),
-		billId: (target.changedBy as { id: number }).id
+		billId: target.changedBy.id
 	};
 }

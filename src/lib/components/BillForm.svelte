@@ -74,18 +74,19 @@
 	let token = $state('');
 	let turnstile: ReturnType<typeof Turnstile> | undefined = $state();
 
-	const gone = $derived<BillFormErrors | undefined>(
-		goneRows.length ? { fields: {}, rows: Object.fromEntries(goneRows.map((i) => [i, { field: 'target' as const, message: ja.torikomi.goneRow }])) } : undefined
-	);
-	const errors = $derived(form?.errors ?? gone);
+	const errors = $derived(form?.errors);
 	const message = $derived(form?.message);
 	const fieldError = (f: keyof BillFormErrors['fields']) => errors?.fields[f];
 	/** 送ったときの行の並び。行の誤りは送ったときの位置で返るので、「この変更を外す」のあとも同じ行に出す */
 	// svelte-ignore state_referenced_locally
 	let sentKeys = $state((start.kind === 'enact' ? enactRows : rows).map((r) => r.key));
+	/** なくなった条を指している行（読み込んだときの行）。選び直すと消える（docs/spec/95.md 決めたこと4） */
+	// svelte-ignore state_referenced_locally
+	const goneKeys = new Set(goneRows.map((i) => rows[i]?.key));
 	const rowError = (row: Row, f: RowField) => {
 		const e = errors?.rows[sentKeys.indexOf(row.key)];
-		return e?.field === f ? e.message : undefined;
+		if (e?.field === f) return e.message;
+		return !form?.errors && f === 'target' && goneKeys.has(row.key) && !row.target ? ja.torikomi.goneRow : undefined;
 	};
 	/** 欄の誤りだけのときも、押したボタンのそばで知らせる */
 	const alertText = $derived(
