@@ -324,7 +324,7 @@ describe('基準7：要調整を直す', () => {
 		const backer = addUser();
 		sqlite.prepare('INSERT INTO bill_supports (bill_id, rev, user_id, created_at) VALUES (?, 1, ?, 0)').run(second.id, backer);
 		const amendment = Number(
-			sqlite.prepare("INSERT INTO amendments (bill_id, session_key, base_rev, law_seq, num, user_id, body, revision, status, created_at, updated_at) VALUES (?, ?, 1, 0, '2', 'issuer', ?, 1, 'open', 0, 0)").run(second.id, s.key, para('前の会期の修正案')).lastInsertRowid
+			sqlite.prepare("INSERT INTO amendments (bill_id, session_key, base_rev, law_seq, num, provision_id, user_id, body, revision, status, created_at, updated_at) VALUES (?, ?, 1, 0, '2', ?, 'issuer', ?, 1, 'open', 0, 0)").run(second.id, s.key, law.ids['2'], para('前の会期の修正案')).lastInsertRowid
 		);
 		for (const u of [addUser(), addUser()]) sqlite.prepare('INSERT INTO amendment_supports (amendment_id, revision, user_id, created_at) VALUES (?, 1, ?, 0)').run(amendment, u);
 		const amendmentVoters = sqlite.prepare('SELECT user_id FROM votes WHERE bill_id = ?').all(second.id) as { user_id: string }[];
@@ -358,7 +358,7 @@ describe('基準7：要調整を直す', () => {
 		// 次の会期に可決すると反映される
 		fix(next);
 		const amendment2 = Number(
-			sqlite.prepare("INSERT INTO amendments (bill_id, session_key, base_rev, law_seq, num, user_id, body, revision, status, created_at, updated_at) VALUES (?, ?, ?, 0, '2', 'issuer', ?, 1, 'open', 0, 0)").run(second.id, next.key, fixed.rev, para('次の会期の修正案')).lastInsertRowid
+			sqlite.prepare("INSERT INTO amendments (bill_id, session_key, base_rev, law_seq, num, provision_id, user_id, body, revision, status, created_at, updated_at) VALUES (?, ?, ?, 0, '2', ?, 'issuer', ?, 1, 'open', 0, 0)").run(second.id, next.key, fixed.rev, law.ids['2'], para('次の会期の修正案')).lastInsertRowid
 		);
 		for (const u of [addUser(), addUser()]) sqlite.prepare('INSERT INTO amendment_supports (amendment_id, revision, user_id, created_at) VALUES (?, 1, ?, 0)').run(amendment2, u);
 		votes(next, second.id, 'yes');

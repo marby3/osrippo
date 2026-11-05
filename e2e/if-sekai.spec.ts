@@ -96,14 +96,14 @@ test('基準4：IF世界の法令ページに帯・架空の法令・noindex・�
 
 	// 新法の法案
 	const author = await s.person(at(s.month, 5));
-	const enactTitle = `IF世界の新法 ${s.label}`;
+	const enactTitle = `新法 ${s.label} 保護法`;
 	const { ids } = await issueWithSolutions(author.page, enactTitle, [`解決策 ${enactTitle}`]);
 	const enacted = await billRequest(author.page, '/houan/kaku', {
 		kind: 'enact',
 		title: enactTitle,
 		newTitle: enactTitle,
 		'op.0': 'add',
-		'num.0': '第1条',
+		'num.0': '1',
 		'caption.0': '（目的）',
 		'body.0': `この法律は、${s.label}を守ることを目的とする。`,
 		affected: '困っている人',
