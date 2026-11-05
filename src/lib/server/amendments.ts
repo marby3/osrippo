@@ -1,6 +1,6 @@
 // 修正案を読む・書く（Issue #68。設計書 docs/spec/68.md）。受け取る値は呼ぶ側（amendment-actions.ts）が確かめる
 import { and, asc, count, countDistinct, eq, gt, inArray, ne, sql } from 'drizzle-orm';
-import { actions, amendments, amendmentSupports, amendmentVotes, billChanges, bills, user } from '../db/schema';
+import { actions, amendments, amendmentSupports, amendmentVotes, billChanges, billLaws, bills, user } from '../db/schema';
 import { adoptedAmendments, AMENDMENT_PAGE_SIZE, applyAmendments, articleKey, inPriorVote, priorVoteRequirement, type AmendmentStatus } from '../domain/amendments';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
 import { changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET } from '../domain/bills';
@@ -9,7 +9,8 @@ import type { Session } from '../domain/session';
 import { billOutcome, quorumRequirement, type VoteChoice, type VoteCounts } from '../domain/votes';
 import { billById, draftInputOf, insertContent, lawTitlesOf, textOf, type Bill } from './bills';
 import { refuse, type Actor } from './issues';
-import { articlesOfRevision, type BatchDb, type Db } from './law';
+import { baseArticlesOf } from './if-world';
+import type { BatchDb, Db } from './law';
 import { assignedBills, countedVote, emptyCounts } from './votes';
 
 type LoadedBill = NonNullable<Bill>;
@@ -28,7 +29,7 @@ export async function amendableArticles(db: Db, bill: LoadedBill) {
 		const push = (num: string, caption: string | null, provisionId: number | null, current: Paragraph[], base: Paragraph[] | null) =>
 			out.push({ key: articleKey(law.seq, num), lawSeq: law.seq, lawTitle, num, label: articleLabel(num), caption, provisionId, current, base });
 		const changes = new Map(law.changes.map((c) => [c.num, c]));
-		const base = law.baseRevisionId ? await articlesOfRevision(db, law.baseRevisionId) : [];
+		const base = law.baseRevisionId ? await baseArticlesOf(db, law) : [];
 		for (const a of base) {
 			const change = changes.get(a.num);
 			// 法案が削除した条は選べない
@@ -286,7 +287,8 @@ export async function tallyAmendmentVotes(db: Db, session: Session, amendmentId:
 export async function settleAmendments(db: BatchDb, session: Session, billId: number, participants: number, now: number): Promise<boolean> {
 	const [bill] = await db.select({ rev: bills.rev }).from(bills).where(eq(bills.id, billId));
 	if (!bill) return false;
-	const rows = (await db.select().from(amendments).where(eq(amendments.billId, billId)).orderBy(asc(amendments.id))).map(toRow);
+	// 要調整を直して次の会期に採決するので、この会期の修正案だけを見る（前の会期の修正案に負けないように。docs/spec/72.md 決めたこと5）
+	const rows = (await db.select().from(amendments).where(and(eq(amendments.billId, billId), eq(amendments.sessionKey, session.key))).orderBy(asc(amendments.id))).map(toRow);
 	const open = rows.filter((r) => r.status === 'open');
 	const supports = await supportCounts(db, billId);
 	const required = priorVoteRequirement(participants);
@@ -320,7 +322,7 @@ export async function settleAmendments(db: BatchDb, session: Session, billId: nu
 	// 条件に使う版は読み直したいまの版（修正案の base_rev ではない。やり直しのときに合わなくなるので）。
 	// 版を先に読むので、別の実行が重なっても、その実行が進めたあとでは条件に合わず、同じ修正案を2回当てない
 	const [latest] = await db.select({ rev: bills.rev }).from(bills).where(eq(bills.id, billId));
-	const pending = (await db.select().from(amendments).where(and(eq(amendments.billId, billId), eq(amendments.status, 'passed'))).orderBy(asc(amendments.id)))
+	const pending = (await db.select().from(amendments).where(and(eq(amendments.billId, billId), eq(amendments.sessionKey, session.key), eq(amendments.status, 'passed'))).orderBy(asc(amendments.id)))
 		.map(toRow)
 		.filter((r) => r.appliedRev === null);
 	if (pending.length === 0) return true;
@@ -357,13 +359,18 @@ export type AmendmentView = {
 };
 
 /** 版 rev の条の本文（書いたときの本案）。変更がなければ基にした版の本文 */
-async function beforeText(db: Db, bill: LoadedBill, row: AmendmentRow, baseArticles: Map<string, Awaited<ReturnType<typeof articlesOfRevision>>>) {
+async function beforeText(db: Db, bill: LoadedBill, row: AmendmentRow, baseArticles: Map<string, Awaited<ReturnType<typeof baseArticlesOf>>>) {
 	const body = await changeBodyAt(db, bill.id, row.baseRev, row.lawSeq, row.num);
 	if (body !== null) return textOf(row.caption, JSON.parse(body) as Paragraph[]);
-	const revisionId = bill.laws[row.lawSeq]?.baseRevisionId;
-	if (!revisionId) return '';
-	const articles = baseArticles.get(revisionId) ?? (await articlesOfRevision(db, revisionId));
-	baseArticles.set(revisionId, articles);
+	// 書いたときの本案の基にした版を読む（要調整を直すと、いまの版の基にした版は変わる。docs/spec/72.md 決めたこと3）
+	const [law] = await db
+		.select({ lawId: billLaws.lawId, baseRevisionId: billLaws.baseRevisionId, baseIfSeq: billLaws.baseIfSeq })
+		.from(billLaws)
+		.where(and(eq(billLaws.billId, bill.id), eq(billLaws.rev, row.baseRev), eq(billLaws.seq, row.lawSeq)));
+	if (!law?.baseRevisionId) return '';
+	const key = `${law.baseRevisionId}@${law.baseIfSeq}`;
+	const articles = baseArticles.get(key) ?? (await baseArticlesOf(db, law));
+	baseArticles.set(key, articles);
 	const article = articles.find((a) => a.num === row.num);
 	return article ? textOf(row.caption, article.paragraphs) : '';
 }
@@ -400,7 +407,7 @@ export async function listAmendments(db: Db, bill: LoadedBill, userId: string | 
 					.where(and(eq(amendmentVotes.userId, userId), eq(amendmentVotes.sessionKey, sessionKey), inArray(amendmentVotes.amendmentId, ids)))
 			: [];
 	const titles = await lawTitlesOf(db, bill);
-	const baseArticles = new Map<string, Awaited<ReturnType<typeof articlesOfRevision>>>();
+	const baseArticles = new Map<string, Awaited<ReturnType<typeof baseArticlesOf>>>();
 
 	let budget = DIFF_PAGE_BUDGET;
 	const views: AmendmentView[] = [];

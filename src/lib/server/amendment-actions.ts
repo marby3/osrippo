@@ -8,7 +8,8 @@ import { VOTE_CHOICES, type VoteChoice } from '../domain/votes';
 import { acceptAmendment, amendableArticles, amendmentOf, castAmendmentVote, createAmendment, myAmendmentVote, setAmendmentSupport, updateAmendment, type AmendmentRow } from './amendments';
 import { sessionParticipants } from './bills';
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
-import { articlesOfRevision, type BatchDb, type Db } from './law';
+import { baseArticlesOf } from './if-world';
+import type { BatchDb, Db } from './law';
 import { postableBill, progressOf } from './post-actions';
 import { voteLimit } from './votes';
 
@@ -80,7 +81,7 @@ export async function amendmentPostAction(event: RequestEvent) {
 	const amended = applyAmendments(bill.laws, [{ lawSeq: key.lawSeq, num: key.num, provisionId: article.provisionId, caption: article.caption, paragraphs: checked.paragraphs }]);
 	const rule = checkAmendedLaw(
 		law.action,
-		law.baseRevisionId ? await articlesOfRevision(db, law.baseRevisionId) : null,
+		law.baseRevisionId ? await baseArticlesOf(db, law) : null,
 		amended[key.lawSeq].changes,
 		amended.reduce((n, l) => n + l.changes.length, 0)
 	);

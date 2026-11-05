@@ -8,7 +8,7 @@ import { BILL_KINDS, CHANGE_OPS } from '../domain/bills';
 import { POST_KINDS, STANCES, type PostRole } from '../domain/posts';
 import { EVALUATION_KINDS } from '../domain/evaluations';
 import type { AmendmentStatus } from '../domain/amendments';
-import { BILL_OUTCOMES, VOTE_CHOICES } from '../domain/votes';
+import { ADJUSTMENT_REASONS, BILL_OUTCOMES, VOTE_CHOICES } from '../domain/votes';
 
 export const laws = sqliteTable('laws', {
 	/** e-Gov の law_id */
@@ -511,7 +511,9 @@ export const billLaws = sqliteTable(
 		/** 基にした版（書く画面を開いたときの現在の版）。新法は NULL */
 		baseRevisionId: text('base_revision_id').references(() => lawRevisions.id),
 		/** 制定の法令名 */
-		newTitle: text('new_title')
+		newTitle: text('new_title'),
+		/** 基にした IF世界の版（docs/spec/72.md）。0 は分岐した版そのもの。base_revision_id は分岐した版を指す */
+		baseIfSeq: integer('base_if_seq').notNull().default(0)
 	},
 	(t) => [
 		primaryKey({ columns: [t.billId, t.rev, t.seq] }),
@@ -861,4 +863,89 @@ export const billResults = sqliteTable(
 		settledAt: integer('settled_at').notNull()
 	},
 	(t) => [primaryKey({ columns: [t.sessionKey, t.billId] }), index('bill_results_bill').on(t.billId), check('bill_results_outcome', sql`${t.outcome} IN (${inList(BILL_OUTCOMES)})`)]
+);
+
+/** 法令ごとの、IF世界が分岐した現実の版（設計書 docs/spec/72.md 決めたこと1） */
+export const ifBranches = sqliteTable('if_branches', {
+	lawId: text('law_id')
+		.primaryKey()
+		.references(() => laws.id),
+	revisionId: text('revision_id')
+		.notNull()
+		.references(() => lawRevisions.id),
+	createdAt: integer('created_at').notNull()
+});
+
+/**
+ * IF世界の版。中身を写さず、可決した法案の版の bill_changes を指す（法案の版の行は変わらない）。
+ * law_revisions には入れない（branch の CHECK と e-Gov の番号のため）
+ */
+export const ifRevisions = sqliteTable(
+	'if_revisions',
+	{
+		lawId: text('law_id')
+			.notNull()
+			.references(() => laws.id),
+		/** 1から */
+		seq: integer('seq').notNull(),
+		billId: integer('bill_id').notNull(),
+		billRev: integer('bill_rev').notNull(),
+		lawSeq: integer('law_seq').notNull(),
+		sessionKey: text('session_key').notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.lawId, t.seq] }),
+		unique('if_revisions_bill').on(t.billId, t.billRev, t.lawSeq),
+		foreignKey({ columns: [t.billId, t.billRev, t.lawSeq], foreignColumns: [billLaws.billId, billLaws.rev, billLaws.seq] })
+	]
+);
+
+/** IF世界で足した条の内部ID。bill_changes の足す行には内部IDがないので、ここに持つ */
+export const ifAddedArticles = sqliteTable(
+	'if_added_articles',
+	{
+		lawId: text('law_id')
+			.notNull()
+			.references(() => laws.id),
+		num: text('num').notNull(),
+		provisionId: integer('provision_id')
+			.notNull()
+			.references(() => provisions.id),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.lawId, t.num] })]
+);
+
+/** 制定の新法。id は if-<法案の番号>。条は法案の版の bill_changes を読む */
+export const ifLaws = sqliteTable('if_laws', {
+	id: text('id').primaryKey(),
+	billId: integer('bill_id')
+		.notNull()
+		.unique()
+		.references(() => bills.id),
+	billRev: integer('bill_rev').notNull(),
+	title: text('title').notNull().unique(),
+	sessionKey: text('session_key').notNull(),
+	createdAt: integer('created_at').notNull()
+});
+
+/** 衝突して要調整になった法案。期限切れは書き込まず、時刻から求める（docs/spec/72.md 決めたこと6） */
+export const billAdjustments = sqliteTable(
+	'bill_adjustments',
+	{
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		/** 衝突した会期 */
+		sessionKey: text('session_key').notNull(),
+		reason: text('reason', { enum: ADJUSTMENT_REASONS }).notNull(),
+		/** 発議締切 */
+		dueAt: integer('due_at').notNull(),
+		/** 元の発議の時刻 */
+		proposedAt: integer('proposed_at').notNull(),
+		resolvedAt: integer('resolved_at'),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.billId, t.sessionKey] }), check('bill_adjustments_reason', sql`${t.reason} IN (${inList(ADJUSTMENT_REASONS)})`)]
 );

@@ -2,6 +2,7 @@
 import { articleLabel } from '#lib/domain/law/parse.ts';
 import { referenceComparison } from '#lib/domain/votes.ts';
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
+import { adjustmentOf, ifPlaceOf } from '#lib/server/if-world.ts';
 import type { BatchDb } from '#lib/server/law.ts';
 import { postableBill, progressOf } from '#lib/server/post-actions.ts';
 import { priorAmendmentResults, resultOnRead } from '#lib/server/results.ts';
@@ -24,6 +25,9 @@ export const load: PageServerLoad = async (event) => {
 		counted: { yes: result.yes, no: result.no, abstain: result.abstain },
 		reference,
 		comparison: referenceComparison(result.outcome, reference, result.quorum),
+		place: result.outcome === 'passed' ? await ifPlaceOf(db, bill.id, result.rev) : null,
+		adjustment: result.outcome === 'passed' ? await adjustmentOf(db, result.sessionKey, bill.id) : null,
+		now,
 		amendments: (await priorAmendmentResults(db, bill.id, session.key)).map((a) => ({ id: a.id, location: articleLabel(a.num), status: a.status as 'passed' | 'failed' | 'superseded' | 'lapsed' }))
 	};
 };

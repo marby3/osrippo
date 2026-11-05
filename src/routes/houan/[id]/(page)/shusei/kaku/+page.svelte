@@ -43,6 +43,7 @@
 		<p class="note">{data.blocked}</p>
 	{:else}
 		<p class="note">{ja.amendment.coDrafterNotice}</p>
+		<p class="note">{ja.ifLaw.formNote}</p>
 		{#if data.update?.current}
 			<section class="current">
 				<h3>{ja.amendment.currentBill}</h3>

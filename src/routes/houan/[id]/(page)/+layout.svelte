@@ -26,7 +26,8 @@
 		{ja.bill.page.now}<strong>{ja.bill.progress[data.stage]}</strong>{#if data.progress === 'deliberation'}{ja.session.week(3)}{:else if data.progress === 'vote'}{ja.session.week(4)}{/if}
 	</p>
 	{#if data.next}<p class="next sp">{ja.bill.page.nextLine(ja.bill.progress[data.next.stage], data.next.session, data.next.at)}</p>{/if}
-	{#if data.canEdit}<p class="edit"><a href="{base}/kaku">{ja.bill.page.edit}</a></p>{/if}
+	{#if data.adjustment}<p class="adjusting">{ja.ifLaw.adjusting[data.adjustment.reason as 'article' | 'title']} {ja.ifLaw.due(data.adjustment.dueAt)}</p>{/if}
+	{#if data.canEdit}<p class="edit"><a href="{base}/kaku">{data.adjustment ? ja.ifLaw.fix : ja.bill.page.edit}</a></p>{/if}
 
 	<nav class="tabs" aria-label={ja.bill.page.tabs}>
 		{#each tabs as tab (tab.href)}
@@ -43,6 +44,14 @@
 		max-width: 76rem;
 		margin: 0 auto;
 		padding: 1rem;
+	}
+
+	.adjusting {
+		margin: 0.5rem 0 0;
+		padding: 0.75rem 1rem;
+		border: 1px solid var(--color-caution);
+		border-radius: var(--radius-m);
+		background: var(--color-caution-bg);
 	}
 
 	.badge {

@@ -8,15 +8,16 @@ import { proposalRequirement } from '../domain/bills';
 import { billWaitUntil } from '../domain/limits';
 import { parseIssueId } from '../domain/issues';
 import { checkBillForm, FIRST_COMMITTEE, readBillForm, type BillFormErrors, type BillFormValues } from './bill-form';
-import { billById, createDraftLimited, proposeBill, saveDraftLimited, sessionParticipants, setBillSupport } from './bills';
+import { billById, createDraftLimited, proposeBill, saveDraftLimited, sessionParticipants, setBillSupport, type Bill } from './bills';
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
-import type { Db } from './law';
+import { proposeBlock, saveAdjustedBill, staleArticles } from './if-world';
+import type { BatchDb, Db } from './law';
 import { requireUser } from './require-user';
 
-export type BillFormFailure = { values: BillFormValues; errors?: BillFormErrors; message?: string };
+export type BillFormFailure = { values: BillFormValues; errors?: BillFormErrors; message?: string; conflicts?: Awaited<ReturnType<typeof staleArticles>> };
 
-/** edit は直す法案（呼ぶ側が、提出者で下書きであることを確かめたもの）。null なら新しく作る */
-export async function submitBill(event: RequestEvent, user: { id: string; createdAt: Date }, edit: { id: number; kind: string } | null) {
+/** edit は直す法案（呼ぶ側が、提出者で下書きか要調整であることを確かめたもの）。null なら新しく作る */
+export async function submitBill(event: RequestEvent, user: { id: string; createdAt: Date }, edit: (NonNullable<Bill> & { adjusting: boolean }) | null) {
 	const db = drizzle(env.DB);
 	const now = nowOf(event);
 	const form = await event.request.formData();
@@ -42,6 +43,19 @@ export async function submitBill(event: RequestEvent, user: { id: string; create
 	}
 	const rev = parseIssueId(String(form.get('rev') ?? ''));
 	if (rev === null) return refuse(400, { message: ja.bill.formInvalid });
+	// 基にしたあとで変わった条に触れるなら、いまの条文を確かめてもらう（docs/spec/72.md の B2）
+	const [saved] = edit.laws;
+	const [next] = checked.input.laws;
+	if (saved && next) {
+		const conflicts = await staleArticles(db, { ...saved, changes: next.changes });
+		if (conflicts.length && form.get('confirmConflicts') !== 'on') return refuse(400, { conflicts, message: ja.ifLaw.confirmRequired });
+	}
+	if (edit.adjusting) {
+		const result = await saveAdjustedBill(db as unknown as BatchDb, guard.actor, edit, rev, checked.input, now);
+		if (!result.ok) return 'refusal' in result ? refuse(429, { message: refusalMessage(result.refusal) }) : refuse(400, { message: ja.ifLaw.locked });
+		if (!result.saved) return refuse(409, { message: ja.bill.stale });
+		redirect(303, `/houan/${edit.id}`);
+	}
 	const result = await saveDraftLimited(db, guard.actor, edit.id, rev, checked.input, now);
 	if (!result.ok) return refuse(429, { message: refusalMessage(result.refusal) });
 	if (!result.saved) return refuse(409, { message: ja.bill.stale });
@@ -91,6 +105,11 @@ export async function proposeAction(event: RequestEvent) {
 	const now = nowOf(event);
 	const checked = await billGuard(event, db, now, true);
 	if (checked.failure) return checked.failure;
+	// 可決しても必ず要調整か廃案になる下書きは断る（docs/spec/72.md の E と B4）
+	if (bill.status === 'draft' && bill.userId === checked.actor.userId) {
+		const block = await proposeBlock(db, bill);
+		if (block) return fail(409, { message: ja.ifLaw.proposeBlocked[block] });
+	}
 	const { session, previous } = sessionsAt(now);
 	const required = proposalRequirement(await sessionParticipants(db, FIRST_COMMITTEE, session, previous, now));
 	const result = await proposeBill(db, checked.actor, bill.id, required, now);

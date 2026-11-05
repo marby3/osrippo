@@ -3,18 +3,19 @@
 import { and, asc, count, countDistinct, desc, eq, gt, gte, inArray, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { actions, billChanges, billLaws, bills, billSolutions, billSupports, committeeLaws, issues, laws, sessionParticipantCounts, solutions, user } from '../db/schema';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
-import { changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, PARTICIPANT_KINDS, referralSession, type BillChange, type BillKind, type BillTab } from '../domain/bills';
+import { baseToken, changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, PARTICIPANT_KINDS, referralSession, type BillChange, type BillKind, type BillTab } from '../domain/bills';
 import { PAGE_SIZE } from '../domain/issues';
 import { checkBillDraft, checkBillSave, checkBillSupport, DAY, LIMITS } from '../domain/limits';
 import { sessionAt, type Session } from '../domain/session';
 import { LISTED, SOLUTION_SHOWN as SHOWN } from '../domain/reports';
 import { refuse, type Actor } from './issues';
-import { articlesOfRevision, currentRevision, type Db } from './law';
+import { baseArticlesOf, ifArticles, ifHeadOf, repealedLawIds } from './if-world';
+import type { Db } from './law';
 
 /** 作りかけ（rev = 0）を除く条件。法案を引くところは必ずこれを使う */
 export const savedBill = gt(bills.rev, 0);
 
-export type DraftLaw = { action: BillKind; lawId: string | null; baseRevisionId: string | null; newTitle: string | null; changes: BillChange[] };
+export type DraftLaw = { action: BillKind; lawId: string | null; baseRevisionId: string | null; baseIfSeq: number; newTitle: string | null; changes: BillChange[] };
 export type DraftInput = {
 	kind: BillKind;
 	committeeId: number;
@@ -33,7 +34,7 @@ const CHANGE_ROWS_PER_STATEMENT = 12;
 /** 版 rev の子の行（対象の法令 → 変更点 → 元になった解決策の順。変更点は法令への外部キーを持つ） */
 export async function insertContent(db: Db, billId: number, rev: number, input: DraftInput) {
 	await db.insert(billLaws).values(
-		input.laws.map((l, seq) => ({ billId, rev, seq, action: l.action, lawId: l.lawId, baseRevisionId: l.baseRevisionId, newTitle: l.newTitle }))
+		input.laws.map((l, seq) => ({ billId, rev, seq, action: l.action, lawId: l.lawId, baseRevisionId: l.baseRevisionId, baseIfSeq: l.baseIfSeq, newTitle: l.newTitle }))
 	);
 	const changes = input.laws.flatMap((l, lawSeq) =>
 		l.changes.map((c) => ({
@@ -54,7 +55,7 @@ export async function insertContent(db: Db, billId: number, rev: number, input: 
 	await db.insert(billSolutions).values(input.solutionIds.map((solutionId, seq) => ({ billId, rev, seq, solutionId })));
 }
 
-const fields = (input: DraftInput) => ({
+export const fields = (input: DraftInput) => ({
 	title: input.title,
 	affected: input.affected,
 	sideEffects: input.sideEffects,
@@ -110,7 +111,7 @@ export const draftInputOf = (bill: NonNullable<Bill>): DraftInput => ({
 	sideEffects: bill.sideEffects,
 	summary: bill.summary,
 	supplementary: bill.supplementary,
-	laws: bill.laws.map((l) => ({ action: l.action, lawId: l.lawId, baseRevisionId: l.baseRevisionId, newTitle: l.newTitle, changes: l.changes })),
+	laws: bill.laws.map((l) => ({ action: l.action, lawId: l.lawId, baseRevisionId: l.baseRevisionId, baseIfSeq: l.baseIfSeq, newTitle: l.newTitle, changes: l.changes })),
 	solutionIds: bill.solutionIds
 });
 
@@ -138,6 +139,7 @@ export async function billById(db: Db, billId: number) {
 			action: l.action,
 			lawId: l.lawId,
 			baseRevisionId: l.baseRevisionId,
+			baseIfSeq: l.baseIfSeq,
 			newTitle: l.newTitle,
 			changes: changes
 				.filter((c) => c.lawSeq === l.seq)
@@ -160,25 +162,28 @@ export async function billById(db: Db, billId: number) {
 
 /** 委員会の対象の法令（書く画面の「対象の法令」） */
 export async function committeeLawList(db: Db, committeeId: number) {
-	return db
+	const rows = await db
 		.select({ id: laws.id, title: laws.title })
 		.from(committeeLaws)
 		.innerJoin(laws, eq(laws.id, committeeLaws.lawId))
 		.where(eq(committeeLaws.committeeId, committeeId))
 		.orderBy(asc(laws.id));
+	// IF世界で廃止された法令は、以後の法案の対象にしない（docs/spec/72.md の E）
+	const repealed = await repealedLawIds(db);
+	return rows.filter((r) => !repealed.has(r.id));
 }
 
-/** 書く画面に出す法令の条：いま施行されている版と、その条の見出しと本文。委員会の対象でなければ undefined */
+/** 書く画面に出す法令の条：IF世界の最新の条と、基にする版の印。委員会の対象でなければ、IF世界で廃止されていれば undefined */
 export async function draftArticles(db: Db, committeeId: number, lawId: string) {
 	const [allowed] = await db
 		.select({ id: committeeLaws.lawId })
 		.from(committeeLaws)
 		.where(and(eq(committeeLaws.committeeId, committeeId), eq(committeeLaws.lawId, lawId)));
-	const current = allowed && (await currentRevision(db, lawId));
-	if (!current) return undefined;
-	const articles = await articlesOfRevision(db, current.id);
+	const head = allowed && (await ifHeadOf(db, lawId));
+	if (!head || !head.branchRevisionId || head.repealed) return undefined;
+	const articles = await ifArticles(db, lawId, head.branchRevisionId, head.seq);
 	return {
-		revisionId: current.id,
+		revisionId: baseToken(head.branchRevisionId, head.seq),
 		articles: articles.map((a) => ({ num: a.num, label: a.label, caption: a.caption, body: articleBodyText(a.paragraphs) }))
 	};
 }
@@ -288,7 +293,7 @@ export async function billChangeViews(db: Db, bill: NonNullable<Bill>): Promise<
 	const changes: ChangeView[] = [];
 	let budget = DIFF_PAGE_BUDGET;
 	for (const l of bill.laws) {
-		const base = l.baseRevisionId && l.changes.length ? new Map((await articlesOfRevision(db, l.baseRevisionId)).map((a) => [a.id, a])) : new Map();
+		const base = l.baseRevisionId && l.changes.length ? new Map((await baseArticlesOf(db, l)).map((a) => [a.id, a])) : new Map();
 		for (const c of l.changes) {
 			const location = articleLabel(c.num);
 			const old = c.provisionId === null ? undefined : base.get(c.provisionId);
@@ -469,7 +474,7 @@ export async function proposeBill(db: Db, actor: Actor, billId: number, required
 
 /**
  * 関連法案（Issue #69）：付託先の会期が同じで、発議した版で同じ法令の同じ条に触れる法案。廃止はその法令のすべての条に触れるものとする。
- * 発議した版と発議の時刻は発議のあとに変わらないので、保存せずに毎回求める。直接触れる法案だけで、つながりをたどらない
+ * 保存せずに毎回求める（発議した版と発議の時刻は、要調整を直したときに変わる）。直接触れる法案だけで、つながりをたどらない
  */
 export async function relatedBills(db: Db, bill: { id: number; rev: number; proposedRev: number | null; proposedAt: number | null }, minutes: number | null) {
 	if (bill.proposedAt === null) return [];

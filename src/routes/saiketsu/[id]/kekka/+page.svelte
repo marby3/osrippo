@@ -9,6 +9,19 @@
 	let { data }: PageProps = $props();
 	const total = $derived(data.phase === 'done' ? data.counted.yes + data.counted.no + data.counted.abstain : 0);
 	let opened = $state(false);
+	/** 可決のときは、反映済み・要調整（理由ごと）・期限切れ・手続き中で文言が変わる（docs/spec/72.md 決めたこと8） */
+	const note = $derived.by(() => {
+		if (data.phase !== 'done') return '';
+		if (data.outcome === 'rejected') return ja.result.rejectedNote;
+		if (data.outcome === 'lapsed') return ja.result.lapsedNote(data.quorum);
+		const a = data.adjustment;
+		if (a) {
+			if (a.reason === 'repealed') return ja.ifLaw.repealedNote;
+			return data.now < a.dueAt ? ja.ifLaw.adjusting[a.reason] : ja.ifLaw.expired;
+		}
+		return data.place ? ja.result.passedNote : ja.ifLaw.applying;
+	});
+	const dueShown = $derived(data.phase === 'done' && data.adjustment !== null && data.adjustment.reason !== 'repealed' && data.now < data.adjustment.dueAt);
 </script>
 
 <svelte:head>
@@ -34,9 +47,8 @@
 			<div class="content">
 				<section class="verdict" class:passed={data.outcome === 'passed'}>
 					<p class="word">{ja.result.words[data.outcome]}</p>
-					<p class="note">
-						{data.outcome === 'passed' ? ja.result.passedNote : data.outcome === 'rejected' ? ja.result.rejectedNote : ja.result.lapsedNote(data.quorum)}
-					</p>
+					<p class="note">{note}</p>
+					{#if dueShown}<p class="due">{ja.ifLaw.due(data.adjustment!.dueAt)}</p>{/if}
 				</section>
 				{#if data.comparison === 'reversed'}<p class="reversed">{ja.result.reversed}</p>{/if}
 				<p class="notice">{ja.result.notice}</p>
@@ -84,6 +96,7 @@
 						{#if data.comparison === 'same'}<p class="same">{ja.result.same}</p>{/if}
 					</div>
 				</section>
+				{#if data.place}<p class="to-bill"><a href="/if/hourei/{data.place.lawId}">{ja.ifLaw.toLaw}</a></p>{/if}
 				<p class="to-bill"><a href="/houan/{data.bill.id}">{ja.result.billLink}</a></p>
 			</aside>
 		</div>
@@ -141,6 +154,11 @@
 	.note {
 		margin: 0.5rem 0 0;
 		font-weight: bold;
+	}
+
+	.due {
+		margin: 0.5rem 0 0;
+		font-size: var(--font-size-sub);
 	}
 
 	.notice,

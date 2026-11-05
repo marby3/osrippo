@@ -13,6 +13,7 @@ import { billById, billSupportState, billView, relatedBills, sessionParticipants
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import type { BatchDb } from '#lib/server/law.ts';
 import { questionTotal } from '#lib/server/posts.ts';
+import { adjustmentOf } from '#lib/server/if-world.ts';
 import { resultOnRead } from '#lib/server/results.ts';
 import type { LayoutServerLoad } from './$types';
 
@@ -31,6 +32,8 @@ export const load: LayoutServerLoad = async (event) => {
 	const result = progress === 'lapsed' ? await resultOnRead(db as unknown as BatchDb, bill, minutes, now) : null;
 	// 修正案が当たって版が進んだら読み直す
 	if (result && result.rev !== bill.rev) bill = (await billById(db, bill.id)) ?? bill;
+	const adjustment = result?.outcome === 'passed' ? await adjustmentOf(db, result.sessionKey, bill.id) : null;
+	const stage = billStage(progress, result?.outcome ?? null, adjustment, now);
 	const isAuthor = user?.id === bill.userId;
 	const draft = bill.status === 'draft';
 	const { supports, mine } = await billSupportState(db, bill.id, supportRev(bill), user?.id ?? null);
@@ -42,7 +45,9 @@ export const load: LayoutServerLoad = async (event) => {
 	return {
 		bill: await billView(db, bill),
 		progress,
-		stage: billStage(progress, result?.outcome ?? null),
+		stage,
+		// 要調整：期限を出し、提出者には直すリンクを出す
+		adjustment: stage === 'adjusting' ? adjustment : null,
 		next: nextStage(bill, now, minutes),
 		// 下書きには質疑がないのでタブを出さない
 		questionCount: draft ? null : await questionTotal(db, bill.id),
@@ -50,7 +55,7 @@ export const load: LayoutServerLoad = async (event) => {
 		amendmentTotal: draft || !hasAmendableLaw(bill.laws) ? null : await amendmentCount(db, bill.id),
 		coDrafters: draft ? [] : await coDrafters(db, bill.id),
 		related: draft ? [] : await relatedBills(db, bill, minutes),
-		canEdit: isAuthor && draft,
+		canEdit: isAuthor && (draft || stage === 'adjusting'),
 		support: {
 			rev: bill.rev,
 			count: supports,

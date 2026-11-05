@@ -487,3 +487,13 @@ export const lapsedBefore = (previous: Session) => previous.deliberationAt;
 
 /** PC の「いまの段階」の並びの位置（下書き・発議・委員会へ・質疑・採決・結果）。委員会へ（2）がいまの段になることはない */
 export const BILL_PROGRESS_STEP = { draft: 0, proposed: 1, deliberation: 3, vote: 4, lapsed: 5 } as const satisfies Record<BillProgress, number>;
+
+/**
+ * 書く画面が基にする版の印。<分岐した版>@<IF世界の版>（docs/spec/72.md 決めたこと4）。
+ * フォームはそのまま送り返すだけで、作り変えた値は null
+ */
+export const baseToken = (revisionId: string, ifSeq: number) => `${revisionId}@${ifSeq}`;
+export function parseBaseToken(raw: string): { revisionId: string; ifSeq: number } | null {
+	const m = /^([^@\s]+)@(0|[1-9]\d{0,9})$/.exec(raw);
+	return m ? { revisionId: m[1], ifSeq: Number(m[2]) } : null;
+}
