@@ -20,6 +20,10 @@ export const LIMITS = {
 	supportAccountsPerIp: 3,
 	/** 24時間にこの回数の違反で締め出す（fail2ban の考え方） */
 	violationsToBan: 3,
+	/** 票：本案と修正案を合わせて1アカウント24時間と5分、1回線24時間（Issue #70 確認の点1）。票を変えるのも1回 */
+	votePerDay: 100,
+	votePerBurst: 20,
+	votePerIp: 300,
 	/** 通報：1アカウント24時間（設計書 docs/spec/28.md 決めたこと2） */
 	reportPerDay: 10,
 	/** 解決策の投稿（設計書 docs/spec/34.md 決めたこと2） */
@@ -85,7 +89,10 @@ export type RefusalKind =
 	| 'amendment-ip'
 	| 'amendment-support-day'
 	| 'amendment-support-burst'
-	| 'amendment-support-ip';
+	| 'amendment-support-ip'
+	| 'vote-day'
+	| 'vote-burst'
+	| 'vote-ip';
 export type Refusal = { kind: RefusalKind; retryAt?: number };
 
 /** 違反に数えるか。回線ごとの上限は同じ回線の別の人のせいで当たることがあり、登録したばかりの上限は試しているうちに締め出されないよう、数えない */
@@ -119,7 +126,10 @@ export const COUNTS_AS_VIOLATION: Record<RefusalKind, boolean> = {
 	'amendment-ip': false,
 	'amendment-support-day': true,
 	'amendment-support-burst': true,
-	'amendment-support-ip': false
+	'amendment-support-ip': false,
+	'vote-day': true,
+	'vote-burst': true,
+	'vote-ip': false
 };
 
 type PostCounts = { accountPostTimes: number[]; ipPosts: number; registeredAt: number };
@@ -245,5 +255,13 @@ export function checkAmendmentSupport(c: { op: 'add' | 'remove'; accountDay: num
 	if (c.accountDay >= LIMITS.amendmentSupportPerDay) return { kind: 'amendment-support-day' };
 	if (c.accountBurst >= LIMITS.amendmentSupportPerBurst) return { kind: 'amendment-support-burst' };
 	if (c.op === 'add' && !c.selfAddedRecently && c.otherAccountsOnIp >= LIMITS.amendmentSupportAccountsPerIp) return { kind: 'amendment-support-ip' };
+	return null;
+}
+
+/** 票。本案と修正案を合わせて数える。同じ票の入れ直しは呼ぶ側で除く */
+export function checkVote(c: { accountDay: number; accountBurst: number; ipDay: number }): Refusal | null {
+	if (c.accountDay >= LIMITS.votePerDay) return { kind: 'vote-day' };
+	if (c.accountBurst >= LIMITS.votePerBurst) return { kind: 'vote-burst' };
+	if (c.ipDay >= LIMITS.votePerIp) return { kind: 'vote-ip' };
 	return null;
 }

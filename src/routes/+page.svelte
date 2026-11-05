@@ -40,6 +40,7 @@
 
 	<p><a href="/kadai">{ja.issue.topLink}</a></p>
 	<p><a href="/houan">{ja.bill.list.topLink}</a></p>
+	<p><a href="/saiketsu">{ja.vote.topLink}</a></p>
 	<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7） -->
 	<form method="get" action="/kensaku">
 		<label for="top-search">{ja.search.entry}</label>

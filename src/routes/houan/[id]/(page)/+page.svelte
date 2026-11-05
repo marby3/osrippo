@@ -28,6 +28,7 @@
 
 <div class="layout">
 	<div class="content">
+		{#if data.progress === 'vote'}<p class="to-vote"><a href="/saiketsu/{bill.id}">{ja.vote.billLink}</a></p>{/if}
 		{#if bill.summary.length}
 			<section class="summary">
 				<h2>{ja.bill.page.summaryHeading}</h2>
@@ -128,6 +129,11 @@
 	h2 {
 		margin: 0;
 		font-size: var(--font-size-body);
+	}
+
+	.to-vote {
+		margin: 0 0 1rem;
+		font-weight: bold;
 	}
 
 	.summary {

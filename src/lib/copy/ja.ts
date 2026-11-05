@@ -133,6 +133,51 @@ export const ja = {
 		evaluationClosed: 'いまは評価できない時期です。',
 		evaluationGone: 'この投稿は評価できません。'
 	},
+	/** 採決（Issue #70。SpVoteList・PcVoteList・SpVote・PcVote）。「有効票」は「数えた票」、「参考票」は「参考の票」と書く */
+	vote: {
+		listPageTitle: '採決｜オープンソース立法府',
+		otherPageTitle: 'ほかの法案の採決｜オープンソース立法府',
+		pageTitle: (title: string) => `${title}の採決｜オープンソース立法府`,
+		topLink: '採決を見る',
+		billLink: '投票する',
+		heading: '採決',
+		/** 開発用の分の会期は時刻、カレンダーの月は0時まで */
+		deadline: (s: Session) => `${ja.session.name(s)} ・ 締切 ${s.month === null ? jaTime(s.endsAt) : `${jaDay(s.endsAt)}0時`}`,
+		before: (s: Session) => `採決は${sessionPoint(s, s.voteAt, true)}から始まります。`,
+		assigned: '割り当て法案',
+		votedSuffix: '投票済み',
+		voted: '投票済み',
+		notYet: 'まだ',
+		toVote: '投票する',
+		other: 'ほかの法案にも投票する',
+		otherHeading: 'ほかの法案',
+		otherLead: '割り当てのほかに、この会期に採決する法案です。',
+		otherEmpty: 'ほかに採決する法案はありません。',
+		prevPage: '前のページ',
+		nextPage: '次のページ',
+		pages: 'ほかの法案のページ',
+		crumbs: '採決のページ',
+		crumbSeparator: '／',
+		position: (n: number, total: number) => `割り当て ${n} / ${total}`,
+		/** [前, 強調, 後] */
+		pending: (total: number): [string, string, string] => [total === 1 ? '割り当ての法案に投票すると、あなたの票が' : `${total}本すべてに投票すると、あなたの票が`, '数えた票', 'になります。'],
+		finished: (): [string, string, string] => ['割り当ての法案はすべて投票済みです。あなたの票は', '数えた票', 'になります。'],
+		noAssignment: (): [string, string, string] => ['今回は割り当ての法案がありません。あなたの票は', '数えた票', 'になります。'],
+		reference: 'このアカウントの票は参考の票として数えます。会期が始まる前日までに登録し、それまでに参加したことのある人の票を、可否に使います。',
+		changesCount: (n: number) => `変更点 ${n}か所`,
+		changesOpen: 'を見る',
+		yourVote: 'あなたの票',
+		choices: { yes: '賛成', no: '反対', abstain: '棄権（どちらにも入れない）' },
+		choose: '票を選んでください',
+		submit: '投票する',
+		secret: '票の数は締切まで誰にも見えません',
+		done: '投票しました。締切までは変えられます。',
+		backToList: '採決の一覧へ',
+		readQuestions: '質疑を読む',
+		amendmentNotice: '修正案が可決すると本文が変わることがあります',
+		amendmentLink: '修正案を見る',
+		closed: 'いまはこの法案に投票できません。'
+	},
 	/** 修正案（設計書 docs/spec/68.md）。「先議」は使わず「本案より先に採決」と書く */
 	amendment: {
 		pageTitle: (title: string) => `${title}の修正案｜オープンソース立法府`,
@@ -402,7 +447,7 @@ export const ja = {
 		turnstileFailed: '確認できませんでした。もう一度お試しください。',
 		turnstileUnavailable: '確認の仕組みを読み込めませんでした。ページを読み直してください。',
 		banned: (until: number) =>
-			`制限を何度も超えたため、${jaDateTime(until)}まで、課題や解決策の投稿、「わかる」「考えが変わった」、通報ができません。法案の下書きを作ること、保存すること、賛同、発議もできません。`,
+			`制限を何度も超えたため、${jaDateTime(until)}まで、課題や解決策の投稿、「わかる」「考えが変わった」、通報ができません。法案の下書きを作ること、保存すること、賛同、発議、質疑、修正案、投票もできません。`,
 		refusals: {
 			'post-account': '課題は24時間に5件まで書けます。しばらくしてからお試しください。',
 			'post-new': (retryAt: number) =>
@@ -431,6 +476,9 @@ export const ja = {
 			'evaluation-ip': 'この回線からは、この投稿にこれ以上評価を付けられません。',
 			'amendment-account': '修正案は24時間に5件まで出せます（更新も数えます）。しばらくしてからお試しください。',
 			'amendment-ip': 'この回線から出せる修正案の数を超えました。しばらくしてからお試しください。',
+			'vote-day': '票を入れたり変えたりできるのは24時間に100回までです。しばらくしてからお試しください。',
+			'vote-burst': '短いあいだに票を何度も入れました。しばらくしてからお試しください。',
+			'vote-ip': 'この回線から入れられる票の数を超えました。しばらくしてからお試しください。',
 			'amendment-support-day': '修正案への賛同は24時間に30回まで押せます（取り消しも1回に数えます）。しばらくしてからお試しください。',
 			'amendment-support-burst': '短いあいだに修正案への賛同を何度も押しました。しばらくしてからお試しください。',
 			'amendment-support-ip': 'この回線からは、この修正案にこれ以上賛同できません。',
