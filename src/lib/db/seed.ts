@@ -1,32 +1,16 @@
 // e-Gov のデータ（今はテストデータ）から、法令と版の DB に入れる SQL を作る（設計書 docs/spec/8.md）
 import { BASELINE_DATE, buildHistory, parseHeadings, parseLaw, type EgovNode } from '../domain/law';
 import { searchTexts } from '../domain/search';
+import { REVISION_STATUS as STATUS, type EgovRevision } from '../egov/client';
 
 /** 対象3法：景品表示法、特定商取引法、消費者契約法（法令ID順） */
 export const TARGET_LAWS = ['337AC0000000134', '351AC0000000057', '412AC0000000061'];
-
-type EgovRevision = {
-	law_revision_id: string;
-	law_title: string;
-	law_title_kana: string | null;
-	amendment_enforcement_date: string;
-	amendment_law_title: string | null;
-	amendment_law_num: string | null;
-	amendment_promulgate_date: string | null;
-	current_revision_status: string;
-};
 
 type Value = string | number | null;
 type Table = { name: string; columns: string[]; rows: Value[][] };
 
 const MAX_ROWS = 100;
 const MAX_BYTES = 100_000;
-
-const STATUS: Record<string, 'enforced' | 'scheduled'> = {
-	CurrentEnforced: 'enforced',
-	PreviousEnforced: 'enforced',
-	UnEnforced: 'scheduled'
-};
 
 const literal = (v: Value) => (v === null ? 'NULL' : typeof v === 'number' ? String(v) : `'${v.replaceAll("'", "''")}'`);
 
