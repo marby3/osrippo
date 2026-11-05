@@ -215,7 +215,6 @@ export const ja = {
 		changedBy: 'IF世界で変わりました：',
 		enactedBy: 'IF世界で新しくできた法律です：',
 		repealedBy: 'IF世界では廃止されました：',
-		unchanged: '現実の法律と同じです',
 		toLaw: 'IF世界の条文を見る',
 		formNote: 'ここに出る条文は IF世界の最新です（架空の法令）',
 		lawRepealed: 'この法令は IF世界で廃止されたので、法案の対象にできません。',

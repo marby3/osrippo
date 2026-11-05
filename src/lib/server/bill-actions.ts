@@ -46,7 +46,7 @@ export async function submitBill(event: RequestEvent, user: { id: string; create
 	// 基にしたあとで変わった条に触れるなら、いまの条文を確かめてもらう（docs/spec/72.md の B2）
 	const [saved] = edit.laws;
 	const [next] = checked.input.laws;
-	if (saved && next) {
+	if (saved && next && saved.lawId === next.lawId) {
 		const conflicts = await staleArticles(db, { ...saved, changes: next.changes });
 		if (conflicts.length && form.get('confirmConflicts') !== 'on') return refuse(400, { conflicts, message: ja.ifLaw.confirmRequired });
 	}

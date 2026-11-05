@@ -1,4 +1,4 @@
-// 法案の下書きを直す（Issue #46）。提出者だけ、下書きのあいだだけ
+// 法案の下書きと要調整の法案を直す（Issue #46・#72）。提出者だけ
 import { error } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
@@ -33,7 +33,7 @@ export const load: PageServerLoad = async (event) => {
 	const { bill, adjusting, adjustment } = await editable(event);
 	const db = drizzle(env.DB);
 	const law = bill.laws[0];
-	// 条文はいま施行されている版を出し、それを基にした版として送る（docs/spec/45.md 決めたこと7）
+	// 条文は IF世界の最新を出し、それを基にした版として送る（docs/spec/72.md 決めたこと4）
 	const articles = law?.lawId ? await draftArticles(db, FIRST_COMMITTEE, law.lawId) : undefined;
 	const candidates = await citedCandidates(db, bill.solutionIds);
 	// 非表示になった解決策は候補に出ないので、引用からも外して、そのことを知らせる

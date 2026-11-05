@@ -250,6 +250,15 @@ export async function ifPlaceOf(db: Db, billId: number, rev: number): Promise<If
 	return law ? { lawId: law.id } : null;
 }
 
+/** その会期の要調整の行（解決済みも含む） */
+export async function adjustmentRowOf(db: Db, sessionKey: string, billId: number) {
+	const [row] = await db
+		.select({ reason: billAdjustments.reason })
+		.from(billAdjustments)
+		.where(and(eq(billAdjustments.sessionKey, sessionKey), eq(billAdjustments.billId, billId)));
+	return row;
+}
+
 /** いまの付託先の会期の、未解決の要調整 */
 export async function adjustmentOf(db: Db, sessionKey: string, billId: number) {
 	const [row] = await db

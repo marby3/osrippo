@@ -141,8 +141,9 @@ export async function amendmentSupportAction(event: RequestEvent) {
 	if (id === null || revision === null || (op !== 'add' && op !== 'remove')) error(400);
 	const amendment = await amendmentOf(db, id, bill.id);
 	if (!amendment) error(404);
-	const { progress } = progressOf(bill, now);
-	if (!amendmentOpen(progress)) return fail(409, { message: ja.amendment.closed, ...keep });
+	const { progress, session } = progressOf(bill, now);
+	// 前の会期の修正案は読むだけ（要調整を直した法案。docs/spec/72.md の C）
+	if (!amendmentOpen(progress) || amendment.sessionKey !== session.key) return fail(409, { message: ja.amendment.closed, ...keep });
 	if (amendment.userId === user.id || bill.userId === user.id) return fail(403, { message: ja.amendment.ownSupport, ...keep });
 	const result = await setAmendmentSupport(db, guard.actor, amendment, bill.rev, revision, op, now);
 	if (!result.ok) return 'refusal' in result ? fail(429, { message: refusalMessage(result.refusal), ...keep }) : fail(409, { message: ja.amendment.stale, ...keep });

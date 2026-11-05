@@ -7,7 +7,7 @@ import { sessionAt, type Session } from '../domain/session';
 import { billOutcome, quorumRequirement, SETTLE_GRACE } from '../domain/votes';
 import { settleAmendments } from './amendments';
 import { sessionParticipants } from './bills';
-import { applySession } from './if-world';
+import { adjustmentRowOf, applySession, ifPlaceOf } from './if-world';
 import type { BatchDb, Db } from './law';
 import { inVote, tallyVotes } from './votes';
 
@@ -103,8 +103,9 @@ export async function resultOnRead(db: BatchDb, bill: { id: number; proposedAt: 
 	if (bill.proposedAt === null) return null;
 	const session = referralSession(bill.proposedAt, minutes);
 	const known = await resultOf(db, session.key, bill.id);
-	// 可決なら、反映の前に失敗していたときのためにやり直す（docs/spec/72.md 決めたこと5）
 	if (known && known.outcome !== 'passed') return known;
+	// 可決で反映済みか要調整なら終わり。どちらでもなければ、反映の前に失敗していたのでやり直す（docs/spec/72.md 決めたこと5）
+	if (known && ((await ifPlaceOf(db, bill.id, known.rev)) || (await adjustmentRowOf(db, known.sessionKey, bill.id)))) return known;
 	await settleOnRead(db, session, sessionAt(session.startsAt - 1, minutes), now, minutes);
 	return (await resultOf(db, session.key, bill.id)) ?? null;
 }
