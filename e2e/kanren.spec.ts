@@ -17,7 +17,8 @@ const at = (month: string, day: number) => `${month}-${String(day).padStart(2, '
 type User = { page: Page; setNow: (now: string) => Promise<void> };
 let nextIp = 1;
 async function user(browser: Browser, now: string, name: string, days = 8): Promise<User> {
-	const ipAddress = `10.68.${Math.floor(nextIp / 200)}.${(nextIp++ % 200) + 1}`;
+	// 幅ごとに回線を分ける
+	const ipAddress = `10.${test.info().project.name === 'sp' ? 68 : 69}.${Math.floor(nextIp / 200)}.${(nextIp++ % 200) + 1}`;
 	const u = await newUser(browser, { name, ip: ipAddress, days });
 	contexts.push(u.context);
 	const setNow = (t: string) => u.context.setExtraHTTPHeaders({ 'x-test-ip': ipAddress, 'x-test-now': t });
@@ -27,7 +28,8 @@ async function user(browser: Browser, now: string, name: string, days = 8): Prom
 
 /** 第1条を変える法案を発議する */
 async function proposed(browser: Browser, now: string, title: string) {
-	const label = `${title}-${stamp()}`;
+	// テスト用のログインの名前は ASCII にする
+	const label = `k${stamp()}-${nextIp}`;
 	const a = await user(browser, now, `a-${label}`);
 	const { ids } = await issueWithSolutions(a.page, label, [`関連の解決策 ${label}`]);
 	const bill = await createAmendBill(a.page, title, ids[0]);
@@ -118,7 +120,7 @@ test('基準3：絞り込み「関連法案も」で両方の質疑が読める�
 	// 関連法案のない法案には絞り込みが出ない
 	await v.page.goto(qa(later.bill));
 	await expect(filter(v.page)).toHaveCount(0);
-	await link.page().goto(qa(a.bill));
+	await v.page.goto(qa(a.bill));
 	await filter(v.page).click();
 	await v.page.getByRole('link', { name: new RegExp(titleB) }).click();
 	await expect(v.page).toHaveURL(new RegExp(`${qa(b.bill)}#shitsugi-${otherId}$`));
