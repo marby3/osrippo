@@ -55,7 +55,7 @@ const band = (page: Page) => page.locator('[data-if-band]');
  * use:enhance の送信は fail() でも HTTP 200 で返るので、本文の type も確かめる
  */
 async function posted(u: Page, act: () => Promise<void>) {
-	const [res] = await Promise.all([u.waitForResponse((r) => r.request().method() === 'POST'), act()]);
+	const [res] = await Promise.all([u.waitForResponse((r) => r.request().method() === 'POST' && !r.url().includes('?/read')), act()]);
 	expect(res.status()).toBeLessThan(400);
 	if (res.status() < 300) expect(await res.text()).not.toContain('"type":"failure"');
 }
