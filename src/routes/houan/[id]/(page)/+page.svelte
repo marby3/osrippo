@@ -76,6 +76,7 @@
 		</section>
 		<div class="people">
 			<p class="author">{ja.bill.page.author(bill.author)}</p>
+			{#if data.coDrafters.length}<p class="author">{ja.bill.page.coDrafters(data.coDrafters)}</p>{/if}
 			<span class="sep" aria-hidden="true">{ja.bill.support.separator}</span>
 			<p class="supports">{ja.bill.support.count(support.count)}</p>
 		</div>

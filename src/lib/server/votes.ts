@@ -1,7 +1,7 @@
 // 投票資格・割り当て・票を入れる・票を数える（Issue #65。設計書 docs/spec/65.md 決めたこと5〜10）。
 // 受け取る値は呼ぶ側（#70）が確かめる。ここでは確かめずに書く
 import { and, asc, count, eq, gte, lt, ne, sql } from 'drizzle-orm';
-import { actions, bills, user, voteAssignments, votes } from '../db/schema';
+import { actions, amendmentVotes, bills, user, voteAssignments, votes } from '../db/schema';
 import { PARTICIPANT_KINDS } from '../domain/bills';
 import type { Session } from '../domain/session';
 import { ASSIGNMENT_COUNT, drawAssignments, type VoteChoice, type VoteCounts } from '../domain/votes';
@@ -88,20 +88,24 @@ export async function castVote(db: Db, userId: string, session: Session, previou
 	return done.length > 0;
 }
 
-const emptyCounts = (): VoteCounts => ({ yes: 0, no: 0, abstain: 0 });
+export const emptyCounts = (): VoteCounts => ({ yes: 0, no: 0, abstain: 0 });
+
+/** 有効票の条件（票の表ごとに共通）。割り当てを済ませる条件は本案の票だけで、修正案の票は入らない（Issue #63 決めたこと14） */
+export const countedVote = (session: Session, table: typeof votes | typeof amendmentVotes) =>
+	sql<number>`(
+		${eligible(session)}
+		AND NOT EXISTS (
+			SELECT 1 FROM ${voteAssignments} va WHERE va.session_key = ${table}.session_key AND va.user_id = ${table}.user_id
+			AND NOT EXISTS (SELECT 1 FROM ${votes} w WHERE w.session_key = va.session_key AND w.bill_id = va.bill_id AND w.user_id = va.user_id)
+		)
+	)`.as('counted');
 
 /**
  * 法案の票の数。投票資格があり、その会期の割り当てのすべてに票を入れた人の票が有効票で、それ以外は参考票。
  * 割り当ての行がない人は候補が0本の人だけ（castVote が固定する）で、条件を満たす。投票者ごとに問い合わせず、1文で求める
  */
 export async function tallyVotes(db: Db, session: Session, billId: number): Promise<{ counted: VoteCounts; reference: VoteCounts }> {
-	const counted = sql<number>`(
-		${eligible(session)}
-		AND NOT EXISTS (
-			SELECT 1 FROM ${voteAssignments} va WHERE va.session_key = ${votes}.session_key AND va.user_id = ${votes}.user_id
-			AND NOT EXISTS (SELECT 1 FROM ${votes} w WHERE w.session_key = va.session_key AND w.bill_id = va.bill_id AND w.user_id = va.user_id)
-		)
-	)`.as('counted');
+	const counted = countedVote(session, votes);
 	const rows = await db
 		.select({ choice: votes.choice, counted, n: count() })
 		.from(votes)

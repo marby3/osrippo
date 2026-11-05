@@ -10,7 +10,8 @@
 	const tabs = $derived([
 		{ href: base, label: ja.bill.page.summaryTab },
 		{ href: `${base}/henkou`, label: ja.bill.page.changesTab(bill.changeCount) },
-		...(data.questionCount === null ? [] : [{ href: `${base}/shitsugi`, label: ja.bill.page.questionsTab(data.questionCount) }])
+		...(data.questionCount === null ? [] : [{ href: `${base}/shitsugi`, label: ja.bill.page.questionsTab(data.questionCount) }]),
+		...(data.amendmentTotal === null ? [] : [{ href: `${base}/shusei`, label: ja.bill.page.amendmentsTab(data.amendmentTotal) }])
 	]);
 </script>
 

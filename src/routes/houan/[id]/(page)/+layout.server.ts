@@ -2,11 +2,13 @@
 import { error } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
+import { hasAmendableLaw } from '#lib/domain/amendments.ts';
 import { billProgress, nextStage, proposalRequirement } from '#lib/domain/bills.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { billWaitUntil } from '#lib/domain/limits.ts';
 import { FIRST_COMMITTEE } from '#lib/server/bill-form.ts';
-import { billById, billSupportState, billView, sessionParticipants } from '#lib/server/bills.ts';
+import { amendmentCount, coDrafters } from '#lib/server/amendments.ts';
+import { billById, billSupportState, billView, sessionParticipants, supportRev } from '#lib/server/bills.ts';
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import { questionTotal } from '#lib/server/posts.ts';
 import type { LayoutServerLoad } from './$types';
@@ -22,7 +24,7 @@ export const load: LayoutServerLoad = async (event) => {
 	const user = locals.user;
 	const isAuthor = user?.id === bill.userId;
 	const draft = bill.status === 'draft';
-	const { supports, mine } = await billSupportState(db, bill.id, bill.rev, user?.id ?? null);
+	const { supports, mine } = await billSupportState(db, bill.id, supportRev(bill), user?.id ?? null);
 	const { session, previous, minutes } = sessionsAt(now);
 	// 発議要件を読むのは提出者が下書きを見るときだけ（その会期で最初に読まれたときに固定する。docs/spec/49.md 決めたこと3）
 	let required: number | null = null;
@@ -35,6 +37,9 @@ export const load: LayoutServerLoad = async (event) => {
 		next: nextStage(bill, now, minutes),
 		// 下書きには質疑がないのでタブを出さない
 		questionCount: draft ? null : await questionTotal(db, bill.id),
+		// 変えられる条のない法案（廃止だけの法案）には修正案のタブを出さない
+		amendmentTotal: draft || !hasAmendableLaw(bill.laws) ? null : await amendmentCount(db, bill.id),
+		coDrafters: draft ? [] : await coDrafters(db, bill.id),
 		canEdit: isAuthor && draft,
 		support: {
 			rev: bill.rev,

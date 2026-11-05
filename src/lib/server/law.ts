@@ -1,5 +1,6 @@
 // 法令と版の DB を読む（設計書 docs/spec/8.md の決定1〜3）
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, max, or } from 'drizzle-orm';
+import type { BatchItem } from 'drizzle-orm/batch';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { alias } from 'drizzle-orm/sqlite-core';
 import {
@@ -15,6 +16,8 @@ import { laws, lawRevisions, provisions, provisionVersions } from '../db/schema'
 
 // D1（本番）と node:sqlite（テスト）の両方の Drizzle を受ける
 export type Db = BaseSQLiteDatabase<'async', any>;
+/** 1つのトランザクションで流せる Db（D1 の batch）。BaseSQLiteDatabase の型には batch がない */
+export type BatchDb = Db & { batch: (queries: readonly [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]) => Promise<unknown> };
 
 /** 「改正された」に数える change（設計書「change の値」） */
 const COUNTED: Change[] = ['added', 'amended', 'unconfirmed'];

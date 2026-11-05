@@ -44,6 +44,12 @@ export const LIMITS = {
 	evaluationPerDay: 100,
 	evaluationPerBurst: 20,
 	evaluationAccountsPerIp: 3,
+	/** 修正案と、本案より先に採決するための賛同（設計書 docs/spec/68.md 決めたこと14）。賛同は法案の賛同と同じ数 */
+	amendmentPerDay: 5,
+	amendmentPerIp: 20,
+	amendmentSupportPerDay: 30,
+	amendmentSupportPerBurst: 10,
+	amendmentSupportAccountsPerIp: 3,
 	/** 下書きを作る・賛同する・発議するのは、登録からこの長さのアカウントだけ（Issue #41 決めたこと6） */
 	billAccountAge: 7 * DAY,
 	banLength: DAY
@@ -74,7 +80,12 @@ export type RefusalKind =
 	| 'bill-post-ip'
 	| 'evaluation-day'
 	| 'evaluation-burst'
-	| 'evaluation-ip';
+	| 'evaluation-ip'
+	| 'amendment-account'
+	| 'amendment-ip'
+	| 'amendment-support-day'
+	| 'amendment-support-burst'
+	| 'amendment-support-ip';
 export type Refusal = { kind: RefusalKind; retryAt?: number };
 
 /** 違反に数えるか。回線ごとの上限は同じ回線の別の人のせいで当たることがあり、登録したばかりの上限は試しているうちに締め出されないよう、数えない */
@@ -103,7 +114,12 @@ export const COUNTS_AS_VIOLATION: Record<RefusalKind, boolean> = {
 	'bill-post-ip': false,
 	'evaluation-day': true,
 	'evaluation-burst': true,
-	'evaluation-ip': false
+	'evaluation-ip': false,
+	'amendment-account': true,
+	'amendment-ip': false,
+	'amendment-support-day': true,
+	'amendment-support-burst': true,
+	'amendment-support-ip': false
 };
 
 type PostCounts = { accountPostTimes: number[]; ipPosts: number; registeredAt: number };
@@ -214,5 +230,20 @@ export function checkEvaluation(c: { op: 'add' | 'remove'; accountDay: number; a
 	if (c.accountDay >= LIMITS.evaluationPerDay) return { kind: 'evaluation-day' };
 	if (c.accountBurst >= LIMITS.evaluationPerBurst) return { kind: 'evaluation-burst' };
 	if (c.op === 'add' && !c.selfAddedRecently && c.otherAccountsOnIp >= LIMITS.evaluationAccountsPerIp) return { kind: 'evaluation-ip' };
+	return null;
+}
+
+/** 修正案。更新も合わせて数える */
+export function checkAmendment(c: { accountDay: number; ipDay: number }): Refusal | null {
+	if (c.accountDay >= LIMITS.amendmentPerDay) return { kind: 'amendment-account' };
+	if (c.ipDay >= LIMITS.amendmentPerIp) return { kind: 'amendment-ip' };
+	return null;
+}
+
+/** 本案より先に採決するための賛同。付けるのも取り消すのも1回 */
+export function checkAmendmentSupport(c: { op: 'add' | 'remove'; accountDay: number; accountBurst: number; otherAccountsOnIp: number; selfAddedRecently: boolean }): Refusal | null {
+	if (c.accountDay >= LIMITS.amendmentSupportPerDay) return { kind: 'amendment-support-day' };
+	if (c.accountBurst >= LIMITS.amendmentSupportPerBurst) return { kind: 'amendment-support-burst' };
+	if (c.op === 'add' && !c.selfAddedRecently && c.otherAccountsOnIp >= LIMITS.amendmentSupportAccountsPerIp) return { kind: 'amendment-support-ip' };
 	return null;
 }
