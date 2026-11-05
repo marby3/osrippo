@@ -1,7 +1,7 @@
 // IF世界の版を読む・作る（Issue #72。設計書 docs/spec/72.md）。IF世界の版は可決した法案の版の変更点を指し、読むときに分岐した版へ重ねる。
 // Cron の入口からも読むので、cloudflare:workers、import.meta.env、#lib に頼らない
 import { and, asc, count, eq, gt, inArray, isNull, lte, sql } from 'drizzle-orm';
-import { actions, billAdjustments, billChanges, billLaws, billResults, bills, billSupports, ifAddedArticles, ifBranches, ifLaws, ifRevisions, laws, lawRevisions, provisions } from '../db/schema';
+import { actions, billAdjustments, billChanges, billLaws, billResults, bills, billSupports, ifAddedArticles, ifBranches, ifLaws, ifRevisions, laws, lawRevisions, provisions, voteReviews } from '../db/schema';
 import { referralSession, type BillChange, type BillKind } from '../domain/bills';
 import { articleBodyText, articleLabel, compareNum, headingPaths, tableOfContents, type Paragraph } from '../domain/law';
 import { checkBillSave, DAY, type Refusal } from '../domain/limits';
@@ -225,7 +225,9 @@ export async function applySession(db: BatchDb, session: Session, minutes: numbe
 				eq(billResults.outcome, 'passed'),
 				sql`NOT EXISTS (SELECT 1 FROM ${ifRevisions} r WHERE r.bill_id = ${billResults}.bill_id AND r.bill_rev = ${billResults}.rev)`,
 				sql`NOT EXISTS (SELECT 1 FROM ${ifLaws} l WHERE l.bill_id = ${billResults}.bill_id)`,
-				sql`NOT EXISTS (SELECT 1 FROM ${billAdjustments} a WHERE a.bill_id = ${billResults}.bill_id AND a.session_key = ${session.key})`
+				sql`NOT EXISTS (SELECT 1 FROM ${billAdjustments} a WHERE a.bill_id = ${billResults}.bill_id AND a.session_key = ${session.key})`,
+				// 確認中と無効は反映しない（docs/spec/73.md 決めたこと4）。確定すると次の処理で反映される
+				sql`NOT EXISTS (SELECT 1 FROM ${voteReviews} v WHERE v.bill_id = ${billResults}.bill_id AND v.session_key = ${session.key} AND v.status IN ('open', 'voided'))`
 			)
 		)
 		.orderBy(asc(bills.proposedAt), asc(bills.id));

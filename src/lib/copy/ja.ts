@@ -205,6 +205,32 @@ export const ja = {
 		amendmentsLink: '修正案を見る',
 		billLink: '法案のページへ'
 	},
+	/** 票の偏りの確認（Issue #73。設計書 docs/spec/73.md）。「異常」「検知」「確認中」は画面に出さない */
+	review: {
+		reviewing: '結果を確認しています',
+		voided: '確認の結果、この採決は無効になりました',
+		voidedReason: (note: string) => `理由：${note}`,
+		signals: { new_accounts: '新しいアカウントの票の集中', same_line: '同じ回線からの票の集中', same_run: '同じ票の連続' },
+		kanriHeading: '結果を確認している法案',
+		kanriEmpty: '結果を確認している法案はありません',
+		kanriWithout: { passed: '可決', rejected: '否決', lapsed: '廃案' },
+		kanriDetail: (flagged: number, maxLine: number, longestRun: number, runSeconds: number) => `偏りのある票 ${flagged} ・ 1回線の最大 ${maxLine} ・ 最長の連続 ${longestRun}票（${runSeconds}秒）`,
+		withoutLabel: '除いたときの結果：',
+		counts: (yes: number, no: number, abstain: number) => `賛成 ${yes} ・ 反対 ${no} ・ 棄権 ${abstain}`,
+		involved: '自分が関わった法案は確認できません',
+		confirm: '結果を確定する',
+		void: 'この採決を無効にする',
+		voidNote: '無効にする理由',
+		voidHint: '理由は公開します。個人が分かることは書かないでください。',
+		invalid: '内容を確かめてください。',
+		closed: 'すでに確認された法案です。',
+		logHeading: '採決の確認の記録',
+		logCriteria: '票の偏りが見つかり、結果を左右するときは、運営が確かめるまで結果を公開しません。回線や人数やアカウントは、ここには出しません。',
+		logEmpty: 'まだ記録はありません',
+		logColumns: { at: '見つかった日時', bill: '法案', kind: '見つかった偏り', status: 'どうなったか', decidedAt: '対応した日時', actor: 'だれが', note: '理由' },
+		logStatus: { noted: '可決かどうかを左右しないので保留していません', open: '結果を確認しています', confirmed: '結果を確定した', voided: '無効にした' },
+		logPages: '採決の確認の記録のページ'
+	},
 	/** IF世界の法令と要調整（Issue #72。SpLaw・PcLaw。設計書 docs/spec/72.md）。「分岐」「反映」は画面に出さない */
 	ifLaw: {
 		pageTitle: (title: string) => `${title}（IF世界）｜オープンソース立法府`,
@@ -395,7 +421,7 @@ export const ja = {
 		kinds: { amend: '改正', repeal: '廃止', enact: '制定' },
 		ops: { amend: '書きかえ', add: '新しく追加', delete: '削除', supplementary: '新しく追加' },
 		/** 法案のいまの進み（Issue #50。一覧の言葉は list.stages） */
-		progress: { draft: '下書き', proposed: '発議', deliberation: '質疑', vote: '採決', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中', adjusting: '要調整' },
+		progress: { draft: '下書き', proposed: '発議', deliberation: '質疑', vote: '採決', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中', adjusting: '要調整', reviewing: '結果を確認しています' },
 		/** 賛同と発議（Issue #49） */
 		support: {
 			count: (n: number) => `賛同 ${n}人`,
@@ -426,7 +452,7 @@ export const ja = {
 			kind: '種類',
 			bill: '法案',
 			stage: '段階',
-			stages: { draft: '下書き', proposed: '発議', deliberation: '質疑中', vote: '採決中', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中', adjusting: '要調整' },
+			stages: { draft: '下書き', proposed: '発議', deliberation: '質疑中', vote: '採決中', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中', adjusting: '要調整', reviewing: '結果を確認しています' },
 			support: '賛同',
 			supportCell: (n: number) => `${n}人`,
 			supportPrefix: ' ・ 賛同 ',

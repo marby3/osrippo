@@ -13,6 +13,7 @@
 	const note = $derived.by(() => {
 		if (data.phase !== 'done') return '';
 		if (data.outcome === 'rejected') return ja.result.rejectedNote;
+		if (data.voidedNote !== null) return ja.review.voided;
 		if (data.outcome === 'lapsed') return ja.result.lapsedNote(data.quorum);
 		const a = data.adjustment;
 		if (a) {
@@ -42,12 +43,15 @@
 		<p class="deadline">{ja.vote.deadline(data.session)}</p>
 	{:else if data.phase === 'counting'}
 		<p class="waiting">{ja.result.counting}</p>
+	{:else if data.phase === 'reviewing'}
+		<p class="waiting">{ja.review.reviewing}</p>
 	{:else}
 		<div class="layout">
 			<div class="content">
 				<section class="verdict" class:passed={data.outcome === 'passed'}>
 					<p class="word">{ja.result.words[data.outcome]}</p>
 					<p class="note">{note}</p>
+					{#if data.voidedNote}<p class="due">{ja.review.voidedReason(data.voidedNote)}</p>{/if}
 					{#if dueShown}<p class="due">{ja.ifLaw.due(data.adjustment!.dueAt)}</p>{/if}
 				</section>
 				{#if data.comparison === 'reversed'}<p class="reversed">{ja.result.reversed}</p>{/if}

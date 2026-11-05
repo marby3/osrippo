@@ -32,8 +32,9 @@ export const load: LayoutServerLoad = async (event) => {
 	const result = progress === 'lapsed' ? await resultOnRead(db as unknown as BatchDb, bill, minutes, now) : null;
 	// 修正案が当たって版が進んだら読み直す
 	if (result && result.rev !== bill.rev) bill = (await billById(db, bill.id)) ?? bill;
-	const adjustment = result?.outcome === 'passed' ? await adjustmentOf(db, result.sessionKey, bill.id) : null;
-	const stage = billStage(progress, result?.outcome ?? null, adjustment, now);
+	const held = result?.review?.status === 'open' || result?.review?.status === 'voided';
+	const adjustment = result?.outcome === 'passed' && !held ? await adjustmentOf(db, result.sessionKey, bill.id) : null;
+	const stage = billStage(progress, result?.outcome ?? null, adjustment, now, result?.review?.status ?? null);
 	const isAuthor = user?.id === bill.userId;
 	const draft = bill.status === 'draft';
 	const { supports, mine } = await billSupportState(db, bill.id, supportRev(bill), user?.id ?? null);

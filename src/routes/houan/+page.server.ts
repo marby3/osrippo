@@ -7,7 +7,7 @@ import { sessionAt } from '#lib/domain/session.ts';
 import { billStage } from '#lib/domain/votes.ts';
 import type { BatchDb } from '#lib/server/law.ts';
 import { adjustmentsFor } from '#lib/server/if-world.ts';
-import { resultsFor, settleOnRead } from '#lib/server/results.ts';
+import { resultsFor, reviewsFor, settleOnRead } from '#lib/server/results.ts';
 import { parsePage } from '#lib/domain/issues.ts';
 import { billTabCounts, listBills } from '#lib/server/bills.ts';
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
@@ -28,9 +28,12 @@ export const load: PageServerLoad = async (event) => {
 	// 2ページ目以降で法案がなければ 404（課題の一覧と同じ）
 	if (page > 1 && rows.length === 0) error(404);
 	const ids = rows.map((r) => r.id);
-	const [results, adjustments] = tab === 'owari' ? await Promise.all([resultsFor(db, ids), adjustmentsFor(db, ids)]) : [[], []];
+	// 確認の行は結果の行より先に入るので、結果を読んでから確認の行を読む（結果だけが見えて可否が漏れないように。docs/spec/73.md 決めたこと3）
+	const results = tab === 'owari' ? await resultsFor(db, ids) : [];
+	const [adjustments, reviews] = tab === 'owari' ? await Promise.all([adjustmentsFor(db, ids), reviewsFor(db, ids)]) : [[], []];
 	const keyOf = (proposedAt: number) => referralSession(proposedAt, minutes).key;
 	const outcomeOf = (id: number, proposedAt: number) => results.find((r) => r.billId === id && r.sessionKey === keyOf(proposedAt))?.outcome ?? null;
+	const reviewOf = (id: number, proposedAt: number) => reviews.find((r) => r.billId === id && r.sessionKey === keyOf(proposedAt))?.status ?? null;
 	const adjustmentOf = (id: number, proposedAt: number) => adjustments.find((a) => a.billId === id && a.sessionKey === keyOf(proposedAt) && a.resolvedAt === null) ?? null;
 	return {
 		tab,
@@ -38,7 +41,7 @@ export const load: PageServerLoad = async (event) => {
 		rows: rows.map(({ id, kind, title, supports, status, proposedAt }) => {
 			const progress = billProgress({ status, proposedAt }, now, minutes);
 			const ended = progress === 'lapsed';
-			return { id, kind, title, supports, stage: billStage(progress, ended ? outcomeOf(id, proposedAt as number) : null, ended ? adjustmentOf(id, proposedAt as number) : null, now) };
+			return { id, kind, title, supports, stage: billStage(progress, ended ? outcomeOf(id, proposedAt as number) : null, ended ? adjustmentOf(id, proposedAt as number) : null, now, ended ? reviewOf(id, proposedAt as number) : null) };
 		}),
 		hasNext,
 		counts: await billTabCounts(db, before)

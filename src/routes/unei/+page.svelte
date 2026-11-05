@@ -3,7 +3,16 @@
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	const pageHref = (page: number) => (page > 1 ? `/unei?page=${page}` : '/unei');
+	/** 2つの表は別々にページを送る。片方を送っても、もう片方の位置を保つ */
+	const hrefOf = (page: number, kakunin: number) => {
+		const params = new URLSearchParams();
+		if (page > 1) params.set('page', String(page));
+		if (kakunin > 1) params.set('kakunin', String(kakunin));
+		const query = params.toString();
+		return query ? `/unei?${query}` : '/unei';
+	};
+	const pageHref = (page: number) => hrefOf(page, data.reviewPage);
+	const reviewHref = (kakunin: number) => hrefOf(data.page, kakunin);
 </script>
 
 <svelte:head>
@@ -54,6 +63,39 @@
 		<nav class="pages">
 			{#if data.page > 1}<a href={pageHref(data.page - 1)}>{ja.unei.prevPage}</a>{/if}
 			{#if data.hasNext}<a href={pageHref(data.page + 1)}>{ja.unei.nextPage}</a>{/if}
+		</nav>
+	{/if}
+
+	<h2>{ja.review.logHeading}</h2>
+	<p>{ja.review.logCriteria}</p>
+	{#if data.reviews.length === 0}
+		<p>{ja.review.logEmpty}</p>
+	{:else}
+		<table>
+			<thead>
+				<tr>
+					{#each Object.values(ja.review.logColumns) as column (column)}<th scope="col">{column}</th>{/each}
+				</tr>
+			</thead>
+			<tbody>
+				{#each data.reviews as row (`${row.billId}-${row.createdAt}`)}
+					<tr>
+						<td data-label={ja.review.logColumns.at}>{jaDateTimeFull(row.createdAt)}</td>
+						<td data-label={ja.review.logColumns.bill}><a href="/houan/{row.billId}">{row.title}</a></td>
+						<td data-label={ja.review.logColumns.kind}>{row.signals.map((s) => ja.review.signals[s]).join('、')}</td>
+						<td data-label={ja.review.logColumns.status}>{ja.review.logStatus[row.status]}</td>
+						<td data-label={ja.review.logColumns.decidedAt}>{row.decidedAt === null ? '' : jaDateTimeFull(row.decidedAt)}</td>
+						<td data-label={ja.review.logColumns.actor}>{row.role ? ja.unei.actors[row.role] : ''}</td>
+						<td data-label={ja.review.logColumns.note} class="note">{row.note ?? ''}</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	{/if}
+	{#if data.reviewPage > 1 || data.reviewsHasNext}
+		<nav class="pages" aria-label={ja.review.logPages}>
+			{#if data.reviewPage > 1}<a href={reviewHref(data.reviewPage - 1)}>{ja.unei.prevPage}</a>{/if}
+			{#if data.reviewsHasNext}<a href={reviewHref(data.reviewPage + 1)}>{ja.unei.nextPage}</a>{/if}
 		</nav>
 	{/if}
 </main>
