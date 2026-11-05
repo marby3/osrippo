@@ -32,7 +32,8 @@ export const load: PageServerLoad = async (event) => {
 	]);
 	const position = rows.findIndex((r) => r.id === bill.id);
 	return {
-		bill: view,
+		// 解決策や提出者はこの画面で使わないので渡さない
+		bill: { id: view.id, title: view.title, summary: view.summary, repealed: view.repealed, changeCount: view.changeCount },
 		changes,
 		mine,
 		eligible,

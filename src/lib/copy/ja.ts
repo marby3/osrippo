@@ -142,7 +142,8 @@ export const ja = {
 		billLink: '投票する',
 		heading: '採決',
 		/** 開発用の分の会期は時刻、カレンダーの月は0時まで */
-		deadline: (s: Session) => `${ja.session.name(s)} ・ 締切 ${s.month === null ? jaTime(s.endsAt) : `${jaDay(s.endsAt)}0時`}`,
+		deadline: (s: Session) => `締切 ${s.month === null ? jaTime(s.endsAt) : `${jaDay(s.endsAt)}0時`}`,
+		ofVote: 'の採決',
 		before: (s: Session) => `採決は${sessionPoint(s, s.voteAt, true)}から始まります。`,
 		assigned: '割り当て法案',
 		votedSuffix: '投票済み',
@@ -170,6 +171,8 @@ export const ja = {
 		choices: { yes: '賛成', no: '反対', abstain: '棄権（どちらにも入れない）' },
 		choose: '票を選んでください',
 		submit: '投票する',
+		checking: '確認しています',
+		abstainHint: '棄権は、変更点の一覧を開くと選べます。',
 		secret: '票の数は締切まで誰にも見えません',
 		done: '投票しました。締切までは変えられます。',
 		backToList: '採決の一覧へ',

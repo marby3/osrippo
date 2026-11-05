@@ -17,7 +17,7 @@
 
 <main>
 	{#if data.open}
-		<p class="deadline">{ja.vote.deadline(data.session)}</p>
+		<p class="deadline">{ja.session.name(data.session)}<span class="pc">{ja.vote.ofVote}</span> ・ {ja.vote.deadline(data.session)}</p>
 		<h1>{ja.vote.assigned}<span class="count"><span class="done">{done}</span> / {total}</span> {ja.vote.votedSuffix}</h1>
 		{#if total}
 			<ol class="progress" data-vote-progress aria-hidden="true">
@@ -35,6 +35,7 @@
 							<span class="state">{ja.vote.voted}</span>
 						{:else}
 							<span class="state todo"><span class="sp">{ja.vote.notYet}</span><span class="pc">{ja.vote.toVote}</span></span>
+							<svg class="chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" /></svg>
 						{/if}
 					</li>
 				{/each}
@@ -110,7 +111,7 @@
 	.rows li {
 		position: relative;
 		display: grid;
-		grid-template-columns: auto 1fr;
+		grid-template-columns: auto 1fr auto;
 		column-gap: 0.75rem;
 		align-items: center;
 		min-height: var(--tap-primary);
@@ -173,6 +174,11 @@
 		font-size: var(--font-size-sub);
 	}
 
+	.chevron {
+		grid-column: 3;
+		grid-row: 1 / span 2;
+	}
+
 	.pc {
 		display: none;
 	}
@@ -204,7 +210,8 @@
 			font-weight: bold;
 		}
 
-		.sp {
+		.sp,
+		.chevron {
 			display: none;
 		}
 
