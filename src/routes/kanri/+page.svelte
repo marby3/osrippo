@@ -27,7 +27,7 @@
 <main>
 	<h1>{ja.kanri.heading}</h1>
 	<!-- 断った文言は、その課題・解決策のところに出す（どれか分からないときだけ上に） -->
-	{#if form && 'message' in form && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId)}
+	{#if form && 'message' in form && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('reviewBill' in form && form.reviewBill)}
 		<p role="alert">{form.message}</p>
 	{/if}
 	{#if data.rows.length === 0}
@@ -107,6 +107,40 @@
 			{/if}
 		</article>
 	{/each}
+
+	<section aria-labelledby="reviews-heading">
+		<h2 id="reviews-heading" class="section">{ja.review.kanriHeading}</h2>
+		{#if data.reviews.length === 0}<p>{ja.review.kanriEmpty}</p>{/if}
+		{#each data.reviews as row (row.billId)}
+			<article>
+				<h3><a href="/houan/{row.billId}">{row.title}</a></h3>
+				<ul class="reasons">
+					{#each row.signals as signal (signal)}<li>{ja.review.signals[signal]}</li>{/each}
+				</ul>
+				{#if form && 'reviewBill' in form && form.reviewBill === row.billId}<p role="alert">{form.message}</p>{/if}
+				{#if row.involved}
+					<p>{ja.review.involved}</p>
+				{:else if row.counts && row.detail}
+					<p>{ja.review.counts(row.counts.yes, row.counts.no, row.counts.abstain)}</p>
+					<p>{ja.review.kanriDetail(row.detail.flagged, row.detail.maxLine, row.detail.longestRun, row.detail.runSeconds)}</p>
+					<p>{ja.review.withoutLabel}{ja.review.kanriWithout[row.detail.without]}</p>
+					<form method="post" action="?/confirmReview" use:enhance>
+						<input type="hidden" name="bill" value={row.billId} />
+						<input type="hidden" name="session" value={row.sessionKey} />
+						<button>{ja.review.confirm}</button>
+					</form>
+					<form method="post" action="?/voidReview" use:enhance>
+						<input type="hidden" name="bill" value={row.billId} />
+						<input type="hidden" name="session" value={row.sessionKey} />
+						<label for="review-note-{row.billId}">{ja.review.voidNote}</label>
+						<p class="hint">{ja.review.voidHint}</p>
+						<textarea id="review-note-{row.billId}" name="note" required maxlength="400" rows="2"></textarea>
+						<button>{ja.review.void}</button>
+					</form>
+				{/if}
+			</article>
+		{/each}
+	</section>
 
 	<section aria-labelledby="solutions-heading">
 		<h2 id="solutions-heading" class="section">{ja.kanri.solutionsHeading}</h2>

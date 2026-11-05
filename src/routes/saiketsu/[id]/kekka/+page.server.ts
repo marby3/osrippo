@@ -16,17 +16,22 @@ export const load: PageServerLoad = async (event) => {
 	if (progress !== 'lapsed') return { ...shell, phase: 'before' as const };
 	const result = await resultOnRead(db as unknown as BatchDb, bill, sessionsAt(now).minutes, now);
 	if (!result) return { ...shell, phase: 'counting' as const };
+	// 確認中は可否も票の数も返さない（docs/spec/73.md の C）
+	if (result.review?.status === 'open') return { ...shell, phase: 'reviewing' as const };
+	const voided = result.review?.status === 'voided';
 	const reference = { yes: result.refYes, no: result.refNo, abstain: result.refAbstain };
 	return {
 		...shell,
 		phase: 'done' as const,
-		outcome: result.outcome,
+		// 無効の行の outcome は可決のまま残っているので、そのまま使わない（廃案として返す）
+		outcome: voided ? ('lapsed' as const) : result.outcome,
+		voidedNote: voided ? (result.review?.note ?? '') : null,
 		quorum: result.quorum,
 		counted: { yes: result.yes, no: result.no, abstain: result.abstain },
 		reference,
-		comparison: referenceComparison(result.outcome, reference, result.quorum),
-		place: result.outcome === 'passed' ? await ifPlaceOf(db, bill.id, result.rev) : null,
-		adjustment: result.outcome === 'passed' ? await adjustmentOf(db, result.sessionKey, bill.id) : null,
+		comparison: voided ? null : referenceComparison(result.outcome, reference, result.quorum),
+		place: !voided && result.outcome === 'passed' ? await ifPlaceOf(db, bill.id, result.rev) : null,
+		adjustment: !voided && result.outcome === 'passed' ? await adjustmentOf(db, result.sessionKey, bill.id) : null,
 		now,
 		amendments: (await priorAmendmentResults(db, bill.id, session.key)).map((a) => ({ id: a.id, location: articleLabel(a.num), status: a.status as 'passed' | 'failed' | 'superseded' | 'lapsed' }))
 	};

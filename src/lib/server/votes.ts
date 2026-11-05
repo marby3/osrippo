@@ -155,14 +155,15 @@ export async function castVote(db: Db, actor: Actor, session: Session, previous:
 export const emptyCounts = (): VoteCounts => ({ yes: 0, no: 0, abstain: 0 });
 
 /** 有効票の条件（票の表ごとに共通）。割り当てを済ませる条件は本案の票だけで、修正案の票は入らない（Issue #63 決めたこと14） */
-export const countedVote = (session: Session, table: typeof votes | typeof amendmentVotes) =>
+export const countedCondition = (session: Session, table: typeof votes | typeof amendmentVotes) =>
 	sql<number>`(
 		${eligible(session)}
 		AND NOT EXISTS (
 			SELECT 1 FROM ${voteAssignments} va WHERE va.session_key = ${table}.session_key AND va.user_id = ${table}.user_id
 			AND NOT EXISTS (SELECT 1 FROM ${votes} w WHERE w.session_key = va.session_key AND w.bill_id = va.bill_id AND w.user_id = va.user_id)
 		)
-	)`.as('counted');
+	)`;
+export const countedVote = (session: Session, table: typeof votes | typeof amendmentVotes) => countedCondition(session, table).as('counted');
 
 /**
  * 法案の票の数。投票資格があり、その会期の割り当てのすべてに票を入れた人の票が有効票で、それ以外は参考票。

@@ -8,6 +8,10 @@ export const BILL_OUTCOMES = ['passed', 'rejected', 'lapsed'] as const;
 export type BillOutcome = (typeof BILL_OUTCOMES)[number];
 
 /** 要調整の理由（docs/spec/72.md）。article は先に変わった条と重なる、repealed は対象の法令が先に廃止された（直せない）、title は同じ名前の法律が先にできた */
+/** 票の偏りの確認の状態（docs/spec/73.md）。noted は保留しなかった行 */
+export const REVIEW_STATUSES = ['noted', 'open', 'confirmed', 'voided'] as const;
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+
 export const ADJUSTMENT_REASONS = ['article', 'repealed', 'title'] as const;
 export type AdjustmentReason = (typeof ADJUSTMENT_REASONS)[number];
 
@@ -43,15 +47,17 @@ export function drawAssignments<T>(candidates: readonly T[], count: number, rand
 	return pool.slice(0, picks);
 }
 
-export type BillStage = Exclude<BillProgress, 'lapsed'> | BillOutcome | 'counting' | 'adjusting';
+export type BillStage = Exclude<BillProgress, 'lapsed'> | BillOutcome | 'counting' | 'adjusting' | 'reviewing';
 
 /**
  * 画面に出す法案の段階。時刻から求めた進みを先に見る。会期が終わった法案だけ結果を使い、結果がなければ集計中。
  * 会期が終わる前に結果の行があっても可決と出さない。要調整は期限の前だけで、直せない理由（法令の廃止）と期限切れは廃案。
- * adjustment はいまの付託先の会期の行で、未解決のもの
+ * adjustment はいまの付託先の会期の行で、未解決のもの。順は、確認中 → 無効（廃案）→ 要調整 → 結果
  */
-export function billStage(progress: BillProgress, outcome: BillOutcome | null, adjustment: { reason: AdjustmentReason; dueAt: number } | null = null, now = 0): BillStage {
+export function billStage(progress: BillProgress, outcome: BillOutcome | null, adjustment: { reason: AdjustmentReason; dueAt: number } | null = null, now = 0, review: ReviewStatus | null = null): BillStage {
 	if (progress !== 'lapsed') return progress;
+	if (review === 'open') return 'reviewing';
+	if (review === 'voided') return 'lapsed';
 	if (adjustment) return adjustment.reason !== 'repealed' && now < adjustment.dueAt ? 'adjusting' : 'lapsed';
 	return outcome ?? 'counting';
 }

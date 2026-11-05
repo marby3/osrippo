@@ -8,7 +8,7 @@ import { BILL_KINDS, CHANGE_OPS } from '../domain/bills';
 import { POST_KINDS, STANCES, type PostRole } from '../domain/posts';
 import { EVALUATION_KINDS } from '../domain/evaluations';
 import type { AmendmentStatus } from '../domain/amendments';
-import { ADJUSTMENT_REASONS, BILL_OUTCOMES, VOTE_CHOICES } from '../domain/votes';
+import { ADJUSTMENT_REASONS, BILL_OUTCOMES, REVIEW_STATUSES, VOTE_CHOICES } from '../domain/votes';
 
 export const laws = sqliteTable('laws', {
 	/** e-Gov の law_id */
@@ -948,4 +948,29 @@ export const billAdjustments = sqliteTable(
 		createdAt: integer('created_at').notNull()
 	},
 	(t) => [primaryKey({ columns: [t.billId, t.sessionKey] }), check('bill_adjustments_reason', sql`${t.reason} IN (${inList(ADJUSTMENT_REASONS)})`)]
+);
+
+/**
+ * 票の偏りの確認（設計書 docs/spec/73.md）。noted は見つかったが可否に関わらないので保留しなかった行。
+ * bill_results は変えず、無効はここで表す。decided_by は公開しない
+ */
+export const voteReviews = sqliteTable(
+	'vote_reviews',
+	{
+		sessionKey: text('session_key').notNull(),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		/** 見つかった種類の JSON 配列（ANOMALY_SIGNALS） */
+		signals: text('signals').notNull(),
+		/** 運営の画面の集計の JSON（AnomalyDetail） */
+		detail: text('detail').notNull(),
+		status: text('status', { enum: REVIEW_STATUSES }).notNull(),
+		note: text('note'),
+		decidedRole: text('decided_role', { enum: ROLES }),
+		decidedBy: text('decided_by'),
+		decidedAt: integer('decided_at'),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.sessionKey, t.billId] }), index('vote_reviews_status').on(t.status), check('vote_reviews_status_check', sql`${t.status} IN (${inList(REVIEW_STATUSES)})`)]
 );

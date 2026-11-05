@@ -3,10 +3,12 @@ import { error, fail, type RequestEvent } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '#lib/copy/ja.ts';
-import { parseIssueId } from '#lib/domain/issues.ts';
+import { checkText, parseIssueId } from '#lib/domain/issues.ts';
+import { REVIEW_NOTE_MAX } from '#lib/domain/anomalies.ts';
 import { HIDEABLE, LISTED, RESTORABLE, validateSolutionAction, validateStaffAction } from '#lib/domain/reports.ts';
-import { allowedCountry, clientOf, nowOf } from '#lib/server/client.ts';
-import type { Db } from '#lib/server/law.ts';
+import { allowedCountry, clientOf, nowOf, sessionsAt } from '#lib/server/client.ts';
+import type { BatchDb, Db } from '#lib/server/law.ts';
+import { decideReview, involvedInBill, pendingReviews } from '#lib/server/results.ts';
 import { issueMeta } from '#lib/server/issues.ts';
 import { changeStatus, mergeIssue, mergePreview, reportedIssues, roleOf } from '#lib/server/reports.ts';
 import { changeSolutionStatus, reportedSolutions, solutionMeta } from '#lib/server/solutions.ts';
@@ -68,7 +70,8 @@ export const load: PageServerLoad = async (event) => {
 		focus,
 		merge,
 		solutions: solutionRows.map(({ userId, ...r }) => ({ ...r, mine: userId === staff.userId })),
-		focusSolution
+		focusSolution,
+		reviews: await pendingReviews(db, staff.userId)
 	};
 };
 
@@ -129,7 +132,25 @@ const actOnSolution = (action: 'hide' | 'restore') => async (event: RequestEvent
 	return { doneSolution: solutionId };
 };
 
+/** 結果の確認（docs/spec/73.md 決めたこと7）。確かめの順：役職 → 国 → 入力 → 自分の関わり → 状態 */
+const decide = (decision: 'confirm' | 'void') => async (event: RequestEvent) => {
+	const { db, staff } = await staffOf(event);
+	if (!allowedCountry(clientOf(event).country)) return fail(403, { message: ja.guard.outsideJapan, reviewBill: null });
+	const form = await event.request.formData();
+	const billId = parseIssueId(String(form.get('bill') ?? ''));
+	const sessionKey = String(form.get('session') ?? '');
+	const [note, noteError] = checkText(String(form.get('note') ?? ''), REVIEW_NOTE_MAX, true);
+	if (billId === null || !sessionKey || (decision === 'void' && noteError)) return fail(400, { message: ja.review.invalid, reviewBill: billId });
+	if (await involvedInBill(db, billId, staff.userId)) return fail(403, { message: ja.review.involved, reviewBill: billId });
+	const now = nowOf(event);
+	const done = await decideReview(db as unknown as BatchDb, staff, sessionKey, billId, decision, decision === 'void' ? note : null, now, sessionsAt(now).minutes);
+	if (!done) return fail(409, { message: ja.review.closed, reviewBill: billId });
+	return { decided: billId };
+};
+
 export const actions: Actions = {
+	confirmReview: decide('confirm'),
+	voidReview: decide('void'),
 	hide: act('hide'),
 	restore: act('restore'),
 	merge: act('merge'),
