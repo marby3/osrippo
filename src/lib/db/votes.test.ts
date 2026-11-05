@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, test } from 'vitest';
 import { openMemoryDb } from './memory';
 import type { Db } from '../server/law';
 import { sessionParticipants } from '../server/bills';
-import { assignedBills, billsInVote, castVote, isEligibleVoter, tallyVotes } from '../server/votes';
+import { assignedBills, billsInVote, castVote, isEligibleVoter, tallyVotes, voteLimit } from '../server/votes';
 import { referralSession } from '../domain/bills';
 import { drawAssignments } from '../domain/votes';
 import { sessionAt, type Session } from '../domain/session';
@@ -19,6 +19,7 @@ const previousOf = (s: Session) => sessionAt(s.startsAt - 1, null);
 /** その会期の採決の期間のなか */
 const inVote = (s: Session) => s.voteAt + 1000;
 const first = () => 0;
+const HOUR_AGO = 60 * 60 * 1000;
 
 let nextUser = 1;
 const addUser = (createdAt = 0) => {
@@ -182,7 +183,7 @@ test('基準7：資格があり割り当てをすべて済ませた人の最後�
 	const author = voter(s);
 	const billA = addBill(author, jst('2044-05-01T00:00:00'));
 	const billB = addBill(author, jst('2044-05-02T00:00:00'));
-	const cast = (who: string, bill: number, choice: 'yes' | 'no' | 'abstain', at = now) => castVote(db, who, s, previous, bill, choice, at, first);
+	const cast = (who: string, bill: number, choice: 'yes' | 'no' | 'abstain', at = now) => castVote(db, { userId: who, registeredAt: 0, ipHash: 'x' }, s, previous, bill, choice, at, first);
 
 	// 有効票：資格があり、2本とも入れた
 	const done = voter(s);
@@ -226,4 +227,64 @@ test('基準7：資格があり割り当てをすべて済ませた人の最後�
 	expect(count()).toBe(0);
 	expect(await cast(outsider, billA, 'yes')).toBe(true);
 	expect(count()).toBe(1);
+});
+
+test('Issue #70 基準6：票を入れた記録は票が変わったときだけ足し、法案の番号を入れる。同じ票の入れ直しは入れられた扱いで、記録を足さない', async () => {
+	clearVotes();
+	const s = monthOf('2045-05');
+	const previous = previousOf(s);
+	const now = inVote(s);
+	const bill = addBill(addUser(), jst('2045-05-01T00:00:00'));
+	const u = voter(s);
+	const actor = { userId: u, registeredAt: 0, ipHash: 'ip-record' };
+	const cast = (choice: 'yes' | 'no') => castVote(db, actor, s, previous, bill, choice, now, first);
+	const records = () => sqlite.prepare("SELECT target_id, ip_hash FROM actions WHERE kind = 'vote_cast' AND user_id = ?").all(u).map((r) => ({ ...r }));
+
+	expect(await cast('yes')).toBe(true);
+	expect(records()).toEqual([{ target_id: bill, ip_hash: 'ip-record' }]);
+	expect(await cast('yes')).toBe(true);
+	expect(records()).toHaveLength(1);
+	expect(await cast('no')).toBe(true);
+	expect(records()).toHaveLength(2);
+	expect((await tallyVotes(db, s, bill)).counted).toEqual({ yes: 0, no: 1, abstain: 0 });
+});
+
+test('Issue #70 基準9：票の上限。1アカウント24時間に100回と5分に20回は違反に数え、1回線24時間に300回は数えない。本案と修正案の記録を合わせて数える', async () => {
+	const now = jst('2046-05-25T00:00:00');
+	const MINUTE = 60_000;
+	let ips = 0;
+	const add = (userId: string, ipHash: string, at: number, target: number | null) =>
+		run("INSERT INTO actions (kind, user_id, ip_hash, target_id, created_at) VALUES ('vote_cast', ?, ?, ?, ?)", userId, ipHash, target, at);
+	const person = () => {
+		const ipHash = `ip-limit-${++ips}`;
+		return { userId: addUser(), registeredAt: 0, ipHash };
+	};
+	const violations = (id: string) => (sqlite.prepare("SELECT count(*) AS n FROM actions WHERE kind = 'violation' AND user_id = ?").get(id) as { n: number }).n;
+
+	// 24時間に100回（本案の記録は法案の番号あり、修正案の記録はなし）。5分より前で、24時間より前は数えない
+	const daily = person();
+	add(daily.userId, daily.ipHash, now - 25 * 60 * MINUTE, null);
+	for (let i = 0; i < 99; i++) add(daily.userId, daily.ipHash, now - 6 * MINUTE, i % 2 ? 1 : null);
+	expect(await voteLimit(db, daily, now)).toBeNull();
+	add(daily.userId, daily.ipHash, now - 6 * MINUTE, 1);
+	expect(await voteLimit(db, daily, now)).toEqual({ ok: false, refusal: { kind: 'vote-day' } });
+	expect(violations(daily.userId)).toBe(1);
+
+	// 5分に20回
+	const burst = person();
+	add(burst.userId, burst.ipHash, now - 5 * MINUTE, 1);
+	for (let i = 0; i < 19; i++) add(burst.userId, burst.ipHash, now - MINUTE, i % 2 ? 1 : null);
+	expect(await voteLimit(db, burst, now)).toBeNull();
+	add(burst.userId, burst.ipHash, now - MINUTE, 1);
+	expect(await voteLimit(db, burst, now)).toEqual({ ok: false, refusal: { kind: 'vote-burst' } });
+	expect(violations(burst.userId)).toBe(1);
+
+	// 1回線で300回。ほかの人の票も合わせて数え、違反に数えない
+	const line = person();
+	const neighbor = addUser();
+	for (let i = 0; i < 299; i++) add(neighbor, line.ipHash, now - HOUR_AGO, i % 2 ? 1 : null);
+	expect(await voteLimit(db, line, now)).toBeNull();
+	add(neighbor, line.ipHash, now - HOUR_AGO, 1);
+	expect(await voteLimit(db, line, now)).toEqual({ ok: false, refusal: { kind: 'vote-ip' } });
+	expect(violations(line.userId)).toBe(0);
 });
