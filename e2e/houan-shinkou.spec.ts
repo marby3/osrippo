@@ -104,19 +104,31 @@ test('基準4：一覧の段階の列は 発議・質疑中・採決中・廃案
 		else await expect(row(v.page)).toContainText(`${stage} ・ 賛同 3人`);
 	};
 
-	await v.page.goto('/houan');
+	// 未来の日付で作った法案が1ページ目を埋めることがあるので、ページをたどる
+	const openRow = async (path: string) => {
+		await v.page.goto(path);
+		for (let page = 1; page <= 30; page++) {
+			if (await row(v.page).count()) return true;
+			const next = v.page.getByRole('link', { name: '次のページ' });
+			if ((await next.count()) === 0) return false;
+			await next.click();
+			await v.page.waitForLoadState();
+		}
+		return false;
+	};
+
+	expect(await openRow('/houan')).toBe(true);
 	await expectStage('発議');
 	await v.setNow(at(now, 15));
-	await v.page.goto('/houan');
+	expect(await openRow('/houan')).toBe(true);
 	await expectStage('質疑中');
 	await v.setNow(at(now, 22));
-	await v.page.goto('/houan');
+	expect(await openRow('/houan')).toBe(true);
 	await expectStage('採決中');
 
 	await v.setNow(at(next, 1));
-	await v.page.goto('/houan');
-	await expect(row(v.page)).toHaveCount(0);
-	await v.page.goto('/houan?tab=owari');
+	expect(await openRow('/houan')).toBe(false);
+	expect(await openRow('/houan?tab=owari')).toBe(true);
 	await expectStage('廃案');
 });
 
