@@ -5,7 +5,7 @@ import type { BatchItem } from 'drizzle-orm/batch';
 import { actions, billAdjustments, billChanges, billLaws, billResults, bills, billSupports, ifAddedArticles, ifBranches, ifImportArticles, ifImportRuns, ifImports, ifLaws, ifRevisions, laws, lawRevisions, provisions, voteReviews } from '../db/schema';
 import { referralSession, type BillChange, type BillKind } from '../domain/bills';
 import { PAGE_SIZE } from '../domain/issues';
-import { articleBodyText, articleLabel, changedArticles, compareNum, conflictOf as realConflictOf, headingPaths, tableOfContents, type IfArticle, type Paragraph } from '../domain/law';
+import { articleBodyText, articleLabel, changedArticles, compareNum, articleConflict, headingPaths, tableOfContents, type IfArticle, type Paragraph } from '../domain/law';
 import { checkBillSave, DAY, type Refusal } from '../domain/limits';
 import type { Session } from '../domain/session';
 import type { AdjustmentReason } from '../domain/votes';
@@ -20,7 +20,7 @@ const SUPPORT_ROWS_PER_STATEMENT = 20;
 const IMPORT_ROWS_PER_STATEMENT = 7;
 
 /** その法令の次の IF世界の版の番号。反映と取り込みで1つの列にする（docs/spec/95.md）。1つの文の中で使う */
-const nextIfSeq = (lawId: string) => sql`(SELECT COALESCE(MAX(s), 0) + 1 FROM (SELECT seq AS s FROM if_revisions WHERE law_id = ${lawId} UNION ALL SELECT seq AS s FROM if_imports WHERE law_id = ${lawId}))`;
+export const nextIfSeq = (lawId: string) => sql`(SELECT COALESCE(MAX(s), 0) + 1 FROM (SELECT seq AS s FROM if_revisions WHERE law_id = ${lawId} UNION ALL SELECT seq AS s FROM if_imports WHERE law_id = ${lawId}))`;
 
 /** 分岐した版。なければいま施行されている版で固定する（sessionParticipants と同じ形）。法令がなければ undefined */
 export async function ifBranchOf(db: Db, lawId: string): Promise<string | undefined> {
@@ -166,13 +166,18 @@ function touching(rows: Awaited<ReturnType<typeof overlayRows>>, imported: Await
 	];
 }
 
-/** 内部IDが続けて変わった条を、いまの内部IDまでたどる */
-function followClosed(imported: Awaited<ReturnType<typeof importedRows>>) {
+/** 内部IDからいまの IF世界の条を引く。IF世界に残っている条は内部IDのまま引き、なければ内部IDが変わった先をたどる */
+function articleByProvision<T extends { id: number }>(articles: T[], imported: Awaited<ReturnType<typeof importedRows>>) {
 	const next = new Map(imported.filter((r) => r.closedProvisionId !== null).map((r) => [r.closedProvisionId as number, r.provisionId]));
+	const byId = new Map(articles.map((a) => [a.id, a]));
 	return (id: number) => {
-		let at = id;
-		for (let hop = next.get(at); hop !== undefined; hop = next.get(at)) at = hop;
-		return at;
+		let at: number | undefined = id;
+		while (at !== undefined) {
+			const found = byId.get(at);
+			if (found) return found;
+			at = next.get(at);
+		}
+		return undefined;
 	};
 }
 
@@ -185,23 +190,24 @@ export async function staleArticles(db: Db, law: LawContent) {
 	const head = await ifHeadOf(db, law.lawId);
 	if (!head.branchRevisionId) return [];
 	const articles = await ifArticles(db, law.lawId, head.branchRevisionId, head.seq);
-	const resolve = followClosed(imported);
+	const find = articleByProvision(articles, imported);
 	const result = new Map<string, { num: string; label: string; caption: string; body: string }>();
 	for (const t of touched) {
 		// 内部IDでいまの条を選ぶ。なければ番号で（隠れた現実の条の番号には IF世界の条がある）。なくなった条は番号で選ばない
-		const a = articles.find((x) => t.id !== null && x.id === resolve(t.id)) ?? (t.removed ? undefined : articles.find((x) => x.num === t.num));
+		const a = (t.id !== null ? find(t.id) : undefined) ?? (t.removed ? undefined : articles.find((x) => x.num === t.num));
 		if (a) result.set(a.num, { num: a.num, label: a.label, caption: a.caption, body: articleBodyText(a.paragraphs) });
-		else result.set(t.num, { num: t.num, label: articleLabel(t.num), caption: '', body: '' });
+		// 同じ番号にいまの条があれば、そちらを出す
+		else if (!result.has(t.num)) result.set(t.num, { num: t.num, label: articleLabel(t.num), caption: '', body: '' });
 	}
-	return [...result.values()];
+	return [...result.values()].sort((a, b) => compareNum(a.num, b.num));
 }
 
 /** 書く画面に出す番号（docs/spec/95.md 決めたこと4）：内部IDのいまの IF世界の番号。内部IDが変わった条はいまの条の番号。なくなった条は null */
 export async function currentNumsOf(db: Db, lawId: string, provisionIds: number[]) {
 	const head = await ifHeadOf(db, lawId);
 	const articles = head.branchRevisionId ? await ifArticles(db, lawId, head.branchRevisionId, head.seq) : [];
-	const resolve = followClosed(await importedRows(db, lawId));
-	return new Map(provisionIds.map((id) => [id, articles.find((a) => a.id === resolve(id))?.num ?? null]));
+	const find = articleByProvision(articles, await importedRows(db, lawId));
+	return new Map(provisionIds.map((id) => [id, find(id)?.num ?? null]));
 }
 
 /** 発議を断る理由。可決しても必ず要調整か廃案になる下書き（docs/spec/72.md の E と B4） */
@@ -314,7 +320,7 @@ export async function applySession(db: BatchDb, session: Session, minutes: numbe
 
 /** 1つの法令を、その会期の最終日までに施行された版まで取り込む。途中に条件を満たさない版があれば、その後ろは取り込まない */
 async function importLaw(db: BatchDb, session: Session, lawId: string, lastDay: string, now: number) {
-	const [{ repealed, branchRevisionId, baseRevisionId }] = [await ifHeadOf(db, lawId)];
+	const { repealed, branchRevisionId, baseRevisionId } = await ifHeadOf(db, lawId);
 	if (repealed || !branchRevisionId || !baseRevisionId) return;
 	const [pin] = await db.select({ seq: lawRevisions.seq }).from(lawRevisions).where(eq(lawRevisions.id, baseRevisionId));
 	const later = await db
@@ -328,7 +334,7 @@ async function importLaw(db: BatchDb, session: Session, lawId: string, lastDay: 
 		const [before, after, head] = await Promise.all([articlesOfRevision(db, base), articlesOfRevision(db, revision.id), ifHeadOf(db, lawId)]);
 		const changedInIf = (await ifArticles(db, lawId, branchRevisionId, head.seq)).filter((a): a is typeof a & IfArticle => a.changedBy !== null);
 		const rows = changedArticles(before, after).map((c) => {
-			const conflict = realConflictOf(c, changedInIf);
+			const conflict = articleConflict(c, changedInIf);
 			return {
 				lawId,
 				revisionId: revision.id,
@@ -383,7 +389,7 @@ export async function importPage(db: Db, lawId: string, page: number) {
 	const [law] = await db.select({ id: laws.id, title: laws.title }).from(laws).where(eq(laws.id, lawId));
 	if (!law) return undefined;
 	const rows = await db
-		.select({ revisionId: ifImports.revisionId, date: lawRevisions.enforcementDate, amendmentTitle: lawRevisions.amendmentLawTitle, amendmentNum: lawRevisions.amendmentLawNum })
+		.select({ seq: ifImports.seq, revisionId: ifImports.revisionId, date: lawRevisions.enforcementDate, amendmentTitle: lawRevisions.amendmentLawTitle, amendmentNum: lawRevisions.amendmentLawNum })
 		.from(ifImports)
 		.innerJoin(lawRevisions, eq(lawRevisions.id, ifImports.revisionId))
 		.where(eq(ifImports.lawId, lawId))
@@ -420,7 +426,6 @@ export async function importPage(db: Db, lawId: string, page: number) {
 			const own = articles.filter((a) => a.revisionId === revisionId).sort(byNum);
 			return {
 				...r,
-				key: revisionId,
 				changed: own.filter((a) => a.conflict === 0).map((a) => ({ num: a.num, label: label(a.num), prevLabel: label(a.prevNum), change: a.change })),
 				conflicts: own
 					.filter((a) => a.conflict === 1)

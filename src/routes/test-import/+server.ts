@@ -8,7 +8,7 @@ import { billChanges, billLaws, bills, ifRevisions, lawRevisions, provisions, pr
 import { seedStatements } from '#lib/db/seed.ts';
 import { sessionAt } from '#lib/domain/session.ts';
 import { isTestServer } from '#lib/server/client.ts';
-import { ifArticles, ifBranchOf, ifHeadOf, importReal } from '#lib/server/if-world.ts';
+import { ifArticles, ifBranchOf, ifHeadOf, importReal, nextIfSeq } from '#lib/server/if-world.ts';
 import type { BatchDb } from '#lib/server/law.ts';
 import { syncLaw } from '#lib/server/law-sync.ts';
 import type { RequestHandler } from './$types';
@@ -77,7 +77,7 @@ export const POST: RequestHandler = async ({ request, url }) => {
 		}
 		await db.run(sql`
 			INSERT INTO ${ifRevisions} (law_id, seq, bill_id, bill_rev, law_seq, session_key, created_at)
-			SELECT ${lawId}, (SELECT COALESCE(MAX(s), 0) + 1 FROM (SELECT seq AS s FROM if_revisions WHERE law_id = ${lawId} UNION ALL SELECT seq AS s FROM if_imports WHERE law_id = ${lawId})), ${bill.id}, 1, 0, 'test-import', ${now}`);
+			SELECT ${lawId}, ${nextIfSeq(lawId)}, ${bill.id}, 1, 0, 'test-import', ${now}`);
 		return json({ ok: true, billId: bill.id });
 	}
 

@@ -27,7 +27,7 @@
 		<p>{ja.torikomi.empty}</p>
 	{/if}
 
-	{#each data.imports as item (item.key)}
+	{#each data.imports as item (item.seq)}
 		<section data-import>
 			<h2>{ja.torikomi.enforced(item.date)}</h2>
 			{#if item.amendmentTitle}<p class="sub">{item.amendmentTitle}{item.amendmentNum ? `（${item.amendmentNum}）` : ''}</p>{/if}
@@ -39,7 +39,8 @@
 			{#if item.changed.length}
 				<h3>{ja.torikomi.changedHeading}</h3>
 				<ul data-changed>
-					{#each item.changed as row (row.num)}
+					<!-- 第5条を削除して第6条を第5条にすると、同じ番号の行が2つできる -->
+					{#each item.changed as row (`${row.change}:${row.num}`)}
 						<li>{row.prevLabel ? ja.torikomi.moved(row.prevLabel, row.label) : row.label}<span class="kind">{ja.torikomi.changes[row.change]}</span></li>
 					{/each}
 				</ul>
@@ -47,7 +48,7 @@
 
 			{#if item.conflicts.length}
 				<h3>{ja.torikomi.conflictsHeading}</h3>
-				{#each item.conflicts as row (row.num)}
+				{#each item.conflicts as row (`${row.change}:${row.num}`)}
 					<article data-conflict>
 						<div class="side">
 							<h4>{ja.torikomi.real}：{row.prevLabel ? ja.torikomi.moved(row.prevLabel, row.label) : row.label}<span class="caption">{row.realCaption}</span></h4>

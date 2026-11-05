@@ -130,6 +130,8 @@ test('基準4：一覧の段階の列は 発議・質疑中・採決中・廃案
 });
 
 test('基準5：質疑・採決・廃案の法案にはボタンが出ず、送っても受け付けない。賛同の数は出たまま', async ({ browser }, info) => {
+	// 3人が3つの時刻で読むので重い（全部の画面のテストと一緒だと30秒に届く）
+	test.setTimeout(120_000);
 	const w = info.project.name as Width;
 	const { now, next } = months(w, 2037);
 	const made = await proposedBill(browser, w, 3, at(now, 5));
