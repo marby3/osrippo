@@ -366,6 +366,16 @@ test('基準4：取り込みで変わった条に触れる下書きは確かめ�
 	const nums = await currentNumsOf(w.db, law.lawId, [ids['2'], ids['3'], ids['4'], ids['5'], ids['6']]);
 	expect(Object.fromEntries(nums)).toEqual({ [ids['2']]: '20', [ids['3']]: '2', [ids['4']]: '4', [ids['5']]: null, [ids['6']]: '6' });
 
+	// IF世界で変えた条を現実が別の内部IDにしても、IF世界の条が残っているので、なくなった条にならない
+	const kept = await w.addLaw(articles([1, 2]));
+	const keptId = await w.idOf(kept.baseId, '1');
+	await w.pass(s, kept, [{ num: '1', op: 'amend', provisionId: keptId, text: 'IFの本文1' }]);
+	await kept.revise('2030-05-10', [{ num: '1', text: textOf(11) }, { num: '2', text: textOf(2) }]);
+	await importReal(w.db, nextOf(s), after(nextOf(s)));
+	expect(await w.bodyOf(kept, '1')).toBe('IFの本文1');
+	expect(Object.fromEntries(await currentNumsOf(w.db, kept.lawId, [keptId]))).toEqual({ [keptId]: '1' });
+	expect(await staleArticles(w.db, { action: 'amend', lawId: kept.lawId, baseRevisionId: kept.baseId, baseIfSeq: 0, newTitle: null, changes: [{ num: '1', op: 'amend', provisionId: keptId }] })).toMatchObject([{ num: '1', body: 'IFの本文1' }]);
+
 	// 可決までいった法案は要調整。いまの版を基にした法案は反映される
 	const head = await ifHeadOf(w.db, law.lawId);
 	const stale = await w.pass(next, law, [{ num: '1', op: 'amend', provisionId: ids['1'], text: 'IFの本文1' }]);
