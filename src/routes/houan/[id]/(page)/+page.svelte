@@ -93,6 +93,15 @@
 				</ul>
 			</section>
 		{/if}
+		<!-- 出し直し（docs/spec/75.md）。提出者にだけ出る -->
+		{#if data.resubmit?.next}
+			<p class="act"><a href="/houan/{data.resubmit.next.id}">{ja.bill.resubmit.open}</a></p>
+		{:else if data.resubmit?.can}
+			<form method="post" action="?/resubmit" use:enhance class="act">
+				<button class="primary">{ja.bill.resubmit.button}</button>
+				<p class="note">{ja.bill.resubmit.note}</p>
+			</form>
+		{/if}
 		<!-- 賛同と発議（docs/spec/49.md 決めたこと7） -->
 		{#if remaining !== null}
 			<form method="post" action="?/propose" use:enhance class="act">

@@ -62,6 +62,9 @@ export function billStage(progress: BillProgress, outcome: BillOutcome | null, a
 	return outcome ?? 'counting';
 }
 
+/** 出し直せる段階（docs/spec/75.md）。否決と廃案で、対象の法令が IF世界で廃止されていない法案 */
+export const canResubmit = (stage: BillStage, lawGone: boolean) => (stage === 'rejected' || stage === 'lapsed') && !lawGone;
+
 /**
  * 数えた票の結果と参考の票を比べる。どちらにも可否があるときだけ比べる。
  * 参考の票が定足数に届かないときは比べない（1票だけの参考の票で「可否が逆」と出さない）。廃案には可否がない

@@ -101,7 +101,7 @@ test('基準4：提出者にだけボタンが出て、押すと新しい下書�
 	const copy = new URL(a.page.url()).pathname;
 	await expect(a.page.getByRole('heading', { name: title, level: 1 })).toBeVisible();
 	await expect(a.page.getByText('賛同 0人')).toBeVisible();
-	const link = a.page.getByRole('main').getByRole('link', { name: title });
+	const link = a.page.getByRole('main').getByRole('link', { name: title, exact: true });
 	await expect(a.page.getByText('元の法案：')).toBeVisible();
 	await expect(link).toHaveAttribute('href', path);
 	await expect(a.page.getByText('共同起草')).toHaveCount(0);
@@ -125,18 +125,21 @@ test('基準4：提出者にだけボタンが出て、押すと新しい下書�
 	await a.page.goto(path);
 	await expect(a.page.getByRole('link', { name: '出し直した法案を開く' })).toHaveAttribute('href', copy);
 
-	// 可決の法案は出し直せない
-	const p = await s.person(at(s.month, 5));
-	const passed = await s.bill(`可決の法案 ${s.label}`, p, await ifTarget(p.page, slot(w)));
+	// 可決の法案は出し直せない（上の法案の会期は結果が確定しているので、別の年の会期で確かめる）
+	const y = setup(browser, w, 3);
+	const p = await y.person(at(y.month, 5));
+	const passed = await y.bill(`可決の法案 ${y.label}`, p, await ifTarget(p.page, slot(w)));
 	const id = passed.replace('/houan/', '');
 	for (let i = 0; i < 10; i++) {
-		const v = await s.person(at(shift(s.month, -1), 10));
-		await postIssue(v.page, { title: `前の月の課題 ${s.label} ${i}` });
-		await v.setNow(at(s.month, 22));
+		const v = await y.person(at(shift(y.month, -1), 10));
+		await postIssue(v.page, { title: `前の月の課題 ${y.label} ${i}` });
+		await v.setNow(at(y.month, 22));
 		const res = await billRequest(v.page, `/saiketsu/${id}?/vote`, { choice: 'yes', 'cf-turnstile-response': 'test-pass' });
 		expect(res.status(), await res.text()).toBe(200);
 	}
-	await p.setNow(after);
+	await p.setNow(at(shift(y.month, 1), 2));
+	await p.page.goto(`/saiketsu/${id}/kekka`);
+	await expect(p.page.getByRole('main').getByText('可決', { exact: true })).toBeVisible();
 	await p.page.goto(passed);
 	await expect(p.page.getByRole('button', { name: '出し直す' })).toHaveCount(0);
 	expect((await resubmit(p.page, passed)).status()).toBe(409);

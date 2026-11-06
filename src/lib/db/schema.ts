@@ -1,6 +1,6 @@
 // 法令と版の DB（設計書 docs/spec/8.md）
 import { sql } from 'drizzle-orm';
-import { check, foreignKey, index, integer, primaryKey, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import { check, foreignKey, index, integer, primaryKey, real, sqliteTable, text, unique, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { CHANGES } from '../domain/law/history';
 import type { Heading } from '../domain/law/parse';
 import { REACTIONS } from '../domain/solutions';
@@ -486,12 +486,15 @@ export const bills = sqliteTable(
 		/** 発議した時刻。締切の前か後かは会期と比べて求める（#50） */
 		proposedAt: integer('proposed_at'),
 		/** 発議した版。賛同者はこの版の行を数える（設計書 docs/spec/68.md 決めたこと8） */
-		proposedRev: integer('proposed_rev')
+		proposedRev: integer('proposed_rev'),
+		/** 出し直しの元の法案（設計書 docs/spec/75.md）。下書きを確定するときに入れる */
+		resubmittedFrom: integer('resubmitted_from').references((): AnySQLiteColumn => bills.id)
 	},
 	(t) => [
 		index('bills_user').on(t.userId),
 		index('bills_status_updated').on(t.status, t.updatedAt),
 		index('bills_status_created').on(t.status, t.createdAt),
+		index('bills_resubmitted_from').on(t.resubmittedFrom),
 		check('bills_kind', sql`${t.kind} IN (${inList(BILL_KINDS)})`)
 	]
 );

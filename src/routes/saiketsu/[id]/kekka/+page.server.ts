@@ -5,7 +5,8 @@ import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import { adjustmentOf, ifPlaceOf } from '#lib/server/if-world.ts';
 import type { BatchDb } from '#lib/server/law.ts';
 import { postableBill, progressOf } from '#lib/server/post-actions.ts';
-import { priorAmendmentResults, resultOnRead } from '#lib/server/results.ts';
+import { billStageNow, priorAmendmentResults, resultOnRead } from '#lib/server/results.ts';
+import { resubmitStateOf } from '#lib/server/resubmit.ts';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -19,10 +20,18 @@ export const load: PageServerLoad = async (event) => {
 	// 確認中は可否も票の数も返さない（docs/spec/73.md の C）
 	if (result.review?.status === 'open') return { ...shell, phase: 'reviewing' as const };
 	const voided = result.review?.status === 'voided';
+	// 出し直しのリンクは提出者にだけ。outcome は要調整の期限切れで可決のまま残るので、段階で判定する（docs/spec/75.md）
+	let resubmittable = false;
+	if (event.locals.user?.id === bill.userId) {
+		const view = await billStageNow(db as unknown as BatchDb, bill, now, sessionsAt(now).minutes);
+		const state = await resubmitStateOf(db, view.bill, view.stage);
+		resubmittable = state.can && state.next === null;
+	}
 	const reference = { yes: result.refYes, no: result.refNo, abstain: result.refAbstain };
 	return {
 		...shell,
 		phase: 'done' as const,
+		resubmittable,
 		// 無効の行の outcome は可決のまま残っているので、そのまま使わない（廃案として返す）
 		outcome: voided ? ('lapsed' as const) : result.outcome,
 		voidedNote: voided ? (result.review?.note ?? '') : null,

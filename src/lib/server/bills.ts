@@ -65,12 +65,18 @@ export const fields = (input: DraftInput) => ({
 
 /** 下書きを作り、法案の番号を返す。rev = 0 で足し、中身を版 1 で入れてから rev = 1 にする */
 export async function createDraft(db: Db, userId: string, input: DraftInput, now: number): Promise<number> {
+	const id = await createUnconfirmedDraft(db, userId, input, now);
+	await db.update(bills).set({ rev: 1 }).where(and(eq(bills.id, id), eq(bills.rev, 0)));
+	return id;
+}
+
+/** rev = 0 の行と版1の子の行を作る。rev を 1 にするまで、読むところからは見えない */
+export async function createUnconfirmedDraft(db: Db, userId: string, input: DraftInput, now: number): Promise<number> {
 	const [row] = await db
 		.insert(bills)
 		.values({ userId, committeeId: input.committeeId, kind: input.kind, rev: 0, nextRev: 2, ...fields(input), createdAt: now, updatedAt: now })
 		.returning({ id: bills.id });
 	await insertContent(db, row.id, 1, input);
-	await db.update(bills).set({ rev: 1 }).where(and(eq(bills.id, row.id), eq(bills.rev, 0)));
 	return row.id;
 }
 
