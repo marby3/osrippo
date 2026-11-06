@@ -20,6 +20,14 @@ PowerShellとLinuxで同じ `pnpm` スクリプトを使う。
 | `pnpm test:e2e` | 画面のテスト（Playwright、幅390pxと1280px） |
 | `pnpm test:phase` | フェーズの締めのテスト（`e2e/phase*.spec.ts`。フェーズの途中は落ちたままでよい） |
 
+テストの流し方（`ai-dev-workflow` の手順より優先する）：
+
+- 実装中は、触った箇所のテストだけを流す
+- 画面のテストの全部は、レビューの指摘を直したあと、PR の前に1回だけ流す。落ちたら、直して落ちたテストだけを流し直す
+- `pnpm test:phase` を流すのは、締めのテストを書く Issue と、フェーズの最後の PR だけ
+
+Careful の範囲と設計レビューの回数は、[ROADMAP.md](ROADMAP.md) の「モード」に書いてある。
+
 - ブランチ名に `#` を入れない（`feat/12`）。Issue番号はコミット本文の `Refs: #12` に書く
 - 法令の生データは `tests/fixtures/egov/` にある。テストからe-Gov法令APIを呼ばない
 - 画面の画像はキャンバスから `node scripts/ui-images.mjs <フォルダ>` で作り直す
