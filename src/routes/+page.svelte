@@ -38,6 +38,7 @@
 		<p class="next sp">{next[0]}{' '}<strong>{next[1]}</strong>{' '}{next[2]}</p>
 	</section>
 
+	{#if data.unread !== null}<p><a href="/tsuchi" data-sveltekit-preload-data="off">{ja.notifications.entry(data.unread)}</a></p>{/if}
 	<p><a href="/kadai">{ja.issue.topLink}</a></p>
 	<p><a href="/houan">{ja.bill.list.topLink}</a></p>
 	<p><a href="/saiketsu">{ja.vote.topLink}</a></p>

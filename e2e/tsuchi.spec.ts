@@ -1,6 +1,6 @@
 // Issue #78 基準9と信頼の境界：通知の一覧。中身は src/lib/db/notifications.test.ts
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { billRequest, createAmendBill, issueWithSolutions, newUser, ORIGIN } from './helpers';
+import { billRequest, billSupportRequest, createAmendBill, issueWithSolutions, newUser, ORIGIN, proposeRequest } from './helpers';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -107,6 +107,20 @@ test('基準9：通知の一覧が新しい順に出て、未読の印とリン�
 	await expect(stranger).toHaveURL(/\/login\?next=%2Ftsuchi$/);
 	await stranger.goto('/');
 	await expect(stranger.getByRole('link', { name: /^通知/ })).toHaveCount(0);
+
+	// 会期の結果の通知（本物の D1 の batch を通す）：発議した法案に票がないまま次の次の月になると、廃案が届く
+	const lapsed = `廃案の法案 ${s.label}`;
+	const madeLapsed = await issueWithSolutions(author.page, lapsed, [`解決策 ${lapsed}`]);
+	const lapsedPath = await createAmendBill(author.page, lapsed, madeLapsed.ids[0]);
+	for (let i = 0; i < 3; i++) {
+		const backer = await s.person(at(month, 24));
+		expect((await billSupportRequest(backer.page, lapsedPath, { op: 'add', rev: '1' })).status()).toBe(200);
+	}
+	expect((await proposeRequest(author.page, lapsedPath)).status()).toBe(200);
+	await author.setNow(at(month.replace(/-05$/, '-07'), 1));
+	await author.page.goto(`/saiketsu/${lapsedPath.replace('/houan/', '')}/kekka`);
+	await author.page.goto('/tsuchi');
+	await expect(items(author.page).filter({ hasText: `法案「${lapsed}」は定足数に届かず廃案になりました` })).toHaveCount(1);
 });
 
 test('信頼の境界：page の形が違えば 404 で、既読にしない', async ({ browser }, info) => {

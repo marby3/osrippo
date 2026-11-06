@@ -14,6 +14,7 @@ import {
 import type { Reaction } from '../domain/solutions';
 import { PRESS_KINDS, refuse, type Actor } from './issues';
 import type { Db } from './law';
+import { notify } from './notifications';
 import { reportsInDay, type Role } from './reports';
 import { indexTexts } from './search';
 
@@ -155,6 +156,9 @@ export async function reportedSolutionIds(db: Db, userId: string | null, ids: nu
 }
 
 /** 解決策を通報する。2回目は何もせず already。保存したら自動非表示を確かめる（設計書 docs/spec/36.md 決めたこと2・3） */
+/** 解決策を書いた人 */
+const solutionAuthor = (solutionId: number) => sql`SELECT user_id FROM solutions WHERE id = ${solutionId}`;
+
 export async function reportSolution(
 	db: Db,
 	actor: Actor,
@@ -178,7 +182,7 @@ export async function reportSolution(
 		.returning({ id: solutionReports.id });
 	if (inserted.length === 0) return { ok: true as const, already: true };
 	// 数に入る通報が3件以上で、表示中（visible）の解決策だけを自動で非表示にする。記録はトリガーが書く
-	await db
+	const hidden = await db
 		.update(solutions)
 		.set({
 			status: 'auto_hidden',
@@ -194,7 +198,9 @@ export async function reportSolution(
 				eq(solutions.status, 'visible'),
 				sql`(SELECT count(*) FROM ${solutionReports} WHERE ${solutionReports.solutionId} = ${solutionId} AND ${solutionReports.counted} = 1) >= ${HIDE_THRESHOLD}`
 			)
-		);
+		)
+		.returning({ id: solutions.id });
+	if (hidden.length) await notify(db, solutionAuthor(solutionId), 'solution_hidden', solutionId, now, now);
 	return { ok: true as const, already: false };
 }
 
@@ -221,7 +227,9 @@ export async function changeSolutionStatus(
 		})
 		.where(and(eq(solutions.id, solutionId), inArray(solutions.status, from as ('visible' | 'auto_hidden' | 'hidden' | 'restored')[])))
 		.returning({ id: solutions.id });
-	return changed.length > 0;
+	if (!changed.length) return false;
+	await notify(db, solutionAuthor(solutionId), to === 'hidden' ? 'solution_hidden' : 'solution_restored', solutionId, now, now);
+	return true;
 }
 
 /** 運営の画面：通報を受けた解決策（と focus の解決策）。自動で非表示が先、その中は最後の通報が新しい順に100件 */
@@ -315,5 +323,7 @@ export async function react(db: Db, actor: Actor, solutionId: number, kind: Reac
 		targetId: solutionId,
 		createdAt: now
 	});
+	// 解決策ごとに1回だけ（付け外しを繰り返しても増えない）。押した人は持たない
+	if (op === 'add' && kind === 'changed') await notify(db, sql`SELECT user_id FROM solutions WHERE id = ${solutionId} AND user_id IS NOT ${actor.userId}`, 'mind_changed_solution', solutionId, 0, now);
 	return { ok: true as const };
 }

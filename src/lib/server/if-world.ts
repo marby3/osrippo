@@ -1,17 +1,18 @@
 // IF世界の版を読む・作る（Issue #72。設計書 docs/spec/72.md）。IF世界の版は可決した法案の版の変更点を指し、読むときに分岐した版へ重ねる。
 // Cron の入口からも読むので、cloudflare:workers、import.meta.env、#lib に頼らない
-import { and, asc, count, desc, eq, gt, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
-import { actions, billAdjustments, billChanges, billLaws, billResults, bills, billSupports, ifAddedArticles, ifBranches, ifImportArticles, ifImportRuns, ifImports, ifLaws, ifRevisions, laws, lawRevisions, provisions, voteReviews } from '../db/schema';
+import { actions, billAdjustments, billChanges, billLaws, billRelations, billResults, bills, billSupports, ifAddedArticles, ifBranches, ifImportArticles, ifImportRuns, ifImports, ifLaws, ifRevisions, laws, lawRevisions, provisions, voteReviews } from '../db/schema';
 import { referralSession, type BillChange, type BillKind } from '../domain/bills';
 import { PAGE_SIZE } from '../domain/issues';
 import { articleBodyText, articleLabel, changedArticles, compareNum, articleConflict, headingPaths, tableOfContents, type IfArticle, type Paragraph } from '../domain/law';
 import { checkBillSave, DAY, type Refusal } from '../domain/limits';
-import type { Session } from '../domain/session';
+import { sessionAt, type Session } from '../domain/session';
 import type { AdjustmentReason } from '../domain/votes';
 import { fields, insertContent, savedBill, type DraftInput } from './bills';
 import { refuse, type Actor } from './issues';
 import { articlesOfRevision, currentRevision, type BatchDb, type Db } from './law';
+import { billMembers, mergeOriginMembers, notify } from './notifications';
 
 const JST = 9 * 60 * 60 * 1000;
 const DELETED: Paragraph[] = [{ num: '1', text: '削除', items: [] }];
@@ -246,18 +247,18 @@ async function conflictOf(db: Db, billId: number, law: LawContent): Promise<Adju
 	return touching(rows, imported, law, billId).length ? 'article' : null;
 }
 
-/** 1本の法案を反映する。衝突なら要調整。最後の1文（if_revisions か if_laws）が入ったときが反映で、途中で失敗してもやり直せる */
-async function applyBill(db: BatchDb, session: Session, bill: { id: number; rev: number; proposedAt: number | null }, minutes: number | null, now: number) {
+/** 版の法令ごとの中身（衝突の判定と反映で使う） */
+async function lawContentsOf(db: Db, billId: number, rev: number) {
 	const lawRows = await db
 		.select()
 		.from(billLaws)
-		.where(and(eq(billLaws.billId, bill.id), eq(billLaws.rev, bill.rev)))
+		.where(and(eq(billLaws.billId, billId), eq(billLaws.rev, rev)))
 		.orderBy(asc(billLaws.seq));
 	const changeRows = await db
 		.select()
 		.from(billChanges)
-		.where(and(eq(billChanges.billId, bill.id), eq(billChanges.rev, bill.rev)));
-	const contents = lawRows.map((l) => ({
+		.where(and(eq(billChanges.billId, billId), eq(billChanges.rev, rev)));
+	return lawRows.map((l) => ({
 		seq: l.seq,
 		action: l.action,
 		lawId: l.lawId,
@@ -266,6 +267,39 @@ async function applyBill(db: BatchDb, session: Session, bill: { id: number; rev:
 		newTitle: l.newTitle,
 		changes: changeRows.filter((c) => c.lawSeq === l.seq).map((c) => ({ num: c.num, op: c.op, provisionId: c.provisionId }))
 	}));
+}
+
+/**
+ * 発議のあとの条文のぶつかりを知らせる（docs/spec/78.md 決めたこと6）。Cron の処理の最後に毎日。
+ * 直前の会期の質疑の始まりより後に発議した法案は、まだ結果が出ていない（status が proposed のままの過去の法案を読まない）。
+ * 反映のときと同じ判定で、失敗してもログに出して残りを続ける。次の日にまた通る
+ */
+export async function notifyConflicts(db: Db, now: number): Promise<void> {
+	const last = sessionAt(sessionAt(now, null).startsAt - 1, null);
+	try {
+		const open = await db
+			.select({ id: bills.id, rev: bills.proposedRev })
+			.from(bills)
+			.where(and(eq(bills.status, 'proposed'), gte(bills.proposedAt, last.deliberationAt)))
+			.orderBy(asc(bills.id));
+		for (const bill of open) {
+			if (bill.rev === null) continue;
+			try {
+				const contents = await lawContentsOf(db, bill.id, bill.rev);
+				const reasons = await Promise.all(contents.map((l) => conflictOf(db, bill.id, l)));
+				if (reasons.some((r) => r !== null)) await notify(db, billMembers(bill.id), 'bill_conflict', bill.id, bill.rev, now);
+			} catch (e) {
+				console.error(e);
+			}
+		}
+	} catch (e) {
+		console.error(e);
+	}
+}
+
+/** 1本の法案を反映する。衝突なら要調整。最後の1文（if_revisions か if_laws）が入ったときが反映で、途中で失敗してもやり直せる */
+async function applyBill(db: BatchDb, session: Session, bill: { id: number; rev: number; proposedAt: number | null }, minutes: number | null, now: number) {
+	const contents = await lawContentsOf(db, bill.id, bill.rev);
 
 	const reasons = await Promise.all(contents.map((l) => conflictOf(db, bill.id, l)));
 	const reason: AdjustmentReason | null = reasons.includes('repealed') ? 'repealed' : reasons.includes('title') ? 'title' : reasons.includes('article') ? 'article' : null;
@@ -583,7 +617,13 @@ export async function saveAdjustedBill(
 	] as never);
 	const [row] = await db.select({ rev: bills.rev }).from(bills).where(eq(bills.id, bill.id));
 	const saved = row.rev === rev;
-	if (saved) await db.insert(actions).values({ kind: 'bill_save', userId: actor.userId, ipHash: actor.ipHash, targetId: bill.id, createdAt: now });
+	if (saved) {
+		await db.insert(actions).values({ kind: 'bill_save', userId: actor.userId, ipHash: actor.ipHash, targetId: bill.id, createdAt: now });
+		// 発議し直したことを知らせる。統合案は元の法案の人に（全員が共同提出者なので1件にする）
+		const [merged] = await db.select({ id: billRelations.originBillId }).from(billRelations).where(eq(billRelations.mergedBillId, bill.id)).limit(1);
+		if (merged) await notify(db, mergeOriginMembers(bill.id, actor.userId), 'merge_proposed', bill.id, rev, now);
+		else await notify(db, billMembers(bill.id, actor.userId), 'bill_proposed', bill.id, rev, now);
+	}
 	return { ok: true, saved };
 }
 

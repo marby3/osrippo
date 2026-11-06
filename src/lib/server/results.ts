@@ -10,8 +10,9 @@ import { billOutcome, billStage, quorumRequirement, SETTLE_GRACE } from '../doma
 import { settleAmendments } from './amendments';
 import { billById, sessionParticipants, type Bill } from './bills';
 import { settleElection } from './chairs';
-import { adjustmentOf, adjustmentRowOf, applySession, ifPlaceOf, importReal } from './if-world';
+import { adjustmentOf, adjustmentRowOf, applySession, ifPlaceOf, importReal, notifyConflicts } from './if-world';
 import type { BatchDb, Db } from './law';
+import { notifyBillOutcomes } from './notifications';
 import { countedCondition, inVote, tallyVotes } from './votes';
 
 /** 本案より先に採決した修正案のうち、結果のページに並べる数 */
@@ -129,6 +130,7 @@ export async function settleSession(db: BatchDb, session: Session, previous: Ses
 	// 修正案の処理が重なって結果を書かなかった法案があれば、次の実行に任せる
 	if (pending.length && (await unsettled()).length) return false;
 	await applySession(db, session, minutes, now);
+	await notifyBillOutcomes(db, session.key, now);
 	return true;
 }
 
@@ -246,6 +248,8 @@ export async function runSessionEnd(db: BatchDb, now: number) {
 	} catch (e) {
 		causes.push(e);
 	}
+	// 発議のあとの条文のぶつかり。失敗しても Cron の失敗にしない（次の日にまた通る）
+	await notifyConflicts(db, now);
 	if (causes.length) throw new AggregateError(causes, `${causes.length} つの会期を処理できませんでした`);
 }
 
@@ -274,6 +278,7 @@ export async function decideReview(db: BatchDb, staff: { userId: string; role: (
 			await settleOnRead(db, session, sessionAt(session.startsAt - 1, minutes), now, minutes);
 		}
 	}
+	await notifyBillOutcomes(db, sessionKey, now);
 	return true;
 }
 

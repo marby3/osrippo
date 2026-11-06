@@ -13,6 +13,7 @@
 	<h1>{ja.watashi.heading}</h1>
 	<p>{ja.watashi.name}</p>
 	<p class="name">{data.name}</p>
+	<p><a href="/tsuchi" data-sveltekit-preload-data="off">{ja.notifications.entry(data.unread)}</a></p>
 	<form method="post" action="/logout">
 		<button>{ja.watashi.logout}</button>
 	</form>

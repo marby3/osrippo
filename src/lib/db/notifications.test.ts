@@ -113,29 +113,28 @@ test('基準1：0022 で表が増え、既存の行は残り、同じ通知は2�
 test('基準2：会期の結果が提出者と共同提出者に届き、確認の間は結果を出さず、何度走っても1件', async () => {
 	const w = world();
 	const s = monthOf('2040-05');
-	const law = w.addLaw();
 	const outcome = (b: number, user: string) => w.inbox(user).filter((r) => r.target === b).map((r) => r.kind);
 
-	const passed = w.addBill(law, { at: s.startsAt });
+	const passed = w.addBill(w.addLaw(), { at: s.startsAt });
 	const co = w.addUser();
 	const declined = w.addUser();
 	const stranger = w.addUser();
 	w.addCosponsor(passed.id, co);
 	w.addCosponsor(passed.id, declined, 'declined');
 	w.addResult(s.key, passed.id, 'passed', 100);
-	const rejected = w.addBill(law, { at: s.startsAt });
+	const rejected = w.addBill(w.addLaw(), { at: s.startsAt });
 	w.addResult(s.key, rejected.id, 'rejected', 100);
-	const held = w.addBill(law, { at: s.startsAt });
+	const held = w.addBill(w.addLaw(), { at: s.startsAt });
 	w.addResult(s.key, held.id, 'passed', 100);
 	w.addReview(s.key, held.id, 'open');
-	const noted = w.addBill(law, { at: s.startsAt });
+	const noted = w.addBill(w.addLaw(), { at: s.startsAt });
 	w.addResult(s.key, noted.id, 'passed', 100);
 	w.addReview(s.key, noted.id, 'noted');
 	// 結果の行がない確認の行には届かない
-	const early = w.addBill(law, { at: s.startsAt });
+	const early = w.addBill(w.addLaw(), { at: s.startsAt });
 	w.addReview(s.key, early.id, 'open');
 	// 要調整
-	const adjusting = w.addBill(law, { at: s.startsAt });
+	const adjusting = w.addBill(w.addLaw(), { at: s.startsAt });
 	w.addResult(s.key, adjusting.id, 'passed', 100);
 	w.sqlite.prepare("INSERT INTO bill_adjustments (bill_id, session_key, reason, due_at, proposed_at, created_at) VALUES (?, ?, 'article', 0, 0, 77)").run(adjusting.id, s.key);
 
@@ -157,7 +156,7 @@ test('基準2：会期の結果が提出者と共同提出者に届き、確認�
 	expect(await decideReview(w.db, staff, s.key, held.id, 'confirm', null, s.endsAt + 120_000, null)).toBe(true);
 	expect(outcome(held.id, held.author)).toEqual(['bill_reviewing', 'bill_passed']);
 	// 無効が届き、結果は出さない
-	const voided = w.addBill(law, { at: s.startsAt });
+	const voided = w.addBill(w.addLaw(), { at: s.startsAt });
 	w.addResult(s.key, voided.id, 'passed', 100);
 	w.addReview(s.key, voided.id, 'open');
 	await notifyBillOutcomes(w.db, s.key, 3000);
@@ -173,7 +172,7 @@ test('基準2：会期の結果が提出者と共同提出者に届き、確認�
 	// 会期の処理を通っても届く（票がなければ廃案）
 	const run = monthOf('2041-05');
 	w.sqlite.prepare('INSERT INTO session_participants (committee_id, session_key, active_count, fixed_at) VALUES (1, ?, 0, 0)').run(run.key);
-	const lapsed = w.addBill(law, { at: run.startsAt });
+	const lapsed = w.addBill(w.addLaw(), { at: run.startsAt });
 	await settleSession(w.db, run, previousOf(run), run.endsAt + 60_000, null);
 	expect(w.kinds(lapsed.author)).toEqual(['bill_lapsed']);
 });
@@ -233,13 +232,13 @@ test('基準4：法案の操作が決まった人に届き、操作した人に�
 	const removed = w.addUser();
 	await requestCosponsor(w.db, w.actorOf(removed), await load(), now);
 	await decideCosponsor(w.db, w.actorOf(bill.author), await load(), rowOf(removed), 'accept', now);
-	expect(await leaveCosponsor(w.db, w.actorOf(bill.author), await load(), rowOf(removed))).toEqual({ ok: true });
+	expect(await leaveCosponsor(w.db, w.actorOf(bill.author), await load(), rowOf(removed), now)).toEqual({ ok: true });
 	expect(w.kinds(removed)).toEqual(['cosponsor_accepted', 'cosponsor_removed']);
 	const leaver = w.addUser();
 	await requestCosponsor(w.db, w.actorOf(leaver), await load(), now);
 	await decideCosponsor(w.db, w.actorOf(bill.author), await load(), rowOf(leaver), 'accept', now);
 	w.clear();
-	expect(await leaveCosponsor(w.db, w.actorOf(leaver), await load(), null)).toEqual({ ok: true });
+	expect(await leaveCosponsor(w.db, w.actorOf(leaver), await load(), null, now)).toEqual({ ok: true });
 	expect(w.inbox(bill.author)).toEqual([{ kind: 'cosponsor_left', target: bill.id, ref: rowOf(leaver) }]);
 	expect(w.kinds(leaver)).toEqual([]);
 
@@ -289,7 +288,7 @@ test('基準4：法案の操作が決まった人に届き、操作した人に�
 	w.clear();
 	expect(await proposeBill(w.db, w.actorOf(a.author), made.id, 2, 0, now, null)).toEqual({ ok: true });
 	expect(w.inbox(b.author)).toEqual([{ kind: 'merge_proposed', target: made.id, ref: 2 }]);
-	expect(w.kinds(coB).sort()).toEqual(['bill_proposed', 'merge_proposed']);
+	expect(w.kinds(coB)).toEqual(['merge_proposed']);
 	expect(w.kinds(a.author)).toEqual([]);
 });
 

@@ -1,13 +1,14 @@
 // 委員長選挙と理事、解任動議（Issue #77。設計書 docs/spec/77.md）。
 // Cron の入口からも読むので、cloudflare:workers と import.meta.env に頼らない
 import { and, asc, count, eq, gte, inArray, isNull, lt, max, ne, sql } from 'drizzle-orm';
-import { bills, chairCandidates, chairElections, chairTerms, chairVotes, committees, moderationLogs, posts, recallSignatures, user, voteReviews, type STAFF_ROLES } from '../db/schema';
+import { bills, chairCandidates, CHAIR_ROLES, chairElections, chairTerms, chairVotes, committees, moderationLogs, posts, recallSignatures, user, voteReviews, type STAFF_ROLES } from '../db/schema';
 import { ACTING_AFTER, CHAIR_ACCOUNTS_PER_IP, candidacyOpen, consecutiveLimit, electionOpen, electionResult, recallRequirement } from '../domain/chairs';
 import { sessionAt, type Session } from '../domain/session';
 import { drawAssignments, SETTLE_GRACE } from '../domain/votes';
 import { sessionParticipants } from './bills';
 import { activeBan, refuse, type Actor } from './issues';
 import type { BatchDb, Db } from './law';
+import { notify, notifyStatement } from './notifications';
 import { roleOf } from './reports';
 import { isEligibleVoter } from './votes';
 
@@ -50,7 +51,12 @@ export async function withdrawCandidacy(db: BatchDb, actor: Actor, committeeId: 
 		.from(chairCandidates)
 		.where(and(eq(chairCandidates.committeeId, committeeId), eq(chairCandidates.sessionKey, session.key), eq(chairCandidates.userId, actor.userId)));
 	if (!row) return false;
-	await db.batch([db.delete(chairVotes).where(eq(chairVotes.candidateId, row.id)), db.delete(chairCandidates).where(eq(chairCandidates.id, row.id))] as never);
+	await db.batch([
+		// 票を消す前に、入れた人を読む。候補を指さない（入れた先の記録を残さない）
+		notifyStatement(db, sql`SELECT user_id FROM chair_votes WHERE candidate_id = ${row.id} AND user_id IS NOT ${actor.userId}`, 'chair_vote_removed', committeeId, now, now),
+		db.delete(chairVotes).where(eq(chairVotes.candidateId, row.id)),
+		db.delete(chairCandidates).where(eq(chairCandidates.id, row.id))
+	] as never);
 	return true;
 }
 
@@ -143,12 +149,16 @@ export async function settleElection(db: BatchDb, committeeId: number, session: 
 					sql`SELECT ${committeeId}, ${term.key}, ${r.userId}, ${r.role}, ${r.rank}, ${r.votes}, NULL, ${now} WHERE EXISTS (SELECT 1 FROM chair_elections e WHERE e.committee_id = ${committeeId} AND e.session_key = ${session.key} AND e.settled_at = ${now})`
 				)
 				.onConflictDoNothing()
+		),
+		// 入った行の人に届ける。同時の実行でも、残った結果の人にだけ届く
+		...CHAIR_ROLES.map((role) =>
+			notifyStatement(db, sql`SELECT user_id FROM chair_terms WHERE committee_id = ${committeeId} AND session_key = ${term.key} AND role = ${role}`, role === 'chair' ? 'chair_elected' : 'director_elected', committeeId, term.startsAt, now)
 		)
 	] as never);
 }
 
 /** 委員長の最後の操作の時刻。委員長の役職で行ったものだけ（課題と解決策の操作と統合、結果の確認） */
-async function lastChairAction(db: Db, userId: string, term: Session): Promise<number | null> {
+export async function lastChairAction(db: Db, userId: string, term: Session): Promise<number | null> {
 	const [[log], [review]] = await Promise.all([
 		db
 			.select({ at: max(moderationLogs.createdAt) })
@@ -258,7 +268,9 @@ export async function signRecall(db: BatchDb, actor: Actor, committeeId: number,
 				AND (SELECT count(*) FROM recall_signatures r WHERE r.committee_id = ${committeeId} AND r.session_key = ${session.key}) >= ${required}`
 			)
 	] as never);
-	return { ok: true as const, recalled: (await recallBlock(db, actor.userId, committeeId, session)) === 'closed' };
+	const recalled = (await recallBlock(db, actor.userId, committeeId, session)) === 'closed';
+	if (recalled) await notify(db, sql`SELECT user_id FROM chair_terms WHERE committee_id = ${committeeId} AND session_key = ${session.key}`, 'chair_recalled', committeeId, session.startsAt, now);
+	return { ok: true as const, recalled };
 }
 
 /** 署名を取り消す。解任のあとは取り消せない */

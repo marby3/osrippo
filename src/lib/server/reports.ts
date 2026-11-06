@@ -14,6 +14,7 @@ import {
 } from '../domain/reports';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
+import { notify } from './notifications';
 
 export type Role = (typeof STAFF_ROLES)[number];
 
@@ -22,6 +23,9 @@ export async function roleOf(db: Db, userId: string): Promise<(typeof ROLES)[num
 	const [row] = await db.select({ role: user.role }).from(user).where(eq(user.id, userId));
 	return row?.role ?? null;
 }
+
+/** 課題を書いた人 */
+const issueAuthor = (issueId: number) => sql`SELECT user_id FROM issues WHERE id = ${issueId}`;
 
 export async function hasReported(db: Db, issueId: number, userId: string) {
 	const [row] = await db
@@ -70,7 +74,7 @@ export async function reportIssue(
 	if (inserted.length === 0) return { ok: true as const, already: true };
 
 	// 数に入る通報が3件以上で、表示中（visible）の課題だけを自動で非表示にする。記録はトリガーが書く
-	await db
+	const hidden = await db
 		.update(issues)
 		.set({
 			status: 'auto_hidden',
@@ -86,7 +90,9 @@ export async function reportIssue(
 				eq(issues.status, 'visible'),
 				sql`(SELECT count(*) FROM ${reports} WHERE ${reports.issueId} = ${issueId} AND ${reports.counted} = 1) >= ${HIDE_THRESHOLD}`
 			)
-		);
+		)
+		.returning({ id: issues.id });
+	if (hidden.length) await notify(db, issueAuthor(issueId), 'issue_hidden', issueId, now, now);
 	return { ok: true as const, already: false };
 }
 
@@ -113,7 +119,9 @@ export async function changeStatus(
 		})
 		.where(and(eq(issues.id, issueId), inArray(issues.status, from)))
 		.returning({ id: issues.id });
-	return changed.length > 0;
+	if (!changed.length) return false;
+	await notify(db, issueAuthor(issueId), to === 'hidden' ? 'issue_hidden' : 'issue_restored', issueId, now, now);
+	return true;
 }
 
 /** 運営の画面の一覧：通報を受けた課題（と focus の課題）。自動で非表示が先、その中は最後の通報が新しい順に100件 */
@@ -248,7 +256,9 @@ export async function mergeIssue(
 			)
 		)
 		.returning({ id: issues.id });
-	return changed.length > 0;
+	if (!changed.length) return false;
+	await notify(db, issueAuthor(sourceId), 'issue_merged', sourceId, now, now);
+	return true;
 }
 
 /** 統合先のページの「この課題にまとめた課題」：統合した時刻の新しい順 */
