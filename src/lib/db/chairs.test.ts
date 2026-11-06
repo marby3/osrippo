@@ -7,7 +7,7 @@ import { HIDEABLE } from '../domain/reports';
 import { sessionAt, type Session } from '../domain/session';
 import { castChairVote, chairPanelOf, chairPowerOf, electionPage, cancelRecallSignature, recallStateOf, settleElection, signRecall, staffRoleOf, standForChair, withdrawCandidacy } from '../server/chairs';
 import { changeStatus, mergeIssue, reportedIssues, staffRows } from '../server/reports';
-import { decideReview, involvedInBill, reviewLogPage, runSessionEnd } from '../server/results';
+import { decideReview, involvedInBill, pendingReviews, reviewLogPage, runSessionEnd } from '../server/results';
 import { changeSolutionStatus, reportedSolutions } from '../server/solutions';
 import { openMemoryDb, type MemoryDb } from './memory';
 
@@ -347,7 +347,18 @@ test('基準5：委員長の権限、任期の外、締め出し、関わり、�
 
 	// 関わった法案は関わりの判定に当たる（確認の受け付けが断る）
 	const ownBill = w.addBill(COMMITTEE, chair);
-	expect(await involvedInBill(w.db, ownBill, chair)).toBe(true);
+	expect(await involvedInBill(w.db, ownBill, chair, 'chair')).toBe(true);
+	// 委員長と理事は、投票した法案も関わったことになる（賛否の数も渡さない）。運営と運営協力者は今のまま
+	const votedBill = w.addBill();
+	w.addReview(term, votedBill);
+	const moderator = w.addUser();
+	const director = w.addUser();
+	for (const u of [chair, director, moderator]) w.sqlite.prepare("INSERT INTO votes (session_key, bill_id, user_id, choice, created_at, updated_at) VALUES (?, ?, ?, 'no', 0, 0)").run(term.key, votedBill, u);
+	expect(await involvedInBill(w.db, votedBill, chair, 'chair')).toBe(true);
+	expect(await involvedInBill(w.db, votedBill, director, 'director')).toBe(true);
+	expect(await involvedInBill(w.db, votedBill, moderator, 'moderator')).toBe(false);
+	expect((await pendingReviews(w.db, chair, 'chair')).find((r) => r.billId === votedBill)).toMatchObject({ involved: true, counts: null, detail: null });
+	expect((await pendingReviews(w.db, moderator, 'moderator')).find((r) => r.billId === votedBill)).toMatchObject({ involved: false, counts: { yes: 5 } });
 
 	// 自分の課題と解決策への通報の自由記述は読めない。ほかの人の課題の文面と数は読める
 	const own = w.addIssue(chair);
