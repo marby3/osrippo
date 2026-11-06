@@ -1,7 +1,7 @@
 // 会期の終わりの処理と結果を読むこと（Issue #71。設計書 docs/spec/71.md）。
 // Cron の入口（src/worker/scheduled.ts）からも読むので、cloudflare:workers と import.meta.env に頼らない
 import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
-import { actions, amendments, billResults, bills, billSupports, user, voteReviews, votes, type ROLES } from '../db/schema';
+import { actions, amendments, billResults, bills, billSupports, committees, user, voteReviews, votes, type STAFF_ROLES } from '../db/schema';
 import { newAccountSince, voteAnomalies, type AnomalyDetail, type AnomalySignal, type AnomalyVote } from '../domain/anomalies';
 import { billProgress, referralSession } from '../domain/bills';
 import { PAGE_SIZE } from '../domain/issues';
@@ -9,6 +9,7 @@ import { sessionAt, type Session } from '../domain/session';
 import { billOutcome, billStage, quorumRequirement, SETTLE_GRACE } from '../domain/votes';
 import { settleAmendments } from './amendments';
 import { billById, sessionParticipants, type Bill } from './bills';
+import { settleElection } from './chairs';
 import { adjustmentOf, adjustmentRowOf, applySession, ifPlaceOf, importReal } from './if-world';
 import type { BatchDb, Db } from './law';
 import { countedCondition, inVote, tallyVotes } from './votes';
@@ -239,6 +240,12 @@ export async function runSessionEnd(db: BatchDb, now: number) {
 			causes.push(e);
 		}
 	}
+	// 委員長選挙の確定は最後に。失敗しても法案の処理と取り込みを止めない（docs/spec/77.md 決めたこと3）
+	try {
+		for (const committee of await db.select({ id: committees.id }).from(committees)) await settleElection(db, committee.id, last, now, Math.random, null);
+	} catch (e) {
+		causes.push(e);
+	}
 	if (causes.length) throw new AggregateError(causes, `${causes.length} つの会期を処理できませんでした`);
 }
 
@@ -246,7 +253,7 @@ export async function runSessionEnd(db: BatchDb, now: number) {
  * 確認の結果を記録する（確定か無効）。状態を条件に入れた1文なので、確定は1回だけ。結果の行がある確認の行だけを扱う。
  * 確定したら反映する。反映に失敗しても確定は取り消さず、読むときの処理か次の Cron でやり直す。呼ぶ側が役職と関わりを確かめる
  */
-export async function decideReview(db: BatchDb, staff: { userId: string; role: (typeof ROLES)[number] }, sessionKey: string, billId: number, decision: 'confirm' | 'void', note: string | null, now: number, minutes: number | null) {
+export async function decideReview(db: BatchDb, staff: { userId: string; role: (typeof STAFF_ROLES)[number] }, sessionKey: string, billId: number, decision: 'confirm' | 'void', note: string | null, now: number, minutes: number | null) {
 	const done = await db
 		.update(voteReviews)
 		.set({ status: decision === 'confirm' ? 'confirmed' : 'voided', note, decidedRole: staff.role, decidedBy: staff.userId, decidedAt: now })

@@ -1,6 +1,6 @@
 // 通報と非表示、運営の画面と記録の DB（設計書 docs/spec/28.md）
 import { and, count, countDistinct, desc, eq, gt, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
-import { issueSupports, issues, moderationLogs, reports, solutionReports, user, type ROLES } from '../db/schema';
+import { issueSupports, issues, moderationLogs, reports, solutionReports, user, type ROLES, type STAFF_ROLES } from '../db/schema';
 import { PAGE_SIZE } from '../domain/issues';
 import { preselectSimilar, rankSimilar } from '../domain/similar';
 import { DAY, LIMITS } from '../domain/limits';
@@ -15,10 +15,10 @@ import {
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
 
-export type Role = (typeof ROLES)[number];
+export type Role = (typeof STAFF_ROLES)[number];
 
 /** 役職。Better Auth のセッションには載せず、D1 から読む */
-export async function roleOf(db: Db, userId: string): Promise<Role | null> {
+export async function roleOf(db: Db, userId: string): Promise<(typeof ROLES)[number] | null> {
 	const [row] = await db.select({ role: user.role }).from(user).where(eq(user.id, userId));
 	return row?.role ?? null;
 }
@@ -162,6 +162,14 @@ export async function reportedIssues(db: Db, focus: number | null) {
 				.orderBy(desc(reports.createdAt), desc(reports.id))
 		: [];
 	return rows.map((r) => ({ ...r, notes: notes.filter((n) => n.issueId === r.id).map((n) => n.note as string) }));
+}
+
+/**
+ * 運営の画面に渡す行。書いた人は渡さず、自分の課題・解決策かどうかだけを渡す。
+ * 自分の課題と解決策への通報の自由記述は渡さない（読めると報復の材料になる。docs/spec/77.md の決定F）
+ */
+export function staffRows<T extends { userId: string; notes: string[] }>(rows: T[], staffUserId: string) {
+	return rows.map(({ userId, notes, ...r }) => ({ ...r, mine: userId === staffUserId, notes: userId === staffUserId ? [] : notes }));
 }
 
 /** 公開の記録：新しい順に50件ごと。対応した人の ID は返さない */

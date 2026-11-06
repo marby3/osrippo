@@ -95,7 +95,9 @@ export type RefusalKind =
 	| 'amendment-support-ip'
 	| 'vote-day'
 	| 'vote-burst'
-	| 'vote-ip';
+	| 'vote-ip'
+	| 'chair-vote-ip'
+	| 'recall-ip';
 export type Refusal = { kind: RefusalKind; retryAt?: number };
 
 /** 違反に数えるか。回線ごとの上限は同じ回線の別の人のせいで当たることがあり、登録したばかりの上限は試しているうちに締め出されないよう、数えない */
@@ -133,7 +135,9 @@ export const COUNTS_AS_VIOLATION: Record<RefusalKind, boolean> = {
 	'amendment-support-ip': false,
 	'vote-day': true,
 	'vote-burst': true,
-	'vote-ip': false
+	'vote-ip': false,
+	'chair-vote-ip': false,
+	'recall-ip': false
 };
 
 type PostCounts = { accountPostTimes: number[]; ipPosts: number; registeredAt: number };

@@ -208,7 +208,7 @@ test('基準3：投票の期間、候補だけ、資格、運営、回線の上�
 	// 締切まで変えられ、最後の票を数える
 	expect(await cast(v, idA, s.voteAt)).toEqual({ ok: true });
 	expect(await cast(v, idB, s.voteAt + 1)).toEqual({ ok: true });
-	const mine = await electionPage(w.db, COMMITTEE, s, v, s.voteAt + 2, first);
+	const mine = await electionPage(w.db, COMMITTEE, s, v, first);
 	expect(mine.myVote).toBe(idB);
 	expect((w.sqlite.prepare('SELECT count(*) AS n FROM chair_votes WHERE user_id = ?').get(v) as { n: number }).n).toBe(1);
 
@@ -222,7 +222,7 @@ test('基準3：投票の期間、候補だけ、資格、運営、回線の上�
 	expect((w.sqlite.prepare("SELECT count(*) AS n FROM actions WHERE kind = 'violation' AND user_id = ?").get(over) as { n: number }).n).toBe(0);
 
 	// ページのデータに、入れた人、得票、回線、内部IDを出さない
-	const seen = JSON.stringify(await electionPage(w.db, COMMITTEE, s, null, s.voteAt + 2, first));
+	const seen = JSON.stringify(await electionPage(w.db, COMMITTEE, s, null, first));
 	expect(seen).not.toContain('投票した人の名前');
 	expect(seen).not.toContain(v);
 	expect(seen).not.toContain('same-line');
@@ -353,8 +353,8 @@ test('基準5：委員長の権限、任期の外、締め出し、関わり、�
 	const others = w.addIssue();
 	const ownSolution = w.addSolution(others, chair);
 	const reporter = w.addUser();
-	for (const id of [own, others]) w.sqlite.prepare("INSERT INTO reports (issue_id, user_id, reason, note, created_at) VALUES (?, ?, 'other', '通報の文面', 0)").run(id, reporter);
-	w.sqlite.prepare("INSERT INTO solution_reports (solution_id, user_id, reason, note, created_at) VALUES (?, ?, 'other', '通報の文面', 0)").run(ownSolution, reporter);
+	for (const id of [own, others]) w.sqlite.prepare("INSERT INTO reports (issue_id, user_id, reason, note, counted, created_at) VALUES (?, ?, 'other', '通報の文面', 0, 0)").run(id, reporter);
+	w.sqlite.prepare("INSERT INTO solution_reports (solution_id, user_id, reason, note, counted, created_at) VALUES (?, ?, 'other', '通報の文面', 0, 0)").run(ownSolution, reporter);
 	const rows = staffRows(await reportedIssues(w.db, null), chair);
 	expect(rows.find((r) => r.id === own)).toMatchObject({ mine: true, notes: [], other: 1 });
 	expect(rows.find((r) => r.id === others)).toMatchObject({ mine: false, notes: ['通報の文面'] });

@@ -195,8 +195,10 @@ test('基準8：委員会のページに委員長と理事、選挙、解任動�
 	await expect(stranger.locator('tr', { hasText: memo })).toContainText('委員長');
 
 	// 非表示の課題を読めるのも運営と同じ
-	expect((await candidate.page.goto(`/kadai/${others}`))?.status()).toBe(200);
-	expect((await reporter.page.goto(`/kadai/${others}`))?.status()).toBe(404);
+	await candidate.page.goto(`/kadai/${others}`);
+	await expect(candidate.page.getByRole('heading', { name: `ほかの人の課題 ${s.label}` })).toBeVisible();
+	await reporter.page.goto(`/kadai/${others}`);
+	await expect(reporter.page.getByRole('heading', { name: `ほかの人の課題 ${s.label}` })).toHaveCount(0);
 
 	// 解任動議：署名の人数と必要な人数が出て、署名と取り消しができる。本人には署名のボタンが出ない
 	await v2.page.goto('/iinkai');

@@ -100,6 +100,8 @@ export const provisionVersions = sqliteTable(
 // ログイン（設計書 docs/spec/23.md）。Better Auth の4つの表。キーは Better Auth の項目名に合わせる
 
 export const ROLES = ['moderator', 'operator'] as const;
+/** 運営の画面の操作をする役職。user.role は ROLES だけで、委員長と理事は chair_terms から求める（docs/spec/77.md 決めたこと4） */
+export const STAFF_ROLES = [...ROLES, 'chair', 'director'] as const;
 
 const timestamps = {
 	createdAt: integer('created_at', { mode: 'timestamp_ms' })
@@ -180,7 +182,7 @@ export const topics = sqliteTable('topics', {
 });
 
 export const ISSUE_STATUSES = ['visible', 'auto_hidden', 'hidden', 'restored', 'merged'] as const;
-export const MODERATION_ACTORS = ['auto', 'moderator', 'operator'] as const;
+export const MODERATION_ACTORS = ['auto', ...STAFF_ROLES] as const;
 /** 非表示の理由。reports は自動（通報が3件） */
 export const HIDE_LOG_REASONS = ['reports', 'attack', 'spam', 'other'] as const;
 
@@ -344,7 +346,7 @@ export const moderationLogs = sqliteTable(
 		solutionId: integer('solution_id'),
 		createdAt: integer('created_at').notNull()
 	},
-	(t) => [index('moderation_logs_issue').on(t.issueId)]
+	(t) => [index('moderation_logs_issue').on(t.issueId), index('moderation_logs_actor_user').on(t.actorUserId, t.createdAt)]
 );
 
 // 解決策（設計書 docs/spec/34.md）
@@ -1112,10 +1114,109 @@ export const voteReviews = sqliteTable(
 		detail: text('detail').notNull(),
 		status: text('status', { enum: REVIEW_STATUSES }).notNull(),
 		note: text('note'),
-		decidedRole: text('decided_role', { enum: ROLES }),
+		decidedRole: text('decided_role', { enum: STAFF_ROLES }),
 		decidedBy: text('decided_by'),
 		decidedAt: integer('decided_at'),
 		createdAt: integer('created_at').notNull()
 	},
-	(t) => [primaryKey({ columns: [t.sessionKey, t.billId] }), index('vote_reviews_status').on(t.status), index('vote_reviews_bill').on(t.billId), check('vote_reviews_status_check', sql`${t.status} IN (${inList(REVIEW_STATUSES)})`)]
+	(t) => [primaryKey({ columns: [t.sessionKey, t.billId] }), index('vote_reviews_status').on(t.status), index('vote_reviews_bill').on(t.billId), index('vote_reviews_decided_by').on(t.decidedBy, t.decidedAt), check('vote_reviews_status_check', sql`${t.status} IN (${inList(REVIEW_STATUSES)})`)]
+);
+
+// 委員長選挙と理事、解任動議（設計書 docs/spec/77.md）
+
+export const CHAIR_ROLES = ['chair', 'director'] as const;
+
+/** 立候補。session_key は選挙をする会期。取り下げると行を消す */
+export const chairCandidates = sqliteTable(
+	'chair_candidates',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		committeeId: integer('committee_id')
+			.notNull()
+			.references(() => committees.id),
+		sessionKey: text('session_key').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [unique('chair_candidates_user').on(t.committeeId, t.sessionKey, t.userId)]
+);
+
+/** 票。入れた人と回線を画面にも API にも出さない。取り下げで票も消すので、候補より先に消す */
+export const chairVotes = sqliteTable(
+	'chair_votes',
+	{
+		committeeId: integer('committee_id')
+			.notNull()
+			.references(() => committees.id),
+		sessionKey: text('session_key').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		candidateId: integer('candidate_id')
+			.notNull()
+			.references(() => chairCandidates.id),
+		ipHash: text('ip_hash').notNull(),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.committeeId, t.sessionKey, t.userId] }), index('chair_votes_candidate').on(t.candidateId), index('chair_votes_line').on(t.committeeId, t.sessionKey, t.ipHash)]
+);
+
+/** 委員長と理事。session_key は任期の会期。rank は 0 が委員長で画面に出さない。votes は集計の記録で画面に出さない */
+export const chairTerms = sqliteTable(
+	'chair_terms',
+	{
+		committeeId: integer('committee_id')
+			.notNull()
+			.references(() => committees.id),
+		sessionKey: text('session_key').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		role: text('role', { enum: CHAIR_ROLES }).notNull(),
+		rank: integer('rank').notNull(),
+		votes: integer('votes').notNull(),
+		recalledAt: integer('recalled_at'),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.committeeId, t.sessionKey, t.userId] }),
+		unique('chair_terms_rank').on(t.committeeId, t.sessionKey, t.rank),
+		index('chair_terms_user').on(t.userId, t.sessionKey),
+		check('chair_terms_role', sql`${t.role} IN (${inList(CHAIR_ROLES)})`),
+		check('chair_terms_rank_role', sql`(${t.rank} = 0) = (${t.role} = 'chair')`)
+	]
+);
+
+/** 確定の印。候補がいなくても入れる。session_key は選挙をした会期。total_votes は画面に出さない */
+export const chairElections = sqliteTable(
+	'chair_elections',
+	{
+		committeeId: integer('committee_id')
+			.notNull()
+			.references(() => committees.id),
+		sessionKey: text('session_key').notNull(),
+		totalVotes: integer('total_votes').notNull(),
+		settledAt: integer('settled_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.committeeId, t.sessionKey] })]
+);
+
+/** 解任の署名。session_key は任期の会期。署名した人と回線を画面にも API にも出さない。取り消すと行を消す */
+export const recallSignatures = sqliteTable(
+	'recall_signatures',
+	{
+		committeeId: integer('committee_id')
+			.notNull()
+			.references(() => committees.id),
+		sessionKey: text('session_key').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		ipHash: text('ip_hash').notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.committeeId, t.sessionKey, t.userId] }), index('recall_signatures_line').on(t.committeeId, t.sessionKey, t.ipHash)]
 );

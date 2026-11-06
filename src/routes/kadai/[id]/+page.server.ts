@@ -5,9 +5,10 @@ import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '#lib/copy/ja.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { isHidden, validateReport } from '#lib/domain/reports.ts';
-import { nowOf, refusalMessage, writeGuard } from '#lib/server/client.ts';
+import { nowOf, refusalMessage, sessionsAt, writeGuard } from '#lib/server/client.ts';
 import { getIssue, issueMeta, setSupport } from '#lib/server/issues.ts';
-import { hasReported, mergedSources, reportIssue, roleOf } from '#lib/server/reports.ts';
+import { hasReported, mergedSources, reportIssue } from '#lib/server/reports.ts';
+import { staffRoleOf } from '#lib/server/chairs.ts';
 import { reactAction, reportSolutionAction } from '#lib/server/solution-actions.ts';
 import { hasHiddenSolutions, listSolutions, reportedSolutionIds, solutionCount } from '#lib/server/solutions.ts';
 import type { Db } from '#lib/server/law.ts';
@@ -30,7 +31,8 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 		return { view: 'merged' as const, id, mergedInto: issue.mergedInto };
 	}
 	const { userId: authorId, mergedInto: _, ...rest } = issue;
-	const staff = userId !== null && (await roleOf(db, userId)) !== null;
+	const now = nowOf({ url, request });
+	const staff = userId !== null && (await staffRoleOf(db, userId, now, sessionsAt(now).minutes)) !== null;
 	const mine = userId === authorId;
 	const hidden = isHidden(issue.status);
 	// 書いた本人と運営以外には、非表示の課題の題名も本文も渡さない（ページのデータにも載せない）
