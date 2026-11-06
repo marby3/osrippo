@@ -13,6 +13,7 @@
 		progress,
 		required,
 		isAuthor,
+		isSide,
 		canAccept,
 		loggedIn,
 		waiting,
@@ -27,6 +28,8 @@
 		/** 本案より先に採決するのに要る賛同（3週目と4週目だけ） */
 		required: number | null;
 		isAuthor: boolean;
+		/** 提出者、共同提出者、抜けた共同提出者。先議の賛同ができない */
+		isSide: boolean;
 		canAccept: boolean;
 		loggedIn: boolean;
 		/** 登録から7日たっていない */
@@ -94,7 +97,7 @@
 		{/if}
 	{/if}
 
-	{#if deliberation && open && !amendment.mine && !isAuthor && !waiting && (current || amendment.supported)}
+	{#if deliberation && open && !amendment.mine && !isSide && !waiting && (current || amendment.supported)}
 		{#if loggedIn}
 			<form method="post" action="?/support" use:enhance={() => async ({ update }) => update({ reset: false })}>
 				<input type="hidden" name="amendment" value={amendment.id} />

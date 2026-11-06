@@ -9,6 +9,7 @@ import { amendmentCount, listAmendments } from '#lib/server/amendments.ts';
 import { nowOf } from '#lib/server/client.ts';
 import { progressOf } from '#lib/server/post-actions.ts';
 import { isEligibleVoter } from '#lib/server/votes.ts';
+import { isBillSide } from '#lib/server/cosponsors.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -24,6 +25,8 @@ export const load: PageServerLoad = async (event) => {
 	const { rows, hasNext } = await listAmendments(db, bill, user?.id ?? null, session.key, required, page);
 	if (page > 1 && rows.length === 0) error(404);
 	const isAuthor = user?.id === bill.userId;
+	// 共同提出者と抜けた共同提出者も、修正案を出せず、先議の賛同もできない（docs/spec/76.md の決定F・G）
+	const isSide = user ? await isBillSide(db, bill, user.id) : false;
 	return {
 		amendments: rows,
 		hasNext,
@@ -31,9 +34,10 @@ export const load: PageServerLoad = async (event) => {
 		total: await amendmentCount(db, bill.id),
 		progress,
 		isAuthor,
+		isSide,
 		loggedIn: Boolean(user),
 		waitUntil: user ? billWaitUntil(user.createdAt.getTime(), now) : null,
-		canPost: amendmentOpen(progress) && !isAuthor,
+		canPost: amendmentOpen(progress) && !isSide,
 		canAccept: isAuthor && acceptOpen(progress, now, session.voteAt),
 		required,
 		eligible: voting && user ? await isEligibleVoter(db, user.id, session) : null,

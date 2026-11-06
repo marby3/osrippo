@@ -7,18 +7,20 @@ import { billProgress, referralSession } from '../domain/bills';
 import { evaluationOpen, parseEvaluationKind, parseEvaluationOp, READ_BATCH } from '../domain/evaluations';
 import { parseIssueId } from '../domain/issues';
 import { billWaitUntil } from '../domain/limits';
-import { answererRole, parseStance, postWindowOpen, stanceOpen, validatePost, type PostKind } from '../domain/posts';
+import { parseStance, postRoleOf, postWindowOpen, stanceOpen, validatePost, type PostKind } from '../domain/posts';
 import { billById } from './bills';
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
 import { evaluationTarget, recordViews, setEvaluation } from './evaluations';
-import { createPost, isSupporter, questionOf, setStance } from './posts';
+import { billRoleOf } from './cosponsors';
+import { createPost, questionOf, setStance } from './posts';
 
 /** 送り先の法案。ない番号と下書きは 404（ログインより先に。下書きの有無が他人に分からないように） */
 export async function postableBill(event: Pick<RequestEvent, 'params'>) {
 	const id = parseIssueId(event.params.id ?? '');
 	const db = drizzle(env.DB);
 	const bill = id === null ? undefined : await billById(db, id);
-	if (!bill || bill.status === 'draft') error(404);
+	// 発議していないまま撤回された法案（統合案の元の下書き）も下書きと同じ
+	if (!bill || bill.status === 'draft' || bill.proposedAt === null) error(404);
 	return { db, bill };
 }
 
@@ -26,7 +28,7 @@ export async function postableBill(event: Pick<RequestEvent, 'params'>) {
 export const questionsPath = (billId: number) => `/houan/${billId}/shitsugi`;
 
 /** 法案の進みと付託先の会期 */
-export function progressOf(bill: { status: 'draft' | 'proposed'; proposedAt: number | null }, now: number) {
+export function progressOf(bill: { status: 'draft' | 'proposed' | 'withdrawn'; proposedAt: number | null }, now: number) {
 	const { minutes } = sessionsAt(now);
 	return { progress: billProgress(bill, now, minutes), session: referralSession(bill.proposedAt ?? now, minutes) };
 }
@@ -58,7 +60,7 @@ export async function questionAction(event: RequestEvent) {
 	const { progress, session } = progressOf(bill, now);
 	if (!postWindowOpen('question', progress)) return fail(409, { message: ja.post.closed, body });
 	const { userId } = checked.actor;
-	const writerRole = answererRole(bill, userId, await isSupporter(db, bill, userId));
+	const writerRole = await billRoleOf(db, bill, userId);
 	const result = await createPost(db, checked.actor, { billId: bill.id, sessionKey: session.key, kind: 'question', parentId: null, role: null, body: input.body }, now, writerRole);
 	if (!result.ok) return fail(429, { message: refusalMessage(result.refusal), body });
 	redirect(303, questionsPath(bill.id));
@@ -82,11 +84,12 @@ async function replyAction(event: RequestEvent, kind: Extract<PostKind, 'answer'
 	const question = await questionOf(db, questionId, bill.id, session.key);
 	if (!question) error(404);
 	const { userId } = checked.actor;
-	const role = answererRole(bill, userId, await isSupporter(db, bill, userId));
+	const writerRole = await billRoleOf(db, bill, userId);
+	const role = postRoleOf(writerRole);
 	if (kind === 'answer' && role === null) return fail(403, { message: ja.post.notAnswerer, ...keep });
 	if (kind === 'answer' && question.userId === userId) return fail(403, { message: ja.post.ownQuestion, ...keep });
 	if (kind === 'supplement' && role !== null) return fail(403, { message: ja.post.answererSupplement, ...keep });
-	const result = await createPost(db, checked.actor, { billId: bill.id, sessionKey: session.key, kind, parentId: questionId, role: kind === 'answer' ? role : null, body: input.body }, now, role);
+	const result = await createPost(db, checked.actor, { billId: bill.id, sessionKey: session.key, kind, parentId: questionId, role: kind === 'answer' ? role : null, body: input.body }, now, writerRole);
 	if (!result.ok) return fail(429, { message: refusalMessage(result.refusal), ...keep });
 	return { posted: questionId };
 }
@@ -133,7 +136,7 @@ export async function evaluationAction(event: RequestEvent) {
 	// 開いたあとで非表示になることもあるので、画面全体をエラーにせず、ボタンの下に理由を出す
 	if (!target) return fail(404, { message: ja.post.evaluationGone, ...keep });
 	if (target.userId === user.id) return fail(403, { message: ja.post.ownPost, ...keep });
-	const role = answererRole(bill, user.id, await isSupporter(db, bill, user.id));
+	const role = await billRoleOf(db, bill, user.id);
 	const result = await setEvaluation(db, guard.actor, { id: postId, billId: bill.id, sessionKey: session.key }, kind, op, role, now);
 	if (!result.ok) return fail(429, { message: refusalMessage(result.refusal), ...keep });
 	return { evaluated: postId };
@@ -155,7 +158,7 @@ export async function readAction(event: RequestEvent) {
 	if (ids.some((id) => id === null)) error(400);
 	const { progress, session } = progressOf(bill, now);
 	if (!evaluationOpen(progress)) return fail(409);
-	const role = answererRole(bill, user.id, await isSupporter(db, bill, user.id));
+	const role = await billRoleOf(db, bill, user.id);
 	await recordViews(db, user.id, { id: bill.id, sessionKey: session.key }, ids as number[], role, now);
 	return { read: true };
 }

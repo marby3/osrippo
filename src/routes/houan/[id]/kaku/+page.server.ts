@@ -11,6 +11,7 @@ import { billById, billSupportState, citedCandidates, committeeLawList, draftArt
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import { adjustmentOf, staleArticles, currentNumsOf } from '#lib/server/if-world.ts';
 import { requireUser } from '#lib/server/require-user.ts';
+import { canEditDraft } from '#lib/server/cosponsors.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
 /** ない法案は 404（ログインより先に）。提出者でないか下書きでなければ 403 */
@@ -25,7 +26,9 @@ async function editable(event: RequestEvent) {
 	const { minutes } = sessionsAt(now);
 	const stage = bill.status === 'proposed' && bill.proposedAt !== null && billProgress(bill, now, minutes) === 'lapsed' ? await adjustmentOf(db, referralSession(bill.proposedAt, minutes).key, bill.id) : null;
 	const adjusting = stage !== null && stage.reason !== 'repealed' && now < stage.dueAt;
-	if (bill.userId !== user.id || (bill.status !== 'draft' && !adjusting)) error(403);
+	// 下書きは提出者と共同提出者が直せる。要調整は提出者だけ（docs/spec/76.md 決めたこと3）
+	const allowed = bill.status === 'draft' ? await canEditDraft(db, bill, user.id) : adjusting && bill.userId === user.id;
+	if (!allowed) error(403);
 	return { bill, user, adjusting, adjustment: adjusting ? stage : null };
 }
 

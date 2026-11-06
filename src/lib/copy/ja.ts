@@ -117,7 +117,7 @@ export const ja = {
 		supplementField: '補足の内容',
 		send: '送る',
 		back: '質疑の一覧に戻る',
-		roles: { author: '提出者', supporter: '賛同者' },
+		roles: { author: '提出者', cosponsor: '共同提出者', supporter: '賛同者' },
 		answerHeading: (role: string) => `答弁（${role}）`,
 		supplementHeading: '補足',
 		readAnswer: (role: string) => `答弁を読む（${role}）`,
@@ -445,7 +445,7 @@ export const ja = {
 		kinds: { amend: '改正', repeal: '廃止', enact: '制定' },
 		ops: { amend: '書きかえ', add: '新しく追加', delete: '削除', supplementary: '新しく追加' },
 		/** 法案のいまの進み（Issue #50。一覧の言葉は list.stages） */
-		progress: { draft: '下書き', proposed: '発議', deliberation: '質疑', vote: '採決', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中', adjusting: '要調整', reviewing: '結果を確認しています' },
+		progress: { draft: '下書き', proposed: '発議', deliberation: '質疑', vote: '採決', lapsed: '廃案', withdrawn: '撤回', passed: '可決', rejected: '否決', counting: '集計中', adjusting: '要調整', reviewing: '結果を確認しています' },
 		/** 賛同と発議（Issue #49） */
 		support: {
 			count: (n: number) => `賛同 ${n}人`,
@@ -476,7 +476,7 @@ export const ja = {
 			kind: '種類',
 			bill: '法案',
 			stage: '段階',
-			stages: { draft: '下書き', proposed: '発議', deliberation: '質疑中', vote: '採決中', lapsed: '廃案', passed: '可決', rejected: '否決', counting: '集計中', adjusting: '要調整', reviewing: '結果を確認しています' },
+			stages: { draft: '下書き', proposed: '発議', deliberation: '質疑中', vote: '採決中', lapsed: '廃案', withdrawn: '撤回', passed: '可決', rejected: '否決', counting: '集計中', adjusting: '要調整', reviewing: '結果を確認しています' },
 			support: '賛同',
 			supportCell: (n: number) => `${n}人`,
 			supportPrefix: ' ・ 賛同 ',
@@ -484,6 +484,77 @@ export const ja = {
 			pages: 'ページ送り',
 			prevPage: '前のページ',
 			nextPage: '次のページ'
+		},
+		staleRead: 'ほかの人が保存しました。読み直してください。',
+		/** 共同提出者（設計書 docs/spec/76.md） */
+		cosponsor: {
+			heading: '共同提出者',
+			names: (names: string[]) => `共同提出者 ${names.join('、')}`,
+			request: '共同提出者になりたいと申し出る',
+			requestNote: '提出者が承認すると、この法案を一緒に編集し、答弁できます。承認されると賛同は外れます（賛同していたことが分かる場合があります）。承認のあとで抜けても、この法案には賛同も修正案もできません。',
+			cancel: '申し出を取り下げる',
+			accept: '承認する',
+			decline: '断る',
+			remove: '外す',
+			removeConfirm: '外すと元に戻せません',
+			leave: '共同提出者から抜ける',
+			leaveConfirm: '抜けると元に戻せません。この法案には賛同も修正案もできなくなります',
+			requestsHeading: '申し出',
+			membersHeading: '共同提出者',
+			none: '共同提出者の申し出はまだありません',
+			more: (n: number) => `ほかに ${n} 件の申し出があります`,
+			fullNote: '共同提出者は5人までです',
+			leftNote: '共同提出者から抜けた法案です',
+			declinedNote: '申し出は断られました',
+			cosponsor: '共同提出者は賛同できません。',
+			formerCosponsor: '共同提出者だった法案には賛同できません。',
+			refused: {
+				author: '提出者は申し出できません。',
+				closed: '発議のあとは変えられません。読み直してください。',
+				left: '共同提出者から抜けた法案には申し出できません。',
+				declined: '申し出は断られました。',
+				forbidden: 'この操作はできません。',
+				full: '共同提出者は5人までです。'
+			}
+		},
+		/** 撤回（設計書 docs/spec/76.md） */
+		withdraw: {
+			heading: '撤回',
+			progress: (total: number, n: number) => `${total}人中${n}人が同意`,
+			names: (names: string[]) => `（${names.join('、')}）`,
+			consent: '撤回に同意する',
+			confirm: '撤回は元に戻せません。提出者と共同提出者の全員が同意すると撤回になります',
+			cancel: '同意を取り消す',
+			done: '撤回されました',
+			result: 'この法案は撤回されました',
+			closed: '採決が始まった法案や、撤回された法案は変えられません。',
+			forbidden: '提出者と共同提出者だけが同意できます。'
+		},
+		/** 統合案（設計書 docs/spec/76.md） */
+		merge: {
+			heading: '統合案',
+			start: '統合案を作る',
+			create: '統合案を作る',
+			withLabel: '相手の法案の番号',
+			startNote: 'この法案を複製した統合案の下書きを作ります。元の法案の提出者と共同提出者の全員が同意すると発議でき、発議すると元の法案は撤回になります。',
+			link: '統合案：',
+			mergedInto: '統合案に統合されました：',
+			separator: '、',
+			waiting: '（同意待ち）',
+			progress: (total: number, n: number) => `${total}人中${n}人が同意`,
+			consent: '統合案に同意する',
+			consentNote: '読んでいるこの版に同意します。同意すると統合案の共同提出者になり（賛同していれば外れます）、抜けてもこの統合案には賛同も修正案もできません。統合案を一緒に書くのは、普通の申し出と承認でできます。統合案が保存されると同意は集め直しになります。',
+			consentConfirm: '発議されると、元の法案は撤回になります',
+			revoke: '同意を取り消す',
+			cancel: '統合案をやめる',
+			merge: '元の法案の提出者全員の、いまの版への同意が要ります。',
+			mergeClosed: '元の法案が取り下げられない状態になったので、統合案として発議できません。統合案をやめると普通の下書きに戻ります。',
+			refused: {
+				forbidden: 'この操作はできません。',
+				closed: 'この組では統合案を作れないか、すでに変えられません。',
+				stale: 'ほかの人が保存しました。読み直してください。',
+				full: '共同提出者は5人までです。'
+			}
 		},
 		/** 出し直し（設計書 docs/spec/75.md） */
 		resubmit: {
@@ -606,6 +677,7 @@ export const ja = {
 			'amendment-support-day': '修正案への賛同は24時間に30回まで押せます（取り消しも1回に数えます）。しばらくしてからお試しください。',
 			'amendment-support-burst': '短いあいだに修正案への賛同を何度も押しました。しばらくしてからお試しください。',
 			'amendment-support-ip': 'この回線からは、この修正案にこれ以上賛同できません。',
+			'bill-cosponsor-day': '共同提出者の申し出は24時間に30回までです。しばらくしてからお試しください。',
 			'bill-support-day': '賛同は24時間に30回まで押せます（取り消しも1回に数えます）。しばらくしてからお試しください。',
 			'bill-support-burst': '短いあいだに賛同を何度も押しました。しばらくしてからお試しください。',
 			'bill-support-ip': 'この回線からは、この法案にこれ以上賛同できません。'

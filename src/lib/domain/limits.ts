@@ -38,6 +38,8 @@ export const LIMITS = {
 	billSupportPerDay: 30,
 	billSupportPerBurst: 10,
 	billSupportAccountsPerIp: 3,
+	/** 共同提出者の申し出（docs/spec/76.md） */
+	billCosponsorPerDay: 30,
 	/** 質疑・答弁・補足（設計書 docs/spec/66.md 決めたこと5）。答弁が多いのは、提出者がまとめて答えるため */
 	questionPerDay: 10,
 	answerPerDay: 30,
@@ -74,6 +76,7 @@ export type RefusalKind =
 	| 'bill-draft-account'
 	| 'bill-draft-ip'
 	| 'bill-save-account'
+	| 'bill-cosponsor-day'
 	| 'bill-support-day'
 	| 'bill-support-burst'
 	| 'bill-support-ip'
@@ -111,6 +114,7 @@ export const COUNTS_AS_VIOLATION: Record<RefusalKind, boolean> = {
 	'bill-draft-account': true,
 	'bill-draft-ip': false,
 	'bill-save-account': true,
+	'bill-cosponsor-day': true,
 	'bill-support-day': true,
 	'bill-support-burst': true,
 	'bill-support-ip': false,
@@ -201,6 +205,9 @@ export function checkBillDraft(c: { accountDrafts: number; ipDrafts: number }): 
 	if (c.ipDrafts >= LIMITS.billDraftPerIp) return { kind: 'bill-draft-ip' };
 	return null;
 }
+
+/** 共同提出者の申し出。accountDay は直近24時間の申し出の数 */
+export const checkBillCosponsor = (c: { accountDay: number }): Refusal | null => (c.accountDay >= LIMITS.billCosponsorPerDay ? { kind: 'bill-cosponsor-day' } : null);
 
 /** 法案の下書きを保存する。accountSaves は直近24時間に保存した数 */
 export const checkBillSave = (c: { accountSaves: number }): Refusal | null =>

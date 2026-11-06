@@ -14,7 +14,10 @@ import { billById, billSupportState, billView, relatedBills, sessionParticipants
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import type { BatchDb } from '#lib/server/law.ts';
 import { questionTotal } from '#lib/server/posts.ts';
+import { cosponsorPanel, cosponsorsOf, cosponsorStatus } from '#lib/server/cosponsors.ts';
+import { canStartMerge, mergeLinksOf } from '#lib/server/merge.ts';
 import { billStageNow } from '#lib/server/results.ts';
+import { withdrawStateOf } from '#lib/server/withdraw.ts';
 import { resubmitStateOf } from '#lib/server/resubmit.ts';
 import type { LayoutServerLoad } from './$types';
 
@@ -30,6 +33,9 @@ export const load: LayoutServerLoad = async (event) => {
 	const { session, previous, minutes } = sessionsAt(now);
 	const { bill, progress, adjustment, stage } = await billStageNow(db as unknown as BatchDb, loaded, now, minutes);
 	const isAuthor = user?.id === bill.userId;
+	const myCosponsor = user ? await cosponsorStatus(db, bill.id, user.id) : null;
+	// 提出者の側（docs/spec/76.md の決定G）。賛同と申し出のボタンを出さない
+	const onSide = isAuthor || myCosponsor === 'accepted' || myCosponsor === 'left';
 	const draft = bill.status === 'draft';
 	const { supports, mine } = await billSupportState(db, bill.id, supportRev(bill), user?.id ?? null);
 	// 発議要件を読むのは提出者が下書きを見るときだけ（その会期で最初に読まれたときに固定する。docs/spec/49.md 決めたこと3）
@@ -37,20 +43,33 @@ export const load: LayoutServerLoad = async (event) => {
 	if (draft && isAuthor) {
 		required = proposalRequirement(await sessionParticipants(db, FIRST_COMMITTEE, session, previous, now));
 	}
+	const withdrawState = (progress === 'proposed' || progress === 'deliberation') && user ? await withdrawStateOf(db, bill, user.id) : null;
 	return {
 		bill: await billView(db, bill),
+		// 共同提出者（docs/spec/76.md）。申し出の名前は提出者にだけ渡す
+		cosponsors: await cosponsorsOf(db, bill.id),
+		cosponsor: {
+			mine: myCosponsor,
+			canAsk: draft && Boolean(user) && !isAuthor && billWaitUntil(user?.createdAt.getTime() ?? 0, now) === null,
+			panel: draft && isAuthor ? await cosponsorPanel(db, bill.id) : null
+		},
+		// 同意の状況は提出者と共同提出者にだけ渡す
+		withdraw: withdrawState?.member ? withdrawState : null,
+		merge: await mergeLinksOf(db, bill, user?.id ?? null),
+		canStartMerge: isAuthor && (await canStartMerge(db, bill, now, minutes)),
 		progress,
 		stage,
 		// 要調整：期限を出し、提出者には直すリンクを出す
 		adjustment: stage === 'adjusting' ? adjustment : null,
 		next: nextStage(bill, now, minutes),
 		// 下書きには質疑がないのでタブを出さない
-		questionCount: draft ? null : await questionTotal(db, bill.id),
+		// 発議していないまま撤回された法案（統合案の元の下書き）も同じ
+		questionCount: draft || bill.proposedAt === null ? null : await questionTotal(db, bill.id),
 		// 変えられる条のない法案（廃止だけの法案）には修正案のタブを出さない
-		amendmentTotal: draft || !hasAmendableLaw(bill.laws) ? null : await amendmentCount(db, bill.id),
+		amendmentTotal: draft || bill.proposedAt === null || !hasAmendableLaw(bill.laws) ? null : await amendmentCount(db, bill.id),
 		coDrafters: draft ? [] : await coDrafters(db, bill.id),
 		related: draft ? [] : await relatedBills(db, bill, minutes),
-		canEdit: isAuthor && (draft || stage === 'adjusting'),
+		canEdit: (draft && (isAuthor || myCosponsor === 'accepted')) || (isAuthor && stage === 'adjusting'),
 		// 出し直し（docs/spec/75.md）。提出者にだけ渡す
 		resubmit: isAuthor && progress === 'lapsed' ? await resubmitStateOf(db, bill, stage) : null,
 		origin: bill.resubmittedFrom === null ? null : ((await db.select({ id: bills.id, title: bills.title }).from(bills).where(eq(bills.id, bill.resubmittedFrom)))[0] ?? null),
@@ -58,9 +77,9 @@ export const load: LayoutServerLoad = async (event) => {
 			rev: bill.rev,
 			count: supports,
 			mine,
-			open: draft && !isAuthor,
+			open: draft && !onSide,
 			loggedIn: Boolean(user),
-			waitUntil: user && draft && !isAuthor ? billWaitUntil(user.createdAt.getTime(), now) : null,
+			waitUntil: user && draft && !onSide ? billWaitUntil(user.createdAt.getTime(), now) : null,
 			required
 		}
 	};

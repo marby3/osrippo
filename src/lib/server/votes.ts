@@ -55,11 +55,11 @@ export async function assignedBills(db: Db, userId: string, session: Session, pr
 	const known = await read();
 	if (known.length || !inPeriod(session, now)) return known;
 
-	// 自分が提出した法案と、賛同したことのある法案（どの版の行でも）は除く
+	// 自分が提出した法案と、賛同したことのある法案（どの版の行でも）と、共同提出者か抜けた共同提出者の法案は除く
 	const candidates = await db
 		.select({ id: bills.id })
 		.from(bills)
-		.where(and(inVote(session, previous), ne(bills.userId, userId), sql`NOT EXISTS (SELECT 1 FROM bill_supports s WHERE s.bill_id = ${bills}.id AND s.user_id = ${userId})`));
+		.where(and(inVote(session, previous), ne(bills.userId, userId), sql`NOT EXISTS (SELECT 1 FROM bill_supports s WHERE s.bill_id = ${bills}.id AND s.user_id = ${userId})`, sql`NOT EXISTS (SELECT 1 FROM bill_cosponsors c WHERE c.bill_id = ${bills}.id AND c.user_id = ${userId} AND c.status IN ('accepted', 'left'))`));
 	const picks = drawAssignments(
 		candidates.map((c) => c.id),
 		ASSIGNMENT_COUNT,

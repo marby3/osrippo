@@ -262,7 +262,9 @@ export const ACTION_KINDS = [
 	'amendment_accept',
 	'amendment_support_add',
 	'amendment_support_remove',
-	'vote_cast'
+	'vote_cast',
+	'bill_cosponsor',
+	'bill_withdraw'
 ] as const;
 
 /** レート制限を数えるための記録。IP はハッシュ（ip_hash）だけを持つ */
@@ -448,7 +450,7 @@ export const committeeLaws = sqliteTable(
 );
 
 /** v0.4 で withdrawn・passed などを足す。表を作り直さないよう、DB には CHECK を付けない */
-export const BILL_STATUSES = ['draft', 'proposed'] as const;
+export const BILL_STATUSES = ['draft', 'proposed', 'withdrawn'] as const;
 const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '));
 
 /**
@@ -488,7 +490,9 @@ export const bills = sqliteTable(
 		/** 発議した版。賛同者はこの版の行を数える（設計書 docs/spec/68.md 決めたこと8） */
 		proposedRev: integer('proposed_rev'),
 		/** 出し直しの元の法案（設計書 docs/spec/75.md）。下書きを確定するときに入れる */
-		resubmittedFrom: integer('resubmitted_from').references((): AnySQLiteColumn => bills.id)
+		resubmittedFrom: integer('resubmitted_from').references((): AnySQLiteColumn => bills.id),
+		/** 撤回した時刻（設計書 docs/spec/76.md）。統合案で取り下げられたかは bill_relations で分かる */
+		withdrawnAt: integer('withdrawn_at')
 	},
 	(t) => [
 		index('bills_user').on(t.userId),
@@ -496,6 +500,76 @@ export const bills = sqliteTable(
 		index('bills_status_created').on(t.status, t.createdAt),
 		index('bills_resubmitted_from').on(t.resubmittedFrom),
 		check('bills_kind', sql`${t.kind} IN (${inList(BILL_KINDS)})`)
+	]
+);
+
+/**
+ * 共同提出者（設計書 docs/spec/76.md）。id はフォームで相手を指すのに使い、他人の内部IDをページに載せない。
+ * 権限があるのは accepted だけ（申し出は本人だけで作れる）。left と declined は変わらない
+ */
+export const billCosponsors = sqliteTable(
+	'bill_cosponsors',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		status: text('status', { enum: ['requested', 'accepted', 'left', 'declined'] }).notNull(),
+		createdAt: integer('created_at').notNull(),
+		acceptedAt: integer('accepted_at')
+	},
+	(t) => [unique('bill_cosponsors_bill_user').on(t.billId, t.userId), index('bill_cosponsors_user').on(t.userId), check('bill_cosponsors_status', sql`${t.status} IN ('requested', 'accepted', 'left', 'declined')`)]
+);
+
+/** 撤回の同意。発議した版ごとに数える（要調整を直して発議し直すと前の同意は数えない） */
+export const billWithdrawConsents = sqliteTable(
+	'bill_withdraw_consents',
+	{
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		proposedRev: integer('proposed_rev').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.billId, t.proposedRev, t.userId] })]
+);
+
+/** 統合案と元の法案のつながり */
+export const billRelations = sqliteTable(
+	'bill_relations',
+	{
+		mergedBillId: integer('merged_bill_id')
+			.notNull()
+			.references(() => bills.id),
+		originBillId: integer('origin_bill_id')
+			.notNull()
+			.references(() => bills.id),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.mergedBillId, t.originBillId] }), index('bill_relations_origin').on(t.originBillId), check('bill_relations_differ', sql`${t.mergedBillId} <> ${t.originBillId}`)]
+);
+
+/** 統合案への同意。rev が統合案のいまの版の行だけ数える（読んでいない条文への同意で自分の法案が撤回にならないように） */
+export const billMergeConsents = sqliteTable(
+	'bill_merge_consents',
+	{
+		mergedBillId: integer('merged_bill_id').notNull(),
+		originBillId: integer('origin_bill_id').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		rev: integer('rev').notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.mergedBillId, t.originBillId, t.userId] }),
+		foreignKey({ columns: [t.mergedBillId, t.originBillId], foreignColumns: [billRelations.mergedBillId, billRelations.originBillId] })
 	]
 );
 

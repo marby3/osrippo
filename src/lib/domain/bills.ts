@@ -453,9 +453,12 @@ export const PARTICIPANT_KINDS = [
 
 // ---- 法案の進み（Issue #50。設計書 docs/spec/50.md 決めたこと1〜4） ----
 
-export type BillProgress = 'draft' | 'proposed' | 'deliberation' | 'vote' | 'lapsed';
+export type BillProgress = 'draft' | 'proposed' | 'deliberation' | 'vote' | 'lapsed' | 'withdrawn';
 /** 進みを求めるのに使う法案の列。質疑・採決・廃案は書き込まず、時刻から求める */
-type BillClock = { status: 'draft' | 'proposed'; proposedAt: number | null };
+type BillClock = { status: 'draft' | 'proposed' | 'withdrawn'; proposedAt: number | null };
+
+/** 共同提出者の上限（設計書 docs/spec/76.md の決定C） */
+export const COSPONSOR_MAX = 5;
 
 /** 付託先の会期：締切（15日 0:00）より前の発議はその会期、それ以後は次の会期 */
 export function referralSession(proposedAt: number, minutes: number | null): Session {
@@ -465,10 +468,20 @@ export function referralSession(proposedAt: number, minutes: number | null): Ses
 
 /** いまの進み（時刻から求める）。lapsed は付託先の会期が終わったこと。可決・否決・廃案のどれかは結果の行で決まる（billStage。domain/votes.ts） */
 export function billProgress(bill: BillClock, now: number, minutes: number | null): BillProgress {
+	if (bill.status === 'withdrawn') return 'withdrawn';
 	if (bill.status === 'draft') return 'draft';
 	if (bill.proposedAt === null) return 'proposed';
 	const r = referralSession(bill.proposedAt, minutes);
 	return now < r.deliberationAt ? 'proposed' : now < r.voteAt ? 'deliberation' : now < r.endsAt ? 'vote' : 'lapsed';
+}
+
+/**
+ * 取り下げられる時刻：proposed_at >= この値 と、billProgress が proposed か deliberation なことが同じになる値（docs/spec/76.md）。
+ * 採決の期間に入っていれば、いまの会期に付託された法案（質疑の締切の前の発議）は採決中。そうでなければ、前の会期の分だけ終わっている
+ */
+export function withdrawableSince(now: number, minutes: number | null): number {
+	const session = sessionAt(now, minutes);
+	return now >= session.voteAt ? session.deliberationAt : sessionAt(session.startsAt - 1, minutes).deliberationAt;
 }
 
 /** 次の段（質疑か採決）がいつ始まるか。発議と質疑のときだけ */
@@ -486,7 +499,7 @@ export function nextStage(bill: BillClock, now: number, minutes: number | null):
 export const lapsedBefore = (previous: Session) => previous.deliberationAt;
 
 /** PC の「いまの段階」の並びの位置（下書き・発議・委員会へ・質疑・採決・結果）。委員会へ（2）がいまの段になることはない */
-export const BILL_PROGRESS_STEP = { draft: 0, proposed: 1, deliberation: 3, vote: 4, lapsed: 5 } as const satisfies Record<BillProgress, number>;
+export const BILL_PROGRESS_STEP = { draft: 0, proposed: 1, deliberation: 3, vote: 4, lapsed: 5, withdrawn: 5 } as const satisfies Record<BillProgress, number>;
 
 /**
  * 書く画面が基にする版の印。<分岐した版>@<IF世界の版>（docs/spec/72.md 決めたこと4）。

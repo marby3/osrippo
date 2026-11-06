@@ -31,6 +31,7 @@
 			progress={data.progress}
 			required={data.required}
 			isAuthor={data.isAuthor}
+			isSide={data.isSide}
 			canAccept={data.canAccept}
 			loggedIn={data.loggedIn}
 			waiting={data.waitUntil !== null}

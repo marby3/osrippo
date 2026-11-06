@@ -12,6 +12,7 @@ import { amendableArticles, amendmentOf } from '#lib/server/amendments.ts';
 import { nowOf } from '#lib/server/client.ts';
 import { progressOf } from '#lib/server/post-actions.ts';
 import { requireUser } from '#lib/server/require-user.ts';
+import { isBillSide } from '#lib/server/cosponsors.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -28,7 +29,7 @@ export const load: PageServerLoad = async (event) => {
 	let blocked: string | null = waitUntil !== null ? ja.amendment.tooNew(waitUntil) : !open ? ja.amendment.closed : null;
 	if (!blocked && target && target.userId !== user.id) blocked = ja.amendment.notMine;
 	if (!blocked && target && (target.status !== 'open' || target.baseRev === bill.rev)) blocked = ja.amendment.noUpdate;
-	if (!blocked && !target && bill.userId === user.id) blocked = ja.amendment.author;
+	if (!blocked && !target && (await isBillSide(db, bill, user.id))) blocked = ja.amendment.author;
 
 	const all = blocked ? [] : await amendableArticles(db, bill);
 	const updating = target && all.find((a) => a.lawSeq === target.lawSeq && a.num === target.num);

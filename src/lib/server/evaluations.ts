@@ -3,7 +3,7 @@ import { and, count, countDistinct, eq, gt, inArray, ne, sql } from 'drizzle-orm
 import { actions, evaluations, postViews, posts } from '../db/schema';
 import { postScores, scoredStance, type EvaluationKind, type EvaluationOp, type PostScore } from '../domain/evaluations';
 import { checkEvaluation, DAY, LIMITS } from '../domain/limits';
-import type { PostRole } from '../domain/posts';
+import type { BillRole } from '../domain/posts';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
 
@@ -14,7 +14,7 @@ const scored = and(inArray(posts.kind, ['question', 'answer']), eq(posts.status,
  * いまの立場を、書く文の中で読む式。別に読まないので、立場を変えるのと重なっても、どちらかの立場で1行だけ残る。
  * 未定か行がなければ、提出者と賛同者は賛成寄り（決めたこと6）
  */
-export const stanceNow = (sessionKey: string, billId: number, userId: string, role: PostRole | null) =>
+export const stanceNow = (sessionKey: string, billId: number, userId: string, role: BillRole | null) =>
 	sql`COALESCE((SELECT s.stance FROM stances s WHERE s.session_key = ${sessionKey} AND s.bill_id = ${billId} AND s.user_id = ${userId} AND s.stance <> 'undecided'), ${scoredStance('undecided', role)})`;
 
 /** 評価できる投稿：その法案のその会期の見える質疑と答弁。なければ undefined */
@@ -30,7 +30,7 @@ export async function evaluationTarget(db: Db, postId: number, bill: { id: numbe
  * 読んだ記録。読んだ時点の立場で1行だけ残し、読み直しても変えない。自分の投稿、ほかの法案、答弁のある質疑（押せないので）は黙って無視する。
  * 番号は D1 の値の数の上限に収めるため、JSON の1つの値で渡す
  */
-export async function recordViews(db: Db, userId: string, bill: { id: number; sessionKey: string }, postIds: number[], role: PostRole | null, now: number) {
+export async function recordViews(db: Db, userId: string, bill: { id: number; sessionKey: string }, postIds: number[], role: BillRole | null, now: number) {
 	await db.run(sql`
 		INSERT INTO ${postViews} (post_id, user_id, stance, created_at)
 		SELECT p.id, ${userId}, ${stanceNow(bill.sessionKey, bill.id, userId, role)}, ${now}
@@ -48,7 +48,7 @@ export async function setEvaluation(
 	post: { id: number; billId: number; sessionKey: string },
 	kind: EvaluationKind,
 	op: EvaluationOp,
-	role: PostRole | null,
+	role: BillRole | null,
 	now: number
 ) {
 	const mine = eq(actions.userId, actor.userId);

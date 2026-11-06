@@ -1,7 +1,7 @@
 // 法案の下書きを作る・保存する・読む（設計書 docs/spec/45.md 決めたこと1・7・8）。
 // 受け取る値は、呼ぶ側（#46）が validateBill・checkChanges・基にした版の比べを通したもの。ここでは確かめずに書く
-import { and, asc, count, countDistinct, desc, eq, gt, gte, inArray, lt, ne, sql, type SQL } from 'drizzle-orm';
-import { actions, billChanges, billLaws, bills, billSolutions, billSupports, committeeLaws, issues, laws, sessionParticipantCounts, solutions, user } from '../db/schema';
+import { and, asc, count, countDistinct, desc, eq, gt, gte, inArray, lt, ne, sql, type SQL, or } from 'drizzle-orm';
+import { actions, billChanges, billLaws, bills, billSolutions, billSupports, committeeLaws, issues, laws, sessionParticipantCounts, solutions, user, billCosponsors, billRelations } from '../db/schema';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
 import { baseToken, changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, PARTICIPANT_KINDS, referralSession, type BillChange, type BillKind, type BillTab } from '../domain/bills';
 import { PAGE_SIZE } from '../domain/issues';
@@ -9,8 +9,9 @@ import { checkBillDraft, checkBillSave, checkBillSupport, DAY, LIMITS } from '..
 import { sessionAt, type Session } from '../domain/session';
 import { LISTED, SOLUTION_SHOWN as SHOWN } from '../domain/reports';
 import { refuse, type Actor } from './issues';
+import { mergeBlock, proposeMerged } from './merge';
 import { baseArticlesOf, ifArticles, ifHeadOf, repealedLawIds } from './if-world';
-import type { Db } from './law';
+import type { Db, BatchDb } from './law';
 
 /** 作りかけ（rev = 0）を除く条件。法案を引くところは必ずこれを使う */
 export const savedBill = gt(bills.rev, 0);
@@ -87,7 +88,9 @@ export async function createUnconfirmedDraft(db: Db, userId: string, input: Draf
 export async function saveDraft(db: Db, billId: number, userId: string, expectedRev: number, input: DraftInput, now: number): Promise<boolean> {
 	if (!Number.isInteger(expectedRev) || expectedRev < 1) return false;
 	// kind は作ったあとは変えないので、違う kind の中身は保存しない
-	const editable = and(eq(bills.id, billId), eq(bills.userId, userId), eq(bills.status, 'draft'), eq(bills.kind, input.kind), savedBill);
+	// 提出者か共同提出者（docs/spec/76.md。申し出ているだけでは編集できない）
+	const editor = or(eq(bills.userId, userId), sql`EXISTS (SELECT 1 FROM bill_cosponsors c WHERE c.bill_id = ${billId} AND c.user_id = ${userId} AND c.status = 'accepted')`);
+	const editable = and(eq(bills.id, billId), editor, eq(bills.status, 'draft'), eq(bills.kind, input.kind), savedBill);
 	// 開いたときの rev でなければ、子の行を書く前に止める（古い画面から何度押しても行が増えないように）。
 	// 同時の保存は両方ここを通りうるが、最後の UPDATE で片方だけが通る
 	const [taken] = await db
@@ -349,14 +352,16 @@ const supportCount = sql<number>`(SELECT count(*) FROM ${billSupports} s WHERE s
 
 /**
  * タブの法案。下書きは保存が新しい順、審議中は作ったのが新しい順、終わったは発議が新しい順。
- * before は lapsedBefore の値で、これより前に発議した法案が終わった（docs/spec/50.md 決めたこと4・5）
+ * before は lapsedBefore の値で、これより前に発議した法案と、撤回された法案が終わった（docs/spec/50.md 決めたこと4・5、docs/spec/76.md）
  */
 export async function listBills(db: Db, tab: BillTab, page: number, before: number) {
 	const draft = tab === 'shitagaki';
 	const inTab = draft
 		? eq(bills.status, 'draft')
-		: and(eq(bills.status, 'proposed'), tab === 'owari' ? lt(bills.proposedAt, before) : gte(bills.proposedAt, before));
-	const newest = draft ? bills.updatedAt : tab === 'owari' ? bills.proposedAt : bills.createdAt;
+		: tab === 'owari'
+			? or(eq(bills.status, 'withdrawn'), and(eq(bills.status, 'proposed'), lt(bills.proposedAt, before)))
+			: and(eq(bills.status, 'proposed'), gte(bills.proposedAt, before));
+	const newest = draft ? bills.updatedAt : tab === 'owari' ? sql`COALESCE(${bills.withdrawnAt}, ${bills.proposedAt})` : bills.createdAt;
 	const rows = await db
 		.select({ id: bills.id, kind: bills.kind, status: bills.status, proposedAt: bills.proposedAt, title: bills.title, supports: supportCount })
 		.from(bills)
@@ -407,7 +412,16 @@ export async function billSupportState(db: Db, billId: number, rev: number, user
 	return { supports: row.n, mine: own.n > 0 };
 }
 
-export type SupportClosed = 'author' | 'closed' | 'stale';
+export type SupportClosed = 'author' | 'closed' | 'stale' | 'cosponsor' | 'formerCosponsor';
+
+/** 賛同の行を入れる文。共同提出者と抜けた人を入れない（確かめのあとに承認が走っても、どちらの順でも賛同の行が残らない） */
+export const addSupportRow = (db: Db, billId: number, expectedRev: number, userId: string, now: number) =>
+	db.all<{ id: number }>(sql`
+		INSERT INTO ${billSupports} (bill_id, rev, user_id, created_at)
+		SELECT id, rev, ${userId}, ${now} FROM ${bills}
+		WHERE id = ${billId} AND status = 'draft' AND rev = ${expectedRev} AND rev > 0 AND user_id <> ${userId}
+		AND NOT EXISTS (SELECT 1 FROM bill_cosponsors c WHERE c.bill_id = ${billId} AND c.user_id = ${userId} AND c.status IN ('accepted', 'left'))
+		ON CONFLICT DO NOTHING RETURNING bill_id AS id`);
 
 /** 賛同する・取り消す。いまと同じ状態への操作は何もせず、数えない。記録は行が変わったときだけ足す */
 export async function setBillSupport(db: Db, actor: Actor, billId: number, expectedRev: number, op: 'add' | 'remove', now: number) {
@@ -419,6 +433,9 @@ export async function setBillSupport(db: Db, actor: Actor, billId: number, expec
 			.where(and(eq(bills.id, billId), savedBill));
 		if (!b || b.status !== 'draft') return { closed: closed('closed') };
 		if (b.userId === actor.userId) return { closed: closed('author') };
+		const [row] = await db.select({ status: billCosponsors.status }).from(billCosponsors).where(and(eq(billCosponsors.billId, billId), eq(billCosponsors.userId, actor.userId)));
+		if (row?.status === 'accepted') return { closed: closed('cosponsor') };
+		if (row?.status === 'left') return { closed: closed('formerCosponsor') };
 		if (b.rev !== expectedRev) return { closed: closed('stale') };
 		return { rev: b.rev };
 	};
@@ -443,11 +460,7 @@ export async function setBillSupport(db: Db, actor: Actor, billId: number, expec
 	// どちらも1文で確かめて書く。発議や保存と同時でも、発議したあとの法案や古い版の賛同は変わらない
 	const changed =
 		op === 'add'
-			? await db.all<{ id: number }>(sql`
-				INSERT INTO ${billSupports} (bill_id, rev, user_id, created_at)
-				SELECT id, rev, ${actor.userId}, ${now} FROM ${bills}
-				WHERE id = ${billId} AND status = 'draft' AND rev = ${expectedRev} AND rev > 0 AND user_id <> ${actor.userId}
-				ON CONFLICT DO NOTHING RETURNING bill_id AS id`)
+			? await addSupportRow(db, billId, expectedRev, actor.userId, now)
 			: await db.all<{ id: number }>(sql`
 				DELETE FROM ${billSupports} WHERE bill_id = ${billId} AND user_id = ${actor.userId}
 				AND rev = (SELECT rev FROM ${bills} WHERE id = ${billId} AND status = 'draft' AND rev = ${expectedRev}) RETURNING bill_id AS id`);
@@ -460,24 +473,43 @@ export async function setBillSupport(db: Db, actor: Actor, billId: number, expec
 	return { ok: true as const, changed: true };
 }
 
-export type ProposeRefused = 'notAuthor' | 'closed' | 'short';
+export type ProposeRefused = 'notAuthor' | 'closed' | 'short' | 'stale' | 'merge' | 'mergeClosed';
 
-/** 発議する。賛同の数の確かめも同じ文の中で行う。required は押したときの会期の発議要件 */
-export async function proposeBill(db: Db, actor: Actor, billId: number, required: number, now: number): Promise<{ ok: true } | { ok: false; reason: ProposeRefused }> {
+/**
+ * 発議する。賛同の数の確かめも同じ文の中で行う。required は押したときの会期の発議要件。
+ * rev は読んだ版で、編集する人が複数なので、提出者が読んでいない版を発議しない。統合案は元の法案を一緒に撤回する（docs/spec/76.md 決めたこと13）
+ */
+export async function proposeBill(db: Db, actor: Actor, billId: number, rev: number, required: number, now: number, minutes: number | null = null): Promise<{ ok: true } | { ok: false; reason: ProposeRefused }> {
 	const [b] = await db
-		.select({ userId: bills.userId, status: bills.status })
+		.select({ userId: bills.userId, status: bills.status, rev: bills.rev })
 		.from(bills)
 		.where(and(eq(bills.id, billId), savedBill));
 	if (!b || b.status !== 'draft') return { ok: false, reason: 'closed' };
 	if (b.userId !== actor.userId) return { ok: false, reason: 'notAuthor' };
+	if (b.rev !== rev) return { ok: false, reason: 'stale' };
+	const [relation] = await db.select({ id: billRelations.originBillId }).from(billRelations).where(eq(billRelations.mergedBillId, billId)).limit(1);
+	if (relation) {
+		const block = await mergeBlock(db, { id: billId, userId: b.userId, rev }, now, minutes);
+		if (block) return { ok: false, reason: block };
+		const proposed = await proposeMerged(db as BatchDb, actor, { id: billId, rev }, rev, required, now, minutes);
+		if (!proposed) {
+			const [again] = await db.select({ status: bills.status, rev: bills.rev }).from(bills).where(eq(bills.id, billId));
+			if (again?.status !== 'draft') return { ok: false, reason: 'closed' };
+			if (again.rev !== rev) return { ok: false, reason: 'stale' };
+			return { ok: false, reason: (await mergeBlock(db, { id: billId, userId: b.userId, rev }, now, minutes)) ?? 'short' };
+		}
+		await db.insert(actions).values({ kind: 'bill_propose', userId: actor.userId, ipHash: actor.ipHash, targetId: billId, createdAt: now });
+		return { ok: true };
+	}
 	const done = await db.all<{ id: number }>(sql`
 		UPDATE ${bills} SET status = 'proposed', proposed_at = ${now}, proposed_rev = rev, updated_at = ${now}
-		WHERE id = ${billId} AND user_id = ${actor.userId} AND status = 'draft' AND rev > 0
+		WHERE id = ${billId} AND user_id = ${actor.userId} AND status = 'draft' AND rev = ${rev} AND rev > 0
 		AND (SELECT count(*) FROM ${billSupports} s WHERE s.bill_id = ${billId} AND s.rev = ${bills}.rev AND s.user_id <> ${bills}.user_id) >= ${required}
 		RETURNING id`);
 	if (done.length === 0) {
-		const [again] = await db.select({ status: bills.status }).from(bills).where(eq(bills.id, billId));
-		return { ok: false, reason: again?.status === 'draft' ? 'short' : 'closed' };
+		const [again] = await db.select({ status: bills.status, rev: bills.rev }).from(bills).where(eq(bills.id, billId));
+		if (again?.status !== 'draft') return { ok: false, reason: 'closed' };
+		return { ok: false, reason: again.rev === rev ? 'short' : 'stale' };
 	}
 	await db.insert(actions).values({ kind: 'bill_propose', userId: actor.userId, ipHash: actor.ipHash, targetId: billId, createdAt: now });
 	return { ok: true };
@@ -504,6 +536,6 @@ export async function relatedBills(db: Db, bill: { id: number; rev: number; prop
 	return db
 		.select({ id: bills.id, title: bills.title })
 		.from(bills)
-		.where(and(ne(bills.id, bill.id), gte(bills.proposedAt, previous.deliberationAt), lt(bills.proposedAt, session.deliberationAt), touches))
+		.where(and(ne(bills.id, bill.id), eq(bills.status, 'proposed'), gte(bills.proposedAt, previous.deliberationAt), lt(bills.proposedAt, session.deliberationAt), touches))
 		.orderBy(asc(bills.id));
 }
