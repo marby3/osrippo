@@ -485,6 +485,16 @@ export const ja = {
 			prevPage: '前のページ',
 			nextPage: '次のページ'
 		},
+		/** 出し直し（設計書 docs/spec/75.md） */
+		resubmit: {
+			button: '出し直す',
+			note: '中身を複製した新しい下書きを作ります。賛同は集め直します。',
+			open: '出し直した法案を開く',
+			origin: '元の法案：',
+			fromResult: '法案のページで出し直す',
+			notAuthor: '提出者だけが出し直せます。',
+			closed: 'この法案は出し直せません。'
+		},
 		/** 法案のページ（SpBillSummary・SpBillChanges・PcBillSummary・PcBillChanges） */
 		page: {
 			pageTitle: (title: string) => `${title}｜オープンソース立法府`,

@@ -22,6 +22,7 @@
 	<p class="badge">{ja.bill.kinds[bill.kind]}</p>
 	<h1>{bill.title}</h1>
 	<p class="formal">{bill.formalName}</p>
+	{#if data.origin}<p class="formal">{ja.bill.resubmit.origin}<a href="/houan/{data.origin.id}">{data.origin.title}</a></p>{/if}
 	<p class="now sp">
 		{ja.bill.page.now}<strong>{ja.bill.progress[data.stage]}</strong>{#if data.progress === 'deliberation'}{ja.session.week(3)}{:else if data.progress === 'vote'}{ja.session.week(4)}{/if}
 	</p>

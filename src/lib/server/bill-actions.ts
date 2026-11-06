@@ -13,6 +13,8 @@ import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from '.
 import { proposeBlock, saveAdjustedBill, staleArticles } from './if-world';
 import type { BatchDb, Db } from './law';
 import { requireUser } from './require-user';
+import { billStageNow } from './results';
+import { resubmitBill, resubmitStateOf } from './resubmit';
 
 export type BillFormFailure = { values: BillFormValues; errors?: BillFormErrors; message?: string; conflicts?: Awaited<ReturnType<typeof staleArticles>> };
 
@@ -98,6 +100,22 @@ export async function supportAction(event: RequestEvent) {
 	return result.reason === 'author'
 		? fail(403, { message: ja.bill.support.author })
 		: fail(409, { message: result.reason === 'stale' ? (op === 'add' ? ja.bill.support.stale : ja.bill.support.staleRemove) : ja.bill.support.closed });
+}
+
+/** 出し直し（docs/spec/75.md 決めたこと4）。作れたら新しい下書きへ、すでに出し直した法案があればそこへ移る */
+export async function resubmitAction(event: RequestEvent) {
+	const { db, bill } = await billOf(event);
+	const now = nowOf(event);
+	const checked = await billGuard(event, db, now, true);
+	if (checked.failure) return checked.failure;
+	if (bill.userId !== checked.actor.userId) return fail(403, { message: ja.bill.resubmit.notAuthor });
+	// 受け付けが最初の読み手でも、結果を確定して修正案を当てたあとの中身を複製する
+	const view = await billStageNow(db as unknown as BatchDb, bill, now, sessionsAt(now).minutes);
+	const { can } = await resubmitStateOf(db, view.bill, view.stage);
+	if (!can) return fail(409, { message: ja.bill.resubmit.closed });
+	const result = await resubmitBill(db, checked.actor, view.bill, now);
+	if (!result.ok) return fail(429, { message: refusalMessage(result.refusal) });
+	redirect(303, `/houan/${result.id}`);
 }
 
 export async function proposeAction(event: RequestEvent) {

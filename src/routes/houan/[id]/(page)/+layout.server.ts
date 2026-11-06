@@ -1,10 +1,11 @@
 // 法案のページ（概要と変更点のタブ）。下書きもだれでも見られる（Issue #46）
 import { error } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
+import { bills } from '#lib/db/schema.ts';
 import { hasAmendableLaw } from '#lib/domain/amendments.ts';
-import { billStage } from '#lib/domain/votes.ts';
-import { billProgress, nextStage, proposalRequirement } from '#lib/domain/bills.ts';
+import { nextStage, proposalRequirement } from '#lib/domain/bills.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { billWaitUntil } from '#lib/domain/limits.ts';
 import { FIRST_COMMITTEE } from '#lib/server/bill-form.ts';
@@ -13,8 +14,8 @@ import { billById, billSupportState, billView, relatedBills, sessionParticipants
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import type { BatchDb } from '#lib/server/law.ts';
 import { questionTotal } from '#lib/server/posts.ts';
-import { adjustmentOf } from '#lib/server/if-world.ts';
-import { resultOnRead } from '#lib/server/results.ts';
+import { billStageNow } from '#lib/server/results.ts';
+import { resubmitStateOf } from '#lib/server/resubmit.ts';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async (event) => {
@@ -22,19 +23,12 @@ export const load: LayoutServerLoad = async (event) => {
 	const id = parseIssueId(params.id);
 	const db = drizzle(env.DB);
 	// 作りかけ（rev = 0）は billById が返さない
-	let bill = id === null ? undefined : await billById(db, id);
-	if (!bill) error(404);
+	const loaded = id === null ? undefined : await billById(db, id);
+	if (!loaded) error(404);
 	const now = nowOf(event);
 	const user = locals.user;
 	const { session, previous, minutes } = sessionsAt(now);
-	const progress = billProgress(bill, now, minutes);
-	// 会期が終わった法案は結果を読む。なければここで確定する（docs/spec/71.md 決めたこと5）
-	const result = progress === 'lapsed' ? await resultOnRead(db as unknown as BatchDb, bill, minutes, now) : null;
-	// 修正案が当たって版が進んだら読み直す
-	if (result && result.rev !== bill.rev) bill = (await billById(db, bill.id)) ?? bill;
-	const held = result?.review?.status === 'open' || result?.review?.status === 'voided';
-	const adjustment = result?.outcome === 'passed' && !held ? await adjustmentOf(db, result.sessionKey, bill.id) : null;
-	const stage = billStage(progress, result?.outcome ?? null, adjustment, now, result?.review?.status ?? null);
+	const { bill, progress, adjustment, stage } = await billStageNow(db as unknown as BatchDb, loaded, now, minutes);
 	const isAuthor = user?.id === bill.userId;
 	const draft = bill.status === 'draft';
 	const { supports, mine } = await billSupportState(db, bill.id, supportRev(bill), user?.id ?? null);
@@ -57,6 +51,9 @@ export const load: LayoutServerLoad = async (event) => {
 		coDrafters: draft ? [] : await coDrafters(db, bill.id),
 		related: draft ? [] : await relatedBills(db, bill, minutes),
 		canEdit: isAuthor && (draft || stage === 'adjusting'),
+		// 出し直し（docs/spec/75.md）。提出者にだけ渡す
+		resubmit: isAuthor && progress === 'lapsed' ? await resubmitStateOf(db, bill, stage) : null,
+		origin: bill.resubmittedFrom === null ? null : ((await db.select({ id: bills.id, title: bills.title }).from(bills).where(eq(bills.id, bill.resubmittedFrom)))[0] ?? null),
 		support: {
 			rev: bill.rev,
 			count: supports,

@@ -102,6 +102,7 @@
 				</section>
 				{#if data.place}<p class="to-bill"><a href="/if/hourei/{data.place.lawId}">{ja.ifLaw.toLaw}</a></p>{/if}
 				<p class="to-bill"><a href="/houan/{data.bill.id}">{ja.result.billLink}</a></p>
+				{#if data.resubmittable}<p class="to-bill"><a href="/houan/{data.bill.id}">{ja.bill.resubmit.fromResult}</a></p>{/if}
 			</aside>
 		</div>
 	{/if}

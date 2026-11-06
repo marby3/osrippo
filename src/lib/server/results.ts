@@ -3,13 +3,13 @@
 import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import { actions, amendments, billResults, bills, billSupports, user, voteReviews, votes, type ROLES } from '../db/schema';
 import { newAccountSince, voteAnomalies, type AnomalyDetail, type AnomalySignal, type AnomalyVote } from '../domain/anomalies';
-import { referralSession } from '../domain/bills';
+import { billProgress, referralSession } from '../domain/bills';
 import { PAGE_SIZE } from '../domain/issues';
 import { sessionAt, type Session } from '../domain/session';
-import { billOutcome, quorumRequirement, SETTLE_GRACE } from '../domain/votes';
+import { billOutcome, billStage, quorumRequirement, SETTLE_GRACE } from '../domain/votes';
 import { settleAmendments } from './amendments';
-import { sessionParticipants } from './bills';
-import { adjustmentRowOf, applySession, ifPlaceOf, importReal } from './if-world';
+import { billById, sessionParticipants, type Bill } from './bills';
+import { adjustmentOf, adjustmentRowOf, applySession, ifPlaceOf, importReal } from './if-world';
 import type { BatchDb, Db } from './law';
 import { countedCondition, inVote, tallyVotes } from './votes';
 
@@ -147,6 +147,20 @@ export async function resultOf(db: Db, sessionKey: string, billId: number) {
 		.from(billResults)
 		.where(and(eq(billResults.sessionKey, sessionKey), eq(billResults.billId, billId)));
 	return row;
+}
+
+/**
+ * 法案のいまの段階。会期が終わった法案は結果を読み、なければ確定する（docs/spec/71.md 決めたこと5）。
+ * 修正案が当たって版が進むので、返す bill は読み直したあとのもの。minutes は開発用の短い会期（本番は null）
+ */
+export async function billStageNow(db: BatchDb, loaded: NonNullable<Bill>, now: number, minutes: number | null) {
+	let bill = loaded;
+	const progress = billProgress(bill, now, minutes);
+	const result = progress === 'lapsed' ? await resultOnRead(db, bill, minutes, now) : null;
+	if (result && result.rev !== bill.rev) bill = (await billById(db, bill.id)) ?? bill;
+	const held = result?.review?.status === 'open' || result?.review?.status === 'voided';
+	const adjustment = result?.outcome === 'passed' && !held ? await adjustmentOf(db, result.sessionKey, bill.id) : null;
+	return { bill, progress, result, adjustment, stage: billStage(progress, result?.outcome ?? null, adjustment, now, result?.review?.status ?? null) };
 }
 
 /** その会期のその法案の確認の行 */

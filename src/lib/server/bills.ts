@@ -65,12 +65,18 @@ export const fields = (input: DraftInput) => ({
 
 /** 下書きを作り、法案の番号を返す。rev = 0 で足し、中身を版 1 で入れてから rev = 1 にする */
 export async function createDraft(db: Db, userId: string, input: DraftInput, now: number): Promise<number> {
+	const id = await createUnconfirmedDraft(db, userId, input, now);
+	await db.update(bills).set({ rev: 1 }).where(and(eq(bills.id, id), eq(bills.rev, 0)));
+	return id;
+}
+
+/** rev = 0 の行と版1の子の行を作る。rev を 1 にするまで、読むところからは見えない */
+export async function createUnconfirmedDraft(db: Db, userId: string, input: DraftInput, now: number): Promise<number> {
 	const [row] = await db
 		.insert(bills)
 		.values({ userId, committeeId: input.committeeId, kind: input.kind, rev: 0, nextRev: 2, ...fields(input), createdAt: now, updatedAt: now })
 		.returning({ id: bills.id });
 	await insertContent(db, row.id, 1, input);
-	await db.update(bills).set({ rev: 1 }).where(and(eq(bills.id, row.id), eq(bills.rev, 0)));
 	return row.id;
 }
 
@@ -217,14 +223,19 @@ const countSince = async (db: Db, kind: 'bill_draft' | 'bill_save', who: SQL, no
 
 /** 上限を確かめて下書きを作る（Issue #46 決めたこと2） */
 export async function createDraftLimited(db: Db, actor: Actor, input: DraftInput, now: number) {
-	const refusal = checkBillDraft({
-		accountDrafts: await countSince(db, 'bill_draft', eq(actions.userId, actor.userId), now),
-		ipDrafts: await countSince(db, 'bill_draft', eq(actions.ipHash, actor.ipHash), now)
-	});
+	const refusal = await draftRefusal(db, actor, now);
 	if (refusal) return refuse(db, actor, refusal, now);
 	const id = await createDraft(db, actor.userId, input, now);
 	await db.insert(actions).values({ kind: 'bill_draft', userId: actor.userId, ipHash: actor.ipHash, targetId: id, createdAt: now });
 	return { ok: true as const, id };
+}
+
+/** 下書きを作る上限。超えていれば断る理由を返す */
+export async function draftRefusal(db: Db, actor: Actor, now: number) {
+	return checkBillDraft({
+		accountDrafts: await countSince(db, 'bill_draft', eq(actions.userId, actor.userId), now),
+		ipDrafts: await countSince(db, 'bill_draft', eq(actions.ipHash, actor.ipHash), now)
+	});
 }
 
 /** 上限を確かめて下書きを保存する。saved が false なら、ほかの画面で先に保存された */
