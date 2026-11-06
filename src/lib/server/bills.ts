@@ -223,14 +223,19 @@ const countSince = async (db: Db, kind: 'bill_draft' | 'bill_save', who: SQL, no
 
 /** 上限を確かめて下書きを作る（Issue #46 決めたこと2） */
 export async function createDraftLimited(db: Db, actor: Actor, input: DraftInput, now: number) {
-	const refusal = checkBillDraft({
-		accountDrafts: await countSince(db, 'bill_draft', eq(actions.userId, actor.userId), now),
-		ipDrafts: await countSince(db, 'bill_draft', eq(actions.ipHash, actor.ipHash), now)
-	});
+	const refusal = await draftRefusal(db, actor, now);
 	if (refusal) return refuse(db, actor, refusal, now);
 	const id = await createDraft(db, actor.userId, input, now);
 	await db.insert(actions).values({ kind: 'bill_draft', userId: actor.userId, ipHash: actor.ipHash, targetId: id, createdAt: now });
 	return { ok: true as const, id };
+}
+
+/** 下書きを作る上限。超えていれば断る理由を返す */
+export async function draftRefusal(db: Db, actor: Actor, now: number) {
+	return checkBillDraft({
+		accountDrafts: await countSince(db, 'bill_draft', eq(actions.userId, actor.userId), now),
+		ipDrafts: await countSince(db, 'bill_draft', eq(actions.ipHash, actor.ipHash), now)
+	});
 }
 
 /** 上限を確かめて下書きを保存する。saved が false なら、ほかの画面で先に保存された */

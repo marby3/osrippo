@@ -82,7 +82,7 @@ test('基準4：提出者にだけボタンが出て、押すと新しい下書�
 	await other.page.goto(path);
 	await expect(other.page.getByRole('button', { name: '出し直す' })).toHaveCount(0);
 	expect((await resubmit(other.page, path)).status()).toBe(403);
-	const noLogin = await anonymous.page.request.post(`${path}?/resubmit`, { headers: { origin: 'http://localhost:4173', accept: 'text/html', 'content-type': 'application/x-www-form-urlencoded' }, data: '', maxRedirects: 0 });
+	const noLogin = await resubmit(anonymous.page, path);
 	expect(noLogin.status()).toBe(303);
 	expect(noLogin.headers().location).toContain('/login');
 
@@ -104,7 +104,6 @@ test('基準4：提出者にだけボタンが出て、押すと新しい下書�
 	const link = a.page.getByRole('main').getByRole('link', { name: title, exact: true });
 	await expect(a.page.getByText('元の法案：')).toBeVisible();
 	await expect(link).toHaveAttribute('href', path);
-	await expect(a.page.getByText('共同起草')).toHaveCount(0);
 
 	// もう一度開くと、作らずリンクになる。送っても同じ下書きへ移る
 	await a.page.goto(path);

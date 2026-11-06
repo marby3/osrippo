@@ -4,10 +4,11 @@ import { DatabaseSync } from 'node:sqlite';
 import { expect, test } from 'vitest';
 import { LIMITS } from '../domain/limits';
 import { sessionAt, type Session } from '../domain/session';
-import { billById, billSupportState, draftInputOf } from '../server/bills';
+import { coDrafters } from '../server/amendments';
+import { billById, billSupportState, createUnconfirmedDraft, draftInputOf } from '../server/bills';
 import { proposeBlock, staleArticles } from '../server/if-world';
 import { billStageNow, settleSession } from '../server/results';
-import { confirmResubmit, createUnconfirmedDraft, resubmitBill, resubmitStateOf } from '../server/resubmit';
+import { confirmResubmit, resubmitBill, resubmitStateOf } from '../server/resubmit';
 import { openMemoryDb, type MemoryDb } from './memory';
 
 const jst = (s: string) => Date.parse(`${s}+09:00`);
@@ -155,7 +156,13 @@ test('基準3：読む版の中身を複製した下書きを作り、賛同は0
 	w.sqlite.prepare('UPDATE bills SET rev = 2, next_rev = 3 WHERE id = ?').run(origin.id);
 	const backer = w.addUser();
 	w.sqlite.prepare('INSERT INTO bill_supports (bill_id, rev, user_id, created_at) VALUES (?, 1, ?, 0)').run(origin.id, backer);
+	// 質疑、立場、取り込まれた修正案（提案者は共同起草者になる）
+	const proposer = w.addUser();
+	w.sqlite.prepare("INSERT INTO amendments (bill_id, session_key, user_id, base_rev, law_seq, num, provision_id, body, status, created_at, updated_at) VALUES (?, ?, ?, 1, 0, '1', ?, ?, 'accepted', 0, 0)").run(origin.id, s.key, proposer, law.ids['1'], para('修正案を取り込んだ本文'));
+	w.sqlite.prepare("INSERT INTO posts (bill_id, session_key, user_id, kind, body, created_at) VALUES (?, ?, ?, 'question', '質疑', 0)").run(origin.id, s.key, backer);
+	w.sqlite.prepare("INSERT INTO stances (session_key, bill_id, user_id, stance, updated_at) VALUES (?, ?, ?, 'for', 0)").run(s.key, origin.id, backer);
 	await w.settle(s);
+	expect(await coDrafters(w.db, origin.id)).toHaveLength(1);
 	const before = w.sqlite.prepare('SELECT * FROM bills WHERE id = ?').get(origin.id);
 	const issueBefore = w.sqlite.prepare('SELECT * FROM issues WHERE id = 1').get();
 	const actor = w.actorOf(origin.author);
@@ -169,7 +176,7 @@ test('基準3：読む版の中身を複製した下書きを作り、賛同は0
 	expect(copy.laws[0]).toMatchObject({ lawId: law.lawId, baseRevisionId: law.revisionId, baseIfSeq: 0 });
 	expect(copy.laws[0].changes[0].paragraphs?.[0].text).toBe('修正案を取り込んだ本文');
 	expect((await billSupportState(w.db, id, copy.rev, null)).supports).toBe(0);
-	for (const table of ['votes', 'amendments', 'posts', 'bill_results']) expect(w.sqlite.prepare(`SELECT count(*) AS n FROM ${table} WHERE bill_id = ?`).get(id), table).toEqual({ n: 0 });
+	for (const table of ['votes', 'amendments', 'posts', 'stances', 'bill_results']) expect(w.sqlite.prepare(`SELECT count(*) AS n FROM ${table} WHERE bill_id = ?`).get(id), table).toEqual({ n: 0 });
 	expect(w.sqlite.prepare('SELECT * FROM bills WHERE id = ?').get(origin.id)).toEqual(before);
 	expect(w.sqlite.prepare('SELECT * FROM issues WHERE id = 1').get()).toEqual(issueBefore);
 	const drafts = () => (w.sqlite.prepare("SELECT count(*) AS n FROM actions WHERE kind = 'bill_draft' AND user_id = ?").get(origin.author) as { n: number }).n;
@@ -197,6 +204,8 @@ test('基準3：読む版の中身を複製した下書きを作り、賛同は0
 	// 出し直した法案がまた廃案になると、その法案から出し直せる
 	const nextNow = after(next);
 	await w.settle(next);
+	expect(await w.can(id, nextNow)).toBe(true);
+	expect(await coDrafters(w.db, id), '共同起草者は引き継がない').toEqual([]);
 	const again = await resubmitBill(w.db, actor, await w.load(id), nextNow);
 	expect(again).toMatchObject({ ok: true, created: true });
 	expect((await w.load((again as { id: number }).id)).resubmittedFrom).toBe(id);

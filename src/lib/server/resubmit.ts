@@ -1,14 +1,11 @@
 // 廃案・否決の法案からの出し直し（Issue #75。設計書 docs/spec/75.md）
-import { and, count, eq, gt, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { actions, bills } from '../db/schema';
-import { checkBillDraft, DAY } from '../domain/limits';
 import { canResubmit, type BillStage } from '../domain/votes';
-import { createUnconfirmedDraft, draftInputOf, savedBill, type Bill } from './bills';
+import { createUnconfirmedDraft, draftInputOf, draftRefusal, savedBill, type Bill } from './bills';
 import { repealedLawIds } from './if-world';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
-
-export { createUnconfirmedDraft };
 
 /** この法案から出し直した法案。確定した行だけ（リンクは確定のときに入れる） */
 async function resubmittedOf(db: Db, billId: number) {
@@ -44,19 +41,15 @@ export async function confirmResubmit(db: Db, draftId: number, originId: number,
 export async function resubmitBill(db: Db, actor: Actor, bill: NonNullable<Bill>, now: number) {
 	const known = await resubmittedOf(db, bill.id);
 	if (known) return { ok: true as const, id: known.id, created: false };
-	const since = (condition: ReturnType<typeof eq>) =>
-		db
-			.select({ n: count() })
-			.from(actions)
-			.where(and(eq(actions.kind, 'bill_draft'), condition, gt(actions.createdAt, now - DAY)));
-	const [[account], [ip]] = await Promise.all([since(eq(actions.userId, actor.userId)), since(eq(actions.ipHash, actor.ipHash))]);
-	const refusal = checkBillDraft({ accountDrafts: account.n, ipDrafts: ip.n });
+	const refusal = await draftRefusal(db, actor, now);
 	if (refusal) return refuse(db, actor, refusal, now);
 
 	const id = await createUnconfirmedDraft(db, actor.userId, draftInputOf(bill), now);
 	if (!(await confirmResubmit(db, id, bill.id, now))) {
+		// 同時に押した相手が先に確定した。確定した行は消えないので必ずある
 		const winner = await resubmittedOf(db, bill.id);
-		return { ok: true as const, id: (winner as { id: number }).id, created: false };
+		if (!winner) throw new Error(`法案 ${bill.id} の出し直しを確定できませんでした`);
+		return { ok: true as const, id: winner.id, created: false };
 	}
 	await db.insert(actions).values({ kind: 'bill_draft', userId: actor.userId, ipHash: actor.ipHash, targetId: id, createdAt: now });
 	return { ok: true as const, id, created: true };
