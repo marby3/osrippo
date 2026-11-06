@@ -7,6 +7,7 @@ import { REACTIONS } from '../domain/solutions';
 import { BILL_KINDS, CHANGE_OPS } from '../domain/bills';
 import { POST_KINDS, STANCES, type PostRole } from '../domain/posts';
 import { EVALUATION_KINDS } from '../domain/evaluations';
+import type { NotificationKind } from '../domain/notifications';
 import type { AmendmentStatus } from '../domain/amendments';
 import { ADJUSTMENT_REASONS, BILL_OUTCOMES, REVIEW_STATUSES, VOTE_CHOICES } from '../domain/votes';
 
@@ -1220,3 +1221,32 @@ export const recallSignatures = sqliteTable(
 	},
 	(t) => [primaryKey({ columns: [t.committeeId, t.sessionKey, t.userId] }), index('recall_signatures_line').on(t.committeeId, t.sessionKey, t.ipHash)]
 );
+
+// アプリ内通知（設計書 docs/spec/78.md）
+
+/** 通知の行。本文は持たず、読むときに kind と題名から作る。kind に CHECK は付けない（種類を足すたびに表の作り直しになる） */
+export const notifications = sqliteTable(
+	'notifications',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		kind: text('kind').$type<NotificationKind>().notNull(),
+		/** 法案、課題、解決策、投稿、委員会の番号（kind で決まる） */
+		targetId: integer('target_id').notNull(),
+		/** 同じ対象に何度も届くものを分ける。なければ 0 */
+		refId: integer('ref_id').notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [unique('notifications_once').on(t.userId, t.kind, t.targetId, t.refId), index('notifications_user').on(t.userId, t.createdAt, t.id)]
+);
+
+/** 一覧の1ページ目を開いた時点。行は read_id、時刻から求める項目は read_at より後が未読 */
+export const notificationReads = sqliteTable('notification_reads', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	readAt: integer('read_at').notNull(),
+	readId: integer('read_id').notNull()
+});

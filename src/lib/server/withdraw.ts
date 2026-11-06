@@ -6,6 +6,7 @@ import { supportRev, type Bill } from './bills';
 import { cosponsorStatus } from './cosponsors';
 import type { Actor } from './issues';
 import type { BatchDb, Db } from './law';
+import { billMembers, notify } from './notifications';
 
 type BillLike = NonNullable<Bill>;
 
@@ -34,8 +35,15 @@ export async function consentWithdraw(db: BatchDb, actor: Actor, bill: BillLike,
 			)
 	] as never);
 	const [row] = await db.select({ status: bills.status, at: bills.withdrawnAt }).from(bills).where(eq(bills.id, bill.id));
-	if (row?.status !== 'withdrawn') return { ok: true, withdrawn: false };
-	if (row.at === now) await db.insert(actions).values({ kind: 'bill_withdraw', userId: actor.userId, ipHash: actor.ipHash, targetId: bill.id, createdAt: now });
+	if (row?.status !== 'withdrawn') {
+		// 同意した人には求めない（今押した人も同意の行に入っている）
+		await notify(db, sql`SELECT user_id FROM (${billMembers(bill.id)}) WHERE user_id NOT IN (SELECT w.user_id FROM bill_withdraw_consents w WHERE w.bill_id = ${bill.id} AND w.proposed_rev = ${rev})`, 'withdraw_requested', bill.id, rev, now);
+		return { ok: true, withdrawn: false };
+	}
+	if (row.at === now) {
+		await db.insert(actions).values({ kind: 'bill_withdraw', userId: actor.userId, ipHash: actor.ipHash, targetId: bill.id, createdAt: now });
+		await notify(db, billMembers(bill.id, actor.userId), 'bill_withdrawn', bill.id, 0, now);
+	}
 	return { ok: true, withdrawn: true };
 }
 

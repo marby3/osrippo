@@ -144,15 +144,15 @@ test('基準2：申し出から抜けるまでの操作、上限、権限', asyn
 	expect(await cancelCosponsorRequest(w.db, w.actorOf(y), await load())).toBe(false);
 
 	// 抜ける。外す。再度の申し出はできない
-	expect(await leaveCosponsor(w.db, w.actorOf(x), await load(), null)).toEqual({ ok: true });
+	expect(await leaveCosponsor(w.db, w.actorOf(x), await load(), null, 1000)).toEqual({ ok: true });
 	expect(w.rowOf(bill.id, x)).toMatchObject({ status: 'left' });
 	expect(await requestCosponsor(w.db, w.actorOf(x), await load(), now)).toEqual({ ok: false, reason: 'left' });
 	expect(await cosponsorsOf(w.db, bill.id)).toEqual([]);
 	const z = await w.makeCosponsor(bill);
-	expect(await leaveCosponsor(w.db, w.actorOf(other), await load(), (w.rowOf(bill.id, z) as { id: number }).id)).toEqual({ ok: false, reason: 'forbidden' });
-	expect(await leaveCosponsor(w.db, w.actorOf(bill.author), await load(), (w.rowOf(bill.id, z) as { id: number }).id)).toEqual({ ok: true });
+	expect(await leaveCosponsor(w.db, w.actorOf(other), await load(), (w.rowOf(bill.id, z) as { id: number }).id, 1000)).toEqual({ ok: false, reason: 'forbidden' });
+	expect(await leaveCosponsor(w.db, w.actorOf(bill.author), await load(), (w.rowOf(bill.id, z) as { id: number }).id, 1000)).toEqual({ ok: true });
 	expect(w.rowOf(bill.id, z)).toMatchObject({ status: 'left' });
-	expect(await leaveCosponsor(w.db, w.actorOf(other), await load(), null)).toEqual({ ok: false, reason: 'forbidden' });
+	expect(await leaveCosponsor(w.db, w.actorOf(other), await load(), null, 1000)).toEqual({ ok: false, reason: 'forbidden' });
 
 	// 6人目は承認できない
 	for (let i = 0; i < 5; i++) await w.makeCosponsor(bill);
@@ -174,7 +174,7 @@ test('基準2：申し出から抜けるまでの操作、上限、権限', asyn
 	expect(await decideCosponsor(w.db, w.actorOf(bill.author), await load(), (w.rowOf(bill.id, sixth) as { id: number }).id, 'decline', now)).toEqual({ ok: false, reason: 'closed' });
 	expect(await cancelCosponsorRequest(w.db, w.actorOf(sixth), await load())).toBe(false);
 	const member = w.sqlite.prepare("SELECT id, user_id AS userId FROM bill_cosponsors WHERE bill_id = ? AND status = 'accepted' LIMIT 1").get(bill.id) as { id: number; userId: string };
-	expect(await leaveCosponsor(w.db, w.actorOf(member.userId), await load(), null)).toEqual({ ok: false, reason: 'closed' });
+	expect(await leaveCosponsor(w.db, w.actorOf(member.userId), await load(), null, 1000)).toEqual({ ok: false, reason: 'closed' });
 	expect(await cosponsorsOf(w.db, bill.id)).toHaveLength(accepted);
 
 	// 上限を超えると作らず、違反に数える
@@ -240,7 +240,7 @@ test('基準3：共同提出者は下書きを編集できる。提出者だけ�
 	// 抜けると編集できない。出し直しに共同提出者は引き継がない
 	const other = w.addBill(w.addLaw());
 	const gone = await w.makeCosponsor(other);
-	await leaveCosponsor(w.db, w.actorOf(gone), await w.load(other.id), null);
+	await leaveCosponsor(w.db, w.actorOf(gone), await w.load(other.id), null, 1000);
 	expect(await canEditDraft(w.db, await w.load(other.id), gone)).toBe(false);
 	expect(await saveDraft(w.db, other.id, gone, 1, draftInputOf(await w.load(other.id)), now)).toBe(false);
 	const copy = await resubmitBill(w.db, w.actorOf(bill.author), adjusted, now);
@@ -266,7 +266,7 @@ test('基準4：共同提出者は賛同できず、承認で賛同が外れる�
 	expect(w.supportsOf(bill.id)).toBe(0);
 	// 賛同を入れる文そのものが、共同提出者と抜けた人を入れない（確かめのあとに承認が走っても残らない）
 	expect(await addSupportRow(w.db, bill.id, 1, backer, now)).toEqual([]);
-	await leaveCosponsor(w.db, w.actorOf(backer), await load(), null);
+	await leaveCosponsor(w.db, w.actorOf(backer), await load(), null, 1000);
 	expect(await setBillSupport(w.db, w.actorOf(backer), bill.id, 1, 'add', now)).toEqual({ ok: false, reason: 'formerCosponsor' });
 	expect(await addSupportRow(w.db, bill.id, 1, backer, now)).toEqual([]);
 	// 申し出ているだけなら賛同できる
@@ -301,7 +301,7 @@ test('基準5：答弁と評価の役割、票の割り当て、結果の確認�
 	const bill = w.addBill(law);
 	const co = await w.makeCosponsor(bill);
 	const gone = await w.makeCosponsor(bill);
-	await leaveCosponsor(w.db, w.actorOf(gone), await w.load(bill.id), null);
+	await leaveCosponsor(w.db, w.actorOf(gone), await w.load(bill.id), null, 1000);
 	const backer = w.addUser();
 	w.support(bill.id, backer);
 	const stranger = w.addUser();
@@ -362,7 +362,7 @@ test('基準7：撤回は全員の同意で、採決の前まで。撤回され�
 	w.sqlite.prepare("UPDATE bills SET status = 'draft', proposed_at = NULL, proposed_rev = NULL WHERE id = ?").run(bill.id);
 	const co = await w.makeCosponsor(bill);
 	const gone = await w.makeCosponsor(bill);
-	await leaveCosponsor(w.db, w.actorOf(gone), await w.load(bill.id), null);
+	await leaveCosponsor(w.db, w.actorOf(gone), await w.load(bill.id), null, 1000);
 	w.sqlite.prepare("UPDATE bills SET status = 'proposed', proposed_at = ?, proposed_rev = rev WHERE id = ?").run(inSession - 500, bill.id);
 	const related = w.addBill(law, { at: inSession - 400 });
 	const load = () => w.load(bill.id);
@@ -534,7 +534,7 @@ test('基準9：統合案の同意と発議', async () => {
 	expect(await mergeBlock(w.db, await load(), now, null)).toBeNull();
 
 	// 同意した人が抜けると発議できない。抜けた人は同意できない
-	expect(await leaveCosponsor(w.db, w.actorOf(b.author), await load(), null)).toEqual({ ok: true });
+	expect(await leaveCosponsor(w.db, w.actorOf(b.author), await load(), null, 1000)).toEqual({ ok: true });
 	expect(await mergeBlock(w.db, await load(), now, null)).toBe('merge');
 	expect(await propose(2)).toEqual({ ok: false, reason: 'merge' });
 	expect(await consent(b.author, 2)).toEqual({ ok: false, reason: 'closed' });
@@ -633,10 +633,10 @@ test('基準9：統合案の同意と発議', async () => {
 
 	// 統合案から抜けた人には同意のボタンを出さない
 	const leftMember = await w.makeCosponsor(i1);
-	await leaveCosponsor(w.db, w.actorOf(leftMember), await w.load(i1.id), null);
+	await leaveCosponsor(w.db, w.actorOf(leftMember), await w.load(i1.id), null, 1000);
 	await requestCosponsor(w.db, w.actorOf(i2.author), await w.load(pairI.id), now);
 	await consentMerge(w.db, w.actorOf(i2.author), await w.load(pairI.id), 1, now);
-	await leaveCosponsor(w.db, w.actorOf(i2.author), await w.load(pairI.id), null);
+	await leaveCosponsor(w.db, w.actorOf(i2.author), await w.load(pairI.id), null, 1000);
 	expect((await mergeLinksOf(w.db, await w.load(pairI.id), i2.author)).consent).toMatchObject({ member: true, canConsent: false });
 
 	// 統合案があとで撤回されても、元の法案から統合案へのリンクは残る

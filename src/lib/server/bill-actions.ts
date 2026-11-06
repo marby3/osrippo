@@ -140,7 +140,7 @@ export async function cosponsorAction(event: RequestEvent) {
 		}
 		case 'leave':
 		case 'remove': {
-			const result = await leaveCosponsor(db, actor, bill, op === 'remove' ? id : null);
+			const result = await leaveCosponsor(db, actor, bill, op === 'remove' ? id : null, now);
 			return result.ok ? { cosponsor: true } : refused(result.reason);
 		}
 	}

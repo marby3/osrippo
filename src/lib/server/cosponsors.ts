@@ -7,6 +7,7 @@ import { answererRole, type BillRole } from '../domain/posts';
 import type { Bill } from './bills';
 import { refuse, type Actor } from './issues';
 import type { BatchDb, Db } from './law';
+import { notify, oneUser } from './notifications';
 import { isSupporter } from './posts';
 
 export type CosponsorStatus = 'requested' | 'accepted' | 'left' | 'declined';
@@ -88,14 +89,19 @@ export async function requestCosponsor(db: Db, actor: Actor, bill: BillLike, now
 		.where(and(eq(actions.kind, 'bill_cosponsor'), eq(actions.userId, actor.userId), gt(actions.createdAt, now - DAY)));
 	const refusal = checkBillCosponsor({ accountDay: day.n });
 	if (refusal) return refuse(db, actor, refusal, now);
-	const added = await db.all<{ id: number }>(sql`
-		INSERT INTO bill_cosponsors (bill_id, user_id, status, created_at)
-		SELECT id, ${actor.userId}, 'requested', ${now} FROM bills WHERE id = ${bill.id} AND status = 'draft' AND rev > 0 AND user_id <> ${actor.userId}
-		ON CONFLICT DO NOTHING RETURNING id`);
+	const added = await db
+		.insert(billCosponsors)
+		.select(sql`SELECT NULL, id, ${actor.userId}, 'requested', ${now}, NULL FROM bills WHERE id = ${bill.id} AND status = 'draft' AND rev > 0 AND user_id <> ${actor.userId}`)
+		.onConflictDoNothing()
+		.returning({ id: billCosponsors.id });
 	if (added.length === 0) return closed('closed');
 	await db.insert(actions).values({ kind: 'bill_cosponsor', userId: actor.userId, ipHash: actor.ipHash, targetId: bill.id, createdAt: now });
+	await notify(db, oneUser(bill.userId), 'cosponsor_requested', bill.id, added[0].id, now);
 	return { ok: true as const, changed: true };
 }
+
+/** 申し出の行の人 */
+const seatUser = (rowId: number) => sql`SELECT user_id FROM bill_cosponsors WHERE id = ${rowId}`;
 
 const stillDraft = (billId: number) => sql`EXISTS (SELECT 1 FROM bills b WHERE b.id = ${billId} AND b.status = 'draft')`;
 
@@ -118,7 +124,9 @@ export async function decideCosponsor(db: BatchDb, actor: Actor, bill: BillLike,
 			.set({ status: 'declined' })
 			.where(and(here, eq(billCosponsors.status, 'requested'), stillDraft(bill.id)))
 			.returning({ id: billCosponsors.id });
-		return done.length ? { ok: true } : { ok: false, reason: 'closed' };
+		if (!done.length) return { ok: false, reason: 'closed' };
+		await notify(db, seatUser(rowId), 'cosponsor_declined', bill.id, rowId, now);
+		return { ok: true };
 	}
 	await db.batch([
 		db
@@ -128,14 +136,17 @@ export async function decideCosponsor(db: BatchDb, actor: Actor, bill: BillLike,
 		db.delete(billSupports).where(and(eq(billSupports.billId, bill.id), sql`user_id = (SELECT c.user_id FROM bill_cosponsors c WHERE c.id = ${rowId} AND c.bill_id = ${bill.id} AND c.status = 'accepted')`, stillDraft(bill.id)))
 	] as never);
 	const [row] = await db.select({ status: billCosponsors.status }).from(billCosponsors).where(here);
-	if (row?.status === 'accepted') return { ok: true };
+	if (row?.status === 'accepted') {
+		await notify(db, seatUser(rowId), 'cosponsor_accepted', bill.id, rowId, now);
+		return { ok: true };
+	}
 	if (row?.status !== 'requested') return { ok: false, reason: 'closed' };
 	const [draft] = await db.all<unknown[]>(sql`SELECT 1 FROM bills WHERE id = ${bill.id} AND status = 'draft'`);
 	return { ok: false, reason: draft ? 'full' : 'closed' };
 }
 
 /** 抜ける（rowId が null）か、提出者が外す。left は戻らない（決定G） */
-export async function leaveCosponsor(db: Db, actor: Actor, bill: BillLike, rowId: number | null): Promise<{ ok: true } | { ok: false; reason: CosponsorRefused }> {
+export async function leaveCosponsor(db: Db, actor: Actor, bill: BillLike, rowId: number | null, now: number): Promise<{ ok: true } | { ok: false; reason: CosponsorRefused }> {
 	if (bill.status !== 'draft') return { ok: false, reason: 'closed' };
 	if (rowId !== null && bill.userId !== actor.userId) return { ok: false, reason: 'forbidden' };
 	const who = rowId !== null ? eq(billCosponsors.id, rowId) : eq(billCosponsors.userId, actor.userId);
@@ -144,6 +155,11 @@ export async function leaveCosponsor(db: Db, actor: Actor, bill: BillLike, rowId
 		.set({ status: 'left' })
 		.where(and(eq(billCosponsors.billId, bill.id), who, eq(billCosponsors.status, 'accepted'), stillDraft(bill.id)))
 		.returning({ id: billCosponsors.id });
-	if (done.length) return { ok: true };
+	if (done.length) {
+		// 抜けたことは提出者に、外したことは外された人に
+		if (rowId === null) await notify(db, oneUser(bill.userId), 'cosponsor_left', bill.id, done[0].id, now);
+		else await notify(db, seatUser(rowId), 'cosponsor_removed', bill.id, rowId, now);
+		return { ok: true };
+	}
 	return { ok: false, reason: rowId === null ? 'forbidden' : 'closed' };
 }

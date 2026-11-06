@@ -6,6 +6,7 @@ import { checkEvaluation, DAY, LIMITS } from '../domain/limits';
 import type { BillRole } from '../domain/posts';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
+import { notify } from './notifications';
 
 const EVALUATION_ACTIONS = ['evaluation_add', 'evaluation_remove'] as const;
 const scored = and(inArray(posts.kind, ['question', 'answer']), eq(posts.status, 'visible'));
@@ -82,6 +83,8 @@ export async function setEvaluation(
 	}
 	if (rows.length === 0) return { ok: true as const, changed: false };
 	await db.insert(actions).values({ kind: op === 'add' ? 'evaluation_add' : 'evaluation_remove', userId: actor.userId, ipHash: actor.ipHash, targetId: post.id, createdAt: now });
+	// 投稿ごとに1回だけ（付け外しを繰り返しても増えない）。押した人は持たない
+	if (op === 'add' && kind === 'changed') await notify(db, sql`SELECT user_id FROM posts WHERE id = ${post.id} AND user_id IS NOT ${actor.userId}`, 'mind_changed_post', post.id, 0, now);
 	return { ok: true as const, changed: true };
 }
 

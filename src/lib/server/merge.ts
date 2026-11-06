@@ -5,6 +5,7 @@ import { billProgress, COSPONSOR_MAX, withdrawableSince } from '../domain/bills'
 import { billById, createUnconfirmedDraft, draftInputOf, draftRefusal, savedBill, type Bill } from './bills';
 import { refuse, type Actor } from './issues';
 import type { BatchDb, Db } from './law';
+import { mergeOriginMembers, notify } from './notifications';
 
 type BillLike = NonNullable<Bill>;
 const MERGED_SHOWN = 10;
@@ -66,6 +67,7 @@ export async function createMerge(db: Db, actor: Actor, bill: BillLike, withId: 
 	await db.insert(billRelations).values([bill.id, other.id].map((originBillId) => ({ mergedBillId: id, originBillId, createdAt: now })));
 	await db.update(bills).set({ rev: 1 }).where(and(eq(bills.id, id), eq(bills.rev, 0)));
 	await db.insert(actions).values({ kind: 'bill_draft', userId: actor.userId, ipHash: actor.ipHash, targetId: id, createdAt: now });
+	await notify(db, mergeOriginMembers(id, actor.userId), 'merge_requested', id, 0, now);
 	return { ok: true as const, id, created: true };
 }
 
