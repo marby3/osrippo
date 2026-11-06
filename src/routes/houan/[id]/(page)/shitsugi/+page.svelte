@@ -267,7 +267,6 @@
 		display: grid;
 		gap: 0.75rem;
 		padding-top: 1rem;
-		border-top: 1px solid var(--color-divider);
 	}
 
 	.hidden-posts article {

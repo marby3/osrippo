@@ -300,6 +300,8 @@ test('基準4：3秒以上画面に出た投稿を読んだことにし、3秒�
 
 	const reads = watchReads(v.page);
 	await open(v.page, bill);
+	// スマホは上のカードが長いと、下のカードが画面の外にある（画面の外の投稿は読んだことにしない）
+	await card(v.page, waiting).locator('p.body').scrollIntoViewIfNeeded();
 	// 開いた直後から2秒は送らない
 	await pause(v.page, 2000);
 	expect(reads.flat()).not.toContain(waitingId);
