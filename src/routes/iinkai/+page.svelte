@@ -24,6 +24,8 @@
 	const submit: SubmitFunction = () => async ({ update }) => {
 		await update({ reset: false });
 		picked = null;
+		// トークンは1回しか使えない。ウィジェットが消えて reset が届かなくても、使ったトークンを残さない
+		token = '';
 		turnstile?.reset();
 	};
 </script>
@@ -61,7 +63,7 @@
 					</dd>
 				{/if}
 			</dl>
-			{#if data.panel.acting}<p class="state">{ja.chair.acting}</p>{/if}
+			{#if data.panel.acting}<p class="state">{ja.chair.acting}</p>{:else if data.panel.recalled}<p>{ja.chair.backToOffice}</p>{/if}
 		{/if}
 		{#if data.manage}<p><a href="/kanri">{ja.chair.manage}</a></p>{/if}
 	</section>

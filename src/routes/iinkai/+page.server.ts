@@ -135,7 +135,8 @@ export const actions: Actions = {
 		const { session, previous } = sessionsAt(now);
 		const result = await signRecall(checked.db as unknown as BatchDb, checked.actor, FIRST_COMMITTEE, session, previous, now);
 		if (result.ok) return { signed: true };
-		return 'refusal' in result ? fail(429, { message: refusalMessage(result.refusal) }) : refused(result.reason);
+		if ('refusal' in result) return fail(429, { message: refusalMessage(result.refusal) });
+		return result.reason === 'ineligible' ? fail(403, { message: ja.chair.blocks.recallIneligible }) : refused(result.reason);
 	},
 	cancelRecall: async (event) => {
 		const now = nowOf(event);

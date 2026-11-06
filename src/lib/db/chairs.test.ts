@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test } from 'vitest';
-import { ACTING_AFTER, candidacyOpen, CHAIR_ACCOUNTS_PER_IP, DIRECTOR_MAX, electionOpen, recallRequirement } from '../domain/chairs';
+import { ACTING_AFTER, candidacyOpen, CHAIR_ACCOUNTS_PER_IP, consecutiveLimit, DIRECTOR_MAX, electionOpen, recallRequirement } from '../domain/chairs';
 import { HIDEABLE } from '../domain/reports';
 import { sessionAt, type Session } from '../domain/session';
 import { castChairVote, chairPanelOf, chairPowerOf, electionPage, cancelRecallSignature, recallStateOf, settleElection, signRecall, staffRoleOf, standForChair, withdrawCandidacy } from '../server/chairs';
@@ -144,7 +144,8 @@ test('基準2：立候補の時期、資格、連続の制限、運営、取り�
 	w.addPost(answer, s, { kind: 'answer' });
 	expect(await stand(answer, s.voteAt)).toEqual({ ok: true });
 
-	// 連続の制限：いまの会期と前の会期の両方で委員長。解任された任期も数える。片方だけや理事はできる
+	// 連続の制限：いまの会期と前の会期の両方で委員長。解任された任期も数える。片方だけの委員長と、前の会期の理事はできる
+	expect([consecutiveLimit(true, true), consecutiveLimit(true, false), consecutiveLimit(false, true)]).toEqual([true, false, false]);
 	const twice = w.addUser();
 	w.addPost(twice, s);
 	w.addTerm(s, twice, 'chair', 0, s.startsAt + 1);
