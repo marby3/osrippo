@@ -1,6 +1,6 @@
 // 通知の一覧と未読の数（Issue #78。設計書 docs/spec/78.md 決めたこと7〜9）
-import { and, count, desc, eq, gt, inArray, max, sql } from 'drizzle-orm';
-import { bills, chairTerms, issues, notificationReads, notifications, posts, solutions } from '../db/schema';
+import { and, count, desc, eq, gt, gte, inArray, isNull, lte, max, ne, sql } from 'drizzle-orm';
+import { billAdjustments, bills, chairTerms, issues, notificationReads, notifications, posts, solutions } from '../db/schema';
 import { ACTING_AFTER } from '../domain/chairs';
 import { PAGE_SIZE } from '../domain/issues';
 import { hrefOf, targetOf, type NoticeKind, type NotificationKind, type TimedKind } from '../domain/notifications';
@@ -34,6 +34,22 @@ export async function timedNotices(db: Db, userId: string, now: number, minutes:
 			if (now >= session.voteAt) items.push({ kind: 'my_bill_vote', at: session.voteAt, billId: bill.id, title: bill.title });
 		}
 	}
+	// 期限までに直されなかった要調整の法案（いまの会期に期限が来たもの）。法令が廃止された法案は直せないので入らない
+	const expired = await db
+		.select({ id: bills.id, title: bills.title, dueAt: billAdjustments.dueAt })
+		.from(billAdjustments)
+		.innerJoin(bills, eq(bills.id, billAdjustments.billId))
+		.where(
+			and(
+				isNull(billAdjustments.resolvedAt),
+				ne(billAdjustments.reason, 'repealed'),
+				gte(billAdjustments.dueAt, session.startsAt),
+				lte(billAdjustments.dueAt, now),
+				sql`(${bills}.user_id = ${userId} OR EXISTS (SELECT 1 FROM bill_cosponsors c WHERE c.bill_id = ${bills}.id AND c.user_id = ${userId} AND c.status = 'accepted'))`
+			)
+		)
+		.orderBy(bills.id);
+	for (const bill of expired) items.push({ kind: 'my_bill_expired', at: bill.dueAt, billId: bill.id, title: bill.title });
 	// 代行：委員長の7日の不在だけ。締め出しによる代行は知らせない（締め出しを推測させないため）。解任は行で届く
 	const directing = await db
 		.select({ committeeId: chairTerms.committeeId })

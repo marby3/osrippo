@@ -56,12 +56,14 @@ const OUTCOME_KIND = sql`CASE WHEN v.status = 'open' THEN 'bill_reviewing' WHEN 
 export async function notifyBillOutcomes(db: BatchDb, sessionKey: string, now: number): Promise<void> {
 	const results = sql`FROM bill_results r LEFT JOIN vote_reviews v ON v.session_key = r.session_key AND v.bill_id = r.bill_id`;
 	const insert = (select: SQL) => db.insert(notifications).select(select).onConflictDoNothing();
+	// 法令が廃止された法案は直せないので、別の文にする
+	const adjustmentKind = sql`CASE WHEN a.reason = 'repealed' THEN 'bill_law_repealed' ELSE 'bill_adjustment' END`;
 	try {
 		await db.batch([
 			insert(sql`SELECT NULL, b.user_id, ${OUTCOME_KIND}, r.bill_id, r.settled_at, ${now} ${results} JOIN bills b ON b.id = r.bill_id WHERE r.session_key = ${sessionKey}`),
 			insert(sql`SELECT NULL, c.user_id, ${OUTCOME_KIND}, r.bill_id, r.settled_at, ${now} ${results} JOIN bill_cosponsors c ON c.bill_id = r.bill_id AND c.status = 'accepted' WHERE r.session_key = ${sessionKey}`),
-			insert(sql`SELECT NULL, b.user_id, 'bill_adjustment', a.bill_id, a.created_at, ${now} FROM bill_adjustments a JOIN bills b ON b.id = a.bill_id WHERE a.session_key = ${sessionKey}`),
-			insert(sql`SELECT NULL, c.user_id, 'bill_adjustment', a.bill_id, a.created_at, ${now} FROM bill_adjustments a JOIN bill_cosponsors c ON c.bill_id = a.bill_id AND c.status = 'accepted' WHERE a.session_key = ${sessionKey}`)
+			insert(sql`SELECT NULL, b.user_id, ${adjustmentKind}, a.bill_id, a.created_at, ${now} FROM bill_adjustments a JOIN bills b ON b.id = a.bill_id WHERE a.session_key = ${sessionKey}`),
+			insert(sql`SELECT NULL, c.user_id, ${adjustmentKind}, a.bill_id, a.created_at, ${now} FROM bill_adjustments a JOIN bill_cosponsors c ON c.bill_id = a.bill_id AND c.status = 'accepted' WHERE a.session_key = ${sessionKey}`)
 		] as never);
 	} catch (e) {
 		console.error(e);

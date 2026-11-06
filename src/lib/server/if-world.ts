@@ -620,6 +620,8 @@ export async function saveAdjustedBill(
 	if (saved) {
 		await db.insert(actions).values({ kind: 'bill_save', userId: actor.userId, ipHash: actor.ipHash, targetId: bill.id, createdAt: now });
 		await notifyProposed(db, bill.id, rev, actor.userId, now);
+		// 賛同は新しい版へ引き継ぐので、賛同した人には中身が変わったことを知らせる
+		await notify(db, sql`SELECT user_id FROM bill_supports WHERE bill_id = ${bill.id} AND rev = ${rev} AND user_id IS NOT ${actor.userId}`, 'bill_adjusted', bill.id, rev, now);
 	}
 	return { ok: true, saved };
 }

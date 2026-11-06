@@ -9,6 +9,8 @@ export const NOTIFICATION_KINDS = [
 	'bill_reviewing',
 	'bill_voided',
 	'bill_adjustment',
+	'bill_law_repealed',
+	'bill_adjusted',
 	'bill_conflict',
 	'cosponsor_requested',
 	'cosponsor_left',
@@ -35,7 +37,7 @@ export const NOTIFICATION_KINDS = [
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /** 時刻から求める種類（行を書かない） */
-export type TimedKind = 'vote_open' | 'election_open' | 'my_bill_deliberation' | 'my_bill_vote' | 'acting';
+export type TimedKind = 'vote_open' | 'election_open' | 'my_bill_deliberation' | 'my_bill_vote' | 'my_bill_expired' | 'acting';
 
 export type NoticeKind = NotificationKind | TimedKind;
 export type NoticeTarget = 'bill' | 'issue' | 'solution' | 'post' | 'committee';
@@ -49,7 +51,8 @@ export function targetOf(kind: NotificationKind): NoticeTarget {
 	return 'bill';
 }
 
-const RESULT_KINDS: readonly NoticeKind[] = ['bill_passed', 'bill_rejected', 'bill_lapsed', 'bill_reviewing', 'bill_voided'];
+/** 結果のページへ。否決と廃案は、出し直しのある法案のページへ */
+const RESULT_KINDS: readonly NoticeKind[] = ['bill_passed', 'bill_reviewing', 'bill_voided'];
 
 /** リンク先。billId は法案か投稿の法案、issueId は課題か解決策の課題 */
 export function hrefOf(kind: NoticeKind, ids: { billId?: number; issueId?: number }): string {

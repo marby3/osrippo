@@ -8,7 +8,7 @@ import { billById, draftInputOf, proposeBill, saveDraft } from '../server/bills'
 import { settleElection, signRecall, withdrawCandidacy } from '../server/chairs';
 import { decideCosponsor, leaveCosponsor, requestCosponsor } from '../server/cosponsors';
 import { setEvaluation } from '../server/evaluations';
-import { notifyConflicts } from '../server/if-world';
+import { notifyConflicts, saveAdjustedBill } from '../server/if-world';
 import { consentMerge, createMerge } from '../server/merge';
 import { timedNotices } from '../server/notification-page';
 import { notifyBillOutcomes } from '../server/notifications';
@@ -138,6 +138,11 @@ test('基準2：会期の結果が提出者と共同提出者に届き、確認�
 	w.addResult(s.key, adjusting.id, 'passed', 100);
 	w.sqlite.prepare("INSERT INTO bill_adjustments (bill_id, session_key, reason, due_at, proposed_at, created_at) VALUES (?, ?, 'article', 0, 0, 77)").run(adjusting.id, s.key);
 
+	// 法令が廃止された法案は直せないので、別の知らせ
+	const repealed = w.addBill(w.addLaw(), { at: s.startsAt });
+	w.addResult(s.key, repealed.id, 'passed', 100);
+	w.sqlite.prepare("INSERT INTO bill_adjustments (bill_id, session_key, reason, due_at, proposed_at, created_at) VALUES (?, ?, 'repealed', 0, 0, 77)").run(repealed.id, s.key);
+
 	await notifyBillOutcomes(w.db, s.key, 1000);
 	await notifyBillOutcomes(w.db, s.key, 2000);
 	expect(w.inbox(passed.author)).toEqual([{ kind: 'bill_passed', target: passed.id, ref: 100 }]);
@@ -150,6 +155,7 @@ test('基準2：会期の結果が提出者と共同提出者に届き、確認�
 	// 確認の間は結果を出さない
 	expect(w.kinds(held.author)).toEqual(['bill_reviewing']);
 	expect(w.kinds(adjusting.author).sort()).toEqual(['bill_adjustment', 'bill_passed']);
+	expect(w.kinds(repealed.author).sort()).toEqual(['bill_law_repealed', 'bill_passed']);
 
 	// 確定すると結果が届く
 	const staff = { userId: stranger, role: 'operator' as const };
@@ -307,6 +313,20 @@ test('基準4：法案の操作が決まった人に届き、操作した人に�
 	expect(w.kinds(coB)).toEqual(['merge_proposed']);
 	expect(w.kinds(third)).toEqual(['merge_proposed']);
 	expect(w.kinds(a.author)).toEqual([]);
+
+	// 要調整を直して発議し直すと、共同提出者と賛同した人に届く。直した人には届かない
+	w.clear();
+	const adj = w.addBill(law, { at: now - 100 });
+	const coAdj = w.addUser();
+	w.addCosponsor(adj.id, coAdj);
+	const backer = w.addUser();
+	w.sqlite.prepare('INSERT INTO bill_supports (bill_id, rev, user_id, created_at) VALUES (?, 1, ?, 0)').run(adj.id, backer);
+	w.sqlite.prepare("INSERT INTO bill_adjustments (bill_id, session_key, reason, due_at, proposed_at, created_at) VALUES (?, 'k', 'article', ?, 0, 0)").run(adj.id, now + 1000);
+	const loaded = await w.load(adj.id);
+	expect(await saveAdjustedBill(w.db, w.actorOf(adj.author), loaded, 1, draftInputOf(loaded), now)).toEqual({ ok: true, saved: true });
+	expect(w.inbox(coAdj)).toEqual([{ kind: 'bill_proposed', target: adj.id, ref: 2 }]);
+	expect(w.inbox(backer)).toEqual([{ kind: 'bill_adjusted', target: adj.id, ref: 2 }]);
+	expect(w.kinds(adj.author)).toEqual([]);
 });
 
 test('基準5：「考えが変わった」が書いた人に届き、付け外しを繰り返しても1回で、押した人が分かる値を持たない', async () => {
@@ -468,6 +488,22 @@ test('基準8：時刻から求めるもの：採決と選挙の開始、自分�
 	expect(await timed(draft.author, s.deliberationAt)).toEqual([]);
 	// 会期が変わると消える
 	expect(await timed(co, nextOf(s).startsAt)).toEqual([]);
+
+	// 要調整の期限切れ：直されないまま期限が来ると出る。直した法案と、法令が廃止された法案は出ない。会期が変わると消える
+	const e = monthOf('2048-08');
+	const addAdjusted = (reason: string, resolvedAt: number | null) => {
+		const b = w.addBill(w.addLaw(), { at: e.startsAt - DAY });
+		w.sqlite.prepare("INSERT INTO bill_adjustments (bill_id, session_key, reason, due_at, proposed_at, created_at, resolved_at) VALUES (?, 'k', ?, ?, 0, 0, ?)").run(b.id, reason, e.deliberationAt, resolvedAt);
+		return b;
+	};
+	const late = addAdjusted('article', null);
+	expect(await timed(late.author, e.deliberationAt - 1)).toEqual([]);
+	const expiredItem = ['my_bill_expired', e.deliberationAt, late.id];
+	expect(await timed(late.author, e.deliberationAt)).toContainEqual(expiredItem);
+	expect(await timed(late.author, nextOf(e).startsAt)).not.toContainEqual(expiredItem);
+	for (const other of [addAdjusted('article', e.startsAt), addAdjusted('repealed', null)]) {
+		expect((await timed(other.author, e.deliberationAt)).filter((t) => t[0] === 'my_bill_expired')).toEqual([]);
+	}
 
 	// 代行：委員長が7日不在の理事に出る
 	const t = monthOf('2049-05');
