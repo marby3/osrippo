@@ -333,19 +333,19 @@ test('基準5：答弁と評価の役割、票の割り当て、結果の確認�
 	expect(await castVote(w.db, w.actorOf(gone), s, previous, bill.id, 'yes', voteTime, first)).toBe(true);
 
 	// 結果の確認では関わった人
-	expect(await involvedInBill(w.db, bill.id, co)).toBe(true);
-	expect(await involvedInBill(w.db, bill.id, gone)).toBe(true);
-	expect(await involvedInBill(w.db, bill.id, stranger)).toBe(false);
+	expect(await involvedInBill(w.db, bill.id, co, 'moderator')).toBe(true);
+	expect(await involvedInBill(w.db, bill.id, gone, 'moderator')).toBe(true);
+	expect(await involvedInBill(w.db, bill.id, stranger, 'moderator')).toBe(false);
 	// 申し出だけの人は関わった人ではない
 	const asker = w.addUser();
 	const draft = w.addBill(w.addLaw());
 	await requestCosponsor(w.db, w.actorOf(asker), await w.load(draft.id), now);
-	expect(await involvedInBill(w.db, draft.id, asker)).toBe(false);
+	expect(await involvedInBill(w.db, draft.id, asker, 'moderator')).toBe(false);
 
 	w.sqlite.prepare('INSERT OR IGNORE INTO session_participants (committee_id, session_key, active_count, fixed_at) VALUES (1, ?, 0, 0)').run(s.key);
 	await settleSession(w.db, s, previous, after(s), null);
 	w.sqlite.prepare("INSERT INTO vote_reviews (session_key, bill_id, signals, detail, status, created_at) VALUES (?, ?, '[]', '{}', 'open', 0)").run(s.key, bill.id);
-	const involvedFor = async (u: string) => (await pendingReviews(w.db, u)).find((r) => r.billId === bill.id)?.involved;
+	const involvedFor = async (u: string) => (await pendingReviews(w.db, u, 'moderator')).find((r) => r.billId === bill.id)?.involved;
 	expect(await involvedFor(co)).toBe(true);
 	expect(await involvedFor(gone)).toBe(true);
 	expect(await involvedFor(stranger)).toBe(false);

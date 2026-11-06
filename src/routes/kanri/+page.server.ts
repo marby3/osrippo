@@ -72,7 +72,7 @@ export const load: PageServerLoad = async (event) => {
 		merge,
 		solutions: staffRows(solutionRows, staff.userId),
 		focusSolution,
-		reviews: await pendingReviews(db, staff.userId)
+		reviews: await pendingReviews(db, staff.userId, staff.role)
 	};
 };
 
@@ -142,7 +142,7 @@ const decide = (decision: 'confirm' | 'void') => async (event: RequestEvent) => 
 	const sessionKey = String(form.get('session') ?? '');
 	const [note, noteError] = checkText(String(form.get('note') ?? ''), REVIEW_NOTE_MAX, true);
 	if (billId === null || !sessionKey || (decision === 'void' && noteError)) return fail(400, { message: ja.review.invalid, reviewBill: billId });
-	if (await involvedInBill(db, billId, staff.userId)) return fail(403, { message: ja.review.involved, reviewBill: billId });
+	if (await involvedInBill(db, billId, staff.userId, staff.role)) return fail(403, { message: ja.review.involved, reviewBill: billId });
 	const now = nowOf(event);
 	const done = await decideReview(db as unknown as BatchDb, staff, sessionKey, billId, decision, decision === 'void' ? note : null, now, sessionsAt(now).minutes);
 	if (!done) return fail(409, { message: ja.review.closed, reviewBill: billId });

@@ -146,15 +146,15 @@ test('基準3：見つかると確認の行ができ、可決が絡むときだ�
 	const heldAuthor = (sqlite.prepare('SELECT user_id FROM bills WHERE id = ?').get(held) as { user_id: string }).user_id;
 	const backer = addUser();
 	sqlite.prepare('INSERT INTO bill_supports (bill_id, rev, user_id, created_at) VALUES (?, 0, ?, 0)').run(held, backer);
-	const rowFor = async (userId: string) => (await pendingReviews(db, userId)).find((r) => r.billId === held);
+	const rowFor = async (userId: string) => (await pendingReviews(db, userId, 'moderator')).find((r) => r.billId === held);
 	expect(await rowFor('staff')).toMatchObject({ involved: false, counts: { yes: 8, no: 2, abstain: 0 }, detail: { flagged: 5 }, signals: ['same_line'] });
 	for (const who of [heldAuthor, backer]) {
 		expect(await rowFor(who)).toMatchObject({ involved: true, counts: null, detail: null, signals: ['same_line'] });
-		expect(await involvedInBill(db, held, who)).toBe(true);
+		expect(await involvedInBill(db, held, who, 'moderator')).toBe(true);
 	}
-	expect(await involvedInBill(db, held, 'staff')).toBe(false);
+	expect(await involvedInBill(db, held, 'staff', 'moderator')).toBe(false);
 	// 確認の行がない法案や保留しない法案は出ない
-	expect((await pendingReviews(db, 'staff')).some((r) => r.billId === noted)).toBe(false);
+	expect((await pendingReviews(db, 'staff', 'moderator')).some((r) => r.billId === noted)).toBe(false);
 
 	// 読むときは確認の状態も一緒に返す
 	expect(await resultOnRead(db, { id: held, proposedAt: s.startsAt + 1 }, null, after(s))).toMatchObject({ outcome: 'passed', review: { status: 'open' } });
