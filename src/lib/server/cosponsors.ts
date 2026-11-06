@@ -89,14 +89,14 @@ export async function requestCosponsor(db: Db, actor: Actor, bill: BillLike, now
 		.where(and(eq(actions.kind, 'bill_cosponsor'), eq(actions.userId, actor.userId), gt(actions.createdAt, now - DAY)));
 	const refusal = checkBillCosponsor({ accountDay: day.n });
 	if (refusal) return refuse(db, actor, refusal, now);
-	const added = await db.all<{ id: number }>(sql`
-		INSERT INTO bill_cosponsors (bill_id, user_id, status, created_at)
-		SELECT id, ${actor.userId}, 'requested', ${now} FROM bills WHERE id = ${bill.id} AND status = 'draft' AND rev > 0 AND user_id <> ${actor.userId}
-		ON CONFLICT DO NOTHING RETURNING id`);
+	const added = await db
+		.insert(billCosponsors)
+		.select(sql`SELECT NULL, id, ${actor.userId}, 'requested', ${now}, NULL FROM bills WHERE id = ${bill.id} AND status = 'draft' AND rev > 0 AND user_id <> ${actor.userId}`)
+		.onConflictDoNothing()
+		.returning({ id: billCosponsors.id });
 	if (added.length === 0) return closed('closed');
 	await db.insert(actions).values({ kind: 'bill_cosponsor', userId: actor.userId, ipHash: actor.ipHash, targetId: bill.id, createdAt: now });
-	const [seat] = await db.select({ id: billCosponsors.id }).from(billCosponsors).where(and(eq(billCosponsors.billId, bill.id), eq(billCosponsors.userId, actor.userId)));
-	await notify(db, oneUser(bill.userId), 'cosponsor_requested', bill.id, seat.id, now);
+	await notify(db, oneUser(bill.userId), 'cosponsor_requested', bill.id, added[0].id, now);
 	return { ok: true as const, changed: true };
 }
 

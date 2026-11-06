@@ -1,7 +1,7 @@
 // アプリ内通知を入れる（Issue #78。設計書 docs/spec/78.md）。行を書くだけで、ほかの server の関数に頼らない（どこからでも読めるように）。
 // Cron の入口からも読むので、cloudflare:workers と import.meta.env に頼らない
-import { sql, type SQL } from 'drizzle-orm';
-import { notifications } from '../db/schema';
+import { eq, sql, type SQL } from 'drizzle-orm';
+import { billRelations, notifications } from '../db/schema';
 import type { NotificationKind } from '../domain/notifications';
 import type { BatchDb, Db } from './law';
 
@@ -31,6 +31,20 @@ export const billMembers = (billId: number, except: string | null = null) =>
 export const mergeOriginMembers = (mergedId: number, except: string | null = null) =>
 	sql`SELECT b.user_id FROM bill_relations r JOIN bills b ON b.id = r.origin_bill_id WHERE r.merged_bill_id = ${mergedId} AND b.user_id IS NOT ${except}
 	UNION SELECT c.user_id FROM bill_relations r JOIN bill_cosponsors c ON c.bill_id = r.origin_bill_id AND c.status = 'accepted' WHERE r.merged_bill_id = ${mergedId} AND c.user_id IS NOT ${except}`;
+
+/**
+ * 発議を知らせる。統合案は元の法案の人と統合案の共同提出者の和に1件（ふつうの申し出で加わった人もいる）。
+ * ふつうの法案は共同提出者に。統合案かどうかの読み取りの失敗でも、元の操作を失敗させない
+ */
+export async function notifyProposed(db: Db, billId: number, rev: number, actorId: string, now: number): Promise<void> {
+	try {
+		const merged = await db.select({ id: billRelations.originBillId }).from(billRelations).where(eq(billRelations.mergedBillId, billId)).limit(1);
+		if (merged.length) await notifyStatement(db, sql`${mergeOriginMembers(billId, actorId)} UNION ${billMembers(billId, actorId)}`, 'merge_proposed', billId, rev, now);
+		else await notifyStatement(db, billMembers(billId, actorId), 'bill_proposed', billId, rev, now);
+	} catch (e) {
+		console.error(e);
+	}
+}
 
 /** 確認の状態と結果から、届ける種類を決める式。確認の間は可決か否決かを出さない */
 const OUTCOME_KIND = sql`CASE WHEN v.status = 'open' THEN 'bill_reviewing' WHEN v.status = 'voided' THEN 'bill_voided' WHEN r.outcome = 'passed' THEN 'bill_passed' WHEN r.outcome = 'rejected' THEN 'bill_rejected' ELSE 'bill_lapsed' END`;

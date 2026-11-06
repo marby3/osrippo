@@ -155,10 +155,10 @@ export async function reportedSolutionIds(db: Db, userId: string | null, ids: nu
 	return rows.map((r) => r.id);
 }
 
-/** 解決策を通報する。2回目は何もせず already。保存したら自動非表示を確かめる（設計書 docs/spec/36.md 決めたこと2・3） */
 /** 解決策を書いた人 */
 const solutionAuthor = (solutionId: number) => sql`SELECT user_id FROM solutions WHERE id = ${solutionId}`;
 
+/** 解決策を通報する。2回目は何もせず already。保存したら自動非表示を確かめる（設計書 docs/spec/36.md 決めたこと2・3） */
 export async function reportSolution(
 	db: Db,
 	actor: Actor,

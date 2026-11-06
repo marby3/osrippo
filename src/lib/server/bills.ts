@@ -1,7 +1,7 @@
 // 法案の下書きを作る・保存する・読む（設計書 docs/spec/45.md 決めたこと1・7・8）。
 // 受け取る値は、呼ぶ側（#46）が validateBill・checkChanges・基にした版の比べを通したもの。ここでは確かめずに書く
 import { and, asc, count, countDistinct, desc, eq, gt, gte, inArray, lt, ne, sql, type SQL, or } from 'drizzle-orm';
-import { billMembers, mergeOriginMembers, notify } from './notifications';
+import { notify, notifyProposed } from './notifications';
 import { actions, billChanges, billLaws, bills, billSolutions, billSupports, committeeLaws, issues, laws, sessionParticipantCounts, solutions, user, billCosponsors, billRelations } from '../db/schema';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
 import { baseToken, changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, PARTICIPANT_KINDS, referralSession, type BillChange, type BillKind, type BillTab } from '../domain/bills';
@@ -510,7 +510,7 @@ export async function proposeBill(db: Db, actor: Actor, billId: number, rev: num
 			return { ok: false, reason: (await mergeBlock(db, { id: billId, userId: b.userId, rev }, now, minutes)) ?? 'short' };
 		}
 		await db.insert(actions).values({ kind: 'bill_propose', userId: actor.userId, ipHash: actor.ipHash, targetId: billId, createdAt: now });
-		await notify(db, mergeOriginMembers(billId, actor.userId), 'merge_proposed', billId, rev, now);
+		await notifyProposed(db, billId, rev, actor.userId, now);
 		return { ok: true };
 	}
 	const done = await db.all<{ id: number }>(sql`
@@ -524,7 +524,7 @@ export async function proposeBill(db: Db, actor: Actor, billId: number, rev: num
 		return { ok: false, reason: again.rev === rev ? 'short' : 'stale' };
 	}
 	await db.insert(actions).values({ kind: 'bill_propose', userId: actor.userId, ipHash: actor.ipHash, targetId: billId, createdAt: now });
-	await notify(db, billMembers(billId, actor.userId), 'bill_proposed', billId, rev, now);
+	await notifyProposed(db, billId, rev, actor.userId, now);
 	return { ok: true };
 }
 

@@ -36,7 +36,8 @@ export async function consentWithdraw(db: BatchDb, actor: Actor, bill: BillLike,
 	] as never);
 	const [row] = await db.select({ status: bills.status, at: bills.withdrawnAt }).from(bills).where(eq(bills.id, bill.id));
 	if (row?.status !== 'withdrawn') {
-		await notify(db, billMembers(bill.id, actor.userId), 'withdraw_requested', bill.id, rev, now);
+		// 同意した人には求めない（今押した人も同意の行に入っている）
+		await notify(db, sql`SELECT user_id FROM (${billMembers(bill.id)}) WHERE user_id NOT IN (SELECT w.user_id FROM bill_withdraw_consents w WHERE w.bill_id = ${bill.id} AND w.proposed_rev = ${rev})`, 'withdraw_requested', bill.id, rev, now);
 		return { ok: true, withdrawn: false };
 	}
 	if (row.at === now) {

@@ -2,7 +2,7 @@
 // Cron の入口からも読むので、cloudflare:workers、import.meta.env、#lib に頼らない
 import { and, asc, count, desc, eq, gt, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
-import { actions, billAdjustments, billChanges, billLaws, billRelations, billResults, bills, billSupports, ifAddedArticles, ifBranches, ifImportArticles, ifImportRuns, ifImports, ifLaws, ifRevisions, laws, lawRevisions, provisions, voteReviews } from '../db/schema';
+import { actions, billAdjustments, billChanges, billLaws, billResults, bills, billSupports, ifAddedArticles, ifBranches, ifImportArticles, ifImportRuns, ifImports, ifLaws, ifRevisions, laws, lawRevisions, provisions, voteReviews } from '../db/schema';
 import { referralSession, type BillChange, type BillKind } from '../domain/bills';
 import { PAGE_SIZE } from '../domain/issues';
 import { articleBodyText, articleLabel, changedArticles, compareNum, articleConflict, headingPaths, tableOfContents, type IfArticle, type Paragraph } from '../domain/law';
@@ -12,7 +12,7 @@ import type { AdjustmentReason } from '../domain/votes';
 import { fields, insertContent, savedBill, type DraftInput } from './bills';
 import { refuse, type Actor } from './issues';
 import { articlesOfRevision, currentRevision, type BatchDb, type Db } from './law';
-import { billMembers, mergeOriginMembers, notify } from './notifications';
+import { billMembers, notify, notifyProposed } from './notifications';
 
 const JST = 9 * 60 * 60 * 1000;
 const DELETED: Paragraph[] = [{ num: '1', text: '削除', items: [] }];
@@ -619,10 +619,7 @@ export async function saveAdjustedBill(
 	const saved = row.rev === rev;
 	if (saved) {
 		await db.insert(actions).values({ kind: 'bill_save', userId: actor.userId, ipHash: actor.ipHash, targetId: bill.id, createdAt: now });
-		// 発議し直したことを知らせる。統合案は元の法案の人に（全員が共同提出者なので1件にする）
-		const [merged] = await db.select({ id: billRelations.originBillId }).from(billRelations).where(eq(billRelations.mergedBillId, bill.id)).limit(1);
-		if (merged) await notify(db, mergeOriginMembers(bill.id, actor.userId), 'merge_proposed', bill.id, rev, now);
-		else await notify(db, billMembers(bill.id, actor.userId), 'bill_proposed', bill.id, rev, now);
+		await notifyProposed(db, bill.id, rev, actor.userId, now);
 	}
 	return { ok: true, saved };
 }
