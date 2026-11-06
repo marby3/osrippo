@@ -35,10 +35,11 @@ export const LIMITS = {
 	billDraftPerIp: 20,
 	billSavePerAccount: 60,
 	/** 賛同：1アカウント24時間・5分（付けるのも取り消すのも1回）。同じ法案に同じ回線から（設計書 docs/spec/49.md） */
-	billCosponsorPerDay: 30,
 	billSupportPerDay: 30,
 	billSupportPerBurst: 10,
 	billSupportAccountsPerIp: 3,
+	/** 共同提出者の申し出（docs/spec/76.md） */
+	billCosponsorPerDay: 30,
 	/** 質疑・答弁・補足（設計書 docs/spec/66.md 決めたこと5）。答弁が多いのは、提出者がまとめて答えるため */
 	questionPerDay: 10,
 	answerPerDay: 30,

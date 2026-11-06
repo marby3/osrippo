@@ -12,10 +12,10 @@ import { billById, createDraftLimited, proposeBill, saveDraftLimited, sessionPar
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
 import { proposeBlock, saveAdjustedBill, staleArticles } from './if-world';
 import type { BatchDb, Db } from './law';
-import { cancelCosponsorRequest, decideCosponsor, leaveCosponsor, requestCosponsor } from './cosponsors';
+import { cancelCosponsorRequest, decideCosponsor, leaveCosponsor, requestCosponsor, type CosponsorRefused } from './cosponsors';
 import { cancelMerge, consentMerge, createMerge, mergeBlock, revokeMerge } from './merge';
 import { requireUser } from './require-user';
-import { cancelWithdraw, consentWithdraw } from './withdraw';
+import { cancelWithdraw, consentWithdraw, withdrawStateOf } from './withdraw';
 import { billStageNow } from './results';
 import { resubmitBill, resubmitStateOf } from './resubmit';
 
@@ -122,7 +122,7 @@ export async function cosponsorAction(event: RequestEvent) {
 	const needsId = op === 'accept' || op === 'decline' || op === 'remove';
 	const needsConfirm = op === 'leave' || op === 'remove';
 	if ((needsId && id === null) || (needsConfirm && form.get('confirm') !== 'on')) return fail(400, { message: ja.bill.formInvalid });
-	const refused = (reason: Exclude<import('./cosponsors').CosponsorRefused, never>) =>
+	const refused = (reason: CosponsorRefused) =>
 		fail(reason === 'forbidden' || reason === 'author' ? 403 : 409, { message: ja.bill.cosponsor.refused[reason] });
 	const actor = checked.actor;
 	switch (op as CosponsorOp) {
@@ -155,7 +155,10 @@ export async function withdrawAction(event: RequestEvent) {
 	if (checked.failure) return checked.failure;
 	const op = form.get('op');
 	if ((op !== 'consent' && op !== 'cancel') || (op === 'consent' && form.get('confirm') !== 'on')) return fail(400, { message: ja.bill.formInvalid });
-	if (op === 'cancel') return (await cancelWithdraw(db, checked.actor, bill)) ? { withdraw: true } : fail(409, { message: ja.bill.withdraw.closed });
+	if (op === 'cancel') {
+		if (await cancelWithdraw(db, checked.actor, bill)) return { withdraw: true };
+		return (await withdrawStateOf(db, bill, checked.actor.userId)).member ? fail(409, { message: ja.bill.withdraw.closed }) : fail(403, { message: ja.bill.withdraw.forbidden });
+	}
 	const result = await consentWithdraw(db as unknown as BatchDb, checked.actor, bill, now, sessionsAt(now).minutes);
 	if (result.ok) return { withdraw: true };
 	return result.reason === 'forbidden' ? fail(403, { message: ja.bill.withdraw.forbidden }) : fail(409, { message: ja.bill.withdraw.closed });

@@ -18,7 +18,7 @@
 	const stageName = (name: string, i: number) => {
 		const next = data.next;
 		if (next && i === BILL_PROGRESS_STEP[next.stage]) return ja.bill.page.stageFrom(name, next.session, next.at);
-		return (data.progress === 'lapsed' || data.progress === 'withdrawn') && i === BILL_PROGRESS_STEP.lapsed ? ja.bill.progress[data.stage] : name;
+		return data.progress === 'lapsed' && i === BILL_PROGRESS_STEP.lapsed ? ja.bill.progress[data.stage] : name;
 	};
 </script>
 
@@ -66,8 +66,11 @@
 	</div>
 
 	<aside>
-		<!-- 発議していないまま撤回された法案に、質疑を経たような並びを出さない -->
-		<section class="stages pc" hidden={data.progress === 'withdrawn' && data.questionCount === null}>
+		<!-- 撤回された法案には段階の並びを出さない（採決の前にしか撤回できないのに、採決を経たように見せない） -->
+		{#if data.progress === 'withdrawn'}
+			<p class="stages pc">{ja.bill.progress.withdrawn}{ja.bill.page.here}</p>
+		{:else}
+		<section class="stages pc">
 			<h2>{ja.bill.page.stagesHeading}</h2>
 			<ol>
 				{#each ja.bill.page.stages as stage, i (stage)}
@@ -77,6 +80,7 @@
 				{/each}
 			</ol>
 		</section>
+		{/if}
 		<div class="people">
 			<p class="author">{ja.bill.page.author(bill.author)}</p>
 			{#if data.cosponsors.length}<span class="sep" aria-hidden="true">{ja.bill.support.separator}</span><p class="author">{ja.bill.cosponsor.names(data.cosponsors)}</p>{/if}
@@ -165,11 +169,11 @@
 			</form>
 		{/if}
 		<!-- 統合案の同意（docs/spec/76.md 決めたこと14）。統合案のページに出す -->
-		{#if data.progress === 'draft' && data.merge.consent}
+		{#if data.progress === 'draft' && data.merge.consent && (data.merge.consent.member || data.merge.consent.isAuthor)}
 			<section class="box" aria-labelledby="merge-heading">
 				<h2 id="merge-heading">{ja.bill.merge.heading}</h2>
 				<p class="note">{ja.bill.merge.progress(data.merge.consent.total, data.merge.consent.consented)}</p>
-				{#if data.merge.consent.member}
+				{#if data.merge.consent.canConsent}
 					{#if data.merge.consent.mine}
 						<form method="post" action="?/merge" use:enhance>
 							<input type="hidden" name="op" value="revoke" />
@@ -185,7 +189,7 @@
 						</form>
 					{/if}
 				{/if}
-				{#if support.required !== null}
+				{#if data.merge.consent.isAuthor}
 					<form method="post" action="?/merge" use:enhance>
 						<input type="hidden" name="op" value="cancel" />
 						<button>{ja.bill.merge.cancel}</button>

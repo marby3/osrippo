@@ -352,7 +352,7 @@ const supportCount = sql<number>`(SELECT count(*) FROM ${billSupports} s WHERE s
 
 /**
  * タブの法案。下書きは保存が新しい順、審議中は作ったのが新しい順、終わったは発議が新しい順。
- * before は lapsedBefore の値で、これより前に発議した法案が終わった（docs/spec/50.md 決めたこと4・5）
+ * before は lapsedBefore の値で、これより前に発議した法案と、撤回された法案が終わった（docs/spec/50.md 決めたこと4・5、docs/spec/76.md）
  */
 export async function listBills(db: Db, tab: BillTab, page: number, before: number) {
 	const draft = tab === 'shitagaki';

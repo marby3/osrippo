@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test } from 'vitest';
-import { billProgress, withdrawableSince } from '../domain/bills';
+import { billProgress, PARTICIPANT_KINDS, withdrawableSince } from '../domain/bills';
 import { canResubmit } from '../domain/votes';
 import { scoredStance } from '../domain/evaluations';
 import { LIMITS } from '../domain/limits';
@@ -10,7 +10,7 @@ import { sessionAt, type Session } from '../domain/session';
 import { addSupportRow, billById, billSupportState, draftInputOf, listBills, proposeBill, relatedBills, saveDraft, setBillSupport } from '../server/bills';
 import { billRoleOf, canEditDraft, cancelCosponsorRequest, cosponsorsOf, decideCosponsor, isBillSide, leaveCosponsor, requestCosponsor } from '../server/cosponsors';
 import { saveAdjustedBill } from '../server/if-world';
-import { cancelMerge, consentMerge, createMerge, mergeBlock, mergeLinksOf, revokeMerge } from '../server/merge';
+import { cancelMerge, consentMerge, createMerge, mergeBlock, mergeLinksOf, proposeMerged, revokeMerge } from '../server/merge';
 import { billStageNow, involvedInBill, pendingReviews, settleSession } from '../server/results';
 import { resubmitBill } from '../server/resubmit';
 import { assignedBills, billsInVote, castVote } from '../server/votes';
@@ -185,8 +185,8 @@ test('基準2：申し出から抜けるまでの操作、上限、権限', asyn
 	expect(w.rowOf(open.id, busy)).toBeUndefined();
 	expect(w.count('violation', busy)).toBe(1);
 	// 今月の参加者に数えない
-	const s = sessionAt(now, null);
-	expect(w.sqlite.prepare("SELECT kind FROM actions WHERE kind = 'bill_cosponsor' AND created_at > ?").all(s.startsAt - 1e12).length).toBeGreaterThan(0);
+	expect(PARTICIPANT_KINDS).not.toContain('bill_cosponsor');
+	expect(PARTICIPANT_KINDS).not.toContain('bill_withdraw');
 }, 30_000);
 
 test('基準3：共同提出者は下書きを編集できる。提出者だけの操作と、読んだ版の確かめ', async () => {
@@ -230,7 +230,12 @@ test('基準3：共同提出者は下書きを編集できる。提出者だけ�
 	const proposed = await load();
 	expect(await canEditDraft(w.db, proposed, co)).toBe(false);
 	expect(await saveDraft(w.db, bill.id, co, proposed.rev, input, now)).toBe(false);
+	// 要調整の行があっても、共同提出者は直せない（提出者は直せる）
+	w.sqlite.prepare("INSERT INTO bill_adjustments (bill_id, session_key, reason, due_at, proposed_at, created_at) VALUES (?, 'k', 'article', ?, ?, 0)").run(bill.id, now + 1000, proposed.proposedAt);
 	expect(await saveAdjustedBill(w.db, w.actorOf(co), proposed, proposed.rev, input, now)).toEqual({ ok: true, saved: false });
+	expect(await saveAdjustedBill(w.db, w.actorOf(bill.author), proposed, proposed.rev, input, now)).toEqual({ ok: true, saved: true });
+	// 出し直しに共同提出者は引き継がない（下で確かめる）のために、読み直す
+	const adjusted = await load();
 
 	// 抜けると編集できない。出し直しに共同提出者は引き継がない
 	const other = w.addBill(w.addLaw());
@@ -238,7 +243,7 @@ test('基準3：共同提出者は下書きを編集できる。提出者だけ�
 	await leaveCosponsor(w.db, w.actorOf(gone), await w.load(other.id), null);
 	expect(await canEditDraft(w.db, await w.load(other.id), gone)).toBe(false);
 	expect(await saveDraft(w.db, other.id, gone, 1, draftInputOf(await w.load(other.id)), now)).toBe(false);
-	const copy = await resubmitBill(w.db, w.actorOf(bill.author), proposed, now);
+	const copy = await resubmitBill(w.db, w.actorOf(bill.author), adjusted, now);
 	expect(await cosponsorsOf(w.db, (copy as { id: number }).id)).toEqual([]);
 }, 30_000);
 
@@ -410,8 +415,6 @@ test('基準7：撤回は全員の同意で、採決の前まで。撤回され�
 	expect({ ...w.sqlite.prepare('SELECT count(*) AS n FROM bill_results WHERE bill_id = ?').get(bill.id) }).toEqual({ n: 0 });
 
 	// 要調整を直して発議し直すと、前の同意は数えない
-	const again = w.addBill(w.addLaw(), { at: inSession });
-	await consentWithdraw(w.db, w.actorOf(again.author), await w.load(again.id), inSession, null);
 	const single = w.addBill(w.addLaw());
 	const member = await w.makeCosponsor(single);
 	w.sqlite.prepare("UPDATE bills SET status = 'proposed', proposed_at = ?, proposed_rev = rev WHERE id = ?").run(inSession, single.id);
@@ -550,12 +553,21 @@ test('基準9：統合案の同意と発議', async () => {
 	expect(await consentPair(c.author)).toEqual({ ok: true });
 	expect(await consentPair(d.author)).toEqual({ ok: true });
 	expect((await mergeLinksOf(w.db, await w.load(pair.id), null)).origins).toMatchObject([{ id: c.id, waiting: false }, { id: d.id, waiting: false }]);
-	// 元の法案に共同提出者が増えると、確かめのあとでも発議の文で止まる
+	// 確かめのあとに条件が変わると、発議の文そのものが止める（確かめを通さず、発議の文を直接呼ぶ）。元の法案も変わらない
 	const lateCo = await w.makeCosponsor(d);
 	expect(await proposeBill(w.db, w.actorOf(c.author), pair.id, 1, 0, now, null)).toEqual({ ok: false, reason: 'merge' });
+	expect(await proposeMerged(w.db, w.actorOf(c.author), { id: pair.id, rev: 1 }, 1, 0, now, null), '共同提出者が増えた').toBe(false);
+	expect(w.statusOf(pair.id).status).toBe('draft');
 	expect(w.statusOf(c.id).status).toBe('proposed');
 	expect(w.statusOf(d.id).status).toBe('draft');
 	expect(await consentPair(lateCo)).toEqual({ ok: true });
+	expect(await proposeMerged(w.db, w.actorOf(c.author), { id: pair.id, rev: 1 }, 1, 0, s.voteAt, null), '採決が始まった').toBe(false);
+	expect(await proposeMerged(w.db, w.actorOf(c.author), { id: pair.id, rev: 1 }, 5, 0, now, null), '読んだ版が違う').toBe(false);
+	expect(await proposeMerged(w.db, w.actorOf(c.author), { id: pair.id, rev: 1 }, 1, 99, now, null), '賛同が足りない').toBe(false);
+	expect(await proposeMerged(w.db, w.actorOf(lateCo), { id: pair.id, rev: 1 }, 1, 0, now, null), '提出者でない').toBe(false);
+	expect(w.statusOf(pair.id).status).toBe('draft');
+	expect(w.statusOf(c.id).status).toBe('proposed');
+	expect(w.statusOf(d.id).status).toBe('draft');
 	// 読んだ版と違えば発議しない。元の法案も変わらない
 	expect(await proposeBill(w.db, w.actorOf(c.author), pair.id, 5, 0, now, null)).toEqual({ ok: false, reason: 'stale' });
 	expect(w.statusOf(c.id).status).toBe('proposed');
@@ -616,6 +628,20 @@ test('基準9：統合案の同意と発議', async () => {
 	const pairI = (await createMerge(w.db, w.actorOf(i1.author), await w.load(i1.id), i2.id, now, null)) as { id: number };
 	expect(await consentMerge(w.db, w.actorOf(both), await w.load(pairI.id), 1, now)).toEqual({ ok: true });
 	expect({ ...w.sqlite.prepare('SELECT count(*) AS n FROM bill_merge_consents WHERE merged_bill_id = ? AND user_id = ?').get(pairI.id, both) }).toEqual({ n: 2 });
+	// 人数は人で数える（両方に属する人も1人）
+	expect((await mergeLinksOf(w.db, await w.load(pairI.id), both)).consent).toMatchObject({ total: 3, consented: 1, member: true, canConsent: true, mine: true, isAuthor: false });
+
+	// 統合案から抜けた人には同意のボタンを出さない
+	const leftMember = await w.makeCosponsor(i1);
+	await leaveCosponsor(w.db, w.actorOf(leftMember), await w.load(i1.id), null);
+	await requestCosponsor(w.db, w.actorOf(i2.author), await w.load(pairI.id), now);
+	await consentMerge(w.db, w.actorOf(i2.author), await w.load(pairI.id), 1, now);
+	await leaveCosponsor(w.db, w.actorOf(i2.author), await w.load(pairI.id), null);
+	expect((await mergeLinksOf(w.db, await w.load(pairI.id), i2.author)).consent).toMatchObject({ member: true, canConsent: false });
+
+	// 統合案があとで撤回されても、元の法案から統合案へのリンクは残る
+	w.sqlite.prepare("UPDATE bills SET status = 'withdrawn', withdrawn_at = ? WHERE id = ?").run(now, pair.id);
+	expect((await mergeLinksOf(w.db, await w.load(c.id), null)).mergedInto).toMatchObject({ id: pair.id });
 
 	// 発議のあとで要調整になった統合案は、直して発議し直せる（統合案の条件は下書きからの発議だけ）
 	const passed = await w.load(first.id);

@@ -43,6 +43,7 @@ export const load: LayoutServerLoad = async (event) => {
 	if (draft && isAuthor) {
 		required = proposalRequirement(await sessionParticipants(db, FIRST_COMMITTEE, session, previous, now));
 	}
+	const withdrawState = (progress === 'proposed' || progress === 'deliberation') && user ? await withdrawStateOf(db, bill, user.id) : null;
 	return {
 		bill: await billView(db, bill),
 		// 共同提出者（docs/spec/76.md）。申し出の名前は提出者にだけ渡す
@@ -52,7 +53,8 @@ export const load: LayoutServerLoad = async (event) => {
 			canAsk: draft && Boolean(user) && !isAuthor && billWaitUntil(user?.createdAt.getTime() ?? 0, now) === null,
 			panel: draft && isAuthor ? await cosponsorPanel(db, bill.id) : null
 		},
-		withdraw: (progress === 'proposed' || progress === 'deliberation') && user ? await withdrawStateOf(db, bill, user.id) : null,
+		// 同意の状況は提出者と共同提出者にだけ渡す
+		withdraw: withdrawState?.member ? withdrawState : null,
 		merge: await mergeLinksOf(db, bill, user?.id ?? null),
 		canStartMerge: isAuthor && (await canStartMerge(db, bill, now, minutes)),
 		progress,

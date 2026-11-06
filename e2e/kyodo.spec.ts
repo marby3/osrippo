@@ -170,6 +170,7 @@ test('基準10：撤回と統合案の画面', async ({ browser }, info) => {
 	const other = await s.person(now);
 	await other.page.goto(path);
 	await expect(button(other.page, '撤回に同意する')).toHaveCount(0);
+	// 発議のあとの段階は今までどおり
 	await a.page.goto(path);
 	await hydrated(a.page);
 	await a.page.getByLabel('撤回は元に戻せません').check();
@@ -233,6 +234,8 @@ test('基準10：撤回と統合案の画面', async ({ browser }, info) => {
 	await expect(other.page.getByRole('main').getByRole('link', { name: xTitle, exact: true })).toHaveAttribute('href', mPath);
 	await other.page.goto(yPath);
 	await expect(other.page.getByText('統合案に統合されました')).toBeVisible();
+	// 発議していないまま撤回された法案に、質疑や修正案のタブは出ない
+	await expect(other.page.getByRole('link', { name: /質疑/ })).toHaveCount(0);
 	await other.page.goto(mPath);
 	await expect(other.page.getByText('同意待ち')).toHaveCount(0);
 	await expect(other.page.getByRole('main').getByRole('link', { name: yTitle, exact: true })).toHaveAttribute('href', yPath);
@@ -263,6 +266,6 @@ test('信頼の境界：共同提出者、撤回、統合案、発議の入力�
 	}
 	for (const form of [{}, { rev: 'abc' }, { rev: '0' }]) expect((await post('propose', form as Record<string, string>)).status(), JSON.stringify(form)).toBe(400);
 	for (const bad of ['abc', '0', '-1', '1e3', '999999999']) {
-		for (const action of ['cosponsor', 'withdraw', 'merge']) expect((await billRequest(a.page, `/houan/${bad}?/${action}`, { op: 'consent' })).status(), `${action} ${bad}`).toBe(404);
+		for (const action of ['cosponsor', 'withdraw', 'merge', 'propose']) expect((await billRequest(a.page, `/houan/${bad}?/${action}`, { op: 'consent' })).status(), `${action} ${bad}`).toBe(404);
 	}
 });

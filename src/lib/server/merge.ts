@@ -211,14 +211,21 @@ export async function mergeLinksOf(db: Db, bill: Pick<BillLike, 'id' | 'userId' 
 	const titled = origins.length ? await db.select({ id: bills.id, title: bills.title }).from(bills).where(inArray(bills.id, origins)).orderBy(asc(bills.id)) : [];
 	const state = origins.length ? await consentState(db, bill, origins) : null;
 	const members = state?.members ?? [];
+	const member = userId !== null && members.some((m) => m.userId === userId);
+	const [seatRow] = state && userId !== null ? await db.select({ status: billCosponsors.status }).from(billCosponsors).where(and(eq(billCosponsors.billId, bill.id), eq(billCosponsors.userId, userId))) : [];
+	const seat = seatRow?.status ?? null;
 	const asMerged = {
 		origins: titled.map((o) => ({ ...o, waiting: bill.status === 'draft' && Boolean(state?.missing.some((m) => m.billId === o.id)) })),
 		consent: state
 			? {
-					total: members.length,
-					consented: members.length - (state.missing.length ?? 0),
-					member: userId !== null && members.some((m) => m.userId === userId),
-					mine: userId !== null && members.filter((m) => m.userId === userId).every((m) => state.consents.some((c) => c.originId === m.billId && c.userId === userId)) && members.some((m) => m.userId === userId)
+					// 両方の元の法案に属する人も1人に数える
+					total: new Set(members.map((m) => m.userId)).size,
+					consented: new Set(members.map((m) => m.userId)).size - new Set(state.missing.map((m) => m.userId)).size,
+					member,
+					isAuthor: userId === bill.userId,
+					// 抜けた人と断られた人は同意できない（決定G・I）
+					canConsent: member && seat !== 'left' && seat !== 'declined',
+					mine: member && !state.missing.some((m) => m.userId === userId)
 				}
 			: null
 	};
@@ -231,7 +238,8 @@ export async function mergeLinksOf(db: Db, bill: Pick<BillLike, 'id' | 'userId' 
 		.orderBy(desc(bills.id));
 	// 見える範囲で絞ってから切る（新しい下書きに押されて発議済みの統合案が消えないように）
 	const merged = rows.filter((r) => r.status !== 'draft' || isMember).slice(0, MERGED_SHOWN);
-	const into = rows.find((r) => r.status === 'proposed');
+	// 統合案があとで撤回されても、統合された事実は残す（統合案は発議を経ないと撤回にならない）
+	const into = rows.find((r) => r.status !== 'draft');
 	return { ...asMerged, merged: merged.map(({ id, title }) => ({ id, title })), mergedInto: bill.status === 'withdrawn' && into ? { id: into.id, title: into.title } : null };
 }
 

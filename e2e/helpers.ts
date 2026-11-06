@@ -251,7 +251,6 @@ export async function createAmendBill(page: Page, title: string, solution: strin
 /** 賛同のフォームと同じ POST */
 export const billSupportRequest = (page: Page, bill: string, form: BillForm) => billRequest(page, `${bill}?/support`, form);
 
-/** 「発議する」のフォームと同じ POST */
 /** 発議を送る。読んだ版を送る決まりなので、ページの版を読む（発議のボタンがなければ 1） */
 export const proposeRequest = async (page: Page, bill: string) => {
 	const html = await (await page.request.get(bill)).text();
