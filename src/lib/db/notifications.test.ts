@@ -267,9 +267,21 @@ test('基準4：法案の操作が決まった人に届き、操作した人に�
 	expect(await consentWithdraw(w.db, w.actorOf(bill.author), await load(), now, null)).toEqual({ ok: true, withdrawn: true });
 	expect(w.kinds(asker)).toEqual(['bill_withdrawn']);
 	expect(w.kinds(bill.author)).toEqual(['withdraw_requested']);
+	// 3人のとき：同意済みの人には、2人目の同意で求めない
+	w.clear();
+	const trio = w.addBill(law, { at: now - 200 });
+	const [coA, coC] = [w.addUser(), w.addUser()];
+	w.addCosponsor(trio.id, coA);
+	w.addCosponsor(trio.id, coC);
+	expect(await consentWithdraw(w.db, w.actorOf(coA), await w.load(trio.id), now, null)).toEqual({ ok: true, withdrawn: false });
+	expect(await consentWithdraw(w.db, w.actorOf(coC), await w.load(trio.id), now, null)).toEqual({ ok: true, withdrawn: false });
+	expect(w.kinds(coA)).toEqual([]);
+	expect(w.kinds(coC)).toEqual(['withdraw_requested']);
+	expect(w.kinds(trio.author)).toEqual(['withdraw_requested']);
 
 	// 統合案：作ると元の法案の人に同意を求め、発議で届く。作った人と発議した人には届かない
 	w.clear();
+	const rowOf2 = (billId: number, u: string) => (w.sqlite.prepare('SELECT id FROM bill_cosponsors WHERE bill_id = ? AND user_id = ?').get(billId, u) as { id: number }).id;
 	const a = w.addBill(law, { at: now - 300 });
 	const b = w.addBill(law);
 	const coB = w.addUser();
@@ -278,6 +290,10 @@ test('基準4：法案の操作が決まった人に届き、操作した人に�
 	expect(w.inbox(b.author)).toEqual([{ kind: 'merge_requested', target: made.id, ref: 0 }]);
 	expect(w.kinds(coB)).toEqual(['merge_requested']);
 	expect(w.kinds(a.author)).toEqual([]);
+	// 元の法案に属さない人も、ふつうの申し出で統合案の共同提出者になれる
+	const third = w.addUser();
+	await requestCosponsor(w.db, w.actorOf(third), await w.load(made.id), now);
+	await decideCosponsor(w.db, w.actorOf(a.author), await w.load(made.id), rowOf2(made.id, third), 'accept', now);
 	// 統合案が直されると、同意した人に届く
 	for (const u of [a.author, b.author, coB]) expect(await consentMerge(w.db, w.actorOf(u), await w.load(made.id), 1, now)).toEqual({ ok: true });
 	w.clear();
@@ -289,6 +305,7 @@ test('基準4：法案の操作が決まった人に届き、操作した人に�
 	expect(await proposeBill(w.db, w.actorOf(a.author), made.id, 2, 0, now, null)).toEqual({ ok: true });
 	expect(w.inbox(b.author)).toEqual([{ kind: 'merge_proposed', target: made.id, ref: 2 }]);
 	expect(w.kinds(coB)).toEqual(['merge_proposed']);
+	expect(w.kinds(third)).toEqual(['merge_proposed']);
 	expect(w.kinds(a.author)).toEqual([]);
 });
 
