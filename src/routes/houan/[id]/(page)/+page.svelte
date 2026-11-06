@@ -291,6 +291,11 @@
 		padding: 0.5rem 0;
 	}
 
+	.box button {
+		min-height: var(--tap-min);
+		padding: 0 1rem;
+	}
+
 	.box summary {
 		min-height: var(--tap-min);
 		cursor: pointer;

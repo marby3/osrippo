@@ -115,6 +115,7 @@ test('基準6：共同提出者の申し出と承認、名前、編集、権限'
 	await a.page.goto(path);
 	await hydrated(a.page);
 	await a.page.getByRole('listitem').filter({ hasText: refused.name }).getByRole('button', { name: '断る' }).click();
+	await expect(a.page.getByRole('listitem').filter({ hasText: refused.name })).toHaveCount(0);
 	await refused.page.goto(path);
 	await expect(refused.page.getByText('申し出は断られました')).toBeVisible();
 	await expect(button(refused.page, '共同提出者になりたいと申し出る')).toHaveCount(0);
