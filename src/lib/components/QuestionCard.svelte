@@ -8,6 +8,7 @@
 	import type { EvaluationKind } from '../domain/evaluations';
 	import type { IssueError } from '../domain/issues';
 	import EvaluationButtons from './EvaluationButtons.svelte';
+	import PostReport from './PostReport.svelte';
 	import { readWhenSeen, type ReadTracker } from './read-tracker';
 	import Turnstile from './Turnstile.svelte';
 
@@ -19,7 +20,7 @@
 		mine: boolean;
 		pressed: Pressed;
 		answers: { id: number; role: PostRole; body: string; mine: boolean; pressed: Pressed }[];
-		supplements: { id: number; body: string }[];
+		supplements: { id: number; body: string; mine: boolean }[];
 	};
 	type Failure = { question: number | null; body: string; error?: IssueError; message?: string };
 
@@ -38,7 +39,10 @@
 		back,
 		evaluationShown,
 		evaluationFailure,
-		track
+		track,
+		staffHere,
+		reportedIds,
+		reportResult
 	}: {
 		question: Question;
 		/** 関連法案の質疑のとき、その法案。読むだけで、リンクからその法案へ移って書く */
@@ -61,6 +65,12 @@
 		evaluationFailure: { post: number; message: string } | null;
 		/** 読んだ記録を取るときだけ渡す */
 		track: ReadTracker | null;
+		/** 運営として対応できるか（権限があり、この法案に関わっていない。関連法案のカードでは false） */
+		staffHere: boolean;
+		/** 見ている人が通報した投稿 */
+		reportedIds: number[];
+		/** 通報の結果 */
+		reportResult: { post: number; done?: string; message?: string } | null;
 	} = $props();
 
 	const failedHere = $derived(failure?.question === question.id);
@@ -96,9 +106,26 @@
 	}
 </script>
 
+<!-- 通報と運営の入口。関連法案のカードには出さない（その法案のページで行う）。自分のものにも出さない -->
+{#snippet moderation(id: number, mine: boolean, label: string)}
+	{#if !relatedBill && !mine}
+		<PostReport
+			post={id}
+			{label}
+			{loggedIn}
+			{back}
+			reported={reportedIds.includes(id)}
+			done={reportResult?.post === id ? reportResult.done : undefined}
+			message={reportResult?.post === id ? reportResult.message : undefined}
+		/>
+		{#if staffHere}<p class="staff"><a href="/kanri?post={id}">{ja.post.staffLink}</a></p>{/if}
+	{/if}
+{/snippet}
+
 <article id="shitsugi-{question.id}">
 	{#if relatedBill}<p class="from"><a href="/houan/{relatedBill.id}/shitsugi#shitsugi-{question.id}">{ja.post.fromBill(relatedBill.title)}</a></p>{/if}
 	<p class="body" use:readWhenSeen={trackIf(question.id, !hasAnswers && !question.mine)}>{question.body}</p>
+	{@render moderation(question.id, question.mine, ja.post.reportOpen.question)}
 
 	{#if evaluationShown && hasAnswers && !question.mine}
 		<!-- 答弁がつく前に質疑に押した人が、取り消せるように -->
@@ -115,6 +142,7 @@
 					{#if evaluationShown && question.answers.length > 1 && !answer.mine}
 						<EvaluationButtons postId={answer.id} pressed={answer.pressed} {loggedIn} {back} message={messageFor(answer.id)} />
 					{/if}
+					{@render moderation(answer.id, answer.mine, ja.post.reportOpen.answer)}
 				</section>
 			{/each}
 		</div>
@@ -140,6 +168,7 @@
 		<section class="supplement">
 			<h3>{ja.post.supplementHeading}</h3>
 			<p class="body">{supplement.body}</p>
+			{@render moderation(supplement.id, supplement.mine, ja.post.reportOpen.supplement)}
 		</section>
 	{/each}
 
@@ -281,6 +310,17 @@
 
 	.actions {
 		margin-top: 0.75rem;
+	}
+
+	.staff {
+		margin: 0;
+		font-size: var(--font-size-sub);
+	}
+
+	.staff a {
+		display: inline-flex;
+		align-items: center;
+		min-height: var(--tap-min);
 	}
 
 	.actions button,

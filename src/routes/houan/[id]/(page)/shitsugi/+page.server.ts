@@ -6,8 +6,9 @@ import { parsePage } from '#lib/domain/issues.ts';
 import { billWaitUntil } from '#lib/domain/limits.ts';
 import { evaluationOpen } from '#lib/domain/evaluations.ts';
 import { postRoleOf, postWindowOpen, stanceOpen } from '#lib/domain/posts.ts';
-import { nowOf } from '#lib/server/client.ts';
-import { answerAction, evaluationAction, postableBill, progressOf, readAction, stanceAction, supplementAction } from '#lib/server/post-actions.ts';
+import { nowOf, sessionsAt } from '#lib/server/client.ts';
+import { answerAction, evaluationAction, postableBill, progressOf, readAction, reportPostAction, stanceAction, supplementAction } from '#lib/server/post-actions.ts';
+import { hiddenPostsFor, reportedPostIds, staffOnBill } from '#lib/server/post-moderation.ts';
 import { listQuestions, questionTotal, stanceOf, waitingQuestions } from '#lib/server/posts.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -36,6 +37,8 @@ export const load: PageServerLoad = async (event) => {
 	const role = postRoleOf(writerRole);
 	const waiting = await waitingQuestions(db, bill.id, session.key);
 	const waitUntil = user ? billWaitUntil(user.createdAt.getTime(), now) : null;
+	// 運営として見られるか（権限があり、関わっていない）。関連法案のカードには通報もリンクも出さないので、今の法案だけを見る（docs/spec/80.md の決定H）
+	const staffHere = userId !== null && (await staffOnBill(db, bill.id, userId, now, sessionsAt(now).minutes));
 	return {
 		questions: rows,
 		// 前の会期の質疑は読むだけ（要調整を直した法案。docs/spec/72.md の C）
@@ -58,6 +61,10 @@ export const load: PageServerLoad = async (event) => {
 		stanceShown: stanceOpen(progress),
 		// 立場は本人の行だけを読む（docs/spec/66.md 決めたこと7）
 		stance: user && stanceOpen(progress) ? await stanceOf(db, session.key, bill.id, user.id) : null,
+		staffHere,
+		reportedIds: await reportedPostIds(db, userId, bill.id),
+		// 本人と運営に見せる非表示の投稿は、「すべて」の1ページ目の最後に出す
+		hiddenPosts: page === 1 && !onlyWaiting && !withRelated ? await hiddenPostsFor(db, bill.id, userId, staffHere) : [],
 		siteKey: env.TURNSTILE_SITE_KEY
 	};
 };
@@ -67,5 +74,6 @@ export const actions: Actions = {
 	supplement: supplementAction,
 	stance: stanceAction,
 	evaluate: evaluationAction,
-	read: readAction
+	read: readAction,
+	reportPost: reportPostAction
 };

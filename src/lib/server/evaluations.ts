@@ -2,6 +2,7 @@
 import { and, count, countDistinct, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { actions, evaluations, postViews, posts } from '../db/schema';
 import { postScores, scoredStance, type EvaluationKind, type EvaluationOp, type PostScore } from '../domain/evaluations';
+import { POST_SHOWN } from '../domain/reports';
 import { checkEvaluation, DAY, LIMITS } from '../domain/limits';
 import type { BillRole } from '../domain/posts';
 import { refuse, type Actor } from './issues';
@@ -9,7 +10,10 @@ import type { Db } from './law';
 import { notify } from './notifications';
 
 const EVALUATION_ACTIONS = ['evaluation_add', 'evaluation_remove'] as const;
-const scored = and(inArray(posts.kind, ['question', 'answer']), eq(posts.status, 'visible'));
+/** 書く文と副問い合わせで使う、表示中の状態の並び（設計書 docs/spec/80.md） */
+export const POST_SHOWN_SQL = sql.raw(POST_SHOWN.map((s) => `'${s}'`).join(', '));
+/** 投稿そのものが表示中か。親の質疑の状態は見ない（非表示の質疑の下の答弁はスコアに数える。決定E） */
+const scored = and(inArray(posts.kind, ['question', 'answer']), inArray(posts.status, POST_SHOWN));
 
 /**
  * いまの立場を、書く文の中で読む式。別に読まないので、立場を変えるのと重なっても、どちらかの立場で1行だけ残る。
@@ -18,12 +22,12 @@ const scored = and(inArray(posts.kind, ['question', 'answer']), eq(posts.status,
 export const stanceNow = (sessionKey: string, billId: number, userId: string, role: BillRole | null) =>
 	sql`COALESCE((SELECT s.stance FROM stances s WHERE s.session_key = ${sessionKey} AND s.bill_id = ${billId} AND s.user_id = ${userId} AND s.stance <> 'undecided'), ${scoredStance('undecided', role)})`;
 
-/** 評価できる投稿：その法案のその会期の見える質疑と答弁。なければ undefined */
+/** 評価できる投稿：その法案のその会期の見える質疑と答弁（答弁は親の質疑も見える）。なければ undefined */
 export async function evaluationTarget(db: Db, postId: number, bill: { id: number; sessionKey: string }) {
 	const [row] = await db
 		.select({ id: posts.id, userId: posts.userId })
 		.from(posts)
-		.where(and(eq(posts.id, postId), eq(posts.billId, bill.id), eq(posts.sessionKey, bill.sessionKey), scored));
+		.where(and(eq(posts.id, postId), eq(posts.billId, bill.id), eq(posts.sessionKey, bill.sessionKey), scored, sql`(${posts}.parent_id IS NULL OR EXISTS (SELECT 1 FROM posts q WHERE q.id = ${posts}.parent_id AND q.status IN (${POST_SHOWN_SQL})))`));
 	return row;
 }
 
@@ -36,9 +40,10 @@ export async function recordViews(db: Db, userId: string, bill: { id: number; se
 		INSERT INTO ${postViews} (post_id, user_id, stance, created_at)
 		SELECT p.id, ${userId}, ${stanceNow(bill.sessionKey, bill.id, userId, role)}, ${now}
 		FROM posts p
-		WHERE p.bill_id = ${bill.id} AND p.session_key = ${bill.sessionKey} AND p.kind IN ('question', 'answer') AND p.status = 'visible' AND p.user_id <> ${userId}
+		WHERE p.bill_id = ${bill.id} AND p.session_key = ${bill.sessionKey} AND p.kind IN ('question', 'answer') AND p.status IN (${POST_SHOWN_SQL}) AND p.user_id <> ${userId}
 			AND p.id IN (SELECT value FROM json_each(${JSON.stringify(postIds)}))
-			AND (p.kind = 'answer' OR NOT EXISTS (SELECT 1 FROM posts a WHERE a.parent_id = p.id AND a.kind = 'answer' AND a.status = 'visible'))
+			AND (p.parent_id IS NULL OR EXISTS (SELECT 1 FROM posts q WHERE q.id = p.parent_id AND q.status IN (${POST_SHOWN_SQL})))
+			AND (p.kind = 'answer' OR NOT EXISTS (SELECT 1 FROM posts a WHERE a.parent_id = p.id AND a.kind = 'answer' AND a.status IN (${POST_SHOWN_SQL})))
 		ON CONFLICT DO NOTHING`);
 }
 

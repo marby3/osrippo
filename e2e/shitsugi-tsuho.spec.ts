@@ -156,7 +156,7 @@ test('基準8：質疑のタブから通報でき3人で消える。/kanri で�
 	await staff.page.goto('/kanri');
 	const row = staff.page.getByRole('region', { name: '通報を受けた質疑・答弁・補足' }).locator('article').filter({ hasText: questionText });
 	await expect(row.getByText('通報 3件（数えたもの 3件）')).toBeVisible();
-	await row.getByLabel('表示に戻すメモ').fill('問題がなかった');
+	await row.getByLabel('表示に戻すメモ').fill(`問題がなかった ${s.label}`);
 	await row.getByRole('button', { name: '表示に戻す' }).click();
 	await viewer.page.goto(qa(path));
 	await expect(card(viewer.page, questionText)).toBeVisible();
@@ -164,7 +164,7 @@ test('基準8：質疑のタブから通報でき3人で消える。/kanri で�
 	await viewer.page.goto('/unei');
 	const log = viewer.page.getByRole('region', { name: '法案の質疑への対応' });
 	await expect(log.getByRole('link', { name: `通報の法案 ${s.label}` }).first()).toBeVisible();
-	await expect(log.getByText('問題がなかった')).toBeVisible();
+	await expect(log.getByText(`問題がなかった ${s.label}`)).toBeVisible();
 	await expect(log.getByText(questionText)).toHaveCount(0);
 
 	// 通報のない投稿を手で隠しても、タブの欄のリンクから戻せる
@@ -218,7 +218,8 @@ test('信頼の境界：通報と運営の操作の入力、/kanri の ?post=、
 	const staff = await s.person(day15, { role: 'operator' });
 
 	// 通報：番号の形は 400、ない番号と別の法案は 404、理由の形と説明の長さは 400
-	for (const form of [{}, { post: 'abc' }, { post: '0' }, { post: '-1' }, { post, reason: 'duplicate' }, { post, reason: 'bad' }, { post, reason: 'other', note: 'あ'.repeat(201) }]) {
+	const badReports: Record<string, string>[] = [{}, { post: 'abc' }, { post: '0' }, { post: '-1' }, { post, reason: 'duplicate' }, { post, reason: 'bad' }, { post, reason: 'other', note: 'あ'.repeat(201) }];
+	for (const form of badReports) {
 		expect((await reportRequest(reporter, path, form)).status(), JSON.stringify(form)).toBe(400);
 	}
 	expect((await reportRequest(reporter, path, { post: '99999999' })).status()).toBe(404);
@@ -229,7 +230,8 @@ test('信頼の境界：通報と運営の操作の入力、/kanri の ?post=、
 	for (const q of ['abc', '0', '99999999']) expect((await staff.page.request.get(`/kanri?post=${q}`)).status(), q).toBe(404);
 
 	// 運営の操作：形は 400、ない番号は 404
-	for (const form of [{}, { post: 'abc', reason: 'attack', note: 'x' }, { post, reason: 'bad', note: 'x' }, { post, note: 'x' }, { post, reason: 'attack' }, { post, reason: 'attack', note: 'あ'.repeat(201) }]) {
+	const badActions: Record<string, string>[] = [{}, { post: 'abc', reason: 'attack', note: 'x' }, { post, reason: 'bad', note: 'x' }, { post, note: 'x' }, { post, reason: 'attack' }, { post, reason: 'attack', note: 'あ'.repeat(201) }];
+	for (const form of badActions) {
 		expect((await staffRequest(staff, 'hidePost', form)).status(), JSON.stringify(form)).toBe(400);
 	}
 	expect((await staffRequest(staff, 'hidePost', { post: '99999999', reason: 'attack', note: 'x' })).status()).toBe(404);
