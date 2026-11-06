@@ -9,7 +9,7 @@ import { submitBill } from '#lib/server/bill-actions.ts';
 import { FIRST_COMMITTEE, type BillFormValues } from '#lib/server/bill-form.ts';
 import { billById, billSupportState, citedCandidates, committeeLawList, draftArticles } from '#lib/server/bills.ts';
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
-import { adjustmentOf, staleArticles } from '#lib/server/if-world.ts';
+import { adjustmentOf, staleArticles, currentNumsOf } from '#lib/server/if-world.ts';
 import { requireUser } from '#lib/server/require-user.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
@@ -35,6 +35,10 @@ export const load: PageServerLoad = async (event) => {
 	const law = bill.laws[0];
 	// 条文は IF世界の最新を出し、それを基にした版として送る（docs/spec/72.md 決めたこと4）
 	const articles = law?.lawId ? await draftArticles(db, FIRST_COMMITTEE, law.lawId) : undefined;
+	// 番号が変わった条の行は、同じ内部IDの条のいまの番号で出す。なくなった条の行は選び直してもらう（docs/spec/95.md 決めたこと4）
+	const changes = law?.changes ?? [];
+	const nums = law?.lawId ? await currentNumsOf(db, law.lawId, changes.flatMap((c) => (c.provisionId === null ? [] : [c.provisionId]))) : new Map<number, string | null>();
+	const targetOf = (c: (typeof changes)[number]) => (c.provisionId === null ? c.num : nums.has(c.provisionId) ? (nums.get(c.provisionId) ?? '') : c.num);
 	const candidates = await citedCandidates(db, bill.solutionIds);
 	// 非表示になった解決策は候補に出ないので、引用からも外して、そのことを知らせる
 	const solutionIds = bill.solutionIds.filter((id) => candidates.some((c) => c.id === id));
@@ -51,7 +55,7 @@ export const load: PageServerLoad = async (event) => {
 		solutions: solutionIds.map(String),
 		rows: (law?.changes ?? []).map((c) => ({
 			op: c.op,
-			target: c.op === 'add' ? '' : c.num,
+			target: c.op === 'add' ? '' : targetOf(c),
 			num: c.op === 'add' ? articleLabel(c.num) : '',
 			caption: c.caption ?? '',
 			body: c.paragraphs ? articleBodyText(c.paragraphs) : ''
@@ -67,6 +71,7 @@ export const load: PageServerLoad = async (event) => {
 		articles: articles ?? null,
 		// 基にしたあとで変わった条（docs/spec/72.md の B2）
 		conflicts: law ? await staleArticles(db, law) : [],
+		goneRows: changes.flatMap((c, i) => (c.op !== 'add' && c.provisionId !== null && nums.get(c.provisionId) === null ? [i] : [])),
 		repealed: Boolean(law?.lawId && !articles),
 		adjusting,
 		adjustmentReason: adjustment?.reason ?? null,

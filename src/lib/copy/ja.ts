@@ -266,6 +266,30 @@ export const ja = {
 		expired: '調整の期限までに直されなかったので、廃案になりました',
 		due: (at: number) => `直す期限：${jaDateTime(at)}まで`
 	},
+	/** 現実の改正の取り込み（設計書 docs/spec/95.md）。「リベース」「同期」は使わない */
+	torikomi: {
+		pageTitle: (title: string) => `${title}の現実の改正の取り込み（IF世界）｜オープンソース立法府`,
+		heading: '現実の改正の取り込み',
+		intro: '会期の終わりに、施行された現実の改正を IF世界の法律に取り込みます。IF世界で変えた条は、そのまま残ります。',
+		empty: '取り込んだ現実の改正はまだありません',
+		enforced: (date: string) => `${jaDate(date)}施行`,
+		noChange: '条文の変更はありません',
+		amendment: (title: string, num: string | null) => (num ? `${title}（${num}）` : title),
+		side: (world: string, label: string) => `${world}：${label}`,
+		changedHeading: '変わった条',
+		conflictsHeading: 'ぶつかった条文',
+		real: '現実の法律',
+		ifWorld: 'IF世界の法律',
+		realGone: '現実の法律ではなくなりました',
+		ifDeleted: 'IF世界では削除されています',
+		changes: { amended: '変わりました', renumbered: '番号が変わりました', added: '足されました', removed: 'なくなりました' },
+		moved: (before: string, after: string) => `${before}→${after}`,
+		changedBy: 'IF世界で変えた法案：',
+		mark: '現実の改正とぶつかっています',
+		back: 'IF世界の法律に戻る',
+		goneRow: 'この条はなくなりました。選び直してください。',
+		goneBody: '現実の法律からなくなりました'
+	},
 	/** IF世界の帯（Issue #63 テストの作り方：SpResult・PcResult の帯に合わせる） */
 	ifBand: { label: 'IF世界', short: '架空の法律です', long: 'このページの条文は架空のものです。現実の法律ではありません。' },
 	/** 修正案（設計書 docs/spec/68.md）。「先議」は使わず「本案より先に採決」と書く */
