@@ -23,6 +23,18 @@
 	<h1>{bill.title}</h1>
 	<p class="formal">{bill.formalName}</p>
 	{#if data.origin}<p class="formal">{ja.bill.resubmit.origin}<a href="/houan/{data.origin.id}">{data.origin.title}</a></p>{/if}
+	{#if data.merge.origins.length}
+		<p class="formal">
+			{ja.bill.resubmit.origin}{#each data.merge.origins as origin, i (origin.id)}{#if i > 0}{ja.bill.merge.separator}{/if}<a href="/houan/{origin.id}">{origin.title}</a>{#if origin.waiting}{ja.bill.merge.waiting}{/if}{/each}
+		</p>
+	{/if}
+	{#if data.stage === 'withdrawn'}
+		<p class="withdrawn">
+			{#if data.merge.mergedInto}{ja.bill.merge.mergedInto}<a href="/houan/{data.merge.mergedInto.id}">{data.merge.mergedInto.title}</a>{:else}{ja.bill.withdraw.done}{/if}
+		</p>
+	{:else if data.merge.merged.length}
+		<p class="formal">{ja.bill.merge.link}{#each data.merge.merged as other, i (other.id)}{#if i > 0}{ja.bill.merge.separator}{/if}<a href="/houan/{other.id}">{other.title}</a>{/each}</p>
+	{/if}
 	<p class="now sp">
 		{ja.bill.page.now}<strong>{ja.bill.progress[data.stage]}</strong>{#if data.progress === 'deliberation'}{ja.session.week(3)}{:else if data.progress === 'vote'}{ja.session.week(4)}{/if}
 	</p>
@@ -45,6 +57,14 @@
 		max-width: 76rem;
 		margin: 0 auto;
 		padding: 1rem;
+	}
+
+	.withdrawn {
+		margin: 0.5rem 0 0;
+		padding: 0.75rem 1rem;
+		border: 1px solid var(--color-divider);
+		border-radius: var(--radius-m);
+		overflow-wrap: anywhere;
 	}
 
 	.adjusting {

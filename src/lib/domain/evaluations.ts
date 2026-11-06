@@ -1,6 +1,6 @@
 // 評価とスコアの決まり（Issue #67。設計書 docs/spec/67.md 決めたこと6・7）。DB にも画面にも触れない
 import type { BillProgress } from './bills';
-import type { PostRole, Stance } from './posts';
+import type { BillRole, Stance } from './posts';
 
 export const EVALUATION_KINDS = ['reasonable', 'changed'] as const;
 export type EvaluationKind = (typeof EVALUATION_KINDS)[number];
@@ -24,7 +24,7 @@ export const parseEvaluationKind = (raw: string | null): EvaluationKind | null =
 export const parseEvaluationOp = (raw: string | null): EvaluationOp | null => (raw === 'add' || raw === 'remove' ? raw : null);
 
 /** 記録に残す立場。提出者と賛同者は法案を支持しているので、未定なら賛成寄り */
-export const scoredStance = (stance: Stance, role: PostRole | null): Stance => (stance === 'undecided' && role !== null ? 'for' : stance);
+export const scoredStance = (stance: Stance, role: BillRole | null): Stance => (stance === 'undecided' && role !== null ? 'for' : stance);
 
 export type ScorePost = { id: number; billId: number; userId: string; stance: Stance };
 export type ScoreView = { postId: number; userId: string; stance: Stance };

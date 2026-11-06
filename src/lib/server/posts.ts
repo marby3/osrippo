@@ -3,7 +3,7 @@ import { and, asc, count, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { actions, billSupports, posts, stances } from '../db/schema';
 import { DAY, LIMITS, checkBillPost } from '../domain/limits';
 import { EVALUATION_KINDS, type EvaluationKind } from '../domain/evaluations';
-import { QUESTION_PAGE_SIZE, STANCE_CHANGES, type PostKind, type PostRole, type Stance } from '../domain/posts';
+import { QUESTION_PAGE_SIZE, STANCE_CHANGES, type PostKind, type BillRole, type PostRole, type Stance } from '../domain/posts';
 import type { Session } from '../domain/session';
 import { supportRev } from './bills';
 import { pressedOnBill, stanceNow } from './evaluations';
@@ -41,7 +41,7 @@ export async function createPost(
 	actor: Actor,
 	post: { billId: number; sessionKey: string; kind: PostKind; parentId: number | null; role: PostRole | null; body: string },
 	now: number,
-	writerRole: PostRole | null
+	writerRole: BillRole | null
 ) {
 	const since = now - DAY;
 	const mine = eq(actions.userId, actor.userId);

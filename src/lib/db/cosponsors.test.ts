@@ -26,7 +26,7 @@ const para = (text: string) => JSON.stringify([{ num: '1', text, items: [] }]);
 
 function world() {
 	const { sqlite, db } = openMemoryDb();
-	sqlite.exec("INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('issuer', 'i', 'i@test.invalid', 0, 0); INSERT INTO issues (id, user_id, title, affected, example, topic_id, created_at) VALUES (1, 'issuer', '課題', '人', '例', NULL, 0); INSERT INTO solutions (id, issue_id, user_id, body, created_at) VALUES (1, 1, 'issuer', '解決策', 0);");
+	sqlite.exec("INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('issuer', 'i', 'i@test.invalid', 0, 0); INSERT INTO issues (id, user_id, title, affected, example, topic_id, created_at) VALUES (1, 'issuer', '課題', '人', '例', NULL, 0); INSERT INTO solutions (id, issue_id, user_id, body, created_at) VALUES (1, 1, 'issuer', '解決策', 0); INSERT OR IGNORE INTO committees (id, name) VALUES (1, '第1'), (2, '第2');");
 	let counter = 0;
 	const unique = () => ++counter;
 	const addUser = () => {

@@ -1,13 +1,14 @@
 // 法案の質疑のタブ（SpBillQA・PcBillQA。Issue #66）。下書きには質疑がないので 404
+import { billRoleOf } from '#lib/server/cosponsors.ts';
 import { error } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { parsePage } from '#lib/domain/issues.ts';
 import { billWaitUntil } from '#lib/domain/limits.ts';
 import { evaluationOpen } from '#lib/domain/evaluations.ts';
-import { answererRole, postWindowOpen, stanceOpen } from '#lib/domain/posts.ts';
+import { postRoleOf, postWindowOpen, stanceOpen } from '#lib/domain/posts.ts';
 import { nowOf } from '#lib/server/client.ts';
 import { answerAction, evaluationAction, postableBill, progressOf, readAction, stanceAction, supplementAction } from '#lib/server/post-actions.ts';
-import { isSupporter, listQuestions, questionTotal, stanceOf, waitingQuestions } from '#lib/server/posts.ts';
+import { listQuestions, questionTotal, stanceOf, waitingQuestions } from '#lib/server/posts.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -30,7 +31,9 @@ export const load: PageServerLoad = async (event) => {
 	if (page > 1 && rows.length === 0) error(404);
 
 	const userId = user?.id ?? null;
-	const role = answererRole(bill, userId, userId !== null && (await isSupporter(db, bill, userId)));
+	const writerRole = await billRoleOf(db, bill, userId);
+	// 抜けた共同提出者は答弁できず、補足を書ける（docs/spec/76.md の決定G）
+	const role = postRoleOf(writerRole);
 	const waiting = await waitingQuestions(db, bill.id, session.key);
 	const waitUntil = user ? billWaitUntil(user.createdAt.getTime(), now) : null;
 	return {

@@ -38,7 +38,9 @@
 	</nav>
 	<h1>{data.bill.title}</h1>
 
-	{#if data.phase === 'before'}
+	{#if data.phase === 'withdrawn'}
+		<p class="waiting">{ja.bill.withdraw.result}</p>
+	{:else if data.phase === 'before'}
 		<p class="waiting">{ja.result.before}</p>
 		<p class="deadline">{ja.vote.deadline(data.session)}</p>
 	{:else if data.phase === 'counting'}

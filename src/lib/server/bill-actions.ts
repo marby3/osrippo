@@ -12,7 +12,10 @@ import { billById, createDraftLimited, proposeBill, saveDraftLimited, sessionPar
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
 import { proposeBlock, saveAdjustedBill, staleArticles } from './if-world';
 import type { BatchDb, Db } from './law';
+import { cancelCosponsorRequest, decideCosponsor, leaveCosponsor, requestCosponsor } from './cosponsors';
+import { cancelMerge, consentMerge, createMerge, mergeBlock, revokeMerge } from './merge';
 import { requireUser } from './require-user';
+import { cancelWithdraw, consentWithdraw } from './withdraw';
 import { billStageNow } from './results';
 import { resubmitBill, resubmitStateOf } from './resubmit';
 
@@ -97,9 +100,92 @@ export async function supportAction(event: RequestEvent) {
 	const result = await setBillSupport(db, checked.actor, bill.id, rev, op, now);
 	if (result.ok) return { supported: op === 'add' };
 	if ('refusal' in result) return fail(429, { message: refusalMessage(result.refusal) });
+	if (result.reason === 'cosponsor' || result.reason === 'formerCosponsor') return fail(403, { message: ja.bill.cosponsor[result.reason] });
 	return result.reason === 'author'
 		? fail(403, { message: ja.bill.support.author })
 		: fail(409, { message: result.reason === 'stale' ? (op === 'add' ? ja.bill.support.stale : ja.bill.support.staleRemove) : ja.bill.support.closed });
+}
+
+const COSPONSOR_OPS = ['request', 'cancel', 'accept', 'decline', 'leave', 'remove'] as const;
+type CosponsorOp = (typeof COSPONSOR_OPS)[number];
+
+/** 共同提出者の操作（docs/spec/76.md 決めたこと7）。相手は行の番号で指し、他人の内部IDをページに載せない */
+export async function cosponsorAction(event: RequestEvent) {
+	const { db, bill } = await billOf(event);
+	const now = nowOf(event);
+	const form = await event.request.formData();
+	const op = String(form.get('op') ?? '');
+	const checked = await billGuard(event, db, now, op === 'request');
+	if (checked.failure) return checked.failure;
+	if (!(COSPONSOR_OPS as readonly string[]).includes(op)) return fail(400, { message: ja.bill.formInvalid });
+	const id = parseIssueId(String(form.get('id') ?? ''));
+	const needsId = op === 'accept' || op === 'decline' || op === 'remove';
+	const needsConfirm = op === 'leave' || op === 'remove';
+	if ((needsId && id === null) || (needsConfirm && form.get('confirm') !== 'on')) return fail(400, { message: ja.bill.formInvalid });
+	const refused = (reason: Exclude<import('./cosponsors').CosponsorRefused, never>) =>
+		fail(reason === 'forbidden' || reason === 'author' ? 403 : 409, { message: ja.bill.cosponsor.refused[reason] });
+	const actor = checked.actor;
+	switch (op as CosponsorOp) {
+		case 'request': {
+			const result = await requestCosponsor(db, actor, bill, now);
+			if (result.ok) return { cosponsor: true };
+			return 'refusal' in result ? fail(429, { message: refusalMessage(result.refusal) }) : refused(result.reason);
+		}
+		case 'cancel':
+			return (await cancelCosponsorRequest(db, actor, bill)) ? { cosponsor: true } : refused('closed');
+		case 'accept':
+		case 'decline': {
+			const result = await decideCosponsor(db as unknown as BatchDb, actor, bill, id as number, op as 'accept' | 'decline', now);
+			return result.ok ? { cosponsor: true } : refused(result.reason);
+		}
+		case 'leave':
+		case 'remove': {
+			const result = await leaveCosponsor(db, actor, bill, op === 'remove' ? id : null);
+			return result.ok ? { cosponsor: true } : refused(result.reason);
+		}
+	}
+}
+
+/** 撤回の同意と取り消し（docs/spec/76.md 決めたこと12） */
+export async function withdrawAction(event: RequestEvent) {
+	const { db, bill } = await billOf(event);
+	const now = nowOf(event);
+	const form = await event.request.formData();
+	const checked = await billGuard(event, db, now, false);
+	if (checked.failure) return checked.failure;
+	const op = form.get('op');
+	if ((op !== 'consent' && op !== 'cancel') || (op === 'consent' && form.get('confirm') !== 'on')) return fail(400, { message: ja.bill.formInvalid });
+	if (op === 'cancel') return (await cancelWithdraw(db, checked.actor, bill)) ? { withdraw: true } : fail(409, { message: ja.bill.withdraw.closed });
+	const result = await consentWithdraw(db as unknown as BatchDb, checked.actor, bill, now, sessionsAt(now).minutes);
+	if (result.ok) return { withdraw: true };
+	return result.reason === 'forbidden' ? fail(403, { message: ja.bill.withdraw.forbidden }) : fail(409, { message: ja.bill.withdraw.closed });
+}
+
+/** 統合案の操作（docs/spec/76.md 決めたこと13）。どの法案かは URL の番号で決まる */
+export async function mergeAction(event: RequestEvent) {
+	const { db, bill } = await billOf(event);
+	const now = nowOf(event);
+	const form = await event.request.formData();
+	const op = form.get('op');
+	const checked = await billGuard(event, db, now, op === 'create');
+	if (checked.failure) return checked.failure;
+	const refused = (reason: 'forbidden' | 'closed' | 'stale' | 'full') => fail(reason === 'forbidden' ? 403 : 409, { message: ja.bill.merge.refused[reason] });
+	if (op === 'create') {
+		const withId = parseIssueId(String(form.get('with') ?? ''));
+		if (withId === null) return fail(400, { message: ja.bill.formInvalid });
+		const result = await createMerge(db, checked.actor, bill, withId, now, sessionsAt(now).minutes);
+		if (!result.ok) return 'refusal' in result ? fail(429, { message: refusalMessage(result.refusal) }) : refused(result.reason);
+		redirect(303, `/houan/${result.id}`);
+	}
+	if (op === 'consent') {
+		const rev = parseIssueId(String(form.get('rev') ?? ''));
+		if (rev === null || form.get('confirm') !== 'on') return fail(400, { message: ja.bill.formInvalid });
+		const result = await consentMerge(db as unknown as BatchDb, checked.actor, bill, rev, now);
+		return result.ok ? { merge: true } : refused(result.reason);
+	}
+	if (op === 'revoke') return (await revokeMerge(db, checked.actor, bill)) ? { merge: true } : refused('closed');
+	if (op === 'cancel') return (await cancelMerge(db as unknown as BatchDb, checked.actor, bill)) ? { merge: true } : bill.userId !== checked.actor.userId ? refused('forbidden') : refused('closed');
+	return fail(400, { message: ja.bill.formInvalid });
 }
 
 /** 出し直し（docs/spec/75.md 決めたこと4）。作れたら新しい下書きへ、すでに出し直した法案があればそこへ移る */
@@ -123,15 +209,23 @@ export async function proposeAction(event: RequestEvent) {
 	const now = nowOf(event);
 	const checked = await billGuard(event, db, now, true);
 	if (checked.failure) return checked.failure;
+	// 読んだ版（docs/spec/76.md 決めたこと9）。編集する人が複数なので、提出者が読んでいない版を発議しない
+	const rev = parseIssueId(String((await event.request.formData()).get('rev') ?? ''));
+	if (rev === null) return fail(400, { message: ja.bill.formInvalid });
+	const { session, previous, minutes } = sessionsAt(now);
 	// 可決しても必ず要調整か廃案になる下書きは断る（docs/spec/72.md の E と B4）
 	if (bill.status === 'draft' && bill.userId === checked.actor.userId) {
+		if (bill.rev !== rev) return fail(409, { message: ja.bill.staleRead });
 		const block = await proposeBlock(db, bill);
 		if (block) return fail(409, { message: ja.ifLaw.proposeBlocked[block] });
+		const mergeRefused = await mergeBlock(db, bill, now, minutes);
+		if (mergeRefused) return fail(409, { message: ja.bill.merge[mergeRefused] });
 	}
-	const { session, previous } = sessionsAt(now);
 	const required = proposalRequirement(await sessionParticipants(db, FIRST_COMMITTEE, session, previous, now));
-	const result = await proposeBill(db, checked.actor, bill.id, required, now);
+	const result = await proposeBill(db, checked.actor, bill.id, rev, required, now, minutes);
 	if (result.ok) return { proposed: true };
+	if (result.reason === 'stale') return fail(409, { message: ja.bill.staleRead });
+	if (result.reason === 'merge' || result.reason === 'mergeClosed') return fail(409, { message: ja.bill.merge[result.reason] });
 	return result.reason === 'notAuthor'
 		? fail(403, { message: ja.bill.support.notAuthor })
 		: fail(409, { message: result.reason === 'short' ? ja.bill.support.short : ja.bill.support.closed });

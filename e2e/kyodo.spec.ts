@@ -81,9 +81,9 @@ test('基準6：共同提出者の申し出と承認、名前、編集、権限'
 
 	// 承認すると名前が出る
 	await button(a.page, '承認する').click();
-	await expect(a.page.getByText(`共同提出者 ${b.name}`)).toBeVisible();
+	await expect(a.page.getByText(`共同提出者 ${b.name}`, { exact: true })).toBeVisible();
 	await other.page.goto(path);
-	await expect(other.page.getByText(`共同提出者 ${b.name}`)).toBeVisible();
+	await expect(other.page.getByText(`共同提出者 ${b.name}`, { exact: true })).toBeVisible();
 
 	// 共同提出者は編集でき、賛同のボタンは出ない
 	await b.page.goto(path);
@@ -102,7 +102,7 @@ test('基準6：共同提出者の申し出と承認、名前、編集、権限'
 	await a.page.goto(path);
 	await hydrated(a.page);
 	await a.page.getByRole('listitem').filter({ hasText: leaver.name }).getByRole('button', { name: '承認する' }).click();
-	await expect(a.page.getByText(leaver.name)).toBeVisible();
+	await expect(a.page.getByRole('listitem').filter({ hasText: leaver.name }).getByRole('button', { name: '外す' })).toBeVisible();
 	await leaver.page.goto(path);
 	await hydrated(leaver.page);
 	await leaver.page.getByLabel('抜けると元に戻せません').check();
@@ -121,6 +121,8 @@ test('基準6：共同提出者の申し出と承認、名前、編集、権限'
 
 	// 登録から7日たっていない人は申し出できない。ログインなしはログインへ
 	const fresh = await s.person(now, 0);
+	// 登録からの日数は、テストの時刻ではなく本当の時刻で確かめる
+	await fresh.setNow(new Date().toISOString());
 	await fresh.page.goto(path);
 	await expect(button(fresh.page, '共同提出者になりたいと申し出る')).toHaveCount(0);
 	expect((await cosponsor(fresh.page, path, { op: 'request' })).status()).toBe(403);
@@ -135,7 +137,7 @@ test('基準6：共同提出者の申し出と承認、名前、編集、権限'
 	const proposed = await proposeRequest(a.page, path);
 	expect(proposed.status(), await proposed.text()).toBe(200);
 	await b.page.goto(path);
-	await expect(b.page.getByText(`共同提出者 ${b.name}`)).toBeVisible();
+	await expect(b.page.getByText(`共同提出者 ${b.name}`, { exact: true })).toBeVisible();
 	await expect(button(b.page, '共同提出者から抜ける')).toHaveCount(0);
 	await expect(b.page.getByRole('link', { name: '編集する' })).toHaveCount(0);
 	expect((await cosponsor(b.page, path, { op: 'leave', confirm: 'on' })).status()).toBe(409);
@@ -159,7 +161,7 @@ test('基準10：撤回と統合案の画面', async ({ browser }, info) => {
 	await a.page.goto(path);
 	await hydrated(a.page);
 	await button(a.page, '承認する').click();
-	await expect(a.page.getByText(`共同提出者 ${co.name}`)).toBeVisible();
+	await expect(a.page.getByText(`共同提出者 ${co.name}`, { exact: true })).toBeVisible();
 	await s.support(path, now);
 	const proposed = await proposeRequest(a.page, path);
 	expect(proposed.status(), await proposed.text()).toBe(200);
@@ -180,7 +182,7 @@ test('基準10：撤回と統合案の画面', async ({ browser }, info) => {
 	await expect(co.page.getByText('撤回されました')).toBeVisible();
 	await other.page.goto(path);
 	await expect(other.page.getByText('撤回されました')).toBeVisible();
-	await expect(other.page.getByText('いま：撤回').or(other.page.getByText('撤回（いまここ）')).first()).toBeVisible();
+	await expect(w === 'sp' ? other.page.getByText('いま：撤回', { exact: true }) : other.page.getByText('撤回（いまここ）', { exact: true })).toBeVisible();
 	// 結果のページに撤回と出る
 	await other.page.goto(`/saiketsu/${path.replace('/houan/', '')}/kekka`);
 	await expect(other.page.getByText('この法案は撤回されました')).toBeVisible();
@@ -194,6 +196,7 @@ test('基準10：撤回と統合案の画面', async ({ browser }, info) => {
 	const yPath = await s.draft(y, yTitle);
 	await x.page.goto(xPath);
 	await hydrated(x.page);
+	await x.page.locator('summary', { hasText: '統合案を作る' }).click();
 	await x.page.getByLabel('相手の法案の番号').fill(yPath.replace('/houan/', ''));
 	await button(x.page, '統合案を作る').click();
 	await expect(x.page).not.toHaveURL(new RegExp(`${xPath}$`));
@@ -218,7 +221,7 @@ test('基準10：撤回と統合案の画面', async ({ browser }, info) => {
 		await button(u.page, '統合案に同意する').click();
 		await expect(button(u.page, '同意を取り消す')).toBeVisible();
 	}
-	await expect(y.page.getByText(`共同提出者 ${y.name}`)).toBeVisible();
+	await expect(y.page.getByText(`共同提出者 ${y.name}`, { exact: true })).toBeVisible();
 
 	// 発議すると、元の法案に統合案へのリンクが出る
 	await s.support(mPath, now);

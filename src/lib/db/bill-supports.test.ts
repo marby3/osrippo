@@ -65,16 +65,16 @@ describe('賛同の持ち越し', () => {
 		const required = proposalRequirement(await sessionParticipants(db, 1, august, july, august.startsAt));
 		expect(required).toBe(4);
 		// 7月の賛同3人は持ち越されるが、8月の4人には足りない
-		expect(await proposeBill(db, actor('u0'), id, required, august.startsAt + 1)).toEqual({ ok: false, reason: 'short' });
+		expect(await proposeBill(db, actor('u0'), id, 1, required, august.startsAt + 1)).toEqual({ ok: false, reason: 'short' });
 		expect((await setBillSupport(db, actor('u4'), id, 1, 'add', august.startsAt + 2)).ok).toBe(true);
-		expect(await proposeBill(db, actor('u0'), id, required, august.startsAt + 3)).toEqual({ ok: true });
+		expect(await proposeBill(db, actor('u0'), id, 1, required, august.startsAt + 3)).toEqual({ ok: true });
 		expect(sqlite.prepare('SELECT status, proposed_at FROM bills WHERE id = ?').get(id)).toMatchObject({ status: 'proposed', proposed_at: august.startsAt + 3 });
 	});
 
 	test('信頼の境界：作りかけ（rev = 0）の法案には賛同も発議もできない', async () => {
 		const id = bill(0);
 		expect(await setBillSupport(db, actor('u1'), id, 0, 'add', 1)).toEqual({ ok: false, reason: 'closed' });
-		expect(await proposeBill(db, actor('u0'), id, 0, 1)).toEqual({ ok: false, reason: 'closed' });
+		expect(await proposeBill(db, actor('u0'), id, 1, 0, 1)).toEqual({ ok: false, reason: 'closed' });
 		// 送り先の 404 は billById が undefined を返すことに頼る
 		expect(await billById(db, id)).toBeUndefined();
 	});

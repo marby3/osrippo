@@ -8,6 +8,7 @@ import { VOTE_CHOICES, type VoteChoice } from '../domain/votes';
 import { acceptAmendment, amendableArticles, amendmentOf, castAmendmentVote, createAmendment, myAmendmentVote, setAmendmentSupport, updateAmendment, type AmendmentRow } from './amendments';
 import { sessionParticipants } from './bills';
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
+import { isBillSide } from './cosponsors';
 import { baseArticlesOf } from './if-world';
 import type { BatchDb, Db } from './law';
 import { postableBill, progressOf } from './post-actions';
@@ -68,7 +69,7 @@ export async function amendmentPostAction(event: RequestEvent) {
 	if (target) {
 		if (target.userId !== user.id) return fail(403, { message: ja.amendment.notMine, ...keep });
 		if (target.status !== 'open' || target.baseRev === bill.rev) return fail(409, { message: ja.amendment.noUpdate, ...keep });
-	} else if (bill.userId === user.id) {
+	} else if (await isBillSide(db, bill, user.id)) {
 		return fail(403, { message: ja.amendment.author, ...keep });
 	}
 	if (rev !== bill.rev) return fail(409, { message: ja.amendment.staleForm, ...keep });
@@ -144,7 +145,7 @@ export async function amendmentSupportAction(event: RequestEvent) {
 	const { progress, session } = progressOf(bill, now);
 	// 前の会期の修正案は読むだけ（要調整を直した法案。docs/spec/72.md の C）
 	if (!amendmentOpen(progress) || amendment.sessionKey !== session.key) return fail(409, { message: ja.amendment.closed, ...keep });
-	if (amendment.userId === user.id || bill.userId === user.id) return fail(403, { message: ja.amendment.ownSupport, ...keep });
+	if (amendment.userId === user.id || (await isBillSide(db, bill, user.id))) return fail(403, { message: ja.amendment.ownSupport, ...keep });
 	const result = await setAmendmentSupport(db, guard.actor, amendment, bill.rev, revision, op, now);
 	if (!result.ok) return 'refusal' in result ? fail(429, { message: refusalMessage(result.refusal), ...keep }) : fail(409, { message: ja.amendment.stale, ...keep });
 	return { supported: id };

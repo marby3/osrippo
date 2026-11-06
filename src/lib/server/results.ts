@@ -293,7 +293,7 @@ export async function pendingReviews(db: Db, staffUserId: string): Promise<Pendi
 			yes: billResults.yes,
 			no: billResults.no,
 			abstain: billResults.abstain,
-			involved: sql<number>`(${bills}.user_id = ${staffUserId} OR EXISTS (SELECT 1 FROM ${billSupports} s WHERE s.bill_id = ${bills}.id AND s.user_id = ${staffUserId}))`
+			involved: involvedSql(staffUserId)
 		})
 		.from(voteReviews)
 		.innerJoin(bills, eq(bills.id, voteReviews.billId))
@@ -314,15 +314,15 @@ export async function pendingReviews(db: Db, staffUserId: string): Promise<Pendi
 	});
 }
 
-/** 提出者か賛同者か（どの版の賛同でも） */
+/** 関わった人か：提出者、賛同者（どの版の賛同でも）、共同提出者と抜けた共同提出者（docs/spec/76.md の決定G）。確認の2か所で同じ式を使う */
+const involvedSql = (userId: string) =>
+	sql<number>`(${bills}.user_id = ${userId}
+		OR EXISTS (SELECT 1 FROM ${billSupports} s WHERE s.bill_id = ${bills}.id AND s.user_id = ${userId})
+		OR EXISTS (SELECT 1 FROM bill_cosponsors c WHERE c.bill_id = ${bills}.id AND c.user_id = ${userId} AND c.status IN ('accepted', 'left')))`;
+
 export async function involvedInBill(db: Db, billId: number, userId: string) {
-	const [bill] = await db.select({ userId: bills.userId }).from(bills).where(eq(bills.id, billId));
-	if (bill?.userId === userId) return true;
-	const [row] = await db
-		.select({ n: count() })
-		.from(billSupports)
-		.where(and(eq(billSupports.billId, billId), eq(billSupports.userId, userId)));
-	return row.n > 0;
+	const [row] = await db.select({ involved: involvedSql(userId) }).from(bills).where(eq(bills.id, billId));
+	return Boolean(row?.involved);
 }
 
 /** 公開の記録：新しい順に50件ごと。集計と対応した人の ID は返さない */
