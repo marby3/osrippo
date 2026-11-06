@@ -72,7 +72,7 @@ const staffRequest = (u: User, action: 'hidePost' | 'restorePost', form: Record<
 
 /** 画面から通報する。開いて、理由を選んで、送る */
 async function reportOnScreen(page: Page, scope: ReturnType<Page['locator']>, name: string) {
-	await scope.getByRole('button', { name, exact: true }).click();
+	await scope.getByText(name, { exact: true }).click();
 	await scope.getByRole('radio', { name: '人への攻撃・差別' }).check();
 	await scope.getByRole('button', { name: '通報する', exact: true }).click();
 	await expect(scope.getByText('通報を受け付けました')).toBeVisible();
@@ -115,7 +115,7 @@ test('基準8：質疑のタブから通報でき3人で消える。/kanri で�
 	await r1.page.reload();
 	await expect(card(r1.page, questionText).getByText('通報済みです').first()).toBeVisible();
 	await writer.page.goto(qa(path));
-	await expect(card(writer.page, questionText).getByRole('button', { name: 'この質疑を通報する' })).toHaveCount(0);
+	await expect(card(writer.page, questionText).getByText('この質疑を通報する')).toHaveCount(0);
 
 	// ログインしていなければログインへ
 	const guest = await browser.newContext({ baseURL: ORIGIN, extraHTTPHeaders: { 'x-test-ip': `10.${w === 'sp' ? 107 : 108}.0.250`, 'x-test-now': day15 } });
@@ -158,6 +158,7 @@ test('基準8：質疑のタブから通報でき3人で消える。/kanri で�
 	await expect(row.getByText('通報 3件（数えたもの 3件）')).toBeVisible();
 	await row.getByLabel('表示に戻すメモ').fill(`問題がなかった ${s.label}`);
 	await row.getByRole('button', { name: '表示に戻す' }).click();
+	await expect(row.getByText('表示に戻した', { exact: true })).toBeVisible();
 	await viewer.page.goto(qa(path));
 	await expect(card(viewer.page, questionText)).toBeVisible();
 	await expect(card(viewer.page, supplementText)).toBeVisible();
@@ -181,6 +182,7 @@ test('基準8：質疑のタブから通報でき3人で消える。/kanri で�
 	await expect(staff.page).toHaveURL(new RegExp(`/kanri\\?post=${quiet}$`));
 	await staff.page.locator('article').filter({ hasText: quietText }).getByLabel('表示に戻すメモ').fill('戻す');
 	await staff.page.locator('article').filter({ hasText: quietText }).getByRole('button', { name: '表示に戻す' }).click();
+	await expect(staff.page.locator('article').filter({ hasText: quietText }).getByText('表示に戻した', { exact: true })).toBeVisible();
 	await viewer.page.goto(qa(path));
 	await expect(card(viewer.page, quietText)).toBeVisible();
 	// 表示に戻すと本人に届く
@@ -200,7 +202,7 @@ test('基準8：質疑のタブから通報でき3人で消える。/kanri で�
 	await staff.page.goto(`${qa(path)}?kanren=1`);
 	const relatedCard = card(staff.page, relatedText);
 	await expect(relatedCard).toBeVisible();
-	await expect(relatedCard.getByRole('button', { name: /通報する/ })).toHaveCount(0);
+	await expect(relatedCard.getByText(/を通報する/)).toHaveCount(0);
 	await expect(relatedCard.getByRole('link', { name: '運営として対応する' })).toHaveCount(0);
 
 	// 権限のない人には /kanri は 404

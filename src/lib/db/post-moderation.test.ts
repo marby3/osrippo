@@ -278,6 +278,11 @@ test('基準5：非表示と、その下の投稿には評価も読んだ記録�
 	await recordViews(db, lateReader, target, [question, answer], null, NOW);
 	expect(views(question)).toBe(0);
 	expect(views(answer)).toBe(1);
+	// 答弁のない質疑でも、非表示なら読んだ記録は付かない
+	const lone = w.addPost(bill, writer);
+	await w.hide(lone);
+	await recordViews(db, lateReader, target, [lone], null, NOW);
+	expect(views(lone)).toBe(0);
 
 	// 親が隠れていれば答弁と補足は入らない（確かめたあとに隠れた場合も同じ文で止まる）。記録も足さない
 	expect(await questionOf(db, question, bill, SESSION.key)).toMatchObject({ id: question, status: 'hidden' });

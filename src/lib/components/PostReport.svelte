@@ -1,5 +1,5 @@
 <script lang="ts">
-	// 投稿1件の通報（設計書 docs/spec/80.md 決めたこと8）。開き方は解決策と同じで、JS がなければ欄を最初から開く
+	// 投稿1件の通報（設計書 docs/spec/80.md 決めたこと8）。カードの件数に上限がないので、水和でレイアウトがずれないよう details で開く（JS がなくても開ける）
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
 	import { ja } from '../copy/ja';
@@ -29,8 +29,9 @@
 	} = $props();
 
 	let js = $state(false);
-	let open = $state(false);
 	let reason = $state('');
+	/** 通ったときの知らせ。一覧を読み直さず、ほかの投稿を通報してもここに残す */
+	let sent = $state<string | undefined>();
 	onMount(() => {
 		js = true;
 	});
@@ -38,8 +39,8 @@
 
 <div class="post-report">
 	{#if message}<p role="alert" class="refused">{message}</p>{/if}
-	{#if done}
-		<p role="status" class="sub">{done}</p>
+	{#if done || sent}
+		<p role="status" class="sub">{done ?? sent}</p>
 	{:else if reported}
 		<p class="sub">{ja.post.reportAlready}</p>
 	{:else if !loggedIn}
@@ -48,11 +49,13 @@
 			<button class="link">{label}</button>
 		</form>
 	{:else}
-		{#if js && !open}
-			<button type="button" class="link" onclick={() => (open = true)}>{label}</button>
-		{/if}
-		{#if !js || open}
-			<form method="post" action="?/reportPost" use:enhance class="report">
+		<details>
+			<summary>{label}</summary>
+			<!-- 通っても一覧を読み直さない（2ページ目の最後のカードが消えると、読み直しが 404 になる）。カードは次に開いたときに消える -->
+			<form method="post" action="?/reportPost" use:enhance={() => async ({ result, update }) => {
+					await update({ invalidateAll: false });
+					if (result.type === 'success') sent = result.data?.reportMessage as string | undefined;
+				}} class="report">
 				<input type="hidden" name="post" value={post} />
 				<fieldset>
 					<legend>{ja.report.legend}</legend>
@@ -70,7 +73,7 @@
 				<p class="sub">{ja.report.postCriteria} <a href="/unei">{ja.report.criteriaLink}</a></p>
 				<button class="submit">{ja.report.submit}</button>
 			</form>
-		{/if}
+		</details>
 	{/if}
 </div>
 
@@ -89,6 +92,17 @@
 		margin: 0;
 		color: var(--color-text-sub);
 		font-size: var(--font-size-sub);
+	}
+
+	summary {
+		display: flex;
+		align-items: center;
+		width: fit-content;
+		min-height: var(--tap-min);
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+		text-decoration: underline;
+		cursor: pointer;
 	}
 
 	.link {

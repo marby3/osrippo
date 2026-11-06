@@ -269,7 +269,7 @@ test('基準6・7：同じ条の後の法案は要調整と出て、提出者が
 	await expect(card.getByRole('button', { name: '答弁する' })).toHaveCount(0);
 	await expect(card.getByText('答弁待ち')).toHaveCount(0);
 	// 読むだけでも通報はできる（Issue #80）
-	await expect(card.getByRole('button', { name: 'この質疑を通報する' })).toBeVisible();
+	await expect(card.getByText('この質疑を通報する')).toBeVisible();
 	await open(a.page, `${second.path}/henkou`);
 	await expect(main(a.page)).toContainText(/直した本文/);
 });

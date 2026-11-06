@@ -9,6 +9,7 @@ import { staffRoleOf } from './chairs';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
 import { notify } from './notifications';
+import { POST_HIDDEN_SQL } from './post-status';
 import { reportsInDay, type Role } from './reports';
 import { involvedInBill, involvedSql, partyToBill } from './results';
 
@@ -107,7 +108,7 @@ export async function reportedPosts(db: Db, staff: Staff, focus: number | null) 
 			other: reasonCount('other'),
 			none: reasonCount('none'),
 			afterRestore: sql<number>`coalesce(sum(case when ${posts.status} = 'restored' and ${postReports.createdAt} > ${posts.statusChangedAt} then 1 else 0 end), 0)`,
-			parentHidden: sql<number | null>`(SELECT q.status FROM posts q WHERE q.id = ${posts}.parent_id) IN ('auto_hidden', 'hidden')`
+			parentHidden: sql<number | null>`(SELECT q.status FROM posts q WHERE q.id = ${posts}.parent_id) IN (${POST_HIDDEN_SQL})`
 		})
 		.from(posts)
 		.innerJoin(bills, eq(bills.id, posts.billId))

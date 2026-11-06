@@ -8,10 +8,9 @@ import type { BillRole } from '../domain/posts';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
 import { notify } from './notifications';
+import { POST_SHOWN_SQL } from './post-status';
 
 const EVALUATION_ACTIONS = ['evaluation_add', 'evaluation_remove'] as const;
-/** 書く文と副問い合わせで使う、表示中の状態の並び（設計書 docs/spec/80.md） */
-export const POST_SHOWN_SQL = sql.raw(POST_SHOWN.map((s) => `'${s}'`).join(', '));
 /** 投稿そのものが表示中か。親の質疑の状態は見ない（非表示の質疑の下の答弁はスコアに数える。決定E） */
 const scored = and(inArray(posts.kind, ['question', 'answer']), inArray(posts.status, POST_SHOWN));
 

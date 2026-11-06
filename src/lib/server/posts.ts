@@ -7,7 +7,8 @@ import { QUESTION_PAGE_SIZE, STANCE_CHANGES, type PostKind, type BillRole, type 
 import { POST_SHOWN } from '../domain/reports';
 import type { Session } from '../domain/session';
 import { supportRev } from './bills';
-import { POST_SHOWN_SQL, pressedOnBill, stanceNow } from './evaluations';
+import { pressedOnBill, stanceNow } from './evaluations';
+import { POST_SHOWN_SQL } from './post-status';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
 

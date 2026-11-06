@@ -737,13 +737,13 @@ export const voteAssignments = sqliteTable(
 	]
 );
 
+const POST_STATUSES = ['visible', 'auto_hidden', 'hidden', 'restored'] as const;
+
 /**
  * 質疑・答弁・補足（設計書 docs/spec/66.md）。答弁と補足の parent_id はその質疑。
  * session_key は付託先の会期（要調整で次の会期に審議するときに分けるため）。
  * role の値と status には CHECK を付けない（#76 と通報の Issue で値を足すときに、自己参照のある表を作り直さないため）
  */
-const POST_STATUSES = ['visible', 'auto_hidden', 'hidden', 'restored'] as const;
-
 export const posts = sqliteTable(
 	'posts',
 	{
