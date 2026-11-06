@@ -46,6 +46,7 @@
 		<h1>{ja.vote.heading}</h1>
 		<p>{ja.vote.before(data.session)}</p>
 	{/if}
+	<p class="other"><a href="/iinkai">{ja.chair.link}</a></p>
 </main>
 
 <style>

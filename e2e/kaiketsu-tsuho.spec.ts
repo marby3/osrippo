@@ -264,7 +264,7 @@ test('基準6：運営の記録に「#課題 の解決策」として残る。�
 	expect((await solutionStaffRequest(op, 'restoreSolution', { solution: solutionId, note })).status()).toBeLessThan(400);
 
 	await page.goto('/unei');
-	await expect(page.getByText('課題や解決策は、運営が確認するまで一時的に見えなくなります')).toBeVisible();
+	await expect(page.getByText('課題や解決策は、運営か委員長が確認するまで一時的に見えなくなります')).toBeVisible();
 	const rows = page.locator('tr').filter({ hasText: `#${issueId} の解決策` });
 	await expect(rows).toHaveCount(2);
 	const cell = (row: number, col: number) => rows.nth(row).locator(`td:nth-child(${col})`);

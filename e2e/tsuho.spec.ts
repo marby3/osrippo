@@ -200,7 +200,7 @@ test('基準5：非表示にする・表示に戻すができ、状態に合わ�
 	await expect(block.getByText('非表示', { exact: true })).toBeVisible();
 
 	await page.goto(`/kadai/${id}`);
-	await expect(page.getByText('この課題は運営の確認により非表示になっています（理由：宣伝・荒らし）')).toBeVisible();
+	await expect(page.getByText('この課題は運営か委員長の確認により非表示になっています（理由：宣伝・荒らし）')).toBeVisible();
 
 	// 状態に合わない操作
 	const twice = await staffRequest(mod, 'hide', { issue: String(id), reason: 'spam', note: 'もう一度' });

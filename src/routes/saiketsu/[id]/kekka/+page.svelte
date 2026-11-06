@@ -109,6 +109,7 @@
 		</div>
 	{/if}
 	{#if data.phase !== 'done'}<p class="to-bill"><a href="/houan/{data.bill.id}">{ja.result.billLink}</a></p>{/if}
+	<p class="to-bill"><a href="/iinkai">{ja.chair.link}</a></p>
 </main>
 
 <style>

@@ -5,7 +5,8 @@ import { drizzle } from 'drizzle-orm/d1';
 import { PAGE_SIZE, parseIssueId, parsePage } from '#lib/domain/issues.ts';
 import { isHidden } from '#lib/domain/reports.ts';
 import { getIssue } from '#lib/server/issues.ts';
-import { roleOf } from '#lib/server/reports.ts';
+import { staffRoleOf } from '#lib/server/chairs.ts';
+import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import { reactAction, reportSolutionAction } from '#lib/server/solution-actions.ts';
 import { listHiddenSolutions, listSolutions, reportedSolutionIds } from '#lib/server/solutions.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -25,7 +26,8 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 	const page = parsePage(url.searchParams.get('page'));
 	if (page === null) error(404);
 	const hidden = isHidden(issue.status);
-	const staff = userId !== null && (await roleOf(db, userId)) !== null;
+	const now = nowOf({ url, request });
+	const staff = userId !== null && (await staffRoleOf(db, userId, now, sessionsAt(now).minutes)) !== null;
 	// 書いた本人と運営以外には、非表示の課題の解決策を渡さない（docs/spec/28.md 決めたこと4）
 	if (hidden && userId !== issue.userId && !staff) {
 		return { view: 'hidden' as const, id, status: issue.status, statusReason: issue.statusReason };

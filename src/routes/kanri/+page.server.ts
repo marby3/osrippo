@@ -1,4 +1,4 @@
-// 運営の画面（設計書 docs/spec/28.md 決めたこと5、docs/spec/30.md 決めたこと3〜5）。運営と運営協力者だけ。ほかの人には表示も操作も 404
+// 運営の画面（設計書 docs/spec/28.md 決めたこと5、docs/spec/30.md 決めたこと3〜5）。運営と運営協力者と、権限のある委員長と理事（docs/spec/77.md）だけ。ほかの人には表示も操作も 404
 import { error, fail, type RequestEvent } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
@@ -6,20 +6,22 @@ import { ja } from '#lib/copy/ja.ts';
 import { checkText, parseIssueId } from '#lib/domain/issues.ts';
 import { REVIEW_NOTE_MAX } from '#lib/domain/anomalies.ts';
 import { HIDEABLE, LISTED, RESTORABLE, validateSolutionAction, validateStaffAction } from '#lib/domain/reports.ts';
+import { staffRoleOf } from '#lib/server/chairs.ts';
 import { allowedCountry, clientOf, nowOf, sessionsAt } from '#lib/server/client.ts';
 import type { BatchDb, Db } from '#lib/server/law.ts';
 import { decideReview, involvedInBill, pendingReviews } from '#lib/server/results.ts';
 import { issueMeta } from '#lib/server/issues.ts';
-import { changeStatus, mergeIssue, mergePreview, reportedIssues, roleOf } from '#lib/server/reports.ts';
+import { changeStatus, mergeIssue, mergePreview, reportedIssues, staffRows } from '#lib/server/reports.ts';
 import { changeSolutionStatus, reportedSolutions, solutionMeta } from '#lib/server/solutions.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 /** 役職を最初に確かめる（権限のない人に /kanri があることを漏らさない） */
-async function staffOf(event: Pick<RequestEvent, 'locals'>) {
+async function staffOf(event: Pick<RequestEvent, 'locals' | 'url' | 'request'>) {
 	const db = drizzle(env.DB);
 	const user = event.locals.user;
 	if (!user) error(404);
-	const role = await roleOf(db, user.id);
+	const now = nowOf(event);
+	const role = await staffRoleOf(db, user.id, now, sessionsAt(now).minutes);
 	if (!role) error(404);
 	return { db, staff: { userId: user.id, role } };
 }
@@ -64,14 +66,13 @@ export const load: PageServerLoad = async (event) => {
 	}
 	const rows = await reportedIssues(db, focus);
 	const solutionRows = await reportedSolutions(db, focusSolution);
-	// 書いた人は渡さず、自分の課題・解決策かどうかだけを渡す
 	return {
-		rows: rows.map(({ userId, ...r }) => ({ ...r, mine: userId === staff.userId })),
+		rows: staffRows(rows, staff.userId),
 		focus,
 		merge,
-		solutions: solutionRows.map(({ userId, ...r }) => ({ ...r, mine: userId === staff.userId })),
+		solutions: staffRows(solutionRows, staff.userId),
 		focusSolution,
-		reviews: await pendingReviews(db, staff.userId)
+		reviews: await pendingReviews(db, staff.userId, staff.role)
 	};
 };
 
@@ -141,7 +142,7 @@ const decide = (decision: 'confirm' | 'void') => async (event: RequestEvent) => 
 	const sessionKey = String(form.get('session') ?? '');
 	const [note, noteError] = checkText(String(form.get('note') ?? ''), REVIEW_NOTE_MAX, true);
 	if (billId === null || !sessionKey || (decision === 'void' && noteError)) return fail(400, { message: ja.review.invalid, reviewBill: billId });
-	if (await involvedInBill(db, billId, staff.userId)) return fail(403, { message: ja.review.involved, reviewBill: billId });
+	if (await involvedInBill(db, billId, staff.userId, staff.role)) return fail(403, { message: ja.review.involved, reviewBill: billId });
 	const now = nowOf(event);
 	const done = await decideReview(db as unknown as BatchDb, staff, sessionKey, billId, decision, decision === 'void' ? note : null, now, sessionsAt(now).minutes);
 	if (!done) return fail(409, { message: ja.review.closed, reviewBill: billId });
