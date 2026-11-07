@@ -136,7 +136,7 @@ test('基準8：修正案のタブから通報でき3人で消える。/kanri �
 	await viewer.page.goto('/unei');
 	const log = viewer.page.getByRole('region', { name: '法案の質疑と修正案への対応' });
 	const logRow = log.locator('tr').filter({ hasText: `問題がなかった ${s.label}` });
-	await expect(logRow.getByRole('link', { name: `修正案の通報の法案 ${s.label}` })).toBeVisible();
+	await expect(logRow.getByRole('link', { name: `修正案の通報の法案 ${s.label}` })).toHaveAttribute('href', tabPath(path));
 	await expect(logRow.getByText('修正案', { exact: true })).toBeVisible();
 	await expect(log.getByText(text)).toHaveCount(0);
 

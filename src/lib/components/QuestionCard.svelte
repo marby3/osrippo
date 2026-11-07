@@ -110,7 +110,7 @@
 {#snippet moderation(id: number, mine: boolean, label: string)}
 	{#if !relatedBill && !mine}
 		<PostReport
-			post={id}
+			target={id}
 			{label}
 			{loggedIn}
 			{back}

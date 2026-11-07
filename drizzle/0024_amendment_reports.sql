@@ -21,6 +21,7 @@ ALTER TABLE `amendments` ADD `moderation_reason` text;--> statement-breakpoint
 ALTER TABLE `amendments` ADD `moderation_note` text;--> statement-breakpoint
 ALTER TABLE `amendments` ADD `moderation_changed_at` integer;--> statement-breakpoint
 ALTER TABLE `bill_moderation_logs` ADD `amendment_id` integer;--> statement-breakpoint
+CREATE INDEX `amendment_votes_amendment_user` ON `amendment_votes` (`amendment_id`,`user_id`);--> statement-breakpoint
 CREATE TRIGGER `amendments_moderation_log` AFTER UPDATE OF `moderation_status` ON `amendments`
 WHEN NEW.`moderation_status` <> OLD.`moderation_status`
 BEGIN

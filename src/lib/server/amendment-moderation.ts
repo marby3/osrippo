@@ -36,7 +36,7 @@ const countedReports = (amendmentId: number | SQL) =>
 		WHERE r.amendment_id = ${amendmentId} AND r.counted = 1 AND NOT ${amendmentPartySql(sql`r.user_id`, 'operator')})`;
 
 /** 自動で非表示にしない時期の始まり。今の時計の会期でなく、法案の付託先の会期から求める（締切のあとに次の会期へ進まないように） */
-export const amendmentCloseOf = (bill: { proposedAt: number | null }, minutes: number | null) => autoHideClosesAt(referralSession(bill.proposedAt ?? 0, minutes).voteAt);
+export const amendmentCloseOf = (proposedAt: number, minutes: number | null) => autoHideClosesAt(referralSession(proposedAt, minutes).voteAt);
 
 const amendmentAuthor = (id: number) => sql`SELECT user_id FROM amendments WHERE id = ${id}`;
 

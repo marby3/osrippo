@@ -6,7 +6,7 @@
 	import { SOLUTION_REPORT_REASONS } from '../domain/reports';
 
 	let {
-		post,
+		target,
 		label,
 		loggedIn,
 		back,
@@ -18,7 +18,7 @@
 		criteria = ja.report.postCriteria
 	}: {
 		/** 投稿か修正案の番号 */
-		post: number;
+		target: number;
 		/** 開くボタンの名前（この質疑を通報する、など） */
 		label: string;
 		loggedIn: boolean;
@@ -66,7 +66,7 @@
 					await update({ invalidateAll: false });
 					if (result.type === 'success') sent = result.data?.reportMessage as string | undefined;
 				}} class="report">
-				<input type="hidden" name={field} value={post} />
+				<input type="hidden" name={field} value={target} />
 				<fieldset>
 					<legend>{ja.report.legend}</legend>
 					{#each SOLUTION_REPORT_REASONS as value (value)}
@@ -77,8 +77,8 @@
 					{/each}
 				</fieldset>
 				{#if !js || reason === 'other'}
-					<label for="{field}-report-note-{post}">{ja.report.noteLabel}</label>
-					<textarea id="{field}-report-note-{post}" name="note" maxlength="200" rows="3"></textarea>
+					<label for="{field}-report-note-{target}">{ja.report.noteLabel}</label>
+					<textarea id="{field}-report-note-{target}" name="note" maxlength="200" rows="3"></textarea>
 				{/if}
 				<p class="sub">{criteria} <a href="/unei">{ja.report.criteriaLink}</a></p>
 				<button class="submit">{ja.report.submit}</button>

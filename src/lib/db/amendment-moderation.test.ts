@@ -206,7 +206,7 @@ test('基準3：open の修正案は採決の24時間前から処理の前まで
 	const { db } = w;
 	// 境の時刻は法案の付託先の会期から求め、今の時計によらない
 	const bill = w.addBill();
-	expect(amendmentCloseOf(await w.loaded(bill), null)).toBe(session.voteAt - 24 * 60 * 60 * 1000);
+	expect(amendmentCloseOf((await w.loaded(bill)).proposedAt as number, null)).toBe(session.voteAt - 24 * 60 * 60 * 1000);
 	expect(CLOSES).toBe(session.voteAt - 24 * 60 * 60 * 1000);
 
 	// 境の1ミリ秒前は隠れる

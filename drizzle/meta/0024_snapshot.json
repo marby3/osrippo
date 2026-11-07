@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4f778c06-7306-497f-baa8-2850f43fc52b",
+  "id": "5819f446-36ca-48bd-9466-0a71eaad9203",
   "prevId": "ea0ad18d-9c73-4bf5-abc1-cebb35251ae7",
   "tables": {
     "account": {
@@ -455,7 +455,16 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "amendment_votes_amendment_user": {
+          "name": "amendment_votes_amendment_user",
+          "columns": [
+            "amendment_id",
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "amendment_votes_amendment_id_amendments_id_fk": {
           "name": "amendment_votes_amendment_id_amendments_id_fk",

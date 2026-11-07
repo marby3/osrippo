@@ -40,6 +40,9 @@ const jaTime = (ms: number) => {
 const sessionPoint = (s: Session, ms: number, withDay: boolean) =>
 	s.month === null ? jaTime(ms) : withDay ? jaDay(ms) : jaDay(ms).replace(/（.）$/, '');
 
+/** 投稿の種類の名前 */
+const POST_KINDS = { question: '質疑', answer: '答弁', supplement: '補足' };
+
 export const ja = {
 	siteName: 'オープンソース立法府',
 	unofficial: '国会・政府とは無関係の非公式サービスです',
@@ -92,7 +95,7 @@ export const ja = {
 	},
 	/** 質疑・答弁・補足と自分の考え（Issue #66。SpBillQA・PcBillQA） */
 	post: {
-		kinds: { question: '質疑', answer: '答弁', supplement: '補足' },
+		kinds: POST_KINDS,
 		reportOpen: { question: 'この質疑を通報する', answer: 'この答弁を通報する', supplement: 'この補足を通報する' },
 		reportDone: '通報を受け付けました',
 		reportAlready: '通報済みです',
@@ -980,7 +983,7 @@ export const ja = {
 		logHeading: '対応の記録',
 		postLogHeading: '法案の質疑と修正案への対応',
 		postLogPages: '法案の質疑と修正案への対応のページ',
-		logKinds: { question: '質疑', answer: '答弁', supplement: '補足', amendment: '修正案' },
+		logKinds: { ...POST_KINDS, amendment: '修正案' },
 		postColumns: { at: '日時', bill: '法案', kind: '何か', action: '何をしたか', actor: 'だれが', reason: '理由', note: 'メモ' },
 		columns: { at: '日時', issue: '課題', action: '何をしたか', actor: 'だれが', reason: '理由', note: 'メモ' },
 		actions: { auto_hide: '自動で非表示', hide: '非表示', restore: '表示に戻した', merge: '統合' },

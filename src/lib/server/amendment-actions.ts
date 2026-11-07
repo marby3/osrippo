@@ -175,7 +175,8 @@ export async function reportAmendmentAction(event: RequestEvent) {
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, reportAmendment: id });
 	const checked = validateSolutionReport({ reason: field('reason'), note: field('note') });
 	if (id === null || !checked.ok) error(400);
-	const result = await reportAmendment(db, guard.actor, { id, billId: bill.id, closesAt: amendmentCloseOf(bill, sessionsAt(now).minutes) }, checked.value, now);
+	// 発議していない法案は amendableBill が 404 にしているので、proposedAt は必ずある
+	const result = await reportAmendment(db, guard.actor, { id, billId: bill.id, closesAt: amendmentCloseOf(bill.proposedAt as number, sessionsAt(now).minutes) }, checked.value, now);
 	if (!result.ok) {
 		if (result.reason === 'missing') error(404);
 		if (result.reason === 'own') error(400);

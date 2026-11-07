@@ -168,7 +168,7 @@
 	<!-- 通報と運営の入口。自分のものには出さない。前の会期のカードにも出す -->
 	{#if !amendment.mine}
 		<PostReport
-			post={amendment.id}
+			target={amendment.id}
 			label={ja.amendment.reportOpen}
 			{loggedIn}
 			{back}

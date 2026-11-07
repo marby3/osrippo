@@ -1000,7 +1000,7 @@ export const amendmentVotes = sqliteTable(
 		createdAt: integer('created_at').notNull(),
 		updatedAt: integer('updated_at').notNull()
 	},
-	(t) => [primaryKey({ columns: [t.sessionKey, t.amendmentId, t.userId] }), check('amendment_votes_choice', sql`${t.choice} IN (${inList(VOTE_CHOICES)})`)]
+	(t) => [primaryKey({ columns: [t.sessionKey, t.amendmentId, t.userId] }), index('amendment_votes_amendment_user').on(t.amendmentId, t.userId), check('amendment_votes_choice', sql`${t.choice} IN (${inList(VOTE_CHOICES)})`)]
 );
 
 /**
