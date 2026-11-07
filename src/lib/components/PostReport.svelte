@@ -1,5 +1,5 @@
 <script lang="ts">
-	// 投稿1件の通報（設計書 docs/spec/80.md 決めたこと8）。カードの件数に上限がないので、水和でレイアウトがずれないよう details で開く（JS がなくても開ける）
+	// 投稿か修正案1件の通報（設計書 docs/spec/80.md 決めたこと8、docs/spec/103.md 決めたこと7）。カードの件数に上限がないので、水和でレイアウトがずれないよう details で開く（JS がなくても開ける）
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
 	import { ja } from '../copy/ja';
@@ -12,8 +12,12 @@
 		back,
 		reported,
 		done,
-		message
+		message,
+		action = 'reportPost',
+		field = 'post',
+		criteria = ja.report.postCriteria
 	}: {
+		/** 投稿か修正案の番号 */
 		post: number;
 		/** 開くボタンの名前（この質疑を通報する、など） */
 		label: string;
@@ -26,6 +30,12 @@
 		done?: string;
 		/** 断った理由 */
 		message?: string;
+		/** 送り先（修正案は reportAmendment） */
+		action?: string;
+		/** 番号の欄の名前（修正案は amendment） */
+		field?: string;
+		/** 非表示の基準の文 */
+		criteria?: string;
 	} = $props();
 
 	let js = $state(false);
@@ -52,11 +62,11 @@
 		<details>
 			<summary>{label}</summary>
 			<!-- 通っても一覧を読み直さない（2ページ目の最後のカードが消えると、読み直しが 404 になる）。カードは次に開いたときに消える -->
-			<form method="post" action="?/reportPost" use:enhance={() => async ({ result, update }) => {
+			<form method="post" action="?/{action}" use:enhance={() => async ({ result, update }) => {
 					await update({ invalidateAll: false });
 					if (result.type === 'success') sent = result.data?.reportMessage as string | undefined;
 				}} class="report">
-				<input type="hidden" name="post" value={post} />
+				<input type="hidden" name={field} value={post} />
 				<fieldset>
 					<legend>{ja.report.legend}</legend>
 					{#each SOLUTION_REPORT_REASONS as value (value)}
@@ -67,10 +77,10 @@
 					{/each}
 				</fieldset>
 				{#if !js || reason === 'other'}
-					<label for="post-report-note-{post}">{ja.report.noteLabel}</label>
-					<textarea id="post-report-note-{post}" name="note" maxlength="200" rows="3"></textarea>
+					<label for="{field}-report-note-{post}">{ja.report.noteLabel}</label>
+					<textarea id="{field}-report-note-{post}" name="note" maxlength="200" rows="3"></textarea>
 				{/if}
-				<p class="sub">{ja.report.postCriteria} <a href="/unei">{ja.report.criteriaLink}</a></p>
+				<p class="sub">{criteria} <a href="/unei">{ja.report.criteriaLink}</a></p>
 				<button class="submit">{ja.report.submit}</button>
 			</form>
 		</details>

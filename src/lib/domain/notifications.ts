@@ -31,6 +31,8 @@ export const NOTIFICATION_KINDS = [
 	'solution_restored',
 	'post_hidden',
 	'post_restored',
+	'amendment_hidden',
+	'amendment_restored',
 	'chair_elected',
 	'director_elected',
 	'chair_recalled',
@@ -42,11 +44,12 @@ export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 export type TimedKind = 'vote_open' | 'election_open' | 'my_bill_deliberation' | 'my_bill_vote' | 'my_bill_expired' | 'acting';
 
 export type NoticeKind = NotificationKind | TimedKind;
-export type NoticeTarget = 'bill' | 'issue' | 'solution' | 'post' | 'committee';
+export type NoticeTarget = 'bill' | 'issue' | 'solution' | 'post' | 'amendment' | 'committee';
 
 /** target_id が指すもの。投稿と解決策は番号の並びが別なので、種類で分ける */
 export function targetOf(kind: NotificationKind): NoticeTarget {
 	if (kind === 'mind_changed_post' || kind === 'post_hidden' || kind === 'post_restored') return 'post';
+	if (kind === 'amendment_hidden' || kind === 'amendment_restored') return 'amendment';
 	if (kind.startsWith('issue_')) return 'issue';
 	if (kind === 'mind_changed_solution' || kind.startsWith('solution_')) return 'solution';
 	if (kind.startsWith('chair_') || kind === 'director_elected') return 'committee';
@@ -61,6 +64,7 @@ export function hrefOf(kind: NoticeKind, ids: { billId?: number; issueId?: numbe
 	if (kind === 'vote_open') return '/saiketsu';
 	if (kind === 'election_open' || kind === 'acting' || kind === 'chair_elected' || kind === 'director_elected' || kind === 'chair_recalled' || kind === 'chair_vote_removed') return '/iinkai';
 	if (kind === 'mind_changed_post' || kind === 'post_hidden' || kind === 'post_restored') return `/houan/${ids.billId}/shitsugi`;
+	if (kind === 'amendment_hidden' || kind === 'amendment_restored') return `/houan/${ids.billId}/shusei`;
 	if (kind === 'mind_changed_solution' || kind === 'solution_hidden' || kind === 'solution_restored') return `/kadai/${ids.issueId}/kaiketsu`;
 	if (kind === 'issue_hidden' || kind === 'issue_restored' || kind === 'issue_merged') return `/kadai/${ids.issueId}`;
 	return RESULT_KINDS.includes(kind) ? `/saiketsu/${ids.billId}/kekka` : `/houan/${ids.billId}`;

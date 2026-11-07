@@ -821,7 +821,9 @@ export const billModerationLogs = sqliteTable(
 		actorUserId: text('actor_user_id'),
 		reason: text('reason', { enum: HIDE_LOG_REASONS }),
 		note: text('note'),
-		createdAt: integer('created_at').notNull()
+		createdAt: integer('created_at').notNull(),
+		/** 修正案への対応のとき（設計書 docs/spec/103.md）。外部キーは付けない（付けると drizzle-kit が表を作り直すおそれがある） */
+		amendmentId: integer('amendment_id')
 	},
 	(t) => [index('bill_moderation_logs_actor_user').on(t.actorUserId, t.createdAt)]
 );
@@ -932,9 +934,39 @@ export const amendments = sqliteTable(
 		status: text('status').$type<AmendmentStatus>().notNull().default('open'),
 		appliedRev: integer('applied_rev'),
 		createdAt: integer('created_at').notNull(),
-		updatedAt: integer('updated_at').notNull()
+		updatedAt: integer('updated_at').notNull(),
+		// 通報と非表示（設計書 docs/spec/103.md）。status と別に持つ（共同起草者と結果を status から求めているので）。
+		// moderation_status を変えると、トリガー（amendments_moderation_log）が下の moderation_* の値で bill_moderation_logs に記録を書く。
+		// トリガーは drizzle/0024_amendment_reports.sql に手で書いたもので、drizzle のスナップショットにない。この表を作り直すマイグレーションでは、トリガーも消えるので書き直すこと
+		moderationStatus: text('moderation_status', { enum: ['visible', 'auto_hidden', 'hidden', 'restored'] }).notNull().default('visible'),
+		moderationActor: text('moderation_actor', { enum: MODERATION_ACTORS }),
+		/** 対応した人。公開しない */
+		moderationActorUserId: text('moderation_actor_user_id'),
+		moderationReason: text('moderation_reason', { enum: HIDE_LOG_REASONS }),
+		moderationNote: text('moderation_note'),
+		moderationChangedAt: integer('moderation_changed_at')
 	},
 	(t) => [index('amendments_bill').on(t.billId, t.id), index('amendments_user').on(t.userId)]
+);
+
+/** 修正案の通報（設計書 docs/spec/103.md）。counted は登録から24時間たっているかだけ（関わりは数えるときに判定する）。revision は通報したときの本文 */
+export const amendmentReports = sqliteTable(
+	'amendment_reports',
+	{
+		id: integer('id').primaryKey(),
+		amendmentId: integer('amendment_id')
+			.notNull()
+			.references(() => amendments.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		reason: text('reason', { enum: SOLUTION_REPORT_REASONS_DB }).notNull(),
+		note: text('note'),
+		counted: integer('counted', { mode: 'boolean' }).notNull(),
+		revision: integer('revision').notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [unique().on(t.amendmentId, t.userId), index('amendment_reports_user').on(t.userId, t.createdAt), check('amendment_reports_reason', sql`${t.reason} IN (${inList(SOLUTION_REPORT_REASONS_DB)})`)]
 );
 
 /** 本案より先に採決するための賛同。amendments.revision と同じ値の行だけを数える */

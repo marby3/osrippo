@@ -1,10 +1,11 @@
 // 修正案を読む・書く（Issue #68。設計書 docs/spec/68.md）。受け取る値は呼ぶ側（amendment-actions.ts）が確かめる
 import { and, asc, count, countDistinct, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { actions, amendments, amendmentSupports, amendmentVotes, billChanges, billLaws, bills, user } from '../db/schema';
-import { adoptedAmendments, AMENDMENT_PAGE_SIZE, applyAmendments, articleKey, inPriorVote, priorVoteRequirement, type AmendmentStatus } from '../domain/amendments';
+import { adoptedAmendments, AMENDMENT_PAGE_SIZE, AMENDMENT_SHOWN, applyAmendments, articleKey, inPriorVote, priorVoteRequirement, type AmendmentStatus } from '../domain/amendments';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
 import { changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET } from '../domain/bills';
 import { checkAmendment, checkAmendmentSupport, DAY, LIMITS } from '../domain/limits';
+import { isHidden } from '../domain/reports';
 import type { Session } from '../domain/session';
 import { billOutcome, quorumRequirement, type VoteChoice, type VoteCounts } from '../domain/votes';
 import { billById, draftInputOf, insertContent, lawTitlesOf, textOf, type Bill } from './bills';
@@ -14,6 +15,10 @@ import type { BatchDb, Db } from './law';
 import { assignedBills, countedVote, emptyCounts } from './votes';
 
 type LoadedBill = NonNullable<Bill>;
+
+/** 書く文で使う、表示中の状態の並び（設計書 docs/spec/103.md の決定K） */
+const SHOWN_SQL = sql.raw(AMENDMENT_SHOWN.map((s) => `'${s}'`).join(', '));
+const shownOnly = inArray(amendments.moderationStatus, AMENDMENT_SHOWN);
 
 /** D1 は1文に100個までしか値を結び付けられないので、番号の一覧を分ける */
 const ID_CHUNK = 50;
@@ -55,7 +60,7 @@ export async function amendmentOf(db: Db, id: number, billId: number) {
 }
 
 export async function amendmentCount(db: Db, billId: number) {
-	const [row] = await db.select({ n: count() }).from(amendments).where(eq(amendments.billId, billId));
+	const [row] = await db.select({ n: count() }).from(amendments).where(and(eq(amendments.billId, billId), shownOnly));
 	return row.n;
 }
 
@@ -115,7 +120,7 @@ export async function updateAmendment(db: Db, actor: Actor, bill: { id: number; 
 			updatedAt: now,
 			revision: bodyChanged || articleChanged ? sql`${amendments.revision} + 1` : amendments.revision
 		})
-		.where(and(eq(amendments.id, amendment.id), eq(amendments.userId, actor.userId), eq(amendments.status, 'open'), ne(amendments.baseRev, bill.rev)))
+		.where(and(eq(amendments.id, amendment.id), eq(amendments.userId, actor.userId), eq(amendments.status, 'open'), ne(amendments.baseRev, bill.rev), shownOnly))
 		.returning({ id: amendments.id });
 	if (done.length === 0) return closed;
 	await db.insert(actions).values({ kind: 'amendment_post', userId: actor.userId, ipHash: actor.ipHash, targetId: bill.id, createdAt: now });
@@ -125,7 +130,8 @@ export async function updateAmendment(db: Db, actor: Actor, bill: { id: number; 
 /**
  * 修正案を当てた新しい版を作り、本案の版を進める。版を進める文と修正案に書く文を1つのトランザクションにするので、
  * 本文だけが入って提案者の記録が失われることはない。expected は当てる先の版で、いまの版と違えば何もしない。進めたら新しい版を返す。
- * status を渡すと、open の修正案だけをその状態にする（取り込み）。渡さなければ applied_rev だけを書く（状態は先に書いてある）
+ * status を渡すと、open で非表示でない修正案だけをその状態にする（取り込み。対象は1つ）。版を進める文にも同じ条件を入れるので、確かめたあとに隠れても隠れた本文が本案に入らない
+ * （本文は新しい版の行に書くだけで、版が進まなければ読まれない）。渡さなければ applied_rev だけを書く（状態は先に書いてある。可決のあとに隠れても本文は変えない。docs/spec/103.md の決定M）
  */
 async function advanceBill(db: BatchDb, billId: number, expected: number, targets: AmendmentRow[], status: AmendmentStatus | null, now: number) {
 	const bill = await billById(db, billId);
@@ -143,12 +149,12 @@ async function advanceBill(db: BatchDb, billId: number, expected: number, target
 		db
 			.update(bills)
 			.set({ rev, updatedAt: now })
-			.where(and(eq(bills.id, billId), eq(bills.rev, expected))),
+			.where(and(eq(bills.id, billId), eq(bills.rev, expected), status ? sql`EXISTS (SELECT 1 FROM ${amendments} a WHERE a.id = ${targets[0].id} AND a.status = 'open' AND a.moderation_status IN (${SHOWN_SQL}))` : undefined)),
 		...chunks(targets.map((t) => t.id)).map((ids) =>
 			db
 				.update(amendments)
 				.set({ ...(status ? { status } : {}), appliedRev: rev, updatedAt: now })
-				.where(and(inArray(amendments.id, ids), status ? eq(amendments.status, 'open') : undefined, sql`(SELECT b.rev FROM ${bills} b WHERE b.id = ${billId}) = ${rev}`))
+				.where(and(inArray(amendments.id, ids), status ? eq(amendments.status, 'open') : undefined, status ? shownOnly : undefined, sql`(SELECT b.rev FROM ${bills} b WHERE b.id = ${billId}) = ${rev}`))
 		)
 	]);
 	const [row] = await db.select({ rev: bills.rev }).from(bills).where(eq(bills.id, billId));
@@ -158,7 +164,7 @@ async function advanceBill(db: BatchDb, billId: number, expected: number, target
 /** 取り込む。読んだ本文（revision）と本案の版が合っているときだけ。取り込めたかを返す */
 export async function acceptAmendment(db: BatchDb, actor: Actor, billId: number, amendmentId: number, revision: number, now: number) {
 	const [amendment, bill] = await Promise.all([amendmentOf(db, amendmentId, billId), billById(db, billId)]);
-	if (!amendment || !bill || amendment.status !== 'open' || amendment.revision !== revision || amendment.baseRev !== bill.rev) return false;
+	if (!amendment || !bill || isHidden(amendment.moderationStatus) || amendment.status !== 'open' || amendment.revision !== revision || amendment.baseRev !== bill.rev) return false;
 	const rev = await advanceBill(db, billId, amendment.baseRev, [amendment], 'accepted', now);
 	if (rev === null) return false;
 	await db.insert(actions).values({ kind: 'amendment_accept', userId: actor.userId, ipHash: actor.ipHash, targetId: billId, createdAt: now });
@@ -167,7 +173,9 @@ export async function acceptAmendment(db: BatchDb, actor: Actor, billId: number,
 
 /** 先議の賛同。いまと同じ状態への操作は何もせず、数えない。記録は行が変わったときだけ足す */
 export async function setAmendmentSupport(db: Db, actor: Actor, amendment: AmendmentRow, billRev: number, revision: number, op: 'add' | 'remove', now: number) {
-	// 取り消しは状態を問わず受け付ける（更新が必要なあいだも）
+	// 非表示のあいだは賛同も取り消しも断る（カードが見えないのに数が動かないように）
+	if (isHidden(amendment.moderationStatus)) return { ok: false as const, reason: 'hidden' as const };
+	// 取り消しはほかの状態を問わず受け付ける（更新が必要なあいだも）
 	if (op === 'add' && (amendment.status !== 'open' || amendment.baseRev !== billRev || amendment.revision !== revision)) return { ok: false as const, reason: 'stale' as const };
 	const [own] = await db
 		.select({ id: amendmentSupports.amendmentId })
@@ -194,11 +202,11 @@ export async function setAmendmentSupport(db: Db, actor: Actor, amendment: Amend
 			? await db.all(sql`
 				INSERT INTO ${amendmentSupports} (amendment_id, revision, user_id, created_at)
 				SELECT a.id, a.revision, ${actor.userId}, ${now} FROM ${amendments} a JOIN ${bills} b ON b.id = a.bill_id
-				WHERE a.id = ${amendment.id} AND a.status = 'open' AND a.revision = ${revision} AND a.base_rev = b.rev
+				WHERE a.id = ${amendment.id} AND a.status = 'open' AND a.moderation_status IN (${SHOWN_SQL}) AND a.revision = ${revision} AND a.base_rev = b.rev
 				ON CONFLICT DO NOTHING RETURNING amendment_id`)
 			: await db
 					.delete(amendmentSupports)
-					.where(and(eq(amendmentSupports.amendmentId, amendment.id), eq(amendmentSupports.userId, actor.userId), eq(amendmentSupports.revision, sql`(SELECT a.revision FROM ${amendments} a WHERE a.id = ${amendment.id})`)))
+					.where(and(eq(amendmentSupports.amendmentId, amendment.id), eq(amendmentSupports.userId, actor.userId), eq(amendmentSupports.revision, sql`(SELECT a.revision FROM ${amendments} a WHERE a.id = ${amendment.id} AND a.moderation_status IN (${SHOWN_SQL}))`)))
 					.returning({ id: amendmentSupports.amendmentId });
 	if (changed.length === 0) return { ok: true as const, changed: false };
 	await db.insert(actions).values({ kind: op === 'add' ? 'amendment_support_add' : 'amendment_support_remove', userId: actor.userId, ipHash: actor.ipHash, targetId: amendment.id, createdAt: now });
@@ -226,7 +234,7 @@ export async function castAmendmentVote(db: Db, actor: Actor, session: Session, 
 	const changed = await db.all(sql`
 		INSERT INTO ${amendmentVotes} (session_key, amendment_id, user_id, choice, created_at, updated_at)
 		SELECT a.session_key, a.id, ${actor.userId}, ${choice}, ${now}, ${now} FROM ${amendments} a JOIN ${bills} b ON b.id = a.bill_id
-		WHERE a.id = ${amendmentId} AND a.session_key = ${session.key} AND a.status = 'open' AND a.base_rev = b.rev
+		WHERE a.id = ${amendmentId} AND a.session_key = ${session.key} AND a.status = 'open' AND a.moderation_status IN (${SHOWN_SQL}) AND a.base_rev = b.rev
 			AND (SELECT count(*) FROM ${amendmentSupports} s WHERE s.amendment_id = a.id AND s.revision = a.revision) >= ${required}
 		ON CONFLICT (session_key, amendment_id, user_id) DO UPDATE SET choice = excluded.choice, updated_at = excluded.updated_at
 		WHERE amendment_votes.choice <> excluded.choice
@@ -259,6 +267,7 @@ export async function priorVoteCount(db: Db, sessionKey: string, bill: { id: num
 				eq(amendments.billId, bill.id),
 				eq(amendments.sessionKey, sessionKey),
 				eq(amendments.status, 'open'),
+				shownOnly,
 				eq(amendments.baseRev, bill.rev),
 				sql`(SELECT count(*) FROM ${amendmentSupports} s WHERE s.amendment_id = ${amendments}.id AND s.revision = ${amendments}.revision) >= ${required}`
 			)
@@ -384,7 +393,8 @@ export async function listAmendments(db: Db, bill: LoadedBill, userId: string | 
 		await db
 			.select()
 			.from(amendments)
-			.where(eq(amendments.billId, bill.id))
+			// 非表示の修正案は出さない（本人と運営には hiddenAmendmentsFor で別に出す）
+			.where(and(eq(amendments.billId, bill.id), shownOnly))
 			.orderBy(asc(amendments.id))
 			.limit(AMENDMENT_PAGE_SIZE + 1)
 			.offset((page - 1) * AMENDMENT_PAGE_SIZE)

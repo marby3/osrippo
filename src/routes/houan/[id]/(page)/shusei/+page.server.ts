@@ -4,9 +4,10 @@ import { env } from 'cloudflare:workers';
 import { acceptOpen, amendmentOpen, amendmentVoteOpen } from '#lib/domain/amendments.ts';
 import { parsePage } from '#lib/domain/issues.ts';
 import { billWaitUntil } from '#lib/domain/limits.ts';
-import { acceptAction, amendableBill, amendmentSupportAction, amendmentVoteAction, priorRequirementAt } from '#lib/server/amendment-actions.ts';
+import { acceptAction, amendableBill, amendmentSupportAction, amendmentVoteAction, priorRequirementAt, reportAmendmentAction } from '#lib/server/amendment-actions.ts';
+import { hiddenAmendmentsFor, reportedAmendmentIds, staffOnAmendments } from '#lib/server/amendment-moderation.ts';
 import { amendmentCount, listAmendments } from '#lib/server/amendments.ts';
-import { nowOf } from '#lib/server/client.ts';
+import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import { progressOf } from '#lib/server/post-actions.ts';
 import { isEligibleVoter } from '#lib/server/votes.ts';
 import { isBillSide } from '#lib/server/cosponsors.ts';
@@ -27,6 +28,9 @@ export const load: PageServerLoad = async (event) => {
 	const isAuthor = user?.id === bill.userId;
 	// 共同提出者と抜けた共同提出者も、修正案を出せず、先議の賛同もできない（docs/spec/76.md の決定F・G）
 	const isSide = user ? await isBillSide(db, bill, user.id) : false;
+	const userId = user?.id ?? null;
+	// 運営として見られるか（権限があり、関わっていない。どれも法案の単位で決まる。docs/spec/103.md の決定O）
+	const staffHere = userId !== null && (await staffOnAmendments(db, bill.id, userId, now, sessionsAt(now).minutes));
 	return {
 		amendments: rows,
 		hasNext,
@@ -41,12 +45,17 @@ export const load: PageServerLoad = async (event) => {
 		canAccept: isAuthor && acceptOpen(progress, now, session.voteAt),
 		required,
 		eligible: voting && user ? await isEligibleVoter(db, user.id, session) : null,
-		siteKey: env.TURNSTILE_SITE_KEY
+		siteKey: env.TURNSTILE_SITE_KEY,
+		staffHere,
+		reportedIds: await reportedAmendmentIds(db, userId, bill.id),
+		// 本人と運営に見せる非表示の修正案は、1ページ目の最後に出す
+		hiddenAmendments: page === 1 ? await hiddenAmendmentsFor(db, bill.id, userId, staffHere) : []
 	};
 };
 
 export const actions: Actions = {
 	accept: acceptAction,
 	support: amendmentSupportAction,
-	vote: amendmentVoteAction
+	vote: amendmentVoteAction,
+	reportAmendment: reportAmendmentAction
 };

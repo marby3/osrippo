@@ -112,6 +112,8 @@ test('基準8：修正案のタブから通報でき3人で消える。/kanri �
 
 	// 非表示のあいだは賛同できない
 	expect((await act(viewer, path, 'support', { amendment: id, revision: '1', op: 'add' })).status()).toBe(403);
+	// 更新の画面に番号を指しても、本文を渡さない
+	expect(await (await viewer.page.request.get(`${tabPath(path)}/kaku?koushin=${id}`)).text()).not.toContain(text);
 
 	// 書いた人に通知が届き、タブで理由を読める
 	await writer.page.goto('/tsuchi');

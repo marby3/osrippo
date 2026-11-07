@@ -1,6 +1,6 @@
 // 会期の終わりの処理と結果を読むこと（Issue #71。設計書 docs/spec/71.md）。
 // Cron の入口（src/worker/scheduled.ts）からも読むので、cloudflare:workers と import.meta.env に頼らない
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { actions, amendments, billResults, bills, billSupports, committees, user, voteReviews, votes, type STAFF_ROLES } from '../db/schema';
 import { newAccountSince, voteAnomalies, type AnomalyDetail, type AnomalySignal, type AnomalyVote } from '../domain/anomalies';
 import { billProgress, referralSession } from '../domain/bills';
@@ -332,7 +332,7 @@ type StaffRole = (typeof STAFF_ROLES)[number];
  * 関わった人か：提出者、賛同者（どの版の賛同でも）、共同提出者と抜けた共同提出者（docs/spec/76.md の決定G）。確認の2か所で同じ式を使う。
  * 委員長と理事はふつうの参加者なので、投票した法案も関わったことにする（票は非公開で、利害が外から見えないため。docs/spec/77.md 決めたこと5）
  */
-export const involvedSql = (userId: string, role: StaffRole) =>
+export const involvedSql = (userId: string | SQL, role: StaffRole) =>
 	sql<number>`(${bills}.user_id = ${userId}
 		OR EXISTS (SELECT 1 FROM ${billSupports} s WHERE s.bill_id = ${bills}.id AND s.user_id = ${userId})
 		OR EXISTS (SELECT 1 FROM bill_cosponsors c WHERE c.bill_id = ${bills}.id AND c.user_id = ${userId} AND c.status IN ('accepted', 'left'))${role === 'chair' || role === 'director' ? sql` OR EXISTS (SELECT 1 FROM ${votes} v WHERE v.bill_id = ${bills}.id AND v.user_id = ${userId})` : sql``})`;

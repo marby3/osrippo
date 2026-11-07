@@ -5,7 +5,8 @@ import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '#lib/copy/ja.ts';
 import { checkText, parseIssueId } from '#lib/domain/issues.ts';
 import { REVIEW_NOTE_MAX } from '#lib/domain/anomalies.ts';
-import { HIDEABLE, LISTED, RESTORABLE, validatePostAction, validateSolutionAction, validateStaffAction } from '#lib/domain/reports.ts';
+import { HIDEABLE, LISTED, RESTORABLE, validateAmendmentAction, validatePostAction, validateSolutionAction, validateStaffAction } from '#lib/domain/reports.ts';
+import { amendmentStaffAccess, changeAmendmentModeration, reportedAmendments } from '#lib/server/amendment-moderation.ts';
 import { staffRoleOf } from '#lib/server/chairs.ts';
 import { allowedCountry, clientOf, nowOf, sessionsAt } from '#lib/server/client.ts';
 import type { BatchDb, Db } from '#lib/server/law.ts';
@@ -71,6 +72,12 @@ export const load: PageServerLoad = async (event) => {
 		focusPost = parseIssueId(params.get('post') ?? '');
 		if (focusPost === null || (await postStaffAccess(db, focusPost, staff)) !== 'ok') error(404);
 	}
+	// 通報を受けた修正案（?amendment=[番号] で、それを上に。扱えないものは 404。設計書 docs/spec/103.md の決定N）
+	let focusAmendment: number | null = null;
+	if (params.has('amendment')) {
+		focusAmendment = parseIssueId(params.get('amendment') ?? '');
+		if (focusAmendment === null || (await amendmentStaffAccess(db, focusAmendment, staff)) !== 'ok') error(404);
+	}
 	const rows = await reportedIssues(db, focus);
 	const solutionRows = await reportedSolutions(db, focusSolution);
 	return {
@@ -81,6 +88,7 @@ export const load: PageServerLoad = async (event) => {
 		focusSolution,
 		posts: await reportedPosts(db, staff, focusPost),
 		focusPost,
+		amendments: await reportedAmendments(db, staff, focusAmendment),
 		reviews: await pendingReviews(db, staff.userId, staff.role)
 	};
 };
@@ -164,6 +172,28 @@ const actOnPost = (action: 'hide' | 'restore') => async (event: RequestEvent) =>
 	return { donePost: postId };
 };
 
+/** 修正案を非表示にする・表示に戻す（設計書 docs/spec/103.md の決定P）。役職 → 国 → 入力 → 存在 → 自分のもの → 関わり → 状態 */
+const actOnAmendment = (action: 'hide' | 'restore') => async (event: RequestEvent) => {
+	const { db, staff } = await staffOf(event);
+	if (!allowedCountry(clientOf(event).country)) return fail(403, { message: ja.guard.outsideJapan, amendmentId: null });
+	const form = await event.request.formData();
+	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
+	const checked = validateAmendmentAction({ amendment: field('amendment'), reason: field('reason'), note: field('note') }, action);
+	if (!checked.ok) return fail(400, { message: ja.kanri.invalid, amendmentId: null });
+	const { amendmentId, reason, note } = checked.value;
+	const access = await amendmentStaffAccess(db, amendmentId, staff);
+	if (access === 'missing') return fail(404, { message: ja.kanri.invalid, amendmentId: null });
+	if (access === 'own') return fail(403, { message: ja.kanri.ownAmendment, amendmentId });
+	if (access === 'involved') return fail(403, { message: ja.kanri.involvedAmendment, amendmentId });
+	const now = nowOf(event);
+	const changed =
+		action === 'hide'
+			? await changeAmendmentModeration(db, amendmentId, HIDEABLE, 'hidden', staff, reason, note, now)
+			: await changeAmendmentModeration(db, amendmentId, RESTORABLE, 'restored', staff, null, note, now);
+	if (!changed) return fail(400, { message: action === 'hide' ? ja.kanri.alreadyHidden : ja.kanri.alreadyShown, amendmentId });
+	return { doneAmendment: amendmentId };
+};
+
 /** 結果の確認（docs/spec/73.md 決めたこと7）。確かめの順：役職 → 国 → 入力 → 自分の関わり → 状態 */
 const decide = (decision: 'confirm' | 'void') => async (event: RequestEvent) => {
 	const { db, staff } = await staffOf(event);
@@ -189,5 +219,7 @@ export const actions: Actions = {
 	hideSolution: actOnSolution('hide'),
 	restoreSolution: actOnSolution('restore'),
 	hidePost: actOnPost('hide'),
-	restorePost: actOnPost('restore')
+	restorePost: actOnPost('restore'),
+	hideAmendment: actOnAmendment('hide'),
+	restoreAmendment: actOnAmendment('restore')
 };
