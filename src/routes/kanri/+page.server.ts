@@ -1,5 +1,5 @@
 // 運営の画面（設計書 docs/spec/28.md 決めたこと5、docs/spec/30.md 決めたこと3〜5）。運営と運営協力者と、権限のある委員長と理事（docs/spec/77.md）だけ。ほかの人には表示も操作も 404
-import { error, fail, type RequestEvent } from '@sveltejs/kit';
+import { error, fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '#lib/copy/ja.ts';
@@ -12,7 +12,7 @@ import { allowedCountry, clientOf, nowOf, sessionsAt } from '#lib/server/client.
 import type { BatchDb, Db } from '#lib/server/law.ts';
 import { decideReview, involvedInBill, pendingReviews } from '#lib/server/results.ts';
 import { issueMeta } from '#lib/server/issues.ts';
-import { changePostStatus, postStaffAccess, reportedPosts } from '#lib/server/post-moderation.ts';
+import { changePostStatus, checkMerge as checkQuestionMerge, mergeCandidates, mergeQuestion, mergeWindowOpen, postStaffAccess, reportedPosts } from '#lib/server/post-moderation.ts';
 import { changeStatus, mergeIssue, mergePreview, reportedIssues, staffRows } from '#lib/server/reports.ts';
 import { changeSolutionStatus, reportedSolutions, solutionMeta } from '#lib/server/solutions.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -87,6 +87,8 @@ export const load: PageServerLoad = async (event) => {
 		solutions: staffRows(solutionRows, staff.userId),
 		focusSolution,
 		posts: await reportedPosts(db, staff, focusPost),
+		// まとめる先の候補（docs/spec/104.md の決定V）。時期の外と、質疑でないものには出さない
+		mergeCandidates: focusPost !== null && (await mergeWindowOpen(db, focusPost, nowOf(event), sessionsAt(nowOf(event)).minutes)) ? await mergeCandidates(db, focusPost, staff) : [],
 		focusPost,
 		amendments: await reportedAmendments(db, staff, focusAmendment),
 		reviews: await pendingReviews(db, staff.userId, staff.role)
@@ -172,6 +174,25 @@ const actOnPost = (action: 'hide' | 'restore') => async (event: RequestEvent) =>
 	return { donePost: postId };
 };
 
+/** 似た質疑をまとめる（設計書 docs/spec/104.md）。元は消えるので、まとめたら統合先を開く */
+const mergePost = async (event: RequestEvent) => {
+	const { db, staff } = await staffOf(event);
+	if (!allowedCountry(clientOf(event).country)) return fail(403, { message: ja.guard.outsideJapan, postId: null });
+	const form = await event.request.formData();
+	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
+	const checked = validateStaffAction({ issue: field('post'), target: field('target'), note: field('note') }, 'merge');
+	if (!checked.ok || checked.value.targetId === undefined) return fail(400, { message: ja.kanri.invalid, postId: null });
+	const { issueId: postId, targetId, note } = checked.value;
+	const now = nowOf(event);
+	const can = await checkQuestionMerge(db, postId, targetId, staff, now, sessionsAt(now).minutes);
+	if (can === 'missing') return fail(404, { message: ja.kanri.invalid, postId: null });
+	if (can === 'own' || can === 'ownTarget') return fail(403, { message: ja.kanri.ownPost, postId });
+	if (can === 'involved') return fail(403, { message: ja.kanri.involvedPost, postId });
+	if (can === 'closed') return fail(409, { message: ja.kanri.mergeClosed, postId });
+	if (can === 'invalid' || !(await mergeQuestion(db as unknown as BatchDb, postId, targetId, staff, note, now))) return fail(400, { message: ja.kanri.mergeInvalid, postId });
+	redirect(303, `/kanri?post=${targetId}`);
+};
+
 /** 修正案を非表示にする・表示に戻す（設計書 docs/spec/103.md の決定P）。役職 → 国 → 入力 → 存在 → 自分のもの → 関わり → 状態 */
 const actOnAmendment = (action: 'hide' | 'restore') => async (event: RequestEvent) => {
 	const { db, staff } = await staffOf(event);
@@ -220,6 +241,7 @@ export const actions: Actions = {
 	restoreSolution: actOnSolution('restore'),
 	hidePost: actOnPost('hide'),
 	restorePost: actOnPost('restore'),
+	mergeQuestion: mergePost,
 	hideAmendment: actOnAmendment('hide'),
 	restoreAmendment: actOnAmendment('restore')
 };

@@ -17,6 +17,7 @@
 		id: number;
 		billId: number;
 		body: string;
+		mergedCount: number;
 		mine: boolean;
 		pressed: Pressed;
 		answers: { id: number; role: PostRole; body: string; mine: boolean; pressed: Pressed }[];
@@ -125,6 +126,7 @@
 <article id="shitsugi-{question.id}">
 	{#if relatedBill}<p class="from"><a href="/houan/{relatedBill.id}/shitsugi#shitsugi-{question.id}">{ja.post.fromBill(relatedBill.title)}</a></p>{/if}
 	<p class="body" use:readWhenSeen={trackIf(question.id, !hasAnswers && !question.mine)}>{question.body}</p>
+	{#if question.mergedCount > 0}<p class="merged">{ja.post.mergedCount(question.mergedCount)}</p>{/if}
 	{@render moderation(question.id, question.mine, ja.post.reportOpen.question)}
 
 	{#if evaluationShown && hasAnswers && !question.mine}
@@ -310,6 +312,12 @@
 
 	.actions {
 		margin-top: 0.75rem;
+	}
+
+	.merged {
+		margin: 0.5rem 0 0;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
 	}
 
 	.staff {

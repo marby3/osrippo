@@ -116,10 +116,10 @@ test('基準2：答弁と補足が統合先に移り、元は一覧と数に出�
 	expect(w.rowOf(target).mergedInto).toBe(final);
 	expect(w.rowOf(answer).parentId).toBe(final);
 	expect((await read())[0]).toMatchObject({ id: final, mergedCount: 2 });
-	const logs = w.sqlite.prepare('SELECT post_id AS post, merged_into AS into FROM bill_moderation_logs WHERE action = ? ORDER BY id').all('merge').map((r) => ({ ...r }));
+	const logs = w.sqlite.prepare('SELECT post_id AS post, merged_into AS dest FROM bill_moderation_logs WHERE action = ? ORDER BY id').all('merge').map((r) => ({ ...r }));
 	expect(logs).toEqual([
-		{ post: source, into: target },
-		{ post: target, into: final }
+		{ post: source, dest: target },
+		{ post: target, dest: final }
 	]);
 
 	// A→B のあとの B→A は当たらず、循環しない

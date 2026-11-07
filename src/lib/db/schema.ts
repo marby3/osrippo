@@ -737,7 +737,7 @@ export const voteAssignments = sqliteTable(
 	]
 );
 
-const POST_STATUSES = ['visible', 'auto_hidden', 'hidden', 'restored'] as const;
+const POST_STATUSES = ['visible', 'auto_hidden', 'hidden', 'restored', 'merged'] as const;
 
 /**
  * 質疑・答弁・補足（設計書 docs/spec/66.md）。答弁と補足の parent_id はその質疑。
@@ -771,10 +771,13 @@ export const posts = sqliteTable(
 		statusActorUserId: text('status_actor_user_id'),
 		statusReason: text('status_reason', { enum: HIDE_LOG_REASONS }),
 		statusNote: text('status_note'),
-		statusChangedAt: integer('status_changed_at')
+		statusChangedAt: integer('status_changed_at'),
+		/** 統合先（status が merged のとき。設計書 docs/spec/104.md）。外部キーは付けない（付けると drizzle-kit が表を作り直すおそれがある） */
+		mergedInto: integer('merged_into')
 	},
 	(t) => [
 		foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }),
+		index('posts_merged_into').on(t.mergedInto),
 		index('posts_session').on(t.sessionKey),
 		index('posts_bill').on(t.billId, t.kind, t.id),
 		index('posts_parent').on(t.parentId),
@@ -816,14 +819,16 @@ export const billModerationLogs = sqliteTable(
 			.notNull()
 			.references(() => bills.id),
 		postId: integer('post_id').references(() => posts.id),
-		action: text('action', { enum: ['auto_hide', 'hide', 'restore'] }).notNull(),
+		action: text('action', { enum: ['auto_hide', 'hide', 'restore', 'merge'] }).notNull(),
 		actor: text('actor', { enum: MODERATION_ACTORS }).notNull(),
 		actorUserId: text('actor_user_id'),
 		reason: text('reason', { enum: HIDE_LOG_REASONS }),
 		note: text('note'),
 		createdAt: integer('created_at').notNull(),
 		/** 修正案への対応のとき（設計書 docs/spec/103.md）。外部キーは付けない（付けると drizzle-kit が表を作り直すおそれがある） */
-		amendmentId: integer('amendment_id')
+		amendmentId: integer('amendment_id'),
+		/** 統合したときの統合先（当時のまま。設計書 docs/spec/104.md）。公開しない */
+		mergedInto: integer('merged_into')
 	},
 	(t) => [index('bill_moderation_logs_actor_user').on(t.actorUserId, t.createdAt)]
 );

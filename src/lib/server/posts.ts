@@ -65,8 +65,8 @@ export async function createPost(
 					.returning({ id: posts.id })
 			: await db
 					.insert(posts)
-					// 全列を schema.ts の順に並べる（列を足すとここも直す）。末尾の5つは status_*
-					.select(sql`SELECT NULL, ${post.billId}, ${post.sessionKey}, ${post.kind}, ${post.parentId}, ${actor.userId}, ${post.role}, ${post.body}, 'visible', ${now}, ${stance}, NULL, NULL, NULL, NULL, NULL WHERE EXISTS (SELECT 1 FROM posts q WHERE q.id = ${post.parentId} AND q.status IN (${POST_SHOWN_SQL}))`)
+					// 全列を schema.ts の順に並べる（列を足すとここも直す）。末尾の6つは status_* と merged_into
+					.select(sql`SELECT NULL, ${post.billId}, ${post.sessionKey}, ${post.kind}, ${post.parentId}, ${actor.userId}, ${post.role}, ${post.body}, 'visible', ${now}, ${stance}, NULL, NULL, NULL, NULL, NULL, NULL WHERE EXISTS (SELECT 1 FROM posts q WHERE q.id = ${post.parentId} AND q.status IN (${POST_SHOWN_SQL}))`)
 					.returning({ id: posts.id });
 	if (!row) return { ok: true as const, id: null };
 	await db.insert(actions).values({ kind: POST_ACTION[post.kind], userId: actor.userId, ipHash: actor.ipHash, targetId: post.billId, createdAt: now });
@@ -102,7 +102,7 @@ export async function waitingQuestions(db: Db, billId: number, sessionKey: strin
  */
 export async function listQuestions(db: Db, billId: number, userId: string | null, onlyWaiting: boolean, page: number, related: number[] = [], sessionKey?: string) {
 	const rows = await db
-		.select({ id: posts.id, billId: posts.billId, sessionKey: posts.sessionKey, body: posts.body, userId: posts.userId })
+		.select({ id: posts.id, billId: posts.billId, sessionKey: posts.sessionKey, body: posts.body, userId: posts.userId, mergedCount: sql<number>`(SELECT count(*) FROM posts m WHERE m.merged_into = ${posts}.id AND m.status = 'merged')` })
 		.from(posts)
 		.where(onlyWaiting ? and(questions(billId), sessionKey ? eq(posts.sessionKey, sessionKey) : undefined, unanswered) : questions(billId, related))
 		.orderBy(desc(posts.id))
@@ -126,6 +126,7 @@ export async function listQuestions(db: Db, billId: number, userId: string | nul
 			billId: q.billId,
 			sessionKey: q.sessionKey,
 			body: q.body,
+			mergedCount: q.mergedCount,
 			mine: q.userId === userId,
 			pressed: pressedOf(q.id),
 			answers: of(q.id, 'answer').map((a) => ({ id: a.id, role: a.role as PostRole, body: a.body, mine: a.userId === userId, pressed: pressedOf(a.id) })),

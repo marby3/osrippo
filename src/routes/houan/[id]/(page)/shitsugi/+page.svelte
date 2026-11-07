@@ -116,6 +116,19 @@
 			<p class="empty">{data.onlyWaiting ? ja.post.emptyWaiting : ja.post.empty}</p>
 		{/each}
 		{#if data.hasNext}<p class="more"><a href={nextHref}>{ja.post.more(data.totalCount)}</a></p>{/if}
+		{#if data.mergedPosts.length}
+			<section class="hidden-posts" aria-labelledby="merged-posts-heading">
+				<h2 id="merged-posts-heading">{ja.post.mergedHeading}</h2>
+				{#each data.mergedPosts as post (post.id)}
+					<article>
+						<p class="body">{post.body}</p>
+						<p class="staff">
+							{#if post.href}<a href={post.href}>{ja.post.mergedLink}</a>{:else}{ja.post.mergedTargetHidden}{/if}
+						</p>
+					</article>
+				{/each}
+			</section>
+		{/if}
 		{#if data.hiddenPosts.length}
 			<section class="hidden-posts" aria-labelledby="hidden-posts-heading">
 				<h2 id="hidden-posts-heading">{ja.post.hiddenHeading}</h2>

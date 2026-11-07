@@ -242,6 +242,25 @@
 						<button>{ja.kanri.restore}</button>
 					</form>
 				{/if}
+				<!-- 似た質疑をまとめる（?post= で指した質疑に、候補があるときだけ。docs/spec/104.md の決定V） -->
+				{#if data.focusPost === row.id && data.mergeCandidates.length}
+					<section aria-labelledby="merge-heading-{row.id}" class="merge">
+						<h4 id="merge-heading-{row.id}">{ja.kanri.mergeHeading}</h4>
+						<p><strong>{ja.kanri.mergeIrreversible}</strong></p>
+						<form method="post" action="?/mergeQuestion" use:enhance>
+							<input type="hidden" name="post" value={row.id} />
+							<fieldset>
+								<legend>{ja.kanri.mergeTarget}</legend>
+								{#each data.mergeCandidates as candidate (candidate.id)}
+									<label class="candidate"><input type="radio" name="target" value={candidate.id} required /> {candidate.body}</label>
+								{/each}
+							</fieldset>
+							<label for="merge-note-post-{row.id}">{ja.kanri.mergeNote}</label>
+							<textarea id="merge-note-post-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
+							<button>{ja.kanri.mergeSubmit}</button>
+						</form>
+					</section>
+				{/if}
 			</article>
 		{/each}
 	</section>
@@ -307,6 +326,19 @@
 
 	h1 {
 		font-size: var(--font-size-page-title);
+	}
+
+	.merge fieldset {
+		border: none;
+		padding: 0;
+	}
+
+	.candidate {
+		display: flex;
+		gap: 0.5rem;
+		align-items: flex-start;
+		min-height: var(--tap-min);
+		overflow-wrap: anywhere;
 	}
 
 	article {

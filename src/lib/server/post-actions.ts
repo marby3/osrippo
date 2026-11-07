@@ -86,6 +86,7 @@ async function replyAction(event: RequestEvent, kind: Extract<PostKind, 'answer'
 	const question = await questionOf(db, questionId, bill.id, session.key);
 	if (!question) error(404);
 	// 開いたあとで非表示になることもある。カードが出ないので、理由は一覧の上に出る
+	if (question.status === 'merged') return fail(403, { message: ja.post.mergedOp, ...keep });
 	if (isHidden(question.status)) return fail(403, { message: ja.post.hiddenOp, ...keep });
 	const { userId } = checked.actor;
 	const writerRole = await billRoleOf(db, bill, userId);
