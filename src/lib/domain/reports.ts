@@ -92,7 +92,9 @@ export const SOLUTION_SHOWN = ['visible', 'restored'] as const;
 export const POST_SHOWN = ['visible', 'restored'] as const;
 export const POST_HIDDEN = ['auto_hidden', 'hidden'] as const;
 /** 立候補の資格に数える投稿の状態（決定J） */
-export const POST_CANDIDACY = [...POST_SHOWN, 'auto_hidden'] as const;
+export const POST_CANDIDACY = [...POST_SHOWN, 'auto_hidden', 'merged'] as const;
+/** スコアに数える投稿の状態。まとめられた質疑の評価は残す（docs/spec/104.md の決定U） */
+export const POST_SCORED = [...POST_SHOWN, 'merged'] as const;
 /** hidden でもこの役職の操作なら資格に数える（選挙の相手になりうる人の操作で立候補を止められないように。決定J） */
 export const POST_CANDIDACY_ACTORS = ['chair', 'director'] as const;
 

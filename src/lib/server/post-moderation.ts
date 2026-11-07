@@ -1,15 +1,18 @@
 // 質疑・答弁・補足の通報と非表示（設計書 docs/spec/80.md）。受け取る値の形は呼ぶ側が確かめる
-import { and, count, desc, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { billModerationLogs, bills, postReports, posts } from '../db/schema';
+import { billProgress, referralSession } from '../domain/bills';
+import { evaluationOpen } from '../domain/evaluations';
 import { PAGE_SIZE } from '../domain/issues';
+import { QUESTION_PAGE_SIZE } from '../domain/posts';
 import { LIMITS } from '../domain/limits';
-import { countsTowardHide, HIDE_THRESHOLD, isHidden, POST_HIDDEN, type HideReason, type IssueStatus, type SolutionReportReason } from '../domain/reports';
+import { countsTowardHide, HIDE_THRESHOLD, isHidden, POST_HIDDEN, POST_SHOWN, type HideReason, type IssueStatus, type SolutionReportReason } from '../domain/reports';
 import { staffRoleOf } from './chairs';
 import { refuse, type Actor } from './issues';
-import type { Db } from './law';
+import type { BatchDb, Db } from './law';
 import { notify } from './notifications';
-import { POST_HIDDEN_SQL } from './post-status';
+import { POST_HIDDEN_SQL, POST_SHOWN_SQL } from './post-status';
 import { reportsInDay, type Role } from './reports';
 import { involvedInBill, involvedSql, partyToBill } from './results';
 
@@ -23,7 +26,7 @@ const postAuthor = (postId: number) => sql`SELECT user_id FROM posts WHERE id = 
 export async function postMeta(db: Db, postId: number) {
 	const parent = alias(posts, 'parent');
 	const [row] = await db
-		.select({ id: posts.id, billId: posts.billId, userId: posts.userId, status: posts.status, parentStatus: parent.status })
+		.select({ id: posts.id, billId: posts.billId, sessionKey: posts.sessionKey, kind: posts.kind, userId: posts.userId, status: posts.status, parentStatus: parent.status })
 		.from(posts)
 		.leftJoin(parent, eq(parent.id, posts.parentId))
 		.where(eq(posts.id, postId));
@@ -36,7 +39,8 @@ export async function postMeta(db: Db, postId: number) {
  */
 export async function reportPost(db: Db, actor: Actor, target: { id: number; billId: number }, value: { reason: SolutionReportReason; note: string | null }, now: number) {
 	const post = await postMeta(db, target.id);
-	if (!post || post.billId !== target.billId) return { ok: false as const, reason: 'missing' as const };
+	// まとめられた質疑は行がないのと同じ（docs/spec/104.md）
+	if (!post || post.billId !== target.billId || post.status === 'merged') return { ok: false as const, reason: 'missing' as const };
 	if (post.userId === actor.userId) return { ok: false as const, reason: 'own' as const };
 	if (isHidden(post.status) || (post.parentStatus !== null && isHidden(post.parentStatus))) return { ok: false as const, reason: 'hidden' as const };
 	const mine = and(eq(postReports.postId, target.id), eq(postReports.userId, actor.userId));
@@ -76,9 +80,122 @@ export async function changePostStatus(db: Db, postId: number, from: IssueStatus
 /** その投稿を扱えるか：ない番号、自分のもの、関わった法案（決定O） */
 export async function postStaffAccess(db: Db, postId: number, staff: Staff): Promise<'missing' | 'own' | 'involved' | 'ok'> {
 	const post = await postMeta(db, postId);
-	if (!post) return 'missing';
+	if (!post || post.status === 'merged') return 'missing';
 	if (post.userId === staff.userId) return 'own';
 	return (await involvedInBill(db, post.billId, staff.userId, staff.role)) ? 'involved' : 'ok';
+}
+
+const shownPost = (status: PostStatus) => (POST_SHOWN as readonly string[]).includes(status);
+/** visible で通報を受けている質疑は統合先にできない（まだだれも確認していないので）。t は統合先の別名 */
+const notUnderReport = (t: ReturnType<typeof sql>) => sql`(${t}.status <> 'visible' OR NOT EXISTS (SELECT 1 FROM post_reports r WHERE r.post_id = ${t}.id))`;
+
+/** 法案の3週目と4週目で、元の質疑がいまの会期のものか（docs/spec/104.md の決定R） */
+async function mergeWindowOf(db: Db, source: { billId: number; sessionKey: string }, now: number, minutes: number | null) {
+	const [bill] = await db.select({ status: bills.status, proposedAt: bills.proposedAt }).from(bills).where(eq(bills.id, source.billId));
+	if (!bill || bill.proposedAt === null) return false;
+	return evaluationOpen(billProgress(bill, now, minutes)) && referralSession(bill.proposedAt, minutes).key === source.sessionKey;
+}
+
+/** その質疑をいままとめられる時期か（運営の画面の候補を出すかに使う） */
+export async function mergeWindowOpen(db: Db, sourceId: number, now: number, minutes: number | null) {
+	const source = await postMeta(db, sourceId);
+	return source !== null && (await mergeWindowOf(db, source, now, minutes));
+}
+
+/** まとめられるかを確かめる。順は 元の存在 → 元が自分のもの → 関わり → 統合先が自分のもの → 時期 → 状態（docs/spec/104.md） */
+export async function checkMerge(db: Db, sourceId: number, targetId: number, staff: Staff, now: number, minutes: number | null): Promise<'ok' | 'missing' | 'own' | 'involved' | 'ownTarget' | 'closed' | 'invalid'> {
+	const source = await postMeta(db, sourceId);
+	if (!source || source.status === 'merged') return 'missing';
+	if (source.userId === staff.userId) return 'own';
+	if (await involvedInBill(db, source.billId, staff.userId, staff.role)) return 'involved';
+	const target = await postMeta(db, targetId);
+	if (target?.userId === staff.userId) return 'ownTarget';
+	if (!(await mergeWindowOf(db, source, now, minutes))) return 'closed';
+	if (!target || sourceId === targetId || source.kind !== 'question' || target.kind !== 'question' || target.billId !== source.billId || target.sessionKey !== source.sessionKey) return 'invalid';
+	if (!shownPost(source.status) || !shownPost(target.status)) return 'invalid';
+	if (target.status === 'visible') {
+		const [report] = await db.select({ id: postReports.id }).from(postReports).where(eq(postReports.postId, targetId)).limit(1);
+		if (report) return 'invalid';
+	}
+	return 'ok';
+}
+
+/**
+ * 元の質疑を統合先へまとめる。変わったら true。1つのトランザクションで、(a) 元の行を merged に、(b) 元にまとめられていた行を統合先へ、(c) 答弁と補足を統合先へ。
+ * (a) に元と統合先の今の状態を入れる（A→B と B→A が同時でも循環しない）。(b)(c) は「元が今 merged で統合先がこれ」のときだけ当たる。記録はトリガーが書く。元に戻せない
+ */
+export async function mergeQuestion(db: BatchDb, sourceId: number, targetId: number, staff: Staff, note: string, now: number) {
+	const mergedHere = sql`EXISTS (SELECT 1 FROM posts s WHERE s.id = ${sourceId} AND s.status = 'merged' AND s.merged_into = ${targetId})`;
+	const results = (await db.batch([
+		db
+			.update(posts)
+			.set({ status: 'merged', mergedInto: targetId, statusActor: staff.role, statusActorUserId: staff.userId, statusReason: null, statusNote: note, statusChangedAt: now })
+			.where(
+				and(
+					eq(posts.id, sourceId),
+					eq(posts.kind, 'question'),
+					inArray(posts.status, POST_SHOWN),
+					sql`EXISTS (SELECT 1 FROM posts t WHERE t.id = ${targetId} AND t.id <> ${sourceId} AND t.kind = 'question' AND t.status IN (${POST_SHOWN_SQL}) AND t.bill_id = ${posts}.bill_id AND t.session_key = ${posts}.session_key AND ${notUnderReport(sql`t`)})`
+				)
+			)
+			.returning({ id: posts.id }),
+		db
+			.update(posts)
+			.set({ mergedInto: targetId })
+			.where(and(eq(posts.mergedInto, sourceId), eq(posts.status, 'merged'), mergedHere)),
+		db
+			.update(posts)
+			.set({ parentId: targetId })
+			.where(and(eq(posts.parentId, sourceId), mergedHere))
+	] as never)) as unknown as unknown[][];
+	if (results[0].length === 0) return false;
+	await notify(db, postAuthor(sourceId), 'question_merged', sourceId, now, now);
+	return true;
+}
+
+/** まとめる先の候補：同じ法案と会期の表示中の質疑。元、見ている人の質疑、通報を受けて未確認の質疑を除く。新しい順に50件 */
+export async function mergeCandidates(db: Db, sourceId: number, staff: Staff) {
+	const source = await postMeta(db, sourceId);
+	if (!source || source.kind !== 'question' || !shownPost(source.status)) return [];
+	return db
+		.select({ id: posts.id, body: posts.body })
+		.from(posts)
+		.where(and(eq(posts.billId, source.billId), eq(posts.sessionKey, source.sessionKey), eq(posts.kind, 'question'), inArray(posts.status, POST_SHOWN), ne(posts.id, sourceId), ne(posts.userId, staff.userId), notUnderReport(sql`${posts}`)))
+		.orderBy(desc(posts.id))
+		.limit(50);
+}
+
+/** 質疑のタブの「まとめられた質疑」の欄：書いた本人にだけ、元の本文と統合先へのリンク。統合先が非表示なら href は null。新しい順 */
+export async function mergedPostsFor(db: Db, billId: number, userId: string | null) {
+	if (userId === null) return [];
+	const target = alias(posts, 'target');
+	const rows = await db
+		.select({ id: posts.id, body: posts.body, targetId: target.id, targetStatus: target.status })
+		.from(posts)
+		.innerJoin(target, eq(target.id, posts.mergedInto))
+		.where(and(eq(posts.billId, billId), eq(posts.userId, userId), eq(posts.status, 'merged')))
+		.orderBy(desc(posts.id));
+	// 同じ統合先は1回だけ数える
+	const newerOf = new Map<number, Promise<number>>();
+	const newerThan = (targetId: number) => {
+		const known = newerOf.get(targetId);
+		if (known) return known;
+		const counted = db
+			.select({ n: count() })
+			.from(posts)
+			.where(and(eq(posts.billId, billId), eq(posts.kind, 'question'), inArray(posts.status, POST_SHOWN), gt(posts.id, targetId)))
+			.then(([row]) => row.n);
+		newerOf.set(targetId, counted);
+		return counted;
+	};
+	return Promise.all(
+		rows.map(async ({ id, body, targetId, targetStatus }) => {
+			if (!shownPost(targetStatus)) return { id, body, href: null };
+			// 統合先より新しい表示中の質疑の数からページを求める（一覧は新しい順）
+			const page = Math.floor((await newerThan(targetId)) / QUESTION_PAGE_SIZE) + 1;
+			return { id, body, href: `/houan/${billId}/shitsugi${page > 1 ? `?page=${page}` : ''}#shitsugi-${targetId}` };
+		})
+	);
 }
 
 /** その法案を運営として見られるか：運営の画面の権限があり、関わっていない（決定H） */
@@ -118,6 +235,7 @@ export async function reportedPosts(db: Db, staff: Staff, focus: number | null) 
 			and(
 				or(inArray(posts.id, db.selectDistinct({ id: postReports.postId }).from(postReports)), focus === null ? undefined : eq(posts.id, focus)),
 				ne(posts.userId, staff.userId),
+				ne(posts.status, 'merged'),
 				sql`NOT ${involvedSql(staff.userId, staff.role)}`
 			)
 		)

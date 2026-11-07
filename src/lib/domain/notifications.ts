@@ -31,6 +31,7 @@ export const NOTIFICATION_KINDS = [
 	'solution_restored',
 	'post_hidden',
 	'post_restored',
+	'question_merged',
 	'amendment_hidden',
 	'amendment_restored',
 	'chair_elected',
@@ -48,7 +49,7 @@ export type NoticeTarget = 'bill' | 'issue' | 'solution' | 'post' | 'amendment' 
 
 /** target_id が指すもの。投稿と解決策は番号の並びが別なので、種類で分ける */
 export function targetOf(kind: NotificationKind): NoticeTarget {
-	if (kind === 'mind_changed_post' || kind === 'post_hidden' || kind === 'post_restored') return 'post';
+	if (kind === 'mind_changed_post' || kind === 'post_hidden' || kind === 'post_restored' || kind === 'question_merged') return 'post';
 	if (kind === 'amendment_hidden' || kind === 'amendment_restored') return 'amendment';
 	if (kind.startsWith('issue_')) return 'issue';
 	if (kind === 'mind_changed_solution' || kind.startsWith('solution_')) return 'solution';
@@ -63,7 +64,7 @@ const RESULT_KINDS: readonly NoticeKind[] = ['bill_passed', 'bill_reviewing', 'b
 export function hrefOf(kind: NoticeKind, ids: { billId?: number; issueId?: number }): string {
 	if (kind === 'vote_open') return '/saiketsu';
 	if (kind === 'election_open' || kind === 'acting' || kind === 'chair_elected' || kind === 'director_elected' || kind === 'chair_recalled' || kind === 'chair_vote_removed') return '/iinkai';
-	if (kind === 'mind_changed_post' || kind === 'post_hidden' || kind === 'post_restored') return `/houan/${ids.billId}/shitsugi`;
+	if (kind === 'mind_changed_post' || kind === 'post_hidden' || kind === 'post_restored' || kind === 'question_merged') return `/houan/${ids.billId}/shitsugi`;
 	if (kind === 'amendment_hidden' || kind === 'amendment_restored') return `/houan/${ids.billId}/shusei`;
 	if (kind === 'mind_changed_solution' || kind === 'solution_hidden' || kind === 'solution_restored') return `/kadai/${ids.issueId}/kaiketsu`;
 	if (kind === 'issue_hidden' || kind === 'issue_restored' || kind === 'issue_merged') return `/kadai/${ids.issueId}`;

@@ -8,7 +8,7 @@ import { evaluationOpen } from '#lib/domain/evaluations.ts';
 import { postRoleOf, postWindowOpen, stanceOpen } from '#lib/domain/posts.ts';
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import { answerAction, evaluationAction, postableBill, progressOf, readAction, reportPostAction, stanceAction, supplementAction } from '#lib/server/post-actions.ts';
-import { hiddenPostsFor, reportedPostIds, staffOnBill } from '#lib/server/post-moderation.ts';
+import { hiddenPostsFor, mergedPostsFor, reportedPostIds, staffOnBill } from '#lib/server/post-moderation.ts';
 import { listQuestions, questionTotal, stanceOf, waitingQuestions } from '#lib/server/posts.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -65,6 +65,8 @@ export const load: PageServerLoad = async (event) => {
 		reportedIds: await reportedPostIds(db, userId, bill.id),
 		// 本人と運営に見せる非表示の投稿は、「すべて」の1ページ目の最後に出す
 		hiddenPosts: page === 1 && !onlyWaiting && !withRelated ? await hiddenPostsFor(db, bill.id, userId, staffHere) : [],
+		// まとめられた質疑は書いた本人にだけ（docs/spec/104.md）
+		mergedPosts: page === 1 && !onlyWaiting && !withRelated ? await mergedPostsFor(db, bill.id, userId) : [],
 		siteKey: env.TURNSTILE_SITE_KEY
 	};
 };

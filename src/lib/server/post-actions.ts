@@ -86,6 +86,7 @@ async function replyAction(event: RequestEvent, kind: Extract<PostKind, 'answer'
 	const question = await questionOf(db, questionId, bill.id, session.key);
 	if (!question) error(404);
 	// 開いたあとで非表示になることもある。カードが出ないので、理由は一覧の上に出る
+	if (question.status === 'merged') return fail(403, { message: ja.post.mergedOp, ...keep });
 	if (isHidden(question.status)) return fail(403, { message: ja.post.hiddenOp, ...keep });
 	const { userId } = checked.actor;
 	const writerRole = await billRoleOf(db, bill, userId);
@@ -95,7 +96,8 @@ async function replyAction(event: RequestEvent, kind: Extract<PostKind, 'answer'
 	if (kind === 'supplement' && role !== null) return fail(403, { message: ja.post.answererSupplement, ...keep });
 	const result = await createPost(db, checked.actor, { billId: bill.id, sessionKey: session.key, kind, parentId: questionId, role: kind === 'answer' ? role : null, body: input.body }, now, writerRole);
 	if (!result.ok) return fail(429, { message: refusalMessage(result.refusal), ...keep });
-	if (result.id === null) return fail(403, { message: ja.post.hiddenOp, ...keep });
+	// 確かめたあとに親の質疑が隠れたか、まとめられた
+	if (result.id === null) return fail(403, { message: (await questionOf(db, questionId, bill.id, session.key))?.status === 'merged' ? ja.post.mergedOp : ja.post.hiddenOp, ...keep });
 	return { posted: questionId };
 }
 

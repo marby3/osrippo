@@ -2,7 +2,7 @@
 import { and, count, countDistinct, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { actions, evaluations, postViews, posts } from '../db/schema';
 import { postScores, scoredStance, type EvaluationKind, type EvaluationOp, type PostScore } from '../domain/evaluations';
-import { POST_SHOWN } from '../domain/reports';
+import { POST_SCORED, POST_SHOWN } from '../domain/reports';
 import { checkEvaluation, DAY, LIMITS } from '../domain/limits';
 import type { BillRole } from '../domain/posts';
 import { refuse, type Actor } from './issues';
@@ -11,8 +11,11 @@ import { notify } from './notifications';
 import { POST_SHOWN_SQL } from './post-status';
 
 const EVALUATION_ACTIONS = ['evaluation_add', 'evaluation_remove'] as const;
-/** 投稿そのものが表示中か。親の質疑の状態は見ない（非表示の質疑の下の答弁はスコアに数える。決定E） */
-const scored = and(inArray(posts.kind, ['question', 'answer']), inArray(posts.status, POST_SHOWN));
+const pressable = inArray(posts.kind, ['question', 'answer']);
+/** 評価と読んだ記録の対象：投稿そのものが表示中 */
+const evaluable = and(pressable, inArray(posts.status, POST_SHOWN));
+/** スコアに数える。親の質疑の状態は見ず（非表示の質疑の下の答弁は数える。docs/spec/80.md の決定E）、まとめられた質疑の評価は残す（docs/spec/104.md の決定U） */
+const scored = and(pressable, inArray(posts.status, POST_SCORED));
 
 /**
  * いまの立場を、書く文の中で読む式。別に読まないので、立場を変えるのと重なっても、どちらかの立場で1行だけ残る。
@@ -26,7 +29,7 @@ export async function evaluationTarget(db: Db, postId: number, bill: { id: numbe
 	const [row] = await db
 		.select({ id: posts.id, userId: posts.userId })
 		.from(posts)
-		.where(and(eq(posts.id, postId), eq(posts.billId, bill.id), eq(posts.sessionKey, bill.sessionKey), scored, sql`(${posts}.parent_id IS NULL OR EXISTS (SELECT 1 FROM posts q WHERE q.id = ${posts}.parent_id AND q.status IN (${POST_SHOWN_SQL})))`));
+		.where(and(eq(posts.id, postId), eq(posts.billId, bill.id), eq(posts.sessionKey, bill.sessionKey), evaluable, sql`(${posts}.parent_id IS NULL OR EXISTS (SELECT 1 FROM posts q WHERE q.id = ${posts}.parent_id AND q.status IN (${POST_SHOWN_SQL})))`));
 	return row;
 }
 
