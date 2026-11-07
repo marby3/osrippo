@@ -96,6 +96,17 @@ export const POST_CANDIDACY = [...POST_SHOWN, 'auto_hidden'] as const;
 /** hidden でもこの役職の操作なら資格に数える（選挙の相手になりうる人の操作で立候補を止められないように。決定J） */
 export const POST_CANDIDACY_ACTORS = ['chair', 'director'] as const;
 
+/** 修正案への運営の操作：修正案の番号、非表示の理由（非表示にするときだけ）、メモ */
+export function validateAmendmentAction(
+	raw: { amendment: string | null; reason?: string | null; note: string | null },
+	action: 'hide' | 'restore'
+): { ok: true; value: { amendmentId: number; reason: HideReason | null; note: string } } | { ok: false } {
+	const checked = validateStaffAction({ issue: raw.amendment, reason: raw.reason, note: raw.note }, action);
+	if (!checked.ok) return { ok: false };
+	const { issueId: amendmentId, reason, note } = checked.value;
+	return { ok: true, value: { amendmentId, reason, note } };
+}
+
 /** 投稿への運営の操作：投稿の番号、非表示の理由（非表示にするときだけ）、メモ */
 export function validatePostAction(
 	raw: { post: string | null; reason?: string | null; note: string | null },

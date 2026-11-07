@@ -14,8 +14,13 @@ export const AMENDMENT_REASON_MAX = 400;
 export const amendmentOpen = (progress: BillProgress) => progress === 'deliberation';
 /** 票の時期：4週目 */
 export const amendmentVoteOpen = (progress: BillProgress) => progress === 'vote';
-/** 取り込める時期：3週目で、採決の24時間前まで（締切の直前に取り込んで、ほかの修正案を止められないように） */
-export const acceptOpen = (progress: BillProgress, now: number, voteAt: number) => progress === 'deliberation' && now < voteAt - DAY;
+/** 3週目の最後の24時間の始まり。ここから取り込めず（締切の直前に取り込んで、ほかの修正案を止められないように）、open の修正案は自動で非表示にしない（docs/spec/103.md の決定B） */
+export const autoHideClosesAt = (voteAt: number) => voteAt - DAY;
+/** 取り込める時期：3週目で、採決の24時間前まで */
+export const acceptOpen = (progress: BillProgress, now: number, voteAt: number) => progress === 'deliberation' && now < autoHideClosesAt(voteAt);
+
+/** 表示中の修正案の状態（moderation_status。status とは別） */
+export const AMENDMENT_SHOWN = ['visible', 'restored'] as const;
 
 /** 本案より先に採決するのに要る賛同：発議要件の半分の切り上げ */
 export const priorVoteRequirement = (participants: number) => Math.ceil(proposalRequirement(participants) / 2);
@@ -46,7 +51,8 @@ export function checkAmendedLaw(action: BillKind, base: BaseArticle[] | null, ch
 }
 
 /** 本案より先に採決する修正案か。票を入れる文（castAmendmentVote）も同じ条件を SQL で確かめる */
-export const inPriorVote = (a: { status: AmendmentStatus; baseRev: number }, supports: number, billRev: number, required: number) => a.status === 'open' && a.baseRev === billRev && supports >= required;
+export const inPriorVote = (a: { status: AmendmentStatus; baseRev: number; moderationStatus: string }, supports: number, billRev: number, required: number) =>
+	a.status === 'open' && a.baseRev === billRev && supports >= required && (AMENDMENT_SHOWN as readonly string[]).includes(a.moderationStatus);
 
 /** 理由：任意で400字まで。改行可 */
 export function validateAmendmentReason(raw: string | null): { ok: true; reason: string | null } | { ok: false; error: IssueError } {

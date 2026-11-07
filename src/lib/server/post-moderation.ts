@@ -171,7 +171,7 @@ export async function hiddenPostsFor(db: Db, billId: number, userId: string | nu
 	}));
 }
 
-/** 公開の記録：新しい順に50件ごと。本文、書いた人、対応した人の ID、投稿の番号は返さない */
+/** 公開の記録：投稿と修正案の対応。新しい順に50件ごと。本文、書いた人、対応した人の ID、番号は返さない */
 export async function billModerationLogPage(db: Db, page: number) {
 	const rows = await db
 		.select({
@@ -179,6 +179,7 @@ export async function billModerationLogPage(db: Db, page: number) {
 			billId: billModerationLogs.billId,
 			title: bills.title,
 			kind: posts.kind,
+			amendmentId: billModerationLogs.amendmentId,
 			action: billModerationLogs.action,
 			actor: billModerationLogs.actor,
 			reason: billModerationLogs.reason,
@@ -187,9 +188,12 @@ export async function billModerationLogPage(db: Db, page: number) {
 		})
 		.from(billModerationLogs)
 		.innerJoin(bills, eq(bills.id, billModerationLogs.billId))
-		.innerJoin(posts, eq(posts.id, billModerationLogs.postId))
+		.leftJoin(posts, eq(posts.id, billModerationLogs.postId))
 		.orderBy(desc(billModerationLogs.id))
 		.limit(PAGE_SIZE + 1)
 		.offset((page - 1) * PAGE_SIZE);
-	return { rows: rows.slice(0, PAGE_SIZE), hasNext: rows.length > PAGE_SIZE };
+	return {
+		rows: rows.slice(0, PAGE_SIZE).map(({ amendmentId, kind, ...r }) => ({ ...r, kind: amendmentId !== null || kind === null ? ('amendment' as const) : kind })),
+		hasNext: rows.length > PAGE_SIZE
+	};
 }

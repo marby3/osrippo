@@ -3,8 +3,10 @@ import { error, fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import { ja } from '../copy/ja';
 import { acceptOpen, AMENDMENT_REASON_MAX, amendmentOpen, amendmentVoteOpen, applyAmendments, checkAmendedLaw, hasAmendableLaw, parseArticleKey, priorVoteRequirement, validateAmendmentBody, validateAmendmentReason } from '../domain/amendments';
 import { parseIssueId } from '../domain/issues';
+import { isHidden, validateSolutionReport } from '../domain/reports';
 import { billWaitUntil } from '../domain/limits';
 import { VOTE_CHOICES, type VoteChoice } from '../domain/votes';
+import { amendmentCloseOf, reportAmendment } from './amendment-moderation';
 import { acceptAmendment, amendableArticles, amendmentOf, castAmendmentVote, createAmendment, myAmendmentVote, setAmendmentSupport, updateAmendment, type AmendmentRow } from './amendments';
 import { sessionParticipants } from './bills';
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
@@ -68,6 +70,7 @@ export async function amendmentPostAction(event: RequestEvent) {
 	if (!amendmentOpen(progress)) return fail(409, { message: ja.amendment.closed, ...keep });
 	if (target) {
 		if (target.userId !== user.id) return fail(403, { message: ja.amendment.notMine, ...keep });
+		if (isHidden(target.moderationStatus)) return fail(403, { message: ja.amendment.hiddenOp, ...keep });
 		if (target.status !== 'open' || target.baseRev === bill.rev) return fail(409, { message: ja.amendment.noUpdate, ...keep });
 	} else if (await isBillSide(db, bill, user.id)) {
 		return fail(403, { message: ja.amendment.author, ...keep });
@@ -117,6 +120,7 @@ export async function acceptAction(event: RequestEvent) {
 	if (id === null || revision === null) error(400);
 	const amendment = await amendmentOf(db, id, bill.id);
 	if (!amendment) error(404);
+	if (isHidden(amendment.moderationStatus)) return fail(403, { message: ja.amendment.hiddenOp, ...keep });
 	if (bill.userId !== user.id) return fail(403, { message: ja.amendment.notAuthor, ...keep });
 	const { progress, session } = progressOf(bill, now);
 	if (!acceptOpen(progress, now, session.voteAt)) return fail(409, { message: ja.amendment.acceptClosed, ...keep });
@@ -142,13 +146,44 @@ export async function amendmentSupportAction(event: RequestEvent) {
 	if (id === null || revision === null || (op !== 'add' && op !== 'remove')) error(400);
 	const amendment = await amendmentOf(db, id, bill.id);
 	if (!amendment) error(404);
+	if (isHidden(amendment.moderationStatus)) return fail(403, { message: ja.amendment.hiddenOp, ...keep });
 	const { progress, session } = progressOf(bill, now);
 	// 前の会期の修正案は読むだけ（要調整を直した法案。docs/spec/72.md の C）
 	if (!amendmentOpen(progress) || amendment.sessionKey !== session.key) return fail(409, { message: ja.amendment.closed, ...keep });
 	if (amendment.userId === user.id || (await isBillSide(db, bill, user.id))) return fail(403, { message: ja.amendment.ownSupport, ...keep });
 	const result = await setAmendmentSupport(db, guard.actor, amendment, bill.rev, revision, op, now);
-	if (!result.ok) return 'refusal' in result ? fail(429, { message: refusalMessage(result.refusal), ...keep }) : fail(409, { message: ja.amendment.stale, ...keep });
+	if (!result.ok) {
+		if ('refusal' in result) return fail(429, { message: refusalMessage(result.refusal), ...keep });
+		return result.reason === 'hidden' ? fail(403, { message: ja.amendment.hiddenOp, ...keep }) : fail(409, { message: ja.amendment.stale, ...keep });
+	}
 	return { supported: id };
+}
+
+/**
+ * 修正案の通報（設計書 docs/spec/103.md の決定D）。法案の番号と存在 → ログイン → 国 → 締め出し → 入力 → 修正案がその法案のものか → 自分のもの → 状態 → 2回目 → 上限 → 保存。
+ * 登録から7日と Turnstile は使わない
+ */
+export async function reportAmendmentAction(event: RequestEvent) {
+	const { db, bill } = await amendableBill(event);
+	const user = event.locals.user;
+	if (!user) redirect(303, `/login?next=${encodeURIComponent(amendmentsPath(bill.id))}`);
+	const now = nowOf(event);
+	const form = await event.request.formData();
+	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
+	const id = parseIssueId(field('amendment') ?? '');
+	const guard = await writeGuard(event, db, user, now);
+	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, reportAmendment: id });
+	const checked = validateSolutionReport({ reason: field('reason'), note: field('note') });
+	if (id === null || !checked.ok) error(400);
+	// 発議していない法案は amendableBill が 404 にしているので、proposedAt は必ずある
+	const result = await reportAmendment(db, guard.actor, { id, billId: bill.id, closesAt: amendmentCloseOf(bill.proposedAt as number, sessionsAt(now).minutes) }, checked.value, now);
+	if (!result.ok) {
+		if (result.reason === 'missing') error(404);
+		if (result.reason === 'own') error(400);
+		if (result.reason === 'hidden') return fail(403, { message: ja.amendment.hiddenOp, reportAmendment: id });
+		return fail(429, { message: refusalMessage(result.refusal), reportAmendment: id });
+	}
+	return { reportMessage: result.already ? ja.post.reportAlready : ja.post.reportDone, reportAmendment: id };
 }
 
 /** 修正案の票。Turnstile を通す（仕様「投票のときにもbot対策を通す」）。投票資格がなければ参考の票になるだけなので、登録からの日数は見ない */
@@ -165,7 +200,9 @@ export async function amendmentVoteAction(event: RequestEvent) {
 	if (!(await checkTurnstile(event, String(form.get('cf-turnstile-response') ?? ''), guard.ip))) return fail(400, { message: ja.guard.turnstileFailed, ...keep });
 	const choice = String(form.get('choice'));
 	if (id === null || !(VOTE_CHOICES as readonly string[]).includes(choice)) error(400);
-	if (!(await amendmentOf(db, id, bill.id))) error(404);
+	const amendment = await amendmentOf(db, id, bill.id);
+	if (!amendment) error(404);
+	if (isHidden(amendment.moderationStatus)) return fail(403, { message: ja.amendment.hiddenOp, ...keep });
 	const { progress } = progressOf(bill, now);
 	if (!amendmentVoteOpen(progress)) return fail(409, { message: ja.amendment.voteClosed, ...keep });
 	const { session, previous } = sessionsAt(now);

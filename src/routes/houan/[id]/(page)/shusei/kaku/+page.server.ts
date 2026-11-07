@@ -3,6 +3,7 @@ import { error } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { ja } from '#lib/copy/ja.ts';
 import { amendmentOpen } from '#lib/domain/amendments.ts';
+import { isHidden } from '#lib/domain/reports.ts';
 import { articleBodyText } from '#lib/domain/bills.ts';
 import { articleLabel } from '#lib/domain/law/index.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
@@ -28,6 +29,9 @@ export const load: PageServerLoad = async (event) => {
 
 	let blocked: string | null = waitUntil !== null ? ja.amendment.tooNew(waitUntil) : !open ? ja.amendment.closed : null;
 	if (!blocked && target && target.userId !== user.id) blocked = ja.amendment.notMine;
+	// 非表示のあいだは本文を渡さない（ほかの人が番号で読めないように。docs/spec/103.md の決定K）
+	const hiddenTarget = target !== undefined && isHidden(target.moderationStatus);
+	if (!blocked && hiddenTarget) blocked = ja.amendment.hiddenOp;
 	if (!blocked && target && (target.status !== 'open' || target.baseRev === bill.rev)) blocked = ja.amendment.noUpdate;
 	if (!blocked && !target && (await isBillSide(db, bill, user.id))) blocked = ja.amendment.author;
 
@@ -40,7 +44,7 @@ export const load: PageServerLoad = async (event) => {
 	return {
 		blocked,
 		rev: bill.rev,
-		update: target ? { id: target.id, body: articleBodyText(target.paragraphs), reason: target.reason ?? '', label: articleLabel(target.num), current: updating ? articleBodyText(updating.current) : null } : null,
+		update: target && !hiddenTarget ? { id: target.id, body: articleBodyText(target.paragraphs), reason: target.reason ?? '', label: articleLabel(target.num), current: updating ? articleBodyText(updating.current) : null } : null,
 		multipleLaws: bill.laws.length > 1,
 		articles: articles.map((a) => ({ key: a.key, lawTitle: a.lawTitle, label: `${a.label}${a.caption ?? ''}`, body: articleBodyText(a.current) })),
 		siteKey: env.TURNSTILE_SITE_KEY

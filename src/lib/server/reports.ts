@@ -1,6 +1,6 @@
 // 通報と非表示、運営の画面と記録の DB（設計書 docs/spec/28.md）
 import { and, count, countDistinct, desc, eq, gt, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
-import { issueSupports, issues, moderationLogs, postReports, reports, solutionReports, user, type ROLES, type STAFF_ROLES } from '../db/schema';
+import { amendmentReports, issueSupports, issues, moderationLogs, postReports, reports, solutionReports, user, type ROLES, type STAFF_ROLES } from '../db/schema';
 import { PAGE_SIZE } from '../domain/issues';
 import { preselectSimilar, rankSimilar } from '../domain/similar';
 import { DAY, LIMITS } from '../domain/limits';
@@ -35,7 +35,7 @@ export async function hasReported(db: Db, issueId: number, userId: string) {
 	return row.n > 0;
 }
 
-/** 直近24時間の通報の数。課題、解決策、投稿の通報を合わせて数える（設計書 docs/spec/36.md 決めたこと2、docs/spec/80.md の決定C） */
+/** 直近24時間の通報の数。課題、解決策、投稿、修正案の通報を合わせて数える（設計書 docs/spec/36.md 決めたこと2、docs/spec/80.md の決定C） */
 export async function reportsInDay(db: Db, userId: string, now: number) {
 	const [issueReports] = await db
 		.select({ n: count() })
@@ -49,7 +49,11 @@ export async function reportsInDay(db: Db, userId: string, now: number) {
 		.select({ n: count() })
 		.from(postReports)
 		.where(and(eq(postReports.userId, userId), gt(postReports.createdAt, now - DAY)));
-	return issueReports.n + solutionReportCount.n + postReportCount.n;
+	const [amendmentReportCount] = await db
+		.select({ n: count() })
+		.from(amendmentReports)
+		.where(and(eq(amendmentReports.userId, userId), gt(amendmentReports.createdAt, now - DAY)));
+	return issueReports.n + solutionReportCount.n + postReportCount.n + amendmentReportCount.n;
 }
 
 /** 通報する。2回目は何もせず already。保存したら自動非表示を確かめる */

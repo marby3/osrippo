@@ -40,6 +40,9 @@ const jaTime = (ms: number) => {
 const sessionPoint = (s: Session, ms: number, withDay: boolean) =>
 	s.month === null ? jaTime(ms) : withDay ? jaDay(ms) : jaDay(ms).replace(/（.）$/, '');
 
+/** 投稿の種類の名前 */
+const POST_KINDS = { question: '質疑', answer: '答弁', supplement: '補足' };
+
 export const ja = {
 	siteName: 'オープンソース立法府',
 	unofficial: '国会・政府とは無関係の非公式サービスです',
@@ -92,7 +95,7 @@ export const ja = {
 	},
 	/** 質疑・答弁・補足と自分の考え（Issue #66。SpBillQA・PcBillQA） */
 	post: {
-		kinds: { question: '質疑', answer: '答弁', supplement: '補足' },
+		kinds: POST_KINDS,
 		reportOpen: { question: 'この質疑を通報する', answer: 'この答弁を通報する', supplement: 'この補足を通報する' },
 		reportDone: '通報を受け付けました',
 		reportAlready: '通報済みです',
@@ -304,6 +307,9 @@ export const ja = {
 	ifBand: { label: 'IF世界', short: '架空の法律です', long: 'このページの条文は架空のものです。現実の法律ではありません。' },
 	/** 修正案（設計書 docs/spec/68.md）。「先議」は使わず「本案より先に採決」と書く */
 	amendment: {
+		reportOpen: 'この修正案を通報する',
+		hiddenOp: '非表示の修正案には操作できません',
+		hiddenHeading: '非表示の修正案',
 		pageTitle: (title: string) => `${title}の修正案｜オープンソース立法府`,
 		writePageTitle: (title: string) => `${title}の修正案を出す｜オープンソース立法府`,
 		write: '修正案を出す',
@@ -710,6 +716,8 @@ export const ja = {
 		criteria: '登録から24時間たった別々の3人から通報があると、運営か委員長が確認するまで一時的に見えなくなります。',
 		/** 質疑・答弁・補足の通報の欄 */
 		postCriteria: '登録から24時間たった別々の3人から通報があると、運営か委員長が確認するまで一時的に見えなくなります。その法案の提出者、賛同者、共同提出者の通報は数えません。',
+		/** 修正案の通報の欄 */
+		amendmentCriteria: '登録から24時間たった別々の3人から通報があると、運営か委員長が確認するまで一時的に見えなくなります（採決の24時間前から結果が出るまでは自動で見えなくなりません）。その法案の提出者、賛同者、共同提出者と、同じ法案に修正案を出した人、賛同している人の通報は数えません。',
 		criteriaLink: '非表示にする基準と運営の記録',
 		submit: '通報する',
 		done: '通報を受け付けました',
@@ -857,6 +865,8 @@ export const ja = {
 			solution_restored: (t: string) => `課題「${t}」のあなたの解決策が表示に戻りました。`,
 			post_hidden: (t: string) => `法案「${t}」のあなたの投稿が非表示になりました。理由は質疑のタブで読めます。`,
 			post_restored: (t: string) => `法案「${t}」のあなたの投稿が表示に戻りました。`,
+			amendment_hidden: (t: string) => `法案「${t}」のあなたの修正案が非表示になりました。理由は修正案のタブで読めます。`,
+			amendment_restored: (t: string) => `法案「${t}」のあなたの修正案が表示に戻りました。`,
 			chair_elected: () => '委員長選挙で委員長に選ばれました。',
 			director_elected: () => '委員長選挙で理事に選ばれました。',
 			chair_recalled: () => '委員長が解任されました。',
@@ -937,6 +947,12 @@ export const ja = {
 		postOf: (kind: string) => `の${kind}`,
 		ownPost: '自分の投稿には対応できません',
 		involvedPost: '関わった法案の投稿には対応できません',
+		amendmentsHeading: '通報を受けた修正案',
+		amendmentsEmpty: '通報を受けた修正案はありません',
+		amendmentOf: (location: string) => `の修正案（${location}）`,
+		ownAmendment: '自分の修正案には対応できません',
+		involvedAmendment: '関わった法案の修正案には対応できません',
+		updatedAfterReport: '最後の通報のあとに本文が更新されました',
 		statuses: { visible: '表示中', auto_hidden: '自動で非表示', hidden: '非表示', restored: '表示に戻した', merged: '統合した' },
 		reportCount: (total: number, counted: number) => `通報 ${total}件（数えたもの ${counted}件）`,
 		afterRestore: (n: number) => `表示に戻したあとの通報 ${n}件`,
@@ -957,15 +973,17 @@ export const ja = {
 		criteriaHeading: '非表示にする基準',
 		criteria: [
 			'登録から24時間たった別々の3人から通報があると、課題や解決策は、運営か委員長が確認するまで一時的に見えなくなります。',
-			'法案の質疑、答弁、補足も同じです。ただし、その法案の提出者、賛同者、共同提出者の通報は数えません。',
+			'法案の質疑、答弁、補足、修正案も同じです。ただし、その法案の提出者、賛同者、共同提出者の通報は数えません。修正案は、同じ法案に修正案を出した人と賛同している人の通報も数えません。',
+			'修正案は、採決の24時間前から結果が出るまで、通報では自動で見えなくなりません。非表示のまま採決の締切を過ぎた修正案は採決されません。',
 			'「同じ課題がほかにある」の通報では見えなくなりません。',
 			'運営か委員長が確認して問題がないとした投稿は、そのあと通報があっても自動では見えなくなりません。',
 			'運営や委員長が見えなくするのは、人への攻撃・差別、宣伝・荒らしなど、投稿として扱えないものだけです。理由はこの記録に残します。',
 			'通報した人や書いた人の名前は、ここには出しません。'
 		],
 		logHeading: '対応の記録',
-		postLogHeading: '法案の質疑への対応',
-		postLogPages: '法案の質疑への対応のページ',
+		postLogHeading: '法案の質疑と修正案への対応',
+		postLogPages: '法案の質疑と修正案への対応のページ',
+		logKinds: { ...POST_KINDS, amendment: '修正案' },
 		postColumns: { at: '日時', bill: '法案', kind: '何か', action: '何をしたか', actor: 'だれが', reason: '理由', note: 'メモ' },
 		columns: { at: '日時', issue: '課題', action: '何をしたか', actor: 'だれが', reason: '理由', note: 'メモ' },
 		actions: { auto_hide: '自動で非表示', hide: '非表示', restore: '表示に戻した', merge: '統合' },

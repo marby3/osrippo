@@ -15,6 +15,7 @@
 	let { data, form }: PageProps = $props();
 	const reasons = [...REPORT_REASONS, 'none'] as const;
 	const solutionReasons = [...SOLUTION_REPORT_REASONS, 'none'] as const;
+	const amendmentAlert = (id: number) => (form && 'message' in form && 'amendmentId' in form && form.amendmentId === id ? form.message : undefined);
 	const postAlert = (id: number) => (form && 'message' in form && 'postId' in form && form.postId === id ? form.message : undefined);
 	/** 解決策の操作を断った理由は、その解決策のところに出す */
 	const solutionAlert = (id: number) =>
@@ -29,7 +30,7 @@
 <main>
 	<h1>{ja.kanri.heading}</h1>
 	<!-- 断った文言は、その課題・解決策のところに出す（どれか分からないときだけ上に） -->
-	{#if form && 'message' in form && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
+	{#if form && 'message' in form && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('amendmentId' in form && form.amendmentId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
 		<p role="alert">{form.message}</p>
 	{/if}
 	{#if data.rows.length === 0}
@@ -238,6 +239,57 @@
 						<input type="hidden" name="post" value={row.id} />
 						<label for="post-restore-note-{row.id}">{ja.kanri.restoreNote}</label>
 						<textarea id="post-restore-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
+						<button>{ja.kanri.restore}</button>
+					</form>
+				{/if}
+			</article>
+		{/each}
+	</section>
+
+	<section aria-labelledby="amendments-heading">
+		<h2 id="amendments-heading" class="section">{ja.kanri.amendmentsHeading}</h2>
+		{#if data.amendments.length === 0}<p>{ja.kanri.amendmentsEmpty}</p>{/if}
+		{#each data.amendments as row (row.id)}
+			<article>
+				<h3><a href="/houan/{row.billId}/shusei">{row.billTitle}</a> {ja.kanri.amendmentOf(row.location)}</h3>
+				<p class="body">{row.body}</p>
+				{#if row.reason}<p class="body">{ja.amendment.reason}：{row.reason}</p>{/if}
+				<p class="status">{ja.kanri.statuses[row.moderationStatus]}</p>
+				{#if row.status !== 'open'}<p>{ja.amendment.statuses[row.status]}</p>{/if}
+				{#if row.updatedAfterReport}<p>{ja.kanri.updatedAfterReport}</p>{/if}
+				{#if amendmentAlert(row.id)}<p role="alert">{amendmentAlert(row.id)}</p>{/if}
+				<p>{ja.kanri.reportCount(row.total, row.counted)}</p>
+				<ul class="reasons">
+					{#each solutionReasons as reason (reason)}
+						{#if row[reason] > 0}<li>{ja.report.reasons[reason]} {row[reason]}</li>{/if}
+					{/each}
+				</ul>
+				{#if row.moderationStatus === 'restored'}<p>{ja.kanri.afterRestore(row.afterRestore)}</p>{/if}
+				{#if row.notes.length}
+					<h4>{ja.kanri.notes}</h4>
+					<ul class="notes">
+						{#each row.notes as note, i (i)}<li>{note}</li>{/each}
+					</ul>
+				{/if}
+				{#if HIDEABLE.includes(row.moderationStatus)}
+					<form method="post" action="?amendment={row.id}&/hideAmendment" use:enhance>
+						<input type="hidden" name="amendment" value={row.id} />
+						<label for="amendment-hide-reason-{row.id}">{ja.kanri.hideReason}</label>
+						<select id="amendment-hide-reason-{row.id}" name="reason" required>
+							{#each HIDE_REASONS as reason (reason)}
+								<option value={reason}>{ja.hideReasons[reason]}</option>
+							{/each}
+						</select>
+						<label for="amendment-hide-note-{row.id}">{ja.kanri.hideNote}</label>
+						<textarea id="amendment-hide-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
+						<button>{ja.kanri.hide}</button>
+					</form>
+				{/if}
+				{#if RESTORABLE.includes(row.moderationStatus)}
+					<form method="post" action="?amendment={row.id}&/restoreAmendment" use:enhance>
+						<input type="hidden" name="amendment" value={row.id} />
+						<label for="amendment-restore-note-{row.id}">{ja.kanri.restoreNote}</label>
+						<textarea id="amendment-restore-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
 						<button>{ja.kanri.restore}</button>
 					</form>
 				{/if}

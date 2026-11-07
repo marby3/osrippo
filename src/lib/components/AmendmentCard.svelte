@@ -6,6 +6,7 @@
 	import type { VoteChoice } from '../domain/votes';
 	import type { AmendmentView } from '../server/amendments';
 	import DiffText from './DiffText.svelte';
+	import PostReport from './PostReport.svelte';
 	import Turnstile from './Turnstile.svelte';
 
 	let {
@@ -21,7 +22,11 @@
 		siteKey,
 		updateHref,
 		back,
-		message
+		message,
+		staffHere,
+		reported,
+		reportDone,
+		reportMessage
 	}: {
 		amendment: AmendmentView;
 		progress: BillProgress;
@@ -40,6 +45,12 @@
 		updateHref: string;
 		back: string;
 		message?: string;
+		/** 運営として対応できるか（権限があり、この法案の修正案に関わっていない） */
+		staffHere: boolean;
+		/** 見ている人が通報済みか */
+		reported: boolean;
+		reportDone?: string;
+		reportMessage?: string;
 	} = $props();
 
 	const choices: VoteChoice[] = ['yes', 'no', 'abstain'];
@@ -153,6 +164,23 @@
 	{/if}
 
 	{#if message}<p role="alert" class="error">{message}</p>{/if}
+
+	<!-- 通報と運営の入口。自分のものには出さない。前の会期のカードにも出す -->
+	{#if !amendment.mine}
+		<PostReport
+			target={amendment.id}
+			label={ja.amendment.reportOpen}
+			{loggedIn}
+			{back}
+			{reported}
+			done={reportDone}
+			message={reportMessage}
+			action="reportAmendment"
+			field="amendment"
+			criteria={ja.report.amendmentCriteria}
+		/>
+		{#if staffHere}<p class="staff"><a href="/kanri?amendment={amendment.id}">{ja.post.staffLink}</a></p>{/if}
+	{/if}
 </article>
 
 <style>
@@ -175,6 +203,17 @@
 		margin: 0;
 		color: var(--color-text-sub);
 		font-size: var(--font-size-sub);
+	}
+
+	.staff {
+		margin: 0;
+		font-size: var(--font-size-sub);
+	}
+
+	.staff a {
+		display: inline-flex;
+		align-items: center;
+		min-height: var(--tap-min);
 	}
 
 	.reason {
