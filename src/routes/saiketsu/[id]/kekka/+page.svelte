@@ -20,7 +20,7 @@
 			if (a.reason === 'repealed') return ja.ifLaw.repealedNote;
 			return data.now < a.dueAt ? ja.ifLaw.adjusting[a.reason] : ja.ifLaw.expired;
 		}
-		return data.place ? ja.result.passedNote : ja.ifLaw.applying;
+		return data.places.length ? ja.result.passedNote : ja.ifLaw.applying;
 	});
 	const dueShown = $derived(data.phase === 'done' && data.adjustment !== null && data.adjustment.reason !== 'repealed' && data.now < data.adjustment.dueAt);
 </script>
@@ -102,7 +102,9 @@
 						{#if data.comparison === 'same'}<p class="same">{ja.result.same}</p>{/if}
 					</div>
 				</section>
-				{#if data.place}<p class="to-bill"><a href="/if/hourei/{data.place.lawId}">{ja.ifLaw.toLaw}</a></p>{/if}
+				{#each data.places as place (place.lawId)}
+					<p class="to-bill"><a href="/if/hourei/{place.lawId}">{data.places.length > 1 ? ja.ifLaw.toLawNamed(place.title) : ja.ifLaw.toLaw}</a></p>
+				{/each}
 				<p class="to-bill"><a href="/houan/{data.bill.id}">{ja.result.billLink}</a></p>
 				{#if data.resubmittable}<p class="to-bill"><a href="/houan/{data.bill.id}">{ja.bill.resubmit.fromResult}</a></p>{/if}
 			</aside>

@@ -1,8 +1,7 @@
 // 採決の結果（Issue #71。SpResult・PcResult）。ログインは要らない。締切の前は結果も票も読まない（設計書 docs/spec/71.md 決めたこと8）
-import { articleLabel } from '#lib/domain/law/parse.ts';
 import { referenceComparison } from '#lib/domain/votes.ts';
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
-import { adjustmentOf, ifPlaceOf } from '#lib/server/if-world.ts';
+import { adjustmentOf, ifPlacesOf } from '#lib/server/if-world.ts';
 import type { BatchDb } from '#lib/server/law.ts';
 import { postableBill, progressOf } from '#lib/server/post-actions.ts';
 import { billStageNow, priorAmendmentResults, resultOnRead } from '#lib/server/results.ts';
@@ -40,10 +39,10 @@ export const load: PageServerLoad = async (event) => {
 		counted: { yes: result.yes, no: result.no, abstain: result.abstain },
 		reference,
 		comparison: voided ? null : referenceComparison(result.outcome, reference, result.quorum),
-		place: !voided && result.outcome === 'passed' ? await ifPlaceOf(db, bill.id, result.rev) : null,
+		places: !voided && result.outcome === 'passed' ? await ifPlacesOf(db, bill.id, result.rev) : [],
 		adjustment: !voided && result.outcome === 'passed' ? await adjustmentOf(db, result.sessionKey, bill.id) : null,
 		now,
 		// 無効は本案ごと廃案なので、修正案の可否も出さない
-		amendments: (voided ? [] : await priorAmendmentResults(db, bill.id, session.key)).map((a) => ({ id: a.id, location: articleLabel(a.num), status: a.status as 'passed' | 'failed' | 'superseded' | 'lapsed' }))
+		amendments: (voided ? [] : await priorAmendmentResults(db, bill.id, session.key)).map((a) => ({ id: a.id, location: a.location, status: a.status as 'passed' | 'failed' | 'superseded' | 'lapsed' }))
 	};
 };

@@ -8,9 +8,9 @@ import { proposalRequirement } from '../domain/bills';
 import { billWaitUntil } from '../domain/limits';
 import { parseIssueId } from '../domain/issues';
 import { checkBillForm, FIRST_COMMITTEE, readBillForm, type BillFormErrors, type BillFormValues } from './bill-form';
-import { billById, createDraftLimited, proposeBill, saveDraftLimited, sessionParticipants, setBillSupport, type Bill } from './bills';
+import { billById, createDraftLimited, lawTitlesOf, proposeBill, saveDraftLimited, sessionParticipants, setBillSupport, type Bill } from './bills';
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
-import { proposeBlock, saveAdjustedBill, staleArticles } from './if-world';
+import { proposeBlock, saveAdjustedBill, staleArticlesOfBill } from './if-world';
 import type { BatchDb, Db } from './law';
 import { cancelCosponsorRequest, decideCosponsor, leaveCosponsor, requestCosponsor, type CosponsorRefused } from './cosponsors';
 import { cancelMerge, consentMerge, createMerge, mergeBlock, revokeMerge } from './merge';
@@ -19,7 +19,7 @@ import { cancelWithdraw, consentWithdraw, withdrawStateOf } from './withdraw';
 import { billStageNow } from './results';
 import { resubmitBill, resubmitStateOf } from './resubmit';
 
-export type BillFormFailure = { values: BillFormValues; errors?: BillFormErrors; message?: string; conflicts?: Awaited<ReturnType<typeof staleArticles>> };
+export type BillFormFailure = { values: BillFormValues; errors?: BillFormErrors; message?: string; conflicts?: Awaited<ReturnType<typeof staleArticlesOfBill>> };
 
 /** edit は直す法案（呼ぶ側が、提出者で下書きか要調整であることを確かめたもの）。null なら新しく作る */
 export async function submitBill(event: RequestEvent, user: { id: string; createdAt: Date }, edit: (NonNullable<Bill> & { adjusting: boolean }) | null) {
@@ -49,12 +49,13 @@ export async function submitBill(event: RequestEvent, user: { id: string; create
 	const rev = parseIssueId(String(form.get('rev') ?? ''));
 	if (rev === null) return refuse(400, { message: ja.bill.formInvalid });
 	// 基にしたあとで変わった条に触れるなら、いまの条文を確かめてもらう（docs/spec/72.md の B2）
-	const [saved] = edit.laws;
-	const [next] = checked.input.laws;
-	if (saved && next && saved.lawId === next.lawId) {
-		const conflicts = await staleArticles(db, { ...saved, changes: next.changes });
-		if (conflicts.length && form.get('confirmConflicts') !== 'on') return refuse(400, { conflicts, message: ja.ifLaw.confirmRequired });
-	}
+	// 法令ごとに、保存済みの同じ法令と比べる（足したばかりの法令は基にした版が最新なので比べない。docs/spec/53.md 決めたこと5）
+	const pairs = checked.input.laws.flatMap((next) => {
+		const saved = next.lawId === null ? undefined : edit.laws.find((l) => l.lawId === next.lawId);
+		return saved ? [{ ...saved, changes: next.changes }] : [];
+	});
+	const conflicts = await staleArticlesOfBill(db, pairs, checked.input.laws.length > 1 ? await lawTitlesOf(db, checked.input) : null);
+	if (conflicts.length && form.get('confirmConflicts') !== 'on') return refuse(400, { conflicts, message: ja.ifLaw.confirmRequired });
 	if (edit.adjusting) {
 		const result = await saveAdjustedBill(db as unknown as BatchDb, guard.actor, edit, rev, checked.input, now);
 		if (!result.ok) return 'refusal' in result ? refuse(429, { message: refusalMessage(result.refusal) }) : refuse(400, { message: ja.ifLaw.locked });

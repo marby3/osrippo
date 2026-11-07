@@ -26,6 +26,7 @@ export const load: PageServerLoad = async (event) => {
 		newTitle: '',
 		law: '',
 		base: '',
+		extras: [],
 		affected: '',
 		sideEffects: '',
 		summary: '',
@@ -39,7 +40,7 @@ export const load: PageServerLoad = async (event) => {
 		candidates: await candidateSolutions(db, start.issueId),
 		back: `/kadai/${start.issueId}`,
 		initial,
-		articles: null,
+		articles: [],
 		siteKey: env.TURNSTILE_SITE_KEY
 	};
 };

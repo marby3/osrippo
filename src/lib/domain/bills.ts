@@ -329,6 +329,9 @@ export function validateBill(
 
 // ---- 正式名（決めたこと6） ----
 
+/** 条の場所。法令が2本以上の法案では法令名を付ける（設計書 docs/spec/53.md 決めたこと11） */
+export const articlePlace = (lawTitle: string | null, label: string) => (lawTitle ? `${lawTitle} ${label}` : label);
+
 /** laws は seq の順。title は laws.title（制定の新法は法令名） */
 export function formalName(kind: BillKind, laws: { action: BillKind; title: string }[]): string {
 	const main = laws[0].title;

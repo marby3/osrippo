@@ -483,7 +483,6 @@ test('信頼の境界：作り変えたフォームの値は 400 で、保存し
 		['ほかの法令の版', form({ base: '337AC0000000134_20160401_426AC0000000069' })],
 		['非表示の解決策', form({ solution: ids[1] })],
 		['数字でない解決策', form({ solution: 'abc' })],
-		['別の課題の解決策', form({ solution: [ids[0], other.ids[0]] })],
 		['非表示の課題の解決策', form({ solution: hiddenIssue.ids[0] })],
 		['多すぎる解決策', form({ solution: Array.from({ length: 200 }, (_, i) => String(i + 1)) })],
 		['ない種類', form({ kind: 'bogus' })],

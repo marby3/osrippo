@@ -18,9 +18,10 @@ async function resubmittedOf(db: Db, billId: number) {
 }
 
 /** 出し直せるかと、出し直した法案。提出者かどうかは呼ぶ側が確かめる */
-export async function resubmitStateOf(db: Db, bill: Pick<NonNullable<Bill>, 'id' | 'laws'>, stage: BillStage) {
+export async function resubmitStateOf(db: Db, bill: { id: number; laws: { lawId: string | null }[] }, stage: BillStage) {
 	const repealed = await repealedLawIds(db);
-	const lawGone = bill.laws.some((l) => l.lawId !== null && repealed.has(l.lawId));
+	// すべての法令が廃止されたときだけ断る。一部なら、写した下書きで廃止された法令を外せる（docs/spec/53.md 決めたこと5）
+	const lawGone = bill.laws.every((l) => l.lawId !== null && repealed.has(l.lawId));
 	return { can: canResubmit(stage, lawGone), next: await resubmittedOf(db, bill.id) };
 }
 

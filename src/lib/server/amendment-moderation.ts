@@ -2,10 +2,11 @@
 import { and, count, desc, eq, inArray, isNotNull, or, sql, type SQL } from 'drizzle-orm';
 import { amendmentReports, amendments, bills } from '../db/schema';
 import { autoHideClosesAt } from '../domain/amendments';
-import { referralSession } from '../domain/bills';
+import { articlePlace, referralSession } from '../domain/bills';
 import { articleLabel, type Paragraph } from '../domain/law';
 import { LIMITS } from '../domain/limits';
 import { countsTowardHide, HIDE_THRESHOLD, isHidden, POST_HIDDEN, type HideReason, type IssueStatus, type SolutionReportReason } from '../domain/reports';
+import { amendmentLawTitleSql } from './amendments';
 import { textOf } from './bills';
 import { staffRoleOf } from './chairs';
 import { refuse, type Actor } from './issues';
@@ -124,6 +125,7 @@ export async function reportedAmendments(db: Db, staff: Staff, focus: number | n
 			num: amendments.num,
 			caption: amendments.caption,
 			body: amendments.body,
+			lawTitle: amendmentLawTitleSql,
 			reason: amendments.reason,
 			moderationStatus: amendments.moderationStatus,
 			status: amendments.status,
@@ -159,9 +161,9 @@ export async function reportedAmendments(db: Db, staff: Staff, focus: number | n
 				.where(and(sql`amendment_id IN (SELECT value FROM json_each(${JSON.stringify(rows.map((r) => r.id))}))`, isNotNull(amendmentReports.note)))
 				.orderBy(desc(amendmentReports.createdAt), desc(amendmentReports.id))
 		: [];
-	return rows.map(({ num, caption, body, updatedAfterReport, ...r }) => ({
+	return rows.map(({ num, caption, body, lawTitle, updatedAfterReport, ...r }) => ({
 		...r,
-		location: articleLabel(num),
+		location: articlePlace(lawTitle, articleLabel(num)),
 		body: textOf(caption, JSON.parse(body) as Paragraph[]),
 		updatedAfterReport: Boolean(updatedAfterReport),
 		notes: notes.filter((n) => n.amendmentId === r.id).map((n) => n.note as string)
@@ -183,9 +185,9 @@ export async function reportedAmendmentIds(db: Db, userId: string | null, billId
 export async function hiddenAmendmentsFor(db: Db, billId: number, userId: string | null, staffHere: boolean) {
 	if (userId === null) return [];
 	const rows = await db
-		.select({ id: amendments.id, num: amendments.num, caption: amendments.caption, body: amendments.body, reason: amendments.reason, status: amendments.moderationStatus, statusReason: amendments.moderationReason, userId: amendments.userId })
+		.select({ id: amendments.id, num: amendments.num, caption: amendments.caption, body: amendments.body, lawTitle: amendmentLawTitleSql, reason: amendments.reason, status: amendments.moderationStatus, statusReason: amendments.moderationReason, userId: amendments.userId })
 		.from(amendments)
 		.where(and(eq(amendments.billId, billId), inArray(amendments.moderationStatus, POST_HIDDEN), staffHere ? undefined : eq(amendments.userId, userId)))
 		.orderBy(desc(amendments.id));
-	return rows.map(({ userId: author, num, caption, body, ...r }) => ({ ...r, location: articleLabel(num), body: textOf(caption, JSON.parse(body) as Paragraph[]), mine: author === userId }));
+	return rows.map(({ userId: author, num, caption, body, lawTitle, ...r }) => ({ ...r, location: articlePlace(lawTitle, articleLabel(num)), body: textOf(caption, JSON.parse(body) as Paragraph[]), mine: author === userId }));
 }
