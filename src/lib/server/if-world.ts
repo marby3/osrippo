@@ -306,7 +306,7 @@ export async function notifyConflicts(db: Db, now: number): Promise<void> {
 	}
 }
 
-/** 1本の法案を反映する。衝突なら要調整。最後の1文（if_revisions か if_laws）が入ったときが反映で、途中で失敗してもやり直せる */
+/** 1本の法案を反映する。衝突なら要調整。すべての法令の行（if_revisions と if_laws）を入れるバッチが入ったときが反映で、途中で失敗してもやり直せる */
 async function applyBill(db: BatchDb, session: Session, bill: { id: number; rev: number; proposedAt: number | null }, minutes: number | null, now: number) {
 	const contents = await lawContentsOf(db, bill.id, bill.rev);
 
@@ -340,7 +340,7 @@ async function applyBill(db: BatchDb, session: Session, bill: { id: number; rev:
 	}
 	// 反映：すべての法令の行を1つのトランザクションで入れる。途中で失敗しても半端に残らない（docs/spec/53.md 決めたこと8）。
 	// 新法の題名の重なりは握りつぶさない（id だけを対象にする）。確かめたあとに別の法案が同じ題名で入ったら全体が巻き戻り、次の処理で要調整になる
-	const statements = contents.map((law) =>
+	const statements: BatchItem<'sqlite'>[] = contents.map((law) =>
 		law.action === 'enact'
 			? db
 					.insert(ifLaws)
@@ -351,7 +351,7 @@ async function applyBill(db: BatchDb, session: Session, bill: { id: number; rev:
 					.values({ lawId: law.lawId as string, seq: nextIfSeq(law.lawId as string), billId: bill.id, billRev: bill.rev, lawSeq: law.seq, sessionKey: session.key, createdAt: now })
 					.onConflictDoNothing({ target: [ifRevisions.billId, ifRevisions.billRev, ifRevisions.lawSeq] })
 	);
-	await db.batch(statements as never);
+	await db.batch(statements as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]);
 }
 
 /**

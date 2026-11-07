@@ -405,6 +405,7 @@ export const ja = {
 		bodyErrorAt: (line: number, message: string) => `${line}行目：${message}`,
 		formInvalid: '送られた内容を読み取れませんでした。ページを読み直してください。',
 		lawRequired: '対象の法令を選んでください。',
+		lawDuplicate: 'ほかの枠と同じ法令です。別の法令を選ぶか、この法令を外してください。',
 		lawTitleExists: '同じ名前の法律があります。別の名前にしてください。',
 		fixErrors: '入力を直してください。誤りはそれぞれの欄のそばに出しています。',
 		baseChanged: '条文が新しくなりました。開き直してください。',

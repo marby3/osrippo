@@ -90,8 +90,8 @@ export const load: PageServerLoad = async (event) => {
 		// 基にしたあとで変わった条（docs/spec/72.md の B2）
 		conflicts: await staleArticlesOfBill(db, bill.laws, multiple ? titles : null),
 		goneRows: rows.flatMap((r, i) => (r.gone ? [i] : [])),
-		// IF世界で廃止された法令（法令が2本以上なら名前で知らせる）
-		repealed: slots.filter((x) => x.law.lawId && !x.articles).map((x) => (multiple ? (titles.get(x.law.lawId as string) ?? '') : '')),
+		// IF世界で廃止された法令。枠にも名前を出し、ページの上では法令が2本以上なら名前で知らせる
+		repealed: slots.filter((x) => x.law.lawId && !x.articles).map((x) => ({ id: x.law.lawId as string, title: titles.get(x.law.lawId as string) ?? '', named: multiple })),
 		adjusting,
 		adjustmentReason: adjustment?.reason ?? null,
 		siteKey: env.TURNSTILE_SITE_KEY

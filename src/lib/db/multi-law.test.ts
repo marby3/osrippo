@@ -8,6 +8,8 @@ import * as ifWorld from '../server/if-world';
 import { hiddenAmendmentsFor, reportedAmendments } from '../server/amendment-moderation';
 import { settleAmendments } from '../server/amendments';
 import { resubmitStateOf } from '../server/resubmit';
+import { checkBillForm, type BillFormValues } from '../server/bill-form';
+import { ja } from '../copy/ja';
 import { priorAmendmentResults, settleSession } from '../server/results';
 
 let sqlite: DatabaseSync;
@@ -90,7 +92,7 @@ const revisionsOf = (bill: number) => (sqlite.prepare('SELECT count(*) AS n FROM
 const enactedOf = (bill: number) => (sqlite.prepare('SELECT count(*) AS n FROM if_laws WHERE bill_id = ?').get(bill) as { n: number }).n;
 const adjustmentOf = (bill: number, s: Session) => (sqlite.prepare('SELECT reason FROM bill_adjustments WHERE bill_id = ? AND session_key = ?').get(bill, s.key) as { reason: string } | undefined)?.reason;
 /** 結果のページのリンク先（法令の順） */
-const placesOf = (bill: number) => (ifWorld as unknown as { ifPlacesOf: (db: MemoryDb, billId: number, rev: number) => Promise<{ lawId: string; title: string }[]> }).ifPlacesOf(db, bill, 1);
+const placesOf = (bill: number) => ifWorld.ifPlacesOf(db, bill, 1);
 
 beforeAll(() => {
 	({ sqlite, db } = openMemoryDb());
@@ -203,8 +205,44 @@ test('基準4：対象の法令の一部が廃止されて廃案になった法�
 	fix(s);
 	const [gone, kept] = [addLaw(), addLaw()];
 	const repeal = addBill(s, [{ action: 'repeal', law: gone, changes: [] }], 1);
+	const changer = addBill(s, [{ action: 'amend', law: kept, changes: [{ num: '2', op: 'amend', provisionId: kept.ids['2'], text: '先に変わった第2条' }] }], 2);
 	votes(s, repeal.id);
+	votes(s, changer.id);
 	await settle(s);
+
+	// ぶつかった条文は、法令が2本以上なら法令名つき
+	const stale = await ifWorld.staleArticlesOfBill(
+		db,
+		[{ action: 'amend', lawId: kept.lawId, baseRevisionId: kept.revisionId, baseIfSeq: 0, newTitle: null, changes: [{ num: '2', op: 'amend', provisionId: kept.ids['2'] }] }],
+		new Map([[kept.lawId, kept.title]])
+	);
+	expect(stale.map((c) => [c.lawTitle, c.label, c.body])).toEqual([[kept.title, '第2条', '先に変わった第2条']]);
+
+	// 書く画面の確かめ：廃止された法令の枠は断り、外せば通る。主と同じ法令の枠は、その枠のそばに出す
+	for (const law of [gone, kept]) sqlite.prepare('INSERT OR IGNORE INTO committee_laws (committee_id, law_id) VALUES (1, ?)').run(law.lawId);
+	const token = async (law: Law) => {
+		const h = await ifWorld.ifHeadOf(db, law.lawId);
+		return `${h.branchRevisionId}@${h.seq}`;
+	};
+	const values = async (extras: BillFormValues['extras']): Promise<BillFormValues> => ({
+		kind: 'amend',
+		title: '出し直した法案',
+		newTitle: '',
+		law: kept.lawId,
+		base: await token(kept),
+		extras,
+		affected: '困っている人',
+		sideEffects: '副作用',
+		summary: '',
+		supplementary: '',
+		solutions: ['1'],
+		rows: [{ op: 'amend', target: '1', num: '', caption: '（見出し）', body: '書きかえた第1条', seq: '0' }]
+	});
+	const withGone = await checkBillForm(db, await values([{ law: gone.lawId, base: await token(gone), action: 'amend' }]));
+	expect(withGone.ok ? null : [withGone.status, withGone.errors.laws?.[1]?.law]).toEqual([400, ja.ifLaw.lawRepealed]);
+	expect((await checkBillForm(db, await values([]))).ok).toBe(true);
+	const duplicate = await checkBillForm(db, await values([{ law: kept.lawId, base: await token(kept), action: 'amend' }]));
+	expect(duplicate.ok ? null : [duplicate.status, duplicate.errors.laws?.[1]?.law]).toEqual([400, ja.bill.lawDuplicate]);
 
 	const twoLaws = { id: 0, laws: [{ lawId: gone.lawId }, { lawId: kept.lawId }] };
 	expect((await resubmitStateOf(db, twoLaws, 'lapsed')).can).toBe(true);
@@ -264,7 +302,7 @@ test('基準9：2本の法令の法案の修正案は、非表示の欄、運営
 	const reported = await reportedAmendments(db, staff, null);
 	expect(reported.find((r) => r.id === hiddenTwo)?.location).toBe(`${b.title} 第2条`);
 	expect(reported.find((r) => r.id === hiddenOne)?.location).toBe('第1条');
-	const results = (await priorAmendmentResults(db, two.id, s.key)) as unknown as { id: number; location: string }[];
+	const results = await priorAmendmentResults(db, two.id, s.key);
 	expect(results.find((r) => r.id === failed)?.location).toBe(`${b.title} 第2条`);
 
 	// 関連法の条への修正案の可決

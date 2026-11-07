@@ -13,7 +13,7 @@
 <main>
 	<p class="sub"><a href="/houan/{data.edit.id}">{data.edit.title}</a></p>
 	<h1>{data.adjusting ? ja.ifLaw.fixHeading : ja.bill.write.editHeading}</h1>
-	{#each data.repealed as title (title)}<p class="notice">{title ? ja.ifLaw.lawRepealedNamed(title) : ja.ifLaw.lawRepealed}</p>{/each}
+	{#each data.repealed as law (law.id)}<p class="notice">{law.named ? ja.ifLaw.lawRepealedNamed(law.title) : ja.ifLaw.lawRepealed}</p>{/each}
 	<!-- 要調整を直しても賛同は保つ（docs/spec/72.md の B） -->
 	{#if data.supports > 0 && !data.adjusting}<p class="notice">{ja.bill.support.resetNotice(data.supports)}</p>{/if}
 	<BillForm
@@ -26,6 +26,7 @@
 		dropped={data.dropped}
 		conflicts={data.conflicts}
 		goneRows={data.goneRows}
+		goneLaws={data.repealed}
 		adjusting={data.adjusting}
 		titleFree={data.adjustmentReason === 'title'}
 		back="/houan/{data.edit.id}"

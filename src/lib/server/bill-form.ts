@@ -209,6 +209,15 @@ export async function checkBillForm(db: Db, v: BillFormValues): Promise<Checked>
 		});
 		return { ok: false, status: 400, errors };
 	}
+	// 種類を切り替えると、主と足した枠で同じ法令を選べてしまうので、重なった枠のそばに出す
+	if (!checked.ok && checked.errors.laws === 'duplicateLaw') {
+		const chosen = [kind === 'enact' ? null : v.law, ...v.extras.map((x) => x.law)];
+		const at = chosen.findIndex((law, i) => law !== null && chosen.indexOf(law) < i);
+		if (at > 0) {
+			lawError(at, { law: ja.bill.lawDuplicate });
+			return { ok: false, status: 400, errors };
+		}
+	}
 	if (!checked.ok && checked.errors.laws) return invalid();
 
 	if (kind === 'enact') {

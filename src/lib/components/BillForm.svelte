@@ -23,6 +23,7 @@
 		dropped = 0,
 		conflicts = [],
 		goneRows = [],
+		goneLaws = [],
 		adjusting = false,
 		titleFree = false,
 		back,
@@ -41,6 +42,8 @@
 		conflicts?: Conflict[];
 		/** なくなった条を指している行の位置（docs/spec/95.md 決めたこと4） */
 		goneRows?: number[];
+		/** IF世界で廃止された法令。枠に選んだままの名前と、そのことを出す（docs/spec/53.md 決めたこと5） */
+		goneLaws?: { id: string; title: string }[];
 		/** 要調整を直す：題名と対象の法令は変えられない。titleFree は法令名の重なりで、法令名は変えられる */
 		adjusting?: boolean;
 		titleFree?: boolean;
@@ -189,6 +192,8 @@
 	}
 
 	const optionLabel = (a: Article) => `${a.label}${a.caption}`;
+	/** 枠に選んだままの、廃止された法令 */
+	const goneLaw = (slot: Slot) => goneLaws.find((l) => l.id === slot.law);
 
 	// ---- ほかの課題の解決策を探す（docs/spec/53.md 決めたこと7） ----
 	/** 探して足した候補。画面の状態に持つ（送り直しても消えない） */
@@ -299,7 +304,8 @@
 
 {#snippet slotStatus(slot: Slot)}
 	{#if slot.loading}<p class="hint" role="status">{ja.bill.write.loading}</p>{/if}
-	{#if slot.loadFailed}<p class="error">{ja.bill.write.loadFailed}</p>{/if}
+	{#if goneLaw(slot)}<p class="error">{ja.ifLaw.lawRepealedNamed(goneLaw(slot)?.title ?? '')}</p>
+	{:else if slot.loadFailed}<p class="error">{ja.bill.write.loadFailed}</p>{/if}
 {/snippet}
 
 <form
@@ -422,6 +428,7 @@
 		>
 			<option value="">{ja.bill.write.lawPlaceholder}</option>
 			{#each optionsFor(slots[0]) as l (l.id)}<option value={l.id}>{l.title}</option>{/each}
+			{#if goneLaw(slots[0])}<option value={slots[0].law} disabled>{goneLaw(slots[0])?.title}</option>{/if}
 		</select>
 		{#if adjusting}<input type="hidden" name="law" value={slots[0].law} />{/if}
 		{#if fieldError('laws')}<p class="error" id="bill-law-error">{fieldError('laws')}</p>{/if}
@@ -464,6 +471,7 @@
 			>
 				<option value="">{ja.bill.write.lawPlaceholder}</option>
 				{#each optionsFor(slot) as l (l.id)}<option value={l.id}>{l.title}</option>{/each}
+				{#if goneLaw(slot)}<option value={slot.law} disabled>{goneLaw(slot)?.title}</option>{/if}
 			</select>
 			{#if adjusting}<input type="hidden" name="law.{n}" value={slot.law} />{/if}
 			{#if error?.law}<p class="error" id="law-error-{slot.key}">{error.law}</p>{/if}
