@@ -4,7 +4,7 @@ import { and, asc, count, countDistinct, desc, eq, gt, gte, inArray, lt, ne, sql
 import { notify, notifyProposed } from './notifications';
 import { actions, billChanges, billLaws, bills, billSolutions, billSupports, committeeLaws, issues, laws, sessionParticipantCounts, solutions, user, billCosponsors, billRelations } from '../db/schema';
 import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
-import { baseToken, changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, PARTICIPANT_KINDS, referralSession, type BillChange, type BillKind, type BillTab } from '../domain/bills';
+import { articlePlace, baseToken, changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, PARTICIPANT_KINDS, referralSession, type BillChange, type BillKind, type BillTab } from '../domain/bills';
 import { PAGE_SIZE } from '../domain/issues';
 import { checkBillDraft, checkBillSave, checkBillSupport, DAY, LIMITS } from '../domain/limits';
 import { sessionAt, type Session } from '../domain/session';
@@ -218,11 +218,12 @@ export async function citableSolution(db: Db, solutionId: number) {
 	return row;
 }
 
-/** 引用の候補：その課題の表示中の解決策（古い順） */
+/** 引用の候補：その課題の表示中の解決策（古い順）。課題ごとに分けて出すので課題名を付ける */
 export async function candidateSolutions(db: Db, issueId: number) {
 	return db
-		.select({ id: solutions.id, body: solutions.body })
+		.select({ id: solutions.id, body: solutions.body, issueId: solutions.issueId, issueTitle: issues.title })
 		.from(solutions)
+		.innerJoin(issues, eq(issues.id, solutions.issueId))
 		.where(and(eq(solutions.issueId, issueId), inArray(solutions.status, SHOWN)))
 		.orderBy(asc(solutions.id));
 }
@@ -317,10 +318,13 @@ export async function billView(db: Db, bill: NonNullable<Bill>) {
 export async function billChangeViews(db: Db, bill: NonNullable<Bill>): Promise<ChangeView[]> {
 	const changes: ChangeView[] = [];
 	let budget = DIFF_PAGE_BUDGET;
+	// 法令が2本以上なら法令名を付ける（docs/spec/53.md 決めたこと11）
+	const titles = bill.laws.length > 1 ? await lawTitlesOf(db, bill) : null;
 	for (const l of bill.laws) {
+		const lawTitle = titles && (l.lawId ? (titles.get(l.lawId) ?? '') : (l.newTitle ?? ''));
 		const base = l.baseRevisionId && l.changes.length ? new Map((await baseArticlesOf(db, l)).map((a) => [a.id, a])) : new Map();
 		for (const c of l.changes) {
-			const location = articleLabel(c.num);
+			const location = articlePlace(lawTitle, articleLabel(c.num));
 			const old = c.provisionId === null ? undefined : base.get(c.provisionId);
 			const before = old ? textOf(old.caption, old.paragraphs) : null;
 			const after = c.paragraphs ? textOf(c.caption, c.paragraphs) : null;

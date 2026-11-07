@@ -3,14 +3,15 @@
 import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { actions, amendments, billResults, bills, billSupports, committees, user, voteReviews, votes, type STAFF_ROLES } from '../db/schema';
 import { newAccountSince, voteAnomalies, type AnomalyDetail, type AnomalySignal, type AnomalyVote } from '../domain/anomalies';
-import { billProgress, referralSession } from '../domain/bills';
+import { articlePlace, billProgress, referralSession } from '../domain/bills';
+import { articleLabel } from '../domain/law';
 import { PAGE_SIZE } from '../domain/issues';
 import { sessionAt, type Session } from '../domain/session';
 import { billOutcome, billStage, quorumRequirement, SETTLE_GRACE } from '../domain/votes';
-import { settleAmendments } from './amendments';
+import { amendmentLawTitleSql, settleAmendments } from './amendments';
 import { billById, sessionParticipants, type Bill } from './bills';
 import { settleElection } from './chairs';
-import { adjustmentOf, adjustmentRowOf, applySession, ifPlaceOf, importReal, notifyConflicts } from './if-world';
+import { adjustmentOf, adjustmentRowOf, applySession, ifPlacesOf, importReal, notifyConflicts } from './if-world';
 import type { BatchDb, Db } from './law';
 import { notifyBillOutcomes } from './notifications';
 import { countedCondition, inVote, tallyVotes } from './votes';
@@ -187,7 +188,8 @@ export async function resultOnRead(db: BatchDb, bill: { id: number; proposedAt: 
 		const review = await reviewOf(db, session.key, bill.id);
 		// 否決と廃案、確認中と無効は反映しない。可決で反映済みか要調整なら終わり
 		if (known.outcome !== 'passed' || review?.status === 'open' || review?.status === 'voided') return { ...known, review };
-		if ((await ifPlaceOf(db, bill.id, known.rev)) || (await adjustmentRowOf(db, known.sessionKey, bill.id))) return { ...known, review };
+		// 反映は全部の法令が一度に入るので、1つあれば反映済み（docs/spec/53.md 決めたこと8）
+		if ((await ifPlacesOf(db, bill.id, known.rev)).length || (await adjustmentRowOf(db, known.sessionKey, bill.id))) return { ...known, review };
 	}
 	// まだ結果がないか、反映の前に失敗していたのでやり直す（docs/spec/72.md 決めたこと5）
 	await settleOnRead(db, session, sessionAt(session.startsAt - 1, minutes), now, minutes);
@@ -382,10 +384,11 @@ export async function reviewsFor(db: Db, billIds: number[]) {
 
 /** 本案より先に採決した修正案の状態。票の数は記録していない */
 export async function priorAmendmentResults(db: Db, billId: number, sessionKey: string) {
-	return db
-		.select({ id: amendments.id, num: amendments.num, status: amendments.status })
+	const rows = await db
+		.select({ id: amendments.id, num: amendments.num, status: amendments.status, lawTitle: amendmentLawTitleSql })
 		.from(amendments)
 		.where(and(eq(amendments.billId, billId), eq(amendments.sessionKey, sessionKey), inArray(amendments.status, ['passed', 'failed', 'superseded', 'lapsed'])))
 		.orderBy(asc(amendments.id))
 		.limit(AMENDMENT_ROWS);
+	return rows.map(({ lawTitle, ...r }) => ({ ...r, location: articlePlace(lawTitle, articleLabel(r.num)) }));
 }

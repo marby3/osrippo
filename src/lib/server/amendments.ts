@@ -20,6 +20,12 @@ type LoadedBill = NonNullable<Bill>;
 const SHOWN_SQL = sql.raw(AMENDMENT_SHOWN.map((s) => `'${s}'`).join(', '));
 const shownOnly = inArray(amendments.moderationStatus, AMENDMENT_SHOWN);
 
+/**
+ * 修正案の条の法令名。基にした版の法令が2本以上のときだけ（1本なら NULL）。${amendments} の行を見る（docs/spec/53.md 決めたこと11）
+ */
+export const amendmentLawTitleSql = sql<string | null>`(SELECT CASE WHEN (SELECT count(*) FROM bill_laws c WHERE c.bill_id = bl.bill_id AND c.rev = bl.rev) > 1 THEN COALESCE(l.title, bl.new_title) END
+	FROM bill_laws bl LEFT JOIN laws l ON l.id = bl.law_id WHERE bl.bill_id = ${amendments}.bill_id AND bl.rev = ${amendments}.base_rev AND bl.seq = ${amendments}.law_seq)`;
+
 /** D1 は1文に100個までしか値を結び付けられないので、番号の一覧を分ける */
 const ID_CHUNK = 50;
 const chunks = (ids: number[]) => Array.from({ length: Math.ceil(ids.length / ID_CHUNK) }, (_, i) => ids.slice(i * ID_CHUNK, (i + 1) * ID_CHUNK));

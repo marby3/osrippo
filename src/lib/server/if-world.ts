@@ -212,6 +212,15 @@ export async function staleArticles(db: Db, law: LawContent) {
 	return [...result.values()].sort((a, b) => compareNum(a.num, b.num));
 }
 
+/** 法案の法令ごとのぶつかった条文。titles があれば（法令が2本以上）法令名を付ける（docs/spec/53.md 決めたこと5） */
+export async function staleArticlesOfBill(db: Db, laws: LawContent[], titles: Map<string, string> | null) {
+	const out: { key: string; lawTitle: string | null; num: string; label: string; caption: string; body: string }[] = [];
+	for (const law of laws) {
+		for (const a of await staleArticles(db, law)) out.push({ ...a, key: `${law.lawId}:${a.num}`, lawTitle: titles && law.lawId ? (titles.get(law.lawId) ?? '') : null });
+	}
+	return out;
+}
+
 /** 書く画面に出す番号（docs/spec/95.md 決めたこと4）：内部IDのいまの IF世界の番号。内部IDが変わった条はいまの条の番号。なくなった条は null */
 export async function currentNumsOf(db: Db, lawId: string, provisionIds: number[]) {
 	const head = await ifHeadOf(db, lawId);
@@ -313,11 +322,9 @@ async function applyBill(db: BatchDb, session: Session, bill: { id: number; rev:
 			ON CONFLICT DO NOTHING`);
 		return;
 	}
+	// 準備：何度やっても同じで、版から指されなければ読まれない（docs/spec/53.md 決めたこと8）
 	for (const law of contents) {
-		if (law.action === 'enact') {
-			await db.insert(ifLaws).values({ id: `if-${bill.id}`, billId: bill.id, billRev: bill.rev, title: law.newTitle as string, sessionKey: session.key, createdAt: now }).onConflictDoNothing();
-			continue;
-		}
+		if (law.action === 'enact') continue;
 		const lawId = law.lawId as string;
 		await ifBranchOf(db, lawId);
 		// 足す条の内部IDを先に作る。残っても版から指されなければ読まれない。内部IDは DB が採番する
@@ -330,11 +337,21 @@ async function applyBill(db: BatchDb, session: Session, bill: { id: number; rev:
 			const [created] = await db.insert(provisions).values({ lawId, kind: 'article' }).returning({ id: provisions.id });
 			await db.insert(ifAddedArticles).values({ lawId, num: change.num, provisionId: created.id, createdAt: now }).onConflictDoNothing();
 		}
-		await db.run(sql`
-			INSERT INTO ${ifRevisions} (law_id, seq, bill_id, bill_rev, law_seq, session_key, created_at)
-			SELECT ${lawId}, ${nextIfSeq(lawId)}, ${bill.id}, ${bill.rev}, ${law.seq}, ${session.key}, ${now}
-			ON CONFLICT DO NOTHING`);
 	}
+	// 反映：すべての法令の行を1つのトランザクションで入れる。途中で失敗しても半端に残らない（docs/spec/53.md 決めたこと8）。
+	// 新法の題名の重なりは握りつぶさない（id だけを対象にする）。確かめたあとに別の法案が同じ題名で入ったら全体が巻き戻り、次の処理で要調整になる
+	const statements = contents.map((law) =>
+		law.action === 'enact'
+			? db
+					.insert(ifLaws)
+					.values({ id: `if-${bill.id}`, billId: bill.id, billRev: bill.rev, title: law.newTitle as string, sessionKey: session.key, createdAt: now })
+					.onConflictDoNothing({ target: ifLaws.id })
+			: db
+					.insert(ifRevisions)
+					.values({ lawId: law.lawId as string, seq: nextIfSeq(law.lawId as string), billId: bill.id, billRev: bill.rev, lawSeq: law.seq, sessionKey: session.key, createdAt: now })
+					.onConflictDoNothing({ target: [ifRevisions.billId, ifRevisions.billRev, ifRevisions.lawSeq] })
+	);
+	await db.batch(statements as never);
 }
 
 /**
@@ -512,22 +529,22 @@ async function conflictNums(db: Db, lawId: string) {
 	return new Set(rows.filter((r) => !later(r)).map((r) => r.ifNum as string));
 }
 
-export type IfPlace = { lawId: string } | null;
+export type IfPlace = { lawId: string; title: string };
 
-/** 法案の版が反映された先。結果のページの「IF世界の条文を見る」に使う。なければ null */
-export async function ifPlaceOf(db: Db, billId: number, rev: number): Promise<IfPlace> {
-	const [revision] = await db
-		.select({ lawId: ifRevisions.lawId })
-		.from(ifRevisions)
-		.where(and(eq(ifRevisions.billId, billId), eq(ifRevisions.billRev, rev)))
-		.orderBy(asc(ifRevisions.lawSeq))
-		.limit(1);
-	if (revision) return { lawId: revision.lawId };
-	const [law] = await db
-		.select({ id: ifLaws.id })
-		.from(ifLaws)
-		.where(and(eq(ifLaws.billId, billId), eq(ifLaws.billRev, rev)));
-	return law ? { lawId: law.id } : null;
+/** 法案の版が反映された先（法令の順。制定の新法が先）。結果のページの「IF世界の条文を見る」に使う。反映の前は空（docs/spec/53.md 決めたこと10） */
+export async function ifPlacesOf(db: Db, billId: number, rev: number): Promise<IfPlace[]> {
+	const [revisions, enacted] = await Promise.all([
+		db
+			.select({ lawId: ifRevisions.lawId, title: laws.title, lawSeq: ifRevisions.lawSeq })
+			.from(ifRevisions)
+			.innerJoin(laws, eq(laws.id, ifRevisions.lawId))
+			.where(and(eq(ifRevisions.billId, billId), eq(ifRevisions.billRev, rev))),
+		db
+			.select({ lawId: ifLaws.id, title: ifLaws.title })
+			.from(ifLaws)
+			.where(and(eq(ifLaws.billId, billId), eq(ifLaws.billRev, rev)))
+	]);
+	return [...enacted.map((l) => ({ ...l, lawSeq: 0 })), ...revisions].sort((a, b) => a.lawSeq - b.lawSeq).map(({ lawId, title }) => ({ lawId, title }));
 }
 
 /** その会期の要調整の行（解決済みも含む） */
@@ -564,7 +581,7 @@ const adjustable = (a: { reason: AdjustmentReason; dueAt: number } | null, now: 
 export async function saveAdjustedBill(
 	db: BatchDb,
 	actor: Actor,
-	bill: { id: number; rev: number; proposedRev: number | null; proposedAt: number | null; userId: string; kind: BillKind; title: string; laws: { lawId: string | null; newTitle: string | null }[] },
+	bill: { id: number; rev: number; proposedRev: number | null; proposedAt: number | null; userId: string; kind: BillKind; title: string; laws: { action: BillKind; lawId: string | null; newTitle: string | null }[] },
 	expectedRev: number,
 	input: DraftInput,
 	now: number
@@ -575,7 +592,8 @@ export async function saveAdjustedBill(
 		.from(billAdjustments)
 		.where(and(eq(billAdjustments.billId, bill.id), isNull(billAdjustments.resolvedAt)));
 	if (bill.userId !== actor.userId || !adjustment || !adjustable(adjustment, now)) return { ok: true, saved: false };
-	const sameLaws = input.laws.length === bill.laws.length && input.laws.every((l, i) => l.lawId === bill.laws[i].lawId && (adjustment.reason === 'title' || l.newTitle === bill.laws[i].newTitle));
+	// 位置ごとに比べる（順番の入れ替えも、廃止と改正の切り替えも断る。docs/spec/53.md 決めたこと5）
+	const sameLaws = input.laws.length === bill.laws.length && input.laws.every((l, i) => l.action === bill.laws[i].action && l.lawId === bill.laws[i].lawId && (adjustment.reason === 'title' || l.newTitle === bill.laws[i].newTitle));
 	if (input.kind !== bill.kind || input.title !== bill.title || !sameLaws) return { ok: false, reason: 'locked' };
 	const [day] = await db
 		.select({ n: count() })
@@ -634,7 +652,8 @@ export async function ifLawPage(db: Db, lawId: string) {
 			db
 				.select()
 				.from(billChanges)
-				.where(and(eq(billChanges.billId, enacted.billId), eq(billChanges.rev, enacted.billRev))),
+				// 新法の条だけ（関連法の条は関連法のページに出る。docs/spec/53.md 決めたこと9）
+				.where(and(eq(billChanges.billId, enacted.billId), eq(billChanges.rev, enacted.billRev), eq(billChanges.lawSeq, 0))),
 			db.select({ id: bills.id, title: bills.title }).from(bills).where(eq(bills.id, enacted.billId))
 		]);
 		const articles = row
