@@ -96,7 +96,8 @@ async function replyAction(event: RequestEvent, kind: Extract<PostKind, 'answer'
 	if (kind === 'supplement' && role !== null) return fail(403, { message: ja.post.answererSupplement, ...keep });
 	const result = await createPost(db, checked.actor, { billId: bill.id, sessionKey: session.key, kind, parentId: questionId, role: kind === 'answer' ? role : null, body: input.body }, now, writerRole);
 	if (!result.ok) return fail(429, { message: refusalMessage(result.refusal), ...keep });
-	if (result.id === null) return fail(403, { message: ja.post.hiddenOp, ...keep });
+	// 確かめたあとに親の質疑が隠れたか、まとめられた
+	if (result.id === null) return fail(403, { message: (await questionOf(db, questionId, bill.id, session.key))?.status === 'merged' ? ja.post.mergedOp : ja.post.hiddenOp, ...keep });
 	return { posted: questionId };
 }
 

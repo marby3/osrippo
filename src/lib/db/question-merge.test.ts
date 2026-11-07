@@ -177,7 +177,9 @@ test('基準3：別の法案、別の会期、時期の外、非表示、同じ�
 	await w.restore(reported);
 	expect(await w.check(source, reported)).toBe('ok');
 	// 通報を受けている質疑を元にはできる
-	expect(await w.check(w.addPost(bill, w.addUser()), target)).toBe('ok');
+	const reportedSource = w.addPost(bill, w.addUser());
+	await reportPost(db, w.actor(w.addUser()), { id: reportedSource, billId: bill }, { reason: 'spam', note: null }, NOW);
+	expect(await w.check(reportedSource, target)).toBe('ok');
 
 	// 元か統合先が自分の質疑
 	const own = w.addPost(bill, 'mod');

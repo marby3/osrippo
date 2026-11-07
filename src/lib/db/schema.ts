@@ -760,7 +760,7 @@ export const posts = sqliteTable(
 		role: text('role').$type<PostRole>(),
 		body: text('body').notNull(),
 		// 通報と非表示（設計書 docs/spec/80.md）。status を変えると、トリガー（posts_status_log）が下の status_* の値で bill_moderation_logs に記録を書く。
-		// トリガーは drizzle/0023_post_reports.sql に手で書いたもので、drizzle のスナップショットにない。この表を作り直すマイグレーションでは、トリガーも消えるので書き直すこと。
+		// トリガーは drizzle/0025_question_merge.sql に手で書いたもの（最初は 0023）で、drizzle のスナップショットにない。この表を作り直すマイグレーションでは、トリガーも消えるので書き直すこと。
 		// 列を足すと createPost の答弁と補足の INSERT（全列をこの順に SELECT する）も直すこと
 		status: text('status', { enum: POST_STATUSES }).notNull().default('visible'),
 		createdAt: integer('created_at').notNull(),

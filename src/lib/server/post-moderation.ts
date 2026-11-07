@@ -175,12 +175,24 @@ export async function mergedPostsFor(db: Db, billId: number, userId: string | nu
 		.innerJoin(target, eq(target.id, posts.mergedInto))
 		.where(and(eq(posts.billId, billId), eq(posts.userId, userId), eq(posts.status, 'merged')))
 		.orderBy(desc(posts.id));
+	// 同じ統合先は1回だけ数える
+	const newerOf = new Map<number, Promise<number>>();
+	const newerThan = (targetId: number) => {
+		const known = newerOf.get(targetId);
+		if (known) return known;
+		const counted = db
+			.select({ n: count() })
+			.from(posts)
+			.where(and(eq(posts.billId, billId), eq(posts.kind, 'question'), inArray(posts.status, POST_SHOWN), gt(posts.id, targetId)))
+			.then(([row]) => row.n);
+		newerOf.set(targetId, counted);
+		return counted;
+	};
 	return Promise.all(
 		rows.map(async ({ id, body, targetId, targetStatus }) => {
 			if (!shownPost(targetStatus)) return { id, body, href: null };
 			// 統合先より新しい表示中の質疑の数からページを求める（一覧は新しい順）
-			const [newer] = await db.select({ n: count() }).from(posts).where(and(eq(posts.billId, billId), eq(posts.kind, 'question'), inArray(posts.status, POST_SHOWN), gt(posts.id, targetId)));
-			const page = Math.floor(newer.n / QUESTION_PAGE_SIZE) + 1;
+			const page = Math.floor((await newerThan(targetId)) / QUESTION_PAGE_SIZE) + 1;
 			return { id, body, href: `/houan/${billId}/shitsugi${page > 1 ? `?page=${page}` : ''}#shitsugi-${targetId}` };
 		})
 	);

@@ -959,6 +959,8 @@ export const ja = {
 		mergeNote: 'まとめるメモ（公開されます。個人情報は書かないでください）',
 		mergeSubmit: 'まとめる',
 		mergeClosed: 'まとめられるのは、いまの会期の3週目と4週目の質疑だけです',
+		mergeNoCandidates: 'まとめられる質疑がほかにありません',
+		mergeDone: '質疑をまとめました',
 		mergeInvalid: 'まとめる先が同じ法案と会期の表示中の質疑でないか、通報を受けて確認を待っています',
 		amendmentsHeading: '通報を受けた修正案',
 		amendmentsEmpty: '通報を受けた修正案はありません',

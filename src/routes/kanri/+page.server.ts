@@ -78,6 +78,8 @@ export const load: PageServerLoad = async (event) => {
 		focusAmendment = parseIssueId(params.get('amendment') ?? '');
 		if (focusAmendment === null || (await amendmentStaffAccess(db, focusAmendment, staff)) !== 'ok') error(404);
 	}
+	const now = nowOf(event);
+	const mergeOpen = focusPost !== null && (await mergeWindowOpen(db, focusPost, now, sessionsAt(now).minutes));
 	const rows = await reportedIssues(db, focus);
 	const solutionRows = await reportedSolutions(db, focusSolution);
 	return {
@@ -88,7 +90,9 @@ export const load: PageServerLoad = async (event) => {
 		focusSolution,
 		posts: await reportedPosts(db, staff, focusPost),
 		// まとめる先の候補（docs/spec/104.md の決定V）。時期の外と、質疑でないものには出さない
-		mergeCandidates: focusPost !== null && (await mergeWindowOpen(db, focusPost, nowOf(event), sessionsAt(nowOf(event)).minutes)) ? await mergeCandidates(db, focusPost, staff) : [],
+		mergeOpen,
+		mergeCandidates: mergeOpen && focusPost !== null ? await mergeCandidates(db, focusPost, staff) : [],
+		justMerged: params.get('matome') === '1',
 		focusPost,
 		amendments: await reportedAmendments(db, staff, focusAmendment),
 		reviews: await pendingReviews(db, staff.userId, staff.role)
@@ -190,7 +194,7 @@ const mergePost = async (event: RequestEvent) => {
 	if (can === 'involved') return fail(403, { message: ja.kanri.involvedPost, postId });
 	if (can === 'closed') return fail(409, { message: ja.kanri.mergeClosed, postId });
 	if (can === 'invalid' || !(await mergeQuestion(db as unknown as BatchDb, postId, targetId, staff, note, now))) return fail(400, { message: ja.kanri.mergeInvalid, postId });
-	redirect(303, `/kanri?post=${targetId}`);
+	redirect(303, `/kanri?post=${targetId}&matome=1`);
 };
 
 /** 修正案を非表示にする・表示に戻す（設計書 docs/spec/103.md の決定P）。役職 → 国 → 入力 → 存在 → 自分のもの → 関わり → 状態 */

@@ -91,7 +91,8 @@ test('基準7：運営が候補を選んでまとめると答弁が移り、ま�
 	await section.getByRole('radio', { name: targetText }).check();
 	await section.getByLabel('まとめるメモ').fill(`同じ内容だった ${s.label}`);
 	await section.getByRole('button', { name: 'まとめる', exact: true }).click();
-	await expect(staff.page).toHaveURL(new RegExp(`/kanri\\?post=${target}$`));
+	await expect(staff.page).toHaveURL(new RegExp(`/kanri\\?post=${target}&matome=1$`));
+	await expect(staff.page.getByText('質疑をまとめました')).toBeVisible();
 
 	// タブ：元は消え、答弁が統合先に移り、まとめた数が出る。元の本文はほかの人に出ない
 	const viewer = await s.person(day15);

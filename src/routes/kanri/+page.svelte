@@ -243,11 +243,15 @@
 					</form>
 				{/if}
 				<!-- 似た質疑をまとめる（?post= で指した質疑に、候補があるときだけ。docs/spec/104.md の決定V） -->
+				{#if data.justMerged && data.focusPost === row.id}<p role="status">{ja.kanri.mergeDone}</p>{/if}
+				{#if data.focusPost === row.id && row.kind === 'question' && LISTED.includes(row.status) && data.mergeCandidates.length === 0}
+					<p>{data.mergeOpen ? ja.kanri.mergeNoCandidates : ja.kanri.mergeClosed}</p>
+				{/if}
 				{#if data.focusPost === row.id && data.mergeCandidates.length}
 					<section aria-labelledby="merge-heading-{row.id}" class="merge">
 						<h4 id="merge-heading-{row.id}">{ja.kanri.mergeHeading}</h4>
 						<p><strong>{ja.kanri.mergeIrreversible}</strong></p>
-						<form method="post" action="?/mergeQuestion" use:enhance>
+						<form method="post" action="?post={row.id}&/mergeQuestion" use:enhance>
 							<input type="hidden" name="post" value={row.id} />
 							<fieldset>
 								<legend>{ja.kanri.mergeTarget}</legend>
