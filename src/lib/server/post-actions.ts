@@ -7,11 +7,13 @@ import { billProgress, referralSession } from '../domain/bills';
 import { evaluationOpen, parseEvaluationKind, parseEvaluationOp, READ_BATCH } from '../domain/evaluations';
 import { parseIssueId } from '../domain/issues';
 import { billWaitUntil } from '../domain/limits';
+import { isHidden, validateSolutionReport } from '../domain/reports';
 import { parseStance, postRoleOf, postWindowOpen, stanceOpen, validatePost, type PostKind } from '../domain/posts';
 import { billById } from './bills';
 import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
 import { evaluationTarget, recordViews, setEvaluation } from './evaluations';
 import { billRoleOf } from './cosponsors';
+import { reportPost } from './post-moderation';
 import { createPost, questionOf, setStance } from './posts';
 
 /** 送り先の法案。ない番号と下書きは 404（ログインより先に。下書きの有無が他人に分からないように） */
@@ -83,6 +85,8 @@ async function replyAction(event: RequestEvent, kind: Extract<PostKind, 'answer'
 	if (!postWindowOpen(kind, progress)) return fail(409, { message: ja.post.closed, ...keep });
 	const question = await questionOf(db, questionId, bill.id, session.key);
 	if (!question) error(404);
+	// 開いたあとで非表示になることもある。カードが出ないので、理由は一覧の上に出る
+	if (isHidden(question.status)) return fail(403, { message: ja.post.hiddenOp, ...keep });
 	const { userId } = checked.actor;
 	const writerRole = await billRoleOf(db, bill, userId);
 	const role = postRoleOf(writerRole);
@@ -91,6 +95,7 @@ async function replyAction(event: RequestEvent, kind: Extract<PostKind, 'answer'
 	if (kind === 'supplement' && role !== null) return fail(403, { message: ja.post.answererSupplement, ...keep });
 	const result = await createPost(db, checked.actor, { billId: bill.id, sessionKey: session.key, kind, parentId: questionId, role: kind === 'answer' ? role : null, body: input.body }, now, writerRole);
 	if (!result.ok) return fail(429, { message: refusalMessage(result.refusal), ...keep });
+	if (result.id === null) return fail(403, { message: ja.post.hiddenOp, ...keep });
 	return { posted: questionId };
 }
 
@@ -140,6 +145,32 @@ export async function evaluationAction(event: RequestEvent) {
 	const result = await setEvaluation(db, guard.actor, { id: postId, billId: bill.id, sessionKey: session.key }, kind, op, role, now);
 	if (!result.ok) return fail(429, { message: refusalMessage(result.refusal), ...keep });
 	return { evaluated: postId };
+}
+
+/**
+ * 投稿の通報（設計書 docs/spec/80.md の決定D）。法案の番号と存在 → ログイン → 国 → 締め出し → 入力 → 投稿がその法案のものか → 自分のもの → 状態 → 2回目 → 上限 → 保存。
+ * 登録から7日と Turnstile は使わない（課題と解決策と同じ）
+ */
+export async function reportPostAction(event: RequestEvent) {
+	const { db, bill } = await postableBill(event);
+	const user = event.locals.user;
+	if (!user) redirect(303, `/login?next=${encodeURIComponent(questionsPath(bill.id))}`);
+	const now = nowOf(event);
+	const form = await event.request.formData();
+	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
+	const postId = parseIssueId(field('post') ?? '');
+	const guard = await writeGuard(event, db, user, now);
+	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, reportPost: postId });
+	const checked = validateSolutionReport({ reason: field('reason'), note: field('note') });
+	if (postId === null || !checked.ok) error(400);
+	const result = await reportPost(db, guard.actor, { id: postId, billId: bill.id }, checked.value, now);
+	if (!result.ok) {
+		if (result.reason === 'missing') error(404);
+		if (result.reason === 'own') error(400);
+		if (result.reason === 'hidden') return fail(403, { message: ja.post.hiddenOp, reportPost: postId });
+		return fail(429, { message: refusalMessage(result.refusal), reportPost: postId });
+	}
+	return { reportMessage: result.already ? ja.post.reportAlready : ja.post.reportDone, reportPost: postId };
 }
 
 /** 読んだ記録。応答は画面に出さず、失敗しても画面は黙って捨てる（docs/spec/67.md 決めたこと4）。記録にもレート制限にも数えない */

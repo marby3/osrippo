@@ -87,3 +87,22 @@ export const RESTORABLE: IssueStatus[] = ['auto_hidden', 'hidden'];
 export const LISTED: IssueStatus[] = ['visible', 'restored'];
 /** 表示中の解決策の状態（解決策には merged がない） */
 export const SOLUTION_SHOWN = ['visible', 'restored'] as const;
+
+/** 表示中の投稿の状態（設計書 docs/spec/80.md） */
+export const POST_SHOWN = ['visible', 'restored'] as const;
+export const POST_HIDDEN = ['auto_hidden', 'hidden'] as const;
+/** 立候補の資格に数える投稿の状態（決定J） */
+export const POST_CANDIDACY = [...POST_SHOWN, 'auto_hidden'] as const;
+/** hidden でもこの役職の操作なら資格に数える（選挙の相手になりうる人の操作で立候補を止められないように。決定J） */
+export const POST_CANDIDACY_ACTORS = ['chair', 'director'] as const;
+
+/** 投稿への運営の操作：投稿の番号、非表示の理由（非表示にするときだけ）、メモ */
+export function validatePostAction(
+	raw: { post: string | null; reason?: string | null; note: string | null },
+	action: 'hide' | 'restore'
+): { ok: true; value: { postId: number; reason: HideReason | null; note: string } } | { ok: false } {
+	const checked = validateStaffAction({ issue: raw.post, reason: raw.reason, note: raw.note }, action);
+	if (!checked.ok) return { ok: false };
+	const { issueId: postId, reason, note } = checked.value;
+	return { ok: true, value: { postId, reason, note } };
+}

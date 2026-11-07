@@ -737,6 +737,8 @@ export const voteAssignments = sqliteTable(
 	]
 );
 
+const POST_STATUSES = ['visible', 'auto_hidden', 'hidden', 'restored'] as const;
+
 /**
  * 質疑・答弁・補足（設計書 docs/spec/66.md）。答弁と補足の parent_id はその質疑。
  * session_key は付託先の会期（要調整で次の会期に審議するときに分けるため）。
@@ -757,10 +759,19 @@ export const posts = sqliteTable(
 			.references(() => user.id),
 		role: text('role').$type<PostRole>(),
 		body: text('body').notNull(),
-		status: text('status').notNull().default('visible'),
+		// 通報と非表示（設計書 docs/spec/80.md）。status を変えると、トリガー（posts_status_log）が下の status_* の値で bill_moderation_logs に記録を書く。
+		// トリガーは drizzle/0023_post_reports.sql に手で書いたもので、drizzle のスナップショットにない。この表を作り直すマイグレーションでは、トリガーも消えるので書き直すこと。
+		// 列を足すと createPost の答弁と補足の INSERT（全列をこの順に SELECT する）も直すこと
+		status: text('status', { enum: POST_STATUSES }).notNull().default('visible'),
 		createdAt: integer('created_at').notNull(),
 		/** 書いた時点の立場（設計書 docs/spec/67.md 決めたこと6）。非公開。CHECK を足すと表が作り直されるので、値は型で絞る */
-		stance: text('stance', { enum: STANCES }).notNull().default('undecided')
+		stance: text('stance', { enum: STANCES }).notNull().default('undecided'),
+		statusActor: text('status_actor', { enum: MODERATION_ACTORS }),
+		/** 対応した人。公開しない */
+		statusActorUserId: text('status_actor_user_id'),
+		statusReason: text('status_reason', { enum: HIDE_LOG_REASONS }),
+		statusNote: text('status_note'),
+		statusChangedAt: integer('status_changed_at')
 	},
 	(t) => [
 		foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }),
@@ -772,6 +783,47 @@ export const posts = sqliteTable(
 		check('posts_parent_kind', sql`(${t.kind} = 'question') = (${t.parentId} IS NULL)`),
 		check('posts_role_kind', sql`(${t.kind} = 'answer') = (${t.role} IS NOT NULL)`)
 	]
+);
+
+/** 質疑・答弁・補足の通報（設計書 docs/spec/80.md）。counted は登録から24時間たっていて、その法案に関わっていないか */
+export const postReports = sqliteTable(
+	'post_reports',
+	{
+		id: integer('id').primaryKey(),
+		postId: integer('post_id')
+			.notNull()
+			.references(() => posts.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		reason: text('reason', { enum: SOLUTION_REPORT_REASONS_DB }).notNull(),
+		note: text('note'),
+		counted: integer('counted', { mode: 'boolean' }).notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [unique().on(t.postId, t.userId), index('post_reports_user').on(t.userId, t.createdAt), check('post_reports_reason', sql`${t.reason} IN (${inList(SOLUTION_REPORT_REASONS_DB)})`)]
+);
+
+/**
+ * 法案の投稿への対応の記録（設計書 docs/spec/80.md）。行を書くのはトリガーだけ。moderation_logs は issue_id が NOT NULL なので別の表にする。
+ * post_id が NULL 可なのは、#103 で修正案の行を入れるため。action と actor に CHECK を付けないのは、#104 で値を足すときに作り直さないため
+ */
+export const billModerationLogs = sqliteTable(
+	'bill_moderation_logs',
+	{
+		id: integer('id').primaryKey(),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		postId: integer('post_id').references(() => posts.id),
+		action: text('action', { enum: ['auto_hide', 'hide', 'restore'] }).notNull(),
+		actor: text('actor', { enum: MODERATION_ACTORS }).notNull(),
+		actorUserId: text('actor_user_id'),
+		reason: text('reason', { enum: HIDE_LOG_REASONS }),
+		note: text('note'),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [index('bill_moderation_logs_actor_user').on(t.actorUserId, t.createdAt)]
 );
 
 /**

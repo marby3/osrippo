@@ -4,9 +4,11 @@ import { actions, billSupports, posts, stances } from '../db/schema';
 import { DAY, LIMITS, checkBillPost } from '../domain/limits';
 import { EVALUATION_KINDS, type EvaluationKind } from '../domain/evaluations';
 import { QUESTION_PAGE_SIZE, STANCE_CHANGES, type PostKind, type BillRole, type PostRole, type Stance } from '../domain/posts';
+import { POST_SHOWN } from '../domain/reports';
 import type { Session } from '../domain/session';
 import { supportRev } from './bills';
 import { pressedOnBill, stanceNow } from './evaluations';
+import { POST_SHOWN_SQL } from './post-status';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
 
@@ -29,13 +31,16 @@ export async function isSupporter(db: Db, bill: { id: number; rev: number; propo
 /** その法案のその会期の質疑。なければ undefined */
 export async function questionOf(db: Db, questionId: number, billId: number, sessionKey: string) {
 	const [row] = await db
-		.select({ id: posts.id, userId: posts.userId })
+		.select({ id: posts.id, userId: posts.userId, status: posts.status })
 		.from(posts)
 		.where(and(eq(posts.id, questionId), eq(posts.billId, billId), eq(posts.sessionKey, sessionKey), eq(posts.kind, 'question')));
 	return row;
 }
 
-/** 上限を確かめて書く。writerRole は書く人の役割（posts.role は答弁だけに入れるので別に受け取る）。書いた時点の立場を残す（docs/spec/67.md 決めたこと6） */
+/**
+ * 上限を確かめて書く。writerRole は書く人の役割（posts.role は答弁だけに入れるので別に受け取る）。書いた時点の立場を残す（docs/spec/67.md 決めたこと6）。
+ * 答弁と補足は親の質疑が表示中のときだけ入る1文で書く（確かめたあとに非表示になっても、隠れた質疑の下に増えない。docs/spec/80.md）。入らなければ id は null で、記録を足さない
+ */
 export async function createPost(
 	db: Db,
 	actor: Actor,
@@ -51,22 +56,31 @@ export async function createPost(
 	const [ipDay] = await db.select({ n: count() }).from(actions).where(and(eq(actions.ipHash, actor.ipHash), allKinds, gt(actions.createdAt, since)));
 	const refusal = checkBillPost(post.kind, { accountDay: accountDay.n, accountBurst: accountBurst.n, ipDay: ipDay.n });
 	if (refusal) return refuse(db, actor, refusal, now);
-	const [row] = await db
-		.insert(posts)
-		.values({ ...post, userId: actor.userId, createdAt: now, stance: stanceNow(post.sessionKey, post.billId, actor.userId, writerRole) })
-		.returning({ id: posts.id });
+	const stance = stanceNow(post.sessionKey, post.billId, actor.userId, writerRole);
+	const [row] =
+		post.parentId === null
+			? await db
+					.insert(posts)
+					.values({ ...post, userId: actor.userId, createdAt: now, stance })
+					.returning({ id: posts.id })
+			: await db
+					.insert(posts)
+					// 全列を schema.ts の順に並べる（列を足すとここも直す）。末尾の5つは status_*
+					.select(sql`SELECT NULL, ${post.billId}, ${post.sessionKey}, ${post.kind}, ${post.parentId}, ${actor.userId}, ${post.role}, ${post.body}, 'visible', ${now}, ${stance}, NULL, NULL, NULL, NULL, NULL WHERE EXISTS (SELECT 1 FROM posts q WHERE q.id = ${post.parentId} AND q.status IN (${POST_SHOWN_SQL}))`)
+					.returning({ id: posts.id });
+	if (!row) return { ok: true as const, id: null };
 	await db.insert(actions).values({ kind: POST_ACTION[post.kind], userId: actor.userId, ipHash: actor.ipHash, targetId: post.billId, createdAt: now });
 	return { ok: true as const, id: row.id };
 }
 
 // 副問い合わせの中の id と混ざらないよう、列は表の名前を付けて書く（drizzle の ${table.col} は表名なしの列名になる）
-const unanswered = sql`NOT EXISTS (SELECT 1 FROM ${posts} a WHERE a.parent_id = ${posts}.id AND a.kind = 'answer' AND a.status = 'visible')`;
+const unanswered = sql`NOT EXISTS (SELECT 1 FROM ${posts} a WHERE a.parent_id = ${posts}.id AND a.kind = 'answer' AND a.status IN (${POST_SHOWN_SQL}))`;
 // 関連法案の数に上限がないので、番号は JSON の1つの値で渡す（D1 は1文に100個までしか値を結び付けられない）
 const questions = (billId: number, related: number[] = []) =>
 	and(
 		related.length ? sql`${posts}.bill_id IN (SELECT value FROM json_each(${JSON.stringify([billId, ...related])}))` : eq(posts.billId, billId),
 		eq(posts.kind, 'question'),
-		eq(posts.status, 'visible')
+		inArray(posts.status, POST_SHOWN)
 	);
 
 /** 質疑の数（すべて）。related は一緒に数える関連法案 */
@@ -99,7 +113,7 @@ export async function listQuestions(db: Db, billId: number, userId: string | nul
 		? await db
 				.select({ id: posts.id, parentId: posts.parentId, kind: posts.kind, role: posts.role, body: posts.body, userId: posts.userId })
 				.from(posts)
-				.where(and(inArray(posts.parentId, shown.map((q) => q.id)), eq(posts.status, 'visible')))
+				.where(and(inArray(posts.parentId, shown.map((q) => q.id)), inArray(posts.status, POST_SHOWN)))
 				.orderBy(asc(posts.id))
 		: [];
 	const of = (id: number, kind: PostKind) => children.filter((c) => c.parentId === id && c.kind === kind);
@@ -115,7 +129,7 @@ export async function listQuestions(db: Db, billId: number, userId: string | nul
 			mine: q.userId === userId,
 			pressed: pressedOf(q.id),
 			answers: of(q.id, 'answer').map((a) => ({ id: a.id, role: a.role as PostRole, body: a.body, mine: a.userId === userId, pressed: pressedOf(a.id) })),
-			supplements: of(q.id, 'supplement').map((s) => ({ id: s.id, body: s.body }))
+			supplements: of(q.id, 'supplement').map((s) => ({ id: s.id, body: s.body, mine: s.userId === userId }))
 		})),
 		hasNext: rows.length > QUESTION_PAGE_SIZE
 	};

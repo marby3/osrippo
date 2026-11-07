@@ -332,7 +332,7 @@ type StaffRole = (typeof STAFF_ROLES)[number];
  * 関わった人か：提出者、賛同者（どの版の賛同でも）、共同提出者と抜けた共同提出者（docs/spec/76.md の決定G）。確認の2か所で同じ式を使う。
  * 委員長と理事はふつうの参加者なので、投票した法案も関わったことにする（票は非公開で、利害が外から見えないため。docs/spec/77.md 決めたこと5）
  */
-const involvedSql = (userId: string, role: StaffRole) =>
+export const involvedSql = (userId: string, role: StaffRole) =>
 	sql<number>`(${bills}.user_id = ${userId}
 		OR EXISTS (SELECT 1 FROM ${billSupports} s WHERE s.bill_id = ${bills}.id AND s.user_id = ${userId})
 		OR EXISTS (SELECT 1 FROM bill_cosponsors c WHERE c.bill_id = ${bills}.id AND c.user_id = ${userId} AND c.status IN ('accepted', 'left'))${role === 'chair' || role === 'director' ? sql` OR EXISTS (SELECT 1 FROM ${votes} v WHERE v.bill_id = ${bills}.id AND v.user_id = ${userId})` : sql``})`;
@@ -341,6 +341,9 @@ export async function involvedInBill(db: Db, billId: number, userId: string, rol
 	const [row] = await db.select({ involved: involvedSql(userId, role) }).from(bills).where(eq(bills.id, billId));
 	return Boolean(row?.involved);
 }
+
+/** 提出者、賛同者、共同提出者か（投票は見ない。投稿の通報を数に入れるかに使う。docs/spec/80.md の決定B） */
+export const partyToBill = (db: Db, billId: number, userId: string) => involvedInBill(db, billId, userId, 'operator');
 
 /** 公開の記録：新しい順に50件ごと。集計と対応した人の ID は返さない */
 export async function reviewLogPage(db: Db, page: number) {

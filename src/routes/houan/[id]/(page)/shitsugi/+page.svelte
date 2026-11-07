@@ -35,6 +35,15 @@
 	// 同じ画面のまま別の法案へ移ると送り先が変わるので、移る前に送る
 	beforeNavigate(() => tracker.flush());
 	const track = $derived(data.loggedIn && data.evaluationShown ? tracker : null);
+	/** 通報の結果（そのカードに出す） */
+	const reportResult = $derived(form?.reportPost != null ? { post: form.reportPost, done: form.reportMessage, message: form.message } : null);
+	const shownIds = $derived(new Set(data.questions.flatMap((q) => [q.id, ...q.answers.map((a) => a.id), ...q.supplements.map((s) => s.id)])));
+	/** カードが消えたとき（3件目で非表示になった、開いたあとに質疑が非表示になった）は、結果を一覧の上に出す */
+	const goneNotice = $derived.by(() => {
+		if (reportResult && !shownIds.has(reportResult.post)) return reportResult.done ?? reportResult.message;
+		if (failure?.question != null && !shownIds.has(failure.question)) return failure.message;
+		return undefined;
+	});
 	const choices: Stance[] = ['for', 'undecided', 'against'];
 	const nextHref = $derived(`${base}?${data.onlyWaiting ? 'mati=1&' : data.withRelated ? 'kanren=1&' : ''}page=${data.page + 1}`);
 	/** 関連法案の質疑は読むだけ（Issue #69）。書くのと評価はその法案のページで行う */
@@ -74,6 +83,7 @@
 	{/if}
 
 	<div class="list">
+		{#if goneNotice}<p role="status" class="gone">{goneNotice}</p>{/if}
 		<nav class="filters" aria-label={ja.post.filters}>
 			<a href={base} aria-current={data.onlyWaiting || data.withRelated ? undefined : 'page'}>{ja.post.all}</a>
 			<a href="{base}?mati=1" aria-current={data.onlyWaiting ? 'page' : undefined}>{ja.post.waitingCount(data.waitingCount)}</a>
@@ -98,11 +108,29 @@
 				evaluationShown={!relatedBill && !past && data.evaluationShown}
 				{evaluationFailure}
 				track={relatedBill || past ? null : track}
+				staffHere={!relatedBill && data.staffHere}
+				reportedIds={data.reportedIds}
+				{reportResult}
 			/>
 		{:else}
 			<p class="empty">{data.onlyWaiting ? ja.post.emptyWaiting : ja.post.empty}</p>
 		{/each}
 		{#if data.hasNext}<p class="more"><a href={nextHref}>{ja.post.more(data.totalCount)}</a></p>{/if}
+		{#if data.hiddenPosts.length}
+			<section class="hidden-posts" aria-labelledby="hidden-posts-heading">
+				<h2 id="hidden-posts-heading">{ja.post.hiddenHeading}</h2>
+				{#each data.hiddenPosts as post (post.id)}
+					<article>
+						<h3>{ja.post.kinds[post.kind]}</h3>
+						<p class="notice">
+							{#if post.parentHidden}{ja.post.parentHidden}{:else if post.status === 'hidden' && post.statusReason}{ja.post.hiddenStaff(ja.hideReasons[post.statusReason])}{:else}{ja.post.hiddenAuto}{/if}
+						</p>
+						<p class="body">{post.body}</p>
+						{#if data.staffHere && !post.mine && !post.parentHidden}<p class="staff"><a href="/kanri?post={post.id}">{ja.post.staffLink}</a></p>{/if}
+					</article>
+				{/each}
+			</section>
+		{/if}
 	</div>
 
 	{#if data.canQuestion || data.evaluationShown}
@@ -225,6 +253,60 @@
 
 	.more {
 		margin: 0;
+	}
+
+	.gone {
+		margin: 0;
+		padding: 0.5rem 0.75rem;
+		border-radius: var(--radius-m);
+		background: var(--color-surface);
+		font-size: var(--font-size-sub);
+	}
+
+	.hidden-posts {
+		display: grid;
+		gap: 0.75rem;
+		padding-top: 1rem;
+	}
+
+	.hidden-posts article {
+		display: grid;
+		gap: 0.5rem;
+		padding: 1rem;
+		border: 1px dashed var(--color-text-sub);
+		border-radius: var(--radius-l);
+	}
+
+	.hidden-posts h3 {
+		margin: 0;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+
+	.hidden-posts .notice {
+		margin: 0;
+		padding: 0.5rem 0.75rem;
+		border-radius: var(--radius-m);
+		background: var(--color-caution-bg);
+		color: var(--color-caution);
+		font-size: var(--font-size-sub);
+	}
+
+	.hidden-posts .body {
+		margin: 0;
+		white-space: pre-line;
+		overflow-wrap: anywhere;
+	}
+
+	.hidden-posts .staff {
+		margin: 0;
+		font-size: var(--font-size-sub);
+	}
+
+	.hidden-posts .staff a {
+		display: inline-flex;
+		align-items: center;
+		min-height: var(--tap-min);
 	}
 
 	/* 案（PcBillQA）の右の列の説明文。スマホの案にはない */

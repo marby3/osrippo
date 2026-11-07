@@ -5,12 +5,13 @@ import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '#lib/copy/ja.ts';
 import { checkText, parseIssueId } from '#lib/domain/issues.ts';
 import { REVIEW_NOTE_MAX } from '#lib/domain/anomalies.ts';
-import { HIDEABLE, LISTED, RESTORABLE, validateSolutionAction, validateStaffAction } from '#lib/domain/reports.ts';
+import { HIDEABLE, LISTED, RESTORABLE, validatePostAction, validateSolutionAction, validateStaffAction } from '#lib/domain/reports.ts';
 import { staffRoleOf } from '#lib/server/chairs.ts';
 import { allowedCountry, clientOf, nowOf, sessionsAt } from '#lib/server/client.ts';
 import type { BatchDb, Db } from '#lib/server/law.ts';
 import { decideReview, involvedInBill, pendingReviews } from '#lib/server/results.ts';
 import { issueMeta } from '#lib/server/issues.ts';
+import { changePostStatus, postStaffAccess, reportedPosts } from '#lib/server/post-moderation.ts';
 import { changeStatus, mergeIssue, mergePreview, reportedIssues, staffRows } from '#lib/server/reports.ts';
 import { changeSolutionStatus, reportedSolutions, solutionMeta } from '#lib/server/solutions.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -64,6 +65,12 @@ export const load: PageServerLoad = async (event) => {
 		focusSolution = parseIssueId(params.get('solution') ?? '');
 		if (focusSolution === null || !(await solutionMeta(db, focusSolution))) error(404);
 	}
+	// 通報を受けた投稿（?post=[番号] で、その投稿を上に。自分のものと関わった法案は 404。設計書 docs/spec/80.md の決定N）
+	let focusPost: number | null = null;
+	if (params.has('post')) {
+		focusPost = parseIssueId(params.get('post') ?? '');
+		if (focusPost === null || (await postStaffAccess(db, focusPost, staff)) !== 'ok') error(404);
+	}
 	const rows = await reportedIssues(db, focus);
 	const solutionRows = await reportedSolutions(db, focusSolution);
 	return {
@@ -72,6 +79,8 @@ export const load: PageServerLoad = async (event) => {
 		merge,
 		solutions: staffRows(solutionRows, staff.userId),
 		focusSolution,
+		posts: await reportedPosts(db, staff, focusPost),
+		focusPost,
 		reviews: await pendingReviews(db, staff.userId, staff.role)
 	};
 };
@@ -133,6 +142,28 @@ const actOnSolution = (action: 'hide' | 'restore') => async (event: RequestEvent
 	return { doneSolution: solutionId };
 };
 
+/** 投稿を非表示にする・表示に戻す（設計書 docs/spec/80.md の決定P）。役職 → 国 → 入力 → 存在 → 自分のもの → 関わり → 状態 */
+const actOnPost = (action: 'hide' | 'restore') => async (event: RequestEvent) => {
+	const { db, staff } = await staffOf(event);
+	if (!allowedCountry(clientOf(event).country)) return fail(403, { message: ja.guard.outsideJapan, postId: null });
+	const form = await event.request.formData();
+	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
+	const checked = validatePostAction({ post: field('post'), reason: field('reason'), note: field('note') }, action);
+	if (!checked.ok) return fail(400, { message: ja.kanri.invalid, postId: null });
+	const { postId, reason, note } = checked.value;
+	const access = await postStaffAccess(db, postId, staff);
+	if (access === 'missing') return fail(404, { message: ja.kanri.invalid, postId: null });
+	if (access === 'own') return fail(403, { message: ja.kanri.ownPost, postId });
+	if (access === 'involved') return fail(403, { message: ja.kanri.involvedPost, postId });
+	const now = nowOf(event);
+	const changed =
+		action === 'hide'
+			? await changePostStatus(db, postId, HIDEABLE, 'hidden', staff, reason, note, now)
+			: await changePostStatus(db, postId, RESTORABLE, 'restored', staff, null, note, now);
+	if (!changed) return fail(400, { message: action === 'hide' ? ja.kanri.alreadyHidden : ja.kanri.alreadyShown, postId });
+	return { donePost: postId };
+};
+
 /** 結果の確認（docs/spec/73.md 決めたこと7）。確かめの順：役職 → 国 → 入力 → 自分の関わり → 状態 */
 const decide = (decision: 'confirm' | 'void') => async (event: RequestEvent) => {
 	const { db, staff } = await staffOf(event);
@@ -156,5 +187,7 @@ export const actions: Actions = {
 	restore: act('restore'),
 	merge: act('merge'),
 	hideSolution: actOnSolution('hide'),
-	restoreSolution: actOnSolution('restore')
+	restoreSolution: actOnSolution('restore'),
+	hidePost: actOnPost('hide'),
+	restorePost: actOnPost('restore')
 };

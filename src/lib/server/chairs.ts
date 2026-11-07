@@ -1,8 +1,9 @@
 // 委員長選挙と理事、解任動議（Issue #77。設計書 docs/spec/77.md）。
 // Cron の入口からも読むので、cloudflare:workers と import.meta.env に頼らない
-import { and, asc, count, eq, gte, inArray, isNull, lt, max, ne, sql } from 'drizzle-orm';
-import { bills, chairCandidates, CHAIR_ROLES, chairElections, chairTerms, chairVotes, committees, moderationLogs, posts, recallSignatures, user, voteReviews, type STAFF_ROLES } from '../db/schema';
+import { and, asc, count, eq, gte, inArray, isNull, lt, max, ne, or, sql } from 'drizzle-orm';
+import { billModerationLogs, bills, chairCandidates, CHAIR_ROLES, chairElections, chairTerms, chairVotes, committees, moderationLogs, posts, recallSignatures, user, voteReviews, type STAFF_ROLES } from '../db/schema';
 import { ACTING_AFTER, CHAIR_ACCOUNTS_PER_IP, candidacyOpen, consecutiveLimit, electionOpen, electionResult, recallRequirement } from '../domain/chairs';
+import { POST_CANDIDACY, POST_CANDIDACY_ACTORS } from '../domain/reports';
 import { sessionAt, type Session } from '../domain/session';
 import { drawAssignments, SETTLE_GRACE } from '../domain/votes';
 import { sessionParticipants } from './bills';
@@ -16,7 +17,10 @@ const isStaff = async (db: Db, userId: string) => (await roleOf(db, userId)) !==
 
 export type StandBlock = 'staff' | 'consecutive' | 'noPost';
 
-/** 立候補できない理由。その会期に、その委員会の法案に質疑か答弁を書いた人だけ（非表示は数えない） */
+/**
+ * 立候補できない理由。その会期に、その委員会の法案に質疑か答弁を書いた人だけ。
+ * 自動の非表示と、委員長か理事の非表示は数え、運営か運営協力者の非表示は数えない（docs/spec/80.md の決定J）
+ */
 export async function standBlock(db: Db, userId: string, committeeId: number, session: Session, previous: Session): Promise<StandBlock | null> {
 	if (await isStaff(db, userId)) return 'staff';
 	const chaired = await db
@@ -29,7 +33,7 @@ export async function standBlock(db: Db, userId: string, committeeId: number, se
 		.select({ id: posts.id })
 		.from(posts)
 		.innerJoin(bills, eq(bills.id, posts.billId))
-		.where(and(eq(posts.userId, userId), eq(posts.sessionKey, session.key), inArray(posts.kind, ['question', 'answer']), eq(posts.status, 'visible'), eq(bills.committeeId, committeeId)))
+		.where(and(eq(posts.userId, userId), eq(posts.sessionKey, session.key), inArray(posts.kind, ['question', 'answer']), or(inArray(posts.status, POST_CANDIDACY), and(eq(posts.status, 'hidden'), inArray(posts.statusActor, POST_CANDIDACY_ACTORS))), eq(bills.committeeId, committeeId)))
 		.limit(1);
 	return written.length ? null : 'noPost';
 }
@@ -157,19 +161,23 @@ export async function settleElection(db: BatchDb, committeeId: number, session: 
 	] as never);
 }
 
-/** 委員長の最後の操作の時刻。委員長の役職で行ったものだけ（課題と解決策の操作と統合、結果の確認） */
+/** 委員長の最後の操作の時刻。委員長の役職で行ったものだけ（課題と解決策と投稿の操作と統合、結果の確認） */
 export async function lastChairAction(db: Db, userId: string, term: Session): Promise<number | null> {
-	const [[log], [review]] = await Promise.all([
+	const [[log], [postLog], [review]] = await Promise.all([
 		db
 			.select({ at: max(moderationLogs.createdAt) })
 			.from(moderationLogs)
 			.where(and(eq(moderationLogs.actorUserId, userId), eq(moderationLogs.actor, 'chair'), gte(moderationLogs.createdAt, term.startsAt), lt(moderationLogs.createdAt, term.endsAt))),
 		db
+			.select({ at: max(billModerationLogs.createdAt) })
+			.from(billModerationLogs)
+			.where(and(eq(billModerationLogs.actorUserId, userId), eq(billModerationLogs.actor, 'chair'), gte(billModerationLogs.createdAt, term.startsAt), lt(billModerationLogs.createdAt, term.endsAt))),
+		db
 			.select({ at: max(voteReviews.decidedAt) })
 			.from(voteReviews)
 			.where(and(eq(voteReviews.decidedBy, userId), eq(voteReviews.decidedRole, 'chair'), gte(voteReviews.decidedAt, term.startsAt), lt(voteReviews.decidedAt, term.endsAt)))
 	]);
-	const latest = Math.max(log?.at ?? -1, review?.at ?? -1);
+	const latest = Math.max(log?.at ?? -1, postLog?.at ?? -1, review?.at ?? -1);
 	return latest < 0 ? null : latest;
 }
 

@@ -3,16 +3,18 @@
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	/** 2つの表は別々にページを送る。片方を送っても、もう片方の位置を保つ */
-	const hrefOf = (page: number, kakunin: number) => {
+	/** 3つの表は別々にページを送る。1つを送っても、ほかの位置を保つ */
+	const hrefOf = (page: number, kakunin: number, shitsugi: number) => {
 		const params = new URLSearchParams();
 		if (page > 1) params.set('page', String(page));
 		if (kakunin > 1) params.set('kakunin', String(kakunin));
+		if (shitsugi > 1) params.set('shitsugi', String(shitsugi));
 		const query = params.toString();
 		return query ? `/unei?${query}` : '/unei';
 	};
-	const pageHref = (page: number) => hrefOf(page, data.reviewPage);
-	const reviewHref = (kakunin: number) => hrefOf(data.page, kakunin);
+	const pageHref = (page: number) => hrefOf(page, data.reviewPage, data.postPage);
+	const reviewHref = (kakunin: number) => hrefOf(data.page, kakunin, data.postPage);
+	const postHref = (shitsugi: number) => hrefOf(data.page, data.reviewPage, shitsugi);
 </script>
 
 <svelte:head>
@@ -98,6 +100,40 @@
 			{#if data.reviewsHasNext}<a href={reviewHref(data.reviewPage + 1)}>{ja.unei.nextPage}</a>{/if}
 		</nav>
 	{/if}
+
+	<section aria-labelledby="post-log-heading">
+		<h2 id="post-log-heading">{ja.unei.postLogHeading}</h2>
+		{#if data.postLogs.length === 0}
+			<p>{ja.unei.empty}</p>
+		{:else}
+			<table>
+				<thead>
+					<tr>
+						{#each Object.values(ja.unei.postColumns) as column (column)}<th scope="col">{column}</th>{/each}
+					</tr>
+				</thead>
+				<tbody>
+					{#each data.postLogs as row (row.id)}
+						<tr>
+							<td data-label={ja.unei.postColumns.at}>{jaDateTimeFull(row.createdAt)}</td>
+							<td data-label={ja.unei.postColumns.bill}><a href="/houan/{row.billId}/shitsugi">{row.title}</a></td>
+							<td data-label={ja.unei.postColumns.kind}>{ja.post.kinds[row.kind]}</td>
+							<td data-label={ja.unei.postColumns.action}>{ja.unei.actions[row.action]}</td>
+							<td data-label={ja.unei.postColumns.actor}>{ja.unei.actors[row.actor]}</td>
+							<td data-label={ja.unei.postColumns.reason}>{#if row.reason}{ja.hideReasons[row.reason]}{/if}</td>
+							<td data-label={ja.unei.postColumns.note} class="note">{row.note ?? ''}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{/if}
+		{#if data.postPage > 1 || data.postLogsHasNext}
+			<nav class="pages" aria-label={ja.unei.postLogPages}>
+				{#if data.postPage > 1}<a href={postHref(data.postPage - 1)}>{ja.unei.prevPage}</a>{/if}
+				{#if data.postLogsHasNext}<a href={postHref(data.postPage + 1)}>{ja.unei.nextPage}</a>{/if}
+			</nav>
+		{/if}
+	</section>
 </main>
 
 <style>

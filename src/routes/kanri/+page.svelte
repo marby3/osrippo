@@ -15,6 +15,7 @@
 	let { data, form }: PageProps = $props();
 	const reasons = [...REPORT_REASONS, 'none'] as const;
 	const solutionReasons = [...SOLUTION_REPORT_REASONS, 'none'] as const;
+	const postAlert = (id: number) => (form && 'message' in form && 'postId' in form && form.postId === id ? form.message : undefined);
 	/** 解決策の操作を断った理由は、その解決策のところに出す */
 	const solutionAlert = (id: number) =>
 		form && 'message' in form && 'solutionId' in form && form.solutionId === id ? form.message : undefined;
@@ -28,7 +29,7 @@
 <main>
 	<h1>{ja.kanri.heading}</h1>
 	<!-- 断った文言は、その課題・解決策のところに出す（どれか分からないときだけ上に） -->
-	{#if form && 'message' in form && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
+	{#if form && 'message' in form && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
 		<p role="alert">{form.message}</p>
 	{/if}
 	{#if data.rows.length === 0}
@@ -189,6 +190,56 @@
 							<button>{ja.kanri.restore}</button>
 						</form>
 					{/if}
+				{/if}
+			</article>
+		{/each}
+	</section>
+
+	<section aria-labelledby="posts-heading">
+		<h2 id="posts-heading" class="section">{ja.kanri.postsHeading}</h2>
+		{#if data.posts.length === 0}<p>{ja.kanri.postsEmpty}</p>{/if}
+		{#each data.posts as row (row.id)}
+			<article>
+				<h3><a href="/houan/{row.billId}/shitsugi">{row.billTitle}</a> {ja.kanri.postOf(ja.post.kinds[row.kind])}</h3>
+				<p class="body">{row.body}</p>
+				<p class="status">{ja.kanri.statuses[row.status]}</p>
+				{#if row.parentHidden}<p>{ja.post.parentHidden}</p>{/if}
+				{#if postAlert(row.id)}<p role="alert">{postAlert(row.id)}</p>{/if}
+				<p>{ja.kanri.reportCount(row.total, row.counted)}</p>
+				<ul class="reasons">
+					{#each solutionReasons as reason (reason)}
+						{#if row[reason] > 0}<li>{ja.report.reasons[reason]} {row[reason]}</li>{/if}
+					{/each}
+				</ul>
+				{#if row.status === 'restored'}<p>{ja.kanri.afterRestore(row.afterRestore)}</p>{/if}
+				{#if row.notes.length}
+					<h4>{ja.kanri.notes}</h4>
+					<ul class="notes">
+						{#each row.notes as note, i (i)}<li>{note}</li>{/each}
+					</ul>
+				{/if}
+				<!-- 送り先にも post を入れる（JS がなくても同じ投稿を開いたままにする） -->
+				{#if HIDEABLE.includes(row.status)}
+					<form method="post" action="?post={row.id}&/hidePost" use:enhance>
+						<input type="hidden" name="post" value={row.id} />
+						<label for="post-hide-reason-{row.id}">{ja.kanri.hideReason}</label>
+						<select id="post-hide-reason-{row.id}" name="reason" required>
+							{#each HIDE_REASONS as reason (reason)}
+								<option value={reason}>{ja.hideReasons[reason]}</option>
+							{/each}
+						</select>
+						<label for="post-hide-note-{row.id}">{ja.kanri.hideNote}</label>
+						<textarea id="post-hide-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
+						<button>{ja.kanri.hide}</button>
+					</form>
+				{/if}
+				{#if RESTORABLE.includes(row.status)}
+					<form method="post" action="?post={row.id}&/restorePost" use:enhance>
+						<input type="hidden" name="post" value={row.id} />
+						<label for="post-restore-note-{row.id}">{ja.kanri.restoreNote}</label>
+						<textarea id="post-restore-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
+						<button>{ja.kanri.restore}</button>
+					</form>
 				{/if}
 			</article>
 		{/each}
