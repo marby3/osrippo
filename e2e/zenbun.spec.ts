@@ -84,7 +84,7 @@ test('基準2：基にした条文を章の帯と条ごとに全部出し、書�
 	const path = await amendBill(a, label);
 	await a.goto(`${path}/zenbun`);
 
-	await expect(a.getByRole('heading', { name: /第一章　総則/ })).toBeVisible();
+	await expect(a.getByRole('heading', { name: /第一章\s総則/ })).toBeVisible();
 	// 変わらない条はそのまま、札なし
 	const second = article(a, '第2条');
 	await expect(second).toBeVisible();
