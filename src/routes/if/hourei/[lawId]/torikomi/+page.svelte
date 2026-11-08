@@ -14,7 +14,7 @@
 </svelte:head>
 
 <main>
-	<Crumbs middle={[{ href: `/if/hourei/${data.law.id}`, label: ja.menu.pages.ifLaw(data.law.title) }]} current={ja.torikomi.heading} />
+	<Crumbs current={ja.torikomi.heading} />
 	<header>
 		<p class="fictional">{ja.ifLaw.fictional}</p>
 		<p class="law"><a href="/if/hourei/{data.law.id}">{data.law.title}</a></p>

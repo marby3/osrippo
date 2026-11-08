@@ -6,13 +6,10 @@
 
 	let {
 		current,
-		middle = [],
 		keepOnSp = false
 	}: {
 		current: string;
-		/** タブの一覧とこのページのあいだのページ */
-		middle?: { href: string; label: string }[];
-		/** スマホでも後ろ（そのページの名前）だけを出す（案 SpVote の「割り当て 2 / 3」） */
+		/** スマホでも後ろ（そのページの名前）だけを出す（案 SpVote の「割り当て 2 / 3」、SpResult の「10月会期」） */
 		keepOnSp?: boolean;
 	} = $props();
 
@@ -21,10 +18,7 @@
 
 {#if tab}
 	<nav class:keep={keepOnSp} aria-label={ja.menu.crumbs}>
-		<span class="trail"
-			><a href={tab.href}>{ja.menu.tabs[tab.key]}</a> {ja.menu.crumbSeparator}
-			{#each middle as m (m.href)}<a href={m.href}>{m.label}</a> {ja.menu.crumbSeparator} {/each}</span
-		><span>{current}</span>
+		<span class="trail"><a href={tab.href}>{ja.menu.tabs[tab.key]}</a> {ja.menu.crumbSeparator}{' '}</span><span>{current}</span>
 	</nav>
 {/if}
 

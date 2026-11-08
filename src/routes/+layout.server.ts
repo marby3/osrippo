@@ -10,8 +10,8 @@ export const load: LayoutServerLoad = async (event) => {
 	const { pathname, searchParams } = event.url;
 	const user = event.locals.user;
 	if (!user) return { menu: { unread: null } };
-	// 通知の1ページ目は開くと既読になる。ページの load と並んで走るので、ここでは 0 として出す
-	if (pathname === '/tsuchi' && (searchParams.get('page') ?? '1') === '1') return { menu: { unread: 0 } };
+	// 通知の1ページ目（page なし。?page=1 は 404）は開くと既読になる。ページの load と並んで走るので、ここでは 0 として出す
+	if (pathname === '/tsuchi' && searchParams.get('page') === null) return { menu: { unread: 0 } };
 	const now = nowOf(event);
 	return { menu: { unread: await unreadCount(drizzle(env.DB), user.id, now, sessionsAt(now).minutes) } };
 };

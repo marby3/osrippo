@@ -19,7 +19,7 @@
 </svelte:head>
 
 <main>
-	<Crumbs middle={[{ href: base, label: data.bill.title }]} current={ja.bill.page.fullTextCrumb} />
+	<Crumbs current={ja.bill.page.fullTextCrumb} />
 	<h1>{data.law.title}</h1>
 	<p class="note">{ja.bill.page.fullTextNote}</p>
 	<p class="back"><a href="{base}/henkou">{ja.bill.page.fullTextBack}</a></p>

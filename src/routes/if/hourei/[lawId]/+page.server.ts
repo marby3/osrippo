@@ -8,5 +8,5 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ params }) => {
 	const page = await ifLawPage(drizzle(env.DB), params.lawId);
 	if (!page) error(404);
-	return page;
+	return { ...page, ifBand: true as const };
 };

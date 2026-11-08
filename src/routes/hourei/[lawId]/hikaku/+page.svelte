@@ -25,7 +25,7 @@
 </svelte:head>
 
 <main>
-	<Crumbs middle={[{ href: `/hourei/${data.law.id}`, label: data.law.title }]} current={ja.compare.heading} />
+	<Crumbs current={ja.compare.heading} />
 	<p class="sub"><a href="/hourei/{data.law.id}">{data.law.title}</a></p>
 	<h1>{ja.compare.heading}</h1>
 

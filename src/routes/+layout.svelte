@@ -7,7 +7,6 @@
 	import IfBand from '#lib/components/IfBand.svelte';
 	import SiteHeader from '#lib/components/SiteHeader.svelte';
 	import { ja } from '#lib/copy/ja.ts';
-	import { hasIfBand } from '#lib/menu.ts';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -22,8 +21,8 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
-<!-- IF世界の帯はメニューより上（案 SpResult）。誤りのページには出さない -->
-{#if hasIfBand(page.route.id) && !page.error}<IfBand />{/if}
+<!-- IF世界の帯はメニューより上（案 SpResult）。出すかはページの load が ifBand で決める -->
+{#if page.data.ifBand}<IfBand />{/if}
 <SiteHeader unread={data.menu.unread} />
 
 {@render children()}
@@ -40,6 +39,7 @@
 		text-align: center;
 	}
 
+	/* 下のタブの高さ（SiteHeader.svelte の nav a の 3.5rem と上の線 3px・区切り 1px）。片方を変えたらもう片方も */
 	.tab-space {
 		height: 3.75rem;
 	}

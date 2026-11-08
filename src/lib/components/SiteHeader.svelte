@@ -110,8 +110,9 @@
 		font-size: var(--font-size-heading);
 	}
 
-	/* スマホ：サイト名は見出しで代わりにする（リンクの読み上げの名前には残す） */
-	.name {
+	/* スマホ：サイト名は見出しで、「わたしの記録」は人のアイコンで代わりにする（リンクの読み上げの名前には残す） */
+	.name,
+	.mine-label {
 		position: absolute;
 		width: 1px;
 		height: 1px;
@@ -158,15 +159,6 @@
 		text-align: center;
 	}
 
-	.mine-label {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
-
 	/* スマホ：タブは画面の下に固定（SpNav）。いまのタブは太字と上の線 */
 	nav {
 		display: grid;
@@ -186,6 +178,7 @@
 		gap: 0.125rem;
 		align-items: center;
 		justify-content: center;
+		/* 高さを変えたら +layout.svelte の .tab-space も */
 		min-height: 3.5rem;
 		border-top: 3px solid transparent;
 		color: var(--color-text-sub);
@@ -204,12 +197,16 @@
 			min-height: 4rem;
 		}
 
-		.name {
+		.name,
+		.mine-label {
 			position: static;
 			width: auto;
 			height: auto;
 			overflow: visible;
 			clip-path: none;
+		}
+
+		.name {
 			font-size: var(--font-size-heading);
 		}
 
@@ -260,12 +257,5 @@
 			height: 1.25rem;
 		}
 
-		.mine-label {
-			position: static;
-			width: auto;
-			height: auto;
-			overflow: visible;
-			clip-path: none;
-		}
 	}
 </style>
