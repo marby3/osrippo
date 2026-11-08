@@ -2,8 +2,8 @@
 // 受け取る値は、呼ぶ側（#46）が validateBill・checkChanges・基にした版の比べを通したもの。ここでは確かめずに書く
 import { and, asc, count, countDistinct, desc, eq, gt, gte, inArray, lt, ne, sql, type SQL, or } from 'drizzle-orm';
 import { notify, notifyProposed } from './notifications';
-import { actions, billChanges, billLaws, bills, billSolutions, billSupports, committeeLaws, issues, laws, sessionParticipantCounts, solutions, user, billCosponsors, billRelations } from '../db/schema';
-import { articleBodyText, articleLabel, compareNum, type DiffPart, type Paragraph } from '../domain/law';
+import { actions, billChanges, billLaws, bills, lawRevisions, billSolutions, billSupports, committeeLaws, issues, laws, sessionParticipantCounts, solutions, user, billCosponsors, billRelations } from '../db/schema';
+import { articleBodyText, articleLabel, compareNum, headingPaths, type DiffPart, type Paragraph } from '../domain/law';
 import { articlePlace, baseToken, changeDiff, DIFF_MAX_EDIT, DIFF_PAGE_BUDGET, formalName, PARTICIPANT_KINDS, referralSession, type BillChange, type BillKind, type BillTab } from '../domain/bills';
 import { PAGE_SIZE } from '../domain/issues';
 import { checkBillDraft, checkBillSave, checkBillSupport, DAY, LIMITS } from '../domain/limits';
@@ -344,6 +344,77 @@ export async function billChangeViews(db: Db, bill: NonNullable<Bill>): Promise<
 	}
 	if (bill.supplementary) changes.push({ location: '', op: 'supplementary', before: null, after: [{ value: bill.supplementary, added: true }] });
 	return changes;
+}
+
+// ---- 条文全体のなかで見る（Issue #54） ----
+
+export type FullArticle = {
+	num: string;
+	label: string;
+	caption: string;
+	/** 変わらない条は null */
+	op: 'amend' | 'add' | 'delete' | null;
+	/** 変わらない条の項と号 */
+	paragraphs: Paragraph[] | null;
+	/** 変わる条の違い（見出しを含む） */
+	parts: DiffPart[] | null;
+	/** 書きかえで見出しが変わったときの、元の見出し */
+	captionBefore: string | null;
+	/** 章の帯（変わったときだけ） */
+	band: string[] | null;
+};
+
+/**
+ * 法令の全文に変更点を重ねる。全文は法案が基にした条文（変更点のタブの「いま」と同じ）。足す条は番号の位置に入れる。
+ * 制定の新法はすべての条を足す形で、廃止の法令は全文を返さない
+ */
+export async function billFullText(db: Db, bill: NonNullable<Bill>, seq: number) {
+	const titles = await lawTitlesOf(db, bill);
+	const titleOf = (l: (typeof bill.laws)[number]) => (l.lawId ? (titles.get(l.lawId) ?? '') : (l.newTitle ?? ''));
+	const laws = bill.laws.map((l) => ({ seq: l.seq, title: titleOf(l), action: l.action }));
+	const law = bill.laws[seq];
+	const shown = { seq, title: titleOf(law), action: law.action, lawId: law.lawId };
+	if (law.action === 'repeal') return { laws, law: shown, articles: [] as FullArticle[] };
+	const added = (c: BillChange): FullArticle => ({
+		num: c.num,
+		label: articleLabel(c.num),
+		caption: c.caption ?? '',
+		op: 'add',
+		paragraphs: null,
+		parts: [{ value: articleBodyText(c.paragraphs ?? []), added: true }],
+		captionBefore: null,
+		band: null
+	});
+	if (law.action === 'enact') return { laws, law: shown, articles: law.changes.map(added) };
+
+	const base = await baseArticlesOf(db, law);
+	const byId = new Map(law.changes.filter((c) => c.provisionId !== null).map((c) => [c.provisionId as number, c]));
+	let budget = DIFF_PAGE_BUDGET;
+	const articles: FullArticle[] = base.map((a) => {
+		const c = byId.get(a.id);
+		const same = { num: a.num, label: a.label, captionBefore: null, band: null };
+		if (!c) return { ...same, caption: a.caption, op: null, paragraphs: a.paragraphs, parts: null };
+		const before = articleBodyText(a.paragraphs);
+		if (c.op === 'delete') return { ...same, caption: a.caption, op: 'delete', paragraphs: null, parts: [{ value: before, removed: true }] };
+		const { parts, cost } = changeDiff(before, articleBodyText(c.paragraphs ?? []), Math.min(DIFF_MAX_EDIT, budget));
+		budget -= cost;
+		const caption = c.caption ?? '';
+		return { ...same, caption, captionBefore: caption === a.caption ? null : a.caption, op: 'amend', paragraphs: null, parts };
+	});
+	articles.push(...law.changes.filter((c) => c.op === 'add').map(added));
+	articles.sort((a, b) => compareNum(a.num, b.num));
+	// 章の帯は基にした現実の版の見出しから。足した条は前の条と同じ章にする
+	const [revision] = law.baseRevisionId ? await db.select({ headings: lawRevisions.headings }).from(lawRevisions).where(eq(lawRevisions.id, law.baseRevisionId)) : [];
+	const paths = headingPaths(revision?.headings ?? []);
+	let previous = '';
+	for (const a of articles) {
+		const path = paths.get(a.num);
+		if (!path) continue;
+		const key = path.join('\n');
+		if (key !== previous) a.band = path;
+		previous = key;
+	}
+	return { laws, law: shown, articles };
 }
 
 /** 直す画面の引用の候補：引用した解決策の課題ごとに、表示中の解決策 */

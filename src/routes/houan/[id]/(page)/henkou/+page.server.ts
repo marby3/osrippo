@@ -11,5 +11,6 @@ export const load: PageServerLoad = async ({ params }) => {
 	const db = drizzle(env.DB);
 	const bill = id === null ? undefined : await billById(db, id);
 	if (!bill) error(404);
-	return { changes: await billChangeViews(db, bill) };
+	// 条文全体のなかで見る（Issue #54）は、まるごと廃止するだけの法案には出さない
+	return { changes: await billChangeViews(db, bill), fullText: bill.laws.some((l) => l.action !== 'repeal') };
 };

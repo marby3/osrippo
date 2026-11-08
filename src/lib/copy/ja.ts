@@ -652,7 +652,16 @@ export const ja = {
 			deleted: '削除',
 			supplementary: '附則',
 			changeHeading: (n: number | null, location: string, op: string) => `${n === null ? '' : `${n}. `}${location} ・ ${op}`,
-			repeal: (title: string) => `${title}をまるごと廃止します。`
+			repeal: (title: string) => `${title}をまるごと廃止します。`,
+			/** 条文全体のなかで見る（Issue #54） */
+			fullTextLink: '条文全体のなかで見る',
+			fullTextTitle: (bill: string, law: string) => `${law}（${bill}）の条文全体｜オープンソース立法府`,
+			fullTextCrumb: '条文全体',
+			fullTextNote: 'この法案が基にした条文に、変更点を重ねて出しています（架空の条文を含みます）。',
+			fullTextBack: '変更点に戻る',
+			fullTextLaws: '法令',
+			fullTextChanged: '変わる条',
+			fullTextRow: (location: string, op: string) => `${location} ・ ${op}`
 		},
 		changeErrors: {
 			unknownProvision: 'この法令にない条です。',

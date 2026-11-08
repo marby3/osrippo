@@ -17,10 +17,14 @@
 
 <div class="changes">
 	{#if data.changes.length}
-		<p class="legend" aria-hidden="true">
-			<span class="del">{ja.bill.page.legendDel}</span>
-			<span class="ins">{ja.bill.page.legendIns}</span>
-		</p>
+		<div class="legend-row">
+			<p class="legend" aria-hidden="true">
+				<span class="del">{ja.bill.page.legendDel}</span>
+				<span class="ins">{ja.bill.page.legendIns}</span>
+			</p>
+			<!-- PC は凡例の行の右（PcBillChanges） -->
+			{#if data.fullText}<a class="full pc" href="/houan/{bill.id}/zenbun">{ja.bill.page.fullTextLink}</a>{/if}
+		</div>
 	{/if}
 
 	{#each bill.repealed as title (title)}
@@ -51,6 +55,8 @@
 			</section>
 		</article>
 	{/each}
+	<!-- スマホは変更点の下（SpBillChanges） -->
+	{#if data.fullText}<p class="full sp"><a href="/houan/{bill.id}/zenbun">{ja.bill.page.fullTextLink}</a></p>{/if}
 </div>
 
 <style>
@@ -58,6 +64,31 @@
 		display: grid;
 		gap: 1rem;
 		margin-top: 1rem;
+	}
+
+	.legend-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.full.pc {
+		display: none;
+	}
+
+	.full.sp {
+		margin: 0;
+	}
+
+	@media (min-width: 64rem) {
+		.full.pc {
+			display: inline;
+		}
+
+		.full.sp {
+			display: none;
+		}
 	}
 
 	.legend {
