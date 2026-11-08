@@ -101,6 +101,8 @@ test('基準7：運営が候補を選んでまとめると答弁が移り、ま�
 	await expect(viewer.page.getByText(sourceText)).toHaveCount(0);
 	const merged = card(viewer.page, targetText);
 	await expect(merged.getByText('同じ内容の質疑を1件まとめました')).toBeVisible();
+	// 押す前にハイドレーションを待つ（全部のテストを流して重いときに、押しても開かないことがあった）
+	await viewer.page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
 	if (w === 'sp') await merged.getByRole('button', { name: /答弁を読む/ }).click();
 	await expect(merged.getByText(answerText)).toBeVisible();
 
