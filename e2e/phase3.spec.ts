@@ -108,7 +108,9 @@ test('法案を下書きし、3人の賛同で発議し、会期の終わりに�
 	await v.goto('/houan');
 	await expect(v.getByRole('heading', { level: 1, name: '法案', exact: true })).toBeVisible();
 	for (const tab of ['審議中', '下書き', '終わった']) await expect(either(v, new RegExp(`^${tab}`)).first()).toBeVisible();
-	await v.getByRole('link', { name: '法案を書く' }).click();
+	await v.getByRole('link', { name: '法案の書き方を見る' }).click();
+	await expect(v.getByRole('heading', { level: 1, name: '法案の書き方' })).toBeVisible();
+	await v.goto('/houan/kaku');
 	await expect(either(v, 'Googleでログイン')).toBeVisible();
 
 	// 2. A が課題と解決策を書き、その解決策を引用して改正の法案を書く

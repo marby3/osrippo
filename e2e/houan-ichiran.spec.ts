@@ -49,24 +49,17 @@ test('基準1：ログインしていなくても見られる。タブは審議�
 	await expect(tabLink(page, /^終わった$/)).toBeVisible();
 });
 
-test('基準2：「法案を書く」はログインを求め、ログインしていれば解決策から書き始める案内へ。ホームから一覧へ移れる', async ({ browser, page }, info) => {
+test('基準2：書く画面はログインを求め、ログインしていれば解決策から書き始める案内へ。ホームから一覧へ移れる', async ({ browser, page }, info) => {
 	const p = info.project.name;
 	await page.goto('/');
 	await page.getByRole('link', { name: '法案を見る' }).click();
 	await expect(page).toHaveURL('/houan');
-	await page.getByRole('link', { name: '法案を書く' }).click();
+	// 一覧の案の場所は「法案の書き方を見る」（Issue #59。e2e/kakikata.spec.ts）。書く画面を直接開く
+	await page.goto('/houan/kaku');
 	await expect(page.getByRole('button', { name: 'Googleでログイン' }).or(page.getByRole('link', { name: 'Googleでログイン' }))).toBeVisible();
 
 	const a = await user(browser, `l2-a-${p}-${stamp()}`, ip(p, 2, 1));
-	await a.goto('/houan');
-	// 案の「法案の書き方を見る」の場所：スマホは一覧の下（SpBills）、PC は見出しの右（PcBills）
-	const box = async (l: ReturnType<Page['getByRole']>) => (await l.boundingBox())!;
-	const link = await box(a.getByRole('link', { name: '法案を書く' }));
-	const tabs = await box(a.getByRole('navigation', { name: '法案のタブ' }));
-	if (p === 'sp') expect(link.y).toBeGreaterThan(tabs.y);
-	else expect(link.y).toBeLessThan(tabs.y);
-	await a.getByRole('link', { name: '法案を書く' }).click();
-	await expect(a).toHaveURL('/houan/kaku');
+	await a.goto('/houan/kaku');
 	await expect(a.getByText('法案は、課題の解決策から書き始めます')).toBeVisible();
 });
 
