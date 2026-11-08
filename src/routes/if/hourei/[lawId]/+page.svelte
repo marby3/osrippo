@@ -1,7 +1,7 @@
 <script lang="ts">
 	// IF世界の法令ページ（SpLaw・PcLaw）。全ページに帯と「架空の法令」、noindex。
 	// 改正履歴、変わった記録、2時点の比較は出さない（docs/spec/72.md の G）
-	import IfBand from '#lib/components/IfBand.svelte';
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import LawParagraphs from '#lib/components/LawParagraphs.svelte';
 	import LawSwitch from '#lib/components/LawSwitch.svelte';
 	import { ja } from '#lib/copy/ja.ts';
@@ -26,9 +26,8 @@
 	</ul>
 {/snippet}
 
-<IfBand />
-
 <main>
+	<Crumbs current={ja.menu.pages.ifLaw(data.law.title)} />
 	{#if data.real}<LawSwitch lawId={data.law.id} current="if" />{/if}
 	<header>
 		<p class="fictional">{ja.ifLaw.fictional}</p>

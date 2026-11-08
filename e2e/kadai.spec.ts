@@ -68,9 +68,9 @@ test('基準1：一覧はログインなしで見られ、3つの並び・お題
 		for (const id of ids) expect((await supportRequest(s, id, 'add')).status()).toBeLessThan(400);
 	}
 
-	// トップページから行ける。既定は「わかる」の多い順
+	// メニューから行ける（Issue #85）。既定は「わかる」の多い順
 	await page.goto('/');
-	await page.getByRole('link', { name: '課題を見る' }).click();
+	await page.getByRole('navigation', { name: 'メニュー', exact: true }).getByRole('link', { name: '課題', exact: true }).click();
 	await expect(page).toHaveURL('/kadai');
 	await expect(page.getByRole('heading', { level: 1, name: '課題', exact: true })).toBeVisible();
 	const titles = await listedTitles(page);

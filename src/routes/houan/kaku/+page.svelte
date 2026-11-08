@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import BillForm from '#lib/components/BillForm.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
@@ -11,6 +12,7 @@
 </svelte:head>
 
 <main>
+	<Crumbs current={ja.bill.write.heading} />
 	<h1>{ja.bill.write.heading}</h1>
 	{#if data.view === 'wait'}
 		<p>{ja.bill.tooNew(data.until)}</p>

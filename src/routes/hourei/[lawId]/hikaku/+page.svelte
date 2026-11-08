@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { ja } from '#lib/copy/ja.ts';
 	import DiffText from '#lib/components/DiffText.svelte';
@@ -24,6 +25,7 @@
 </svelte:head>
 
 <main>
+	<Crumbs middle={[{ href: `/hourei/${data.law.id}`, label: data.law.title }]} current={ja.compare.heading} />
 	<p class="sub"><a href="/hourei/{data.law.id}">{data.law.title}</a></p>
 	<h1>{ja.compare.heading}</h1>
 

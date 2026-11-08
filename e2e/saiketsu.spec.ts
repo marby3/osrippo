@@ -85,7 +85,7 @@ test('基準1：採決の一覧に、会期と締切・進み具合・割り当�
 	const v = await s.voter();
 
 	await openPage(v.page, '/');
-	await v.page.getByRole('link', { name: '採決を見る' }).click();
+	await v.page.getByRole('navigation', { name: 'メニュー', exact: true }).getByRole('link', { name: '採決', exact: true }).click();
 	await expect(v.page).toHaveURL(/\/saiketsu$/);
 	await expect(v.page.getByText(/割り当て法案\s*0\s*\/\s*3\s*投票済み/)).toBeVisible();
 	await expect(v.page.getByText(/5月の会期.*締切 6月1日.*0時/)).toBeVisible();

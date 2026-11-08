@@ -46,6 +46,25 @@ const POST_KINDS = { question: '質疑', answer: '答弁', supplement: '補足' 
 export const ja = {
 	siteName: 'オープンソース立法府',
 	unofficial: '国会・政府とは無関係の非公式サービスです',
+	/** 全体のメニュー（PcHeader・SpNav、Issue #85） */
+	menu: {
+		label: 'メニュー',
+		tabs: { home: 'ホーム', kadai: '課題', houan: '法案', saiketsu: '採決', hourei: '法律' },
+		mine: 'わたしの記録',
+		crumbs: 'いまいる場所',
+		crumbSeparator: '／',
+		/** パンくずの後ろ（そのページの名前）。中身が題名のページは題名を出す */
+		pages: {
+			issue: '課題の詳細',
+			ifLaw: (title: string) => `${title}（IF世界）`
+		}
+	},
+	/** 法律の一覧（/hourei、Issue #85 決めたこと A） */
+	laws: {
+		pageTitle: '法律｜オープンソース立法府',
+		heading: '法律',
+		lead: 'ゲームで扱っている法律です。現実の法律と、IF世界の法律を読めます。'
+	},
 	law: {
 		pageTitle: (title: string) => `${title}｜オープンソース立法府`,
 		meta: (lawNum: string, asOf: string) => `${lawNum} ・ ${jaDate(asOf)}施行の版`,
@@ -156,7 +175,6 @@ export const ja = {
 		listPageTitle: '採決｜オープンソース立法府',
 		otherPageTitle: 'ほかの法案の採決｜オープンソース立法府',
 		pageTitle: (title: string) => `${title}の採決｜オープンソース立法府`,
-		topLink: '採決を見る',
 		billLink: '投票する',
 		heading: '採決',
 		/** 開発用の分の会期は時刻、カレンダーの月は0時まで */
@@ -175,8 +193,6 @@ export const ja = {
 		prevPage: '前のページ',
 		nextPage: '次のページ',
 		pages: 'ほかの法案のページ',
-		crumbs: '採決のページ',
-		crumbSeparator: '／',
 		position: (n: number, total: number) => `割り当て ${n} / ${total}`,
 		/** [前, 強調, 後] */
 		pending: (total: number): [string, string, string] => [total === 1 ? '割り当ての法案に投票すると、あなたの票が' : `${total}本すべてに投票すると、あなたの票が`, '数えた票', 'になります。'],
@@ -574,7 +590,6 @@ export const ja = {
 		/** 法案の一覧（SpBills・PcBills） */
 		list: {
 			pageTitle: '法案｜オープンソース立法府',
-			topLink: '法案を見る',
 			heading: '法案',
 			howto: '法案の書き方を見る',
 			tabs: '法案のタブ',
@@ -678,9 +693,6 @@ export const ja = {
 		page: {
 			pageTitle: (title: string) => `${title}｜オープンソース立法府`,
 			changesPageTitle: (title: string) => `${title}の変更点｜オープンソース立法府`,
-			breadcrumb: '法案',
-			crumbs: 'いまいる場所',
-			crumbSeparator: '／',
 			tabs: '法案のページ',
 			summaryTab: '概要',
 			changesTab: (n: number) => `変更点 ${n}`,
@@ -1108,7 +1120,6 @@ export const ja = {
 	issue: {
 		listPageTitle: '課題｜オープンソース立法府',
 		heading: '課題',
-		topLink: '課題を見る',
 		write: '課題を書く',
 		filterLabel: '表示する課題',
 		filterAll: 'すべて',

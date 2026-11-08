@@ -1,7 +1,6 @@
 <script lang="ts">
 	// 通知の一覧（docs/spec/78.md 決めたこと9）。画面の案はない。未読は色だけで示さず「未読」の文字を出す。
 	// 架空の法案の「可決」が並ぶので、帯を付ける
-	import IfBand from '#lib/components/IfBand.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -12,8 +11,6 @@
 	<title>{ja.notifications.pageTitle}</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
-
-<IfBand />
 
 <main>
 	<h1>{ja.notifications.heading}</h1>

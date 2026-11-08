@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { enhance } from '$app/forms';
 	import Turnstile from '#lib/components/Turnstile.svelte';
 	import { ja } from '#lib/copy/ja.ts';
@@ -24,6 +25,7 @@
 </svelte:head>
 
 <main>
+	<Crumbs current={ja.solution.write} />
 	<p class="issue"><a href="/kadai/{data.issue.id}">{data.issue.title}</a></p>
 	<h1>{ja.solution.write}</h1>
 	<form

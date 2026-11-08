@@ -1,6 +1,6 @@
 <script lang="ts">
 	// 現実の改正の取り込みの一覧。全ページに帯と「架空の法令」、noindex。ぶつかった条文は現実と IF世界を並べる
-	import IfBand from '#lib/components/IfBand.svelte';
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -13,9 +13,8 @@
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-<IfBand />
-
 <main>
+	<Crumbs middle={[{ href: `/if/hourei/${data.law.id}`, label: ja.menu.pages.ifLaw(data.law.title) }]} current={ja.torikomi.heading} />
 	<header>
 		<p class="fictional">{ja.ifLaw.fictional}</p>
 		<p class="law"><a href="/if/hourei/{data.law.id}">{data.law.title}</a></p>

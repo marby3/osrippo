@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -90,6 +91,7 @@
 </svelte:head>
 
 <main>
+	<Crumbs current={ja.issue.write} />
 	<h1>{ja.issue.write}</h1>
 	<ol class="steps">
 		{#each ja.issue.steps as label, i (label)}
