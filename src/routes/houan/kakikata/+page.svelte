@@ -29,8 +29,9 @@
 	<h1>{t.heading}</h1>
 	<p class="lead">{t.lead}</p>
 
-	<nav class="toc" aria-labelledby="toc-heading">
-		<h2 id="toc-heading" class="toc-title">{t.toc}</h2>
+	<!-- 目次は節と同じ階層の見出しにしない -->
+	<nav class="toc" aria-label={t.toc}>
+		<p class="toc-title" aria-hidden="true">{t.toc}</p>
 		<ol>
 			{#each sections as s (s.id)}<li><a href="#{s.id}">{s.title}</a></li>{/each}
 		</ol>
@@ -95,11 +96,9 @@
 		border-radius: var(--radius-l);
 	}
 
-	.toc .toc-title {
+	.toc-title {
 		margin: 0.75rem 0 0;
-		padding: 0;
-		border: none;
-		background: none;
+		font-weight: bold;
 	}
 
 	.toc a {

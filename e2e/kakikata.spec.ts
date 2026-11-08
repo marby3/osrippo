@@ -45,11 +45,9 @@ test('基準2：ログインなしで7つの節と目次が出て、目次から
 
 test('基準3：数字はルールの値から出す（登録からの日数、解決策の数、法令の数、条の数、賛同の割合と最低の人数）', async ({ page }) => {
 	await page.goto('/houan/kakikata');
-	const main = page.getByRole('main');
 	await expect(page.getByRole('region', { name: '書き始める' })).toContainText(`登録から${LIMITS.billAccountAge / DAY}日`);
 	await expect(page.getByRole('region', { name: '書き始める' })).toContainText(`${BILL_MAX.solutions}つまで`);
 	await expect(page.getByRole('region', { name: '2本以上の法令' })).toContainText(`${BILL_MAX.laws}本まで`);
 	await expect(page.getByRole('region', { name: '2本以上の法令' })).toContainText(`${BILL_MAX.changes}条まで`);
 	await expect(page.getByRole('region', { name: '発議まで' })).toContainText(`${PROPOSAL_PERCENT}%（最低${PROPOSAL_MIN}人）`);
-	await expect(main).toBeVisible();
 });

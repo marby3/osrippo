@@ -64,7 +64,7 @@
 	{/if}
 
 	<!-- 案の「法案の書き方を見る」の場所：スマホは一覧の下（SpBills）、PC は見出しの右（PcBills）。リンクは1つで、PC は CSS で動かす -->
-	<p class="write"><a href="/houan/kakikata">{ja.bill.list.howto}</a></p>
+	<p class="howto"><a href="/houan/kakikata">{ja.bill.list.howto}</a></p>
 </main>
 
 <style>
@@ -77,7 +77,7 @@
 	}
 
 	.pages a,
-	.write a {
+	.howto a {
 		display: inline-flex;
 		align-items: center;
 		min-height: var(--tap-min);
@@ -171,7 +171,7 @@
 		margin-top: 1rem;
 	}
 
-	.write {
+	.howto {
 		margin: 1rem 0 0;
 	}
 
@@ -185,7 +185,7 @@
 			grid-area: 1 / 1;
 		}
 
-		.write {
+		.howto {
 			grid-area: 1 / 2;
 			align-self: center;
 			margin: 0;
