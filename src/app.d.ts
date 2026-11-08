@@ -13,7 +13,10 @@ declare global {
 			/** ログインしていなければ null */
 			user: Auth['$Infer']['Session']['user'] | null;
 		}
-		// interface PageData {}
+		interface PageData {
+			/** IF世界の帯を出すページ。帯はメニューより上に出すので、ページの load が返し、全体の枠が出す（Issue #85） */
+			ifBand?: true;
+		}
 		// interface PageState {}
 		// interface Platform {}
 	}

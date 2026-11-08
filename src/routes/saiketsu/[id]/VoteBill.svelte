@@ -1,6 +1,7 @@
 <script lang="ts">
 	// 投票の画面（SpVote・PcVote）。変更点の一覧はスマホでは閉じ、PC では開いている。票の欄は PC では右に置く。
 	// 棄権は一覧を開くまで選べない。この決まりは画面だけで守る（Issue #70 確認の点）
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
 	import DiffText from '#lib/components/DiffText.svelte';
@@ -39,10 +40,7 @@
 </script>
 
 <main>
-	<nav class="crumbs" aria-label={ja.vote.crumbs}>
-		<a href="/saiketsu">{ja.vote.heading}</a> {ja.vote.crumbSeparator}
-		<span>{data.position === null ? ja.vote.otherHeading : ja.vote.position(data.position, data.total)}</span>
-	</nav>
+	<Crumbs current={data.position === null ? ja.vote.otherHeading : ja.vote.position(data.position, data.total)} keepOnSp />
 	<h1>{bill.title}</h1>
 
 	<div class="layout">
@@ -139,11 +137,6 @@
 		max-width: 76rem;
 		margin: 0 auto;
 		padding: 1rem;
-	}
-
-	.crumbs {
-		color: var(--color-text-sub);
-		font-size: var(--font-size-sub);
 	}
 
 	h1 {

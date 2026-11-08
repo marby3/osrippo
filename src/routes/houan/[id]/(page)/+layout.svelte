@@ -1,5 +1,6 @@
 <script lang="ts">
 	// 法案のページの上の部分とタブ（SpBillSummary・PcBillSummary）。質疑のタブは発議から出す（Issue #66）
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { page } from '$app/state';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { LayoutProps } from './$types';
@@ -16,9 +17,7 @@
 </script>
 
 <main>
-	<nav class="crumbs pc" aria-label={ja.bill.page.crumbs}>
-		<a href="/houan">{ja.bill.page.breadcrumb}</a> {ja.bill.page.crumbSeparator} <span>{bill.title}</span>
-	</nav>
+	<Crumbs current={bill.title} />
 	<p class="badge">{ja.bill.kinds[bill.kind]}</p>
 	<h1>{bill.title}</h1>
 	<p class="formal">{bill.formalName}</p>
@@ -90,8 +89,7 @@
 		font-size: var(--font-size-page-title);
 	}
 
-	.formal,
-	.crumbs {
+	.formal {
 		margin: 0.25rem 0 0;
 		color: var(--color-text-sub);
 		font-size: var(--font-size-sub);
@@ -140,25 +138,13 @@
 		font-weight: bold;
 	}
 
-	.pc {
-		display: none;
-	}
-
 	@media (min-width: 64rem) {
 		main {
 			padding: 1.5rem 4rem;
 		}
 
-		.pc {
-			display: block;
-		}
-
 		.sp {
 			display: none;
-		}
-
-		.crumbs {
-			margin-bottom: 1rem;
 		}
 
 		.tabs {

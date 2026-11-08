@@ -12,7 +12,7 @@ export const load: PageServerLoad = async (event) => {
 	const { db, bill } = await postableBill(event);
 	const now = nowOf(event);
 	const { progress, session } = progressOf(bill, now);
-	const shell = { bill: { id: bill.id, title: bill.title }, session };
+	const shell = { bill: { id: bill.id, title: bill.title }, session, ifBand: true as const };
 	if (progress === 'withdrawn') return { ...shell, phase: 'withdrawn' as const };
 	if (progress !== 'lapsed') return { ...shell, phase: 'before' as const };
 	const result = await resultOnRead(db as unknown as BatchDb, bill, sessionsAt(now).minutes, now);

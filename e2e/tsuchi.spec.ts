@@ -1,4 +1,5 @@
 // Issue #78 基準9と信頼の境界：通知の一覧。中身は src/lib/db/notifications.test.ts
+// ホームの入口は、全体のメニューのベルに替わった（Issue #85）
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { billRequest, billSupportRequest, createAmendBill, issueWithSolutions, newUser, ORIGIN, proposeRequest } from './helpers';
 
@@ -49,7 +50,7 @@ test('基準9：通知の一覧が新しい順に出て、未読の印とリン�
 	const asker = await s.person(at(month, 5));
 	expect((await request(asker.page, path)).status()).toBe(200);
 	await author.page.goto('/watashi');
-	await expect(entry(author.page, 1)).toBeVisible();
+	await expect(author.page.getByRole('main').getByRole('link', { name: '通知（未読 1件）', exact: true })).toBeVisible();
 	await author.page.goto('/');
 	await expect(entry(author.page, 1)).toHaveAttribute('data-sveltekit-preload-data', 'off');
 	await entry(author.page, 1).click();

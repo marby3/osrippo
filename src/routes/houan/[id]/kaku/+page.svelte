@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import BillForm from '#lib/components/BillForm.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
@@ -11,6 +12,7 @@
 </svelte:head>
 
 <main>
+	<Crumbs current={data.adjusting ? ja.ifLaw.fixHeading : ja.bill.write.editHeading} />
 	<p class="sub"><a href="/houan/{data.edit.id}">{data.edit.title}</a></p>
 	<h1>{data.adjusting ? ja.ifLaw.fixHeading : ja.bill.write.editHeading}</h1>
 	{#each data.repealed as law (law.id)}<p class="notice">{law.named ? ja.ifLaw.lawRepealedNamed(law.title) : ja.ifLaw.lawRepealed}</p>{/each}

@@ -14,5 +14,5 @@ export const load: PageServerLoad = async (event) => {
 	if (page === null) error(404);
 	const now = nowOf(event);
 	const { items, hasNext } = await notificationPage(drizzle(env.DB), user.id, now, sessionsAt(now).minutes, page);
-	return { items, hasNext, page };
+	return { items, hasNext, page, ifBand: true as const };
 };

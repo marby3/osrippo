@@ -12,7 +12,7 @@ import {
 	tableOfContents,
 	type Change
 } from '../domain/law';
-import { laws, lawRevisions, provisions, provisionVersions } from '../db/schema';
+import { committeeLaws, laws, lawRevisions, provisions, provisionVersions } from '../db/schema';
 
 // D1（本番）と node:sqlite（テスト）の両方の Drizzle を受ける
 export type Db = BaseSQLiteDatabase<'async', any>;
@@ -21,6 +21,15 @@ export type BatchDb = Db & { batch: (queries: readonly [BatchItem<'sqlite'>, ...
 
 /** 「改正された」に数える change（設計書「change の値」） */
 const COUNTED: Change[] = ['added', 'amended', 'unconfirmed'];
+
+/** 委員会で扱う法令（法律の一覧、Issue #85 決めたこと A） */
+export async function committeeLawList(db: Db) {
+	return db
+		.selectDistinct({ id: laws.id, title: laws.title })
+		.from(committeeLaws)
+		.innerJoin(laws, eq(laws.id, committeeLaws.lawId))
+		.orderBy(asc(laws.id));
+}
 
 /** 現在の版：施行済みのうち seq が最大の版（決定2） */
 export async function currentRevision(db: Db, lawId: string) {

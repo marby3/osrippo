@@ -1,5 +1,6 @@
 <script lang="ts">
 	// ほかの法案（案はなく、採決の一覧にそろえる）
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -12,9 +13,7 @@
 </svelte:head>
 
 <main>
-	<nav class="crumbs" aria-label={ja.vote.crumbs}>
-		<a href="/saiketsu">{ja.vote.heading}</a> {ja.vote.crumbSeparator} <span>{ja.vote.otherHeading}</span>
-	</nav>
+	<Crumbs current={ja.vote.otherHeading} />
 	<h1>{ja.vote.otherHeading}</h1>
 	<p>{ja.vote.otherLead}</p>
 
@@ -44,11 +43,6 @@
 		max-width: 47rem;
 		margin: 0 auto;
 		padding: 1rem;
-	}
-
-	.crumbs {
-		color: var(--color-text-sub);
-		font-size: var(--font-size-sub);
 	}
 
 	h1 {

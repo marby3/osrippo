@@ -1,6 +1,7 @@
 <script lang="ts">
 	// 条文全体のなかで変更点を見る（Issue #54）。キャンバスに案がないので、法令ページ（SpLaw・PcLaw）の形で組む。
 	// 変更点は色だけで示さない：削除は取り消し線と「−」、追加は下線と「＋」（DiffText）
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import DiffText from '#lib/components/DiffText.svelte';
 	import LawParagraphs from '#lib/components/LawParagraphs.svelte';
 	import { ja } from '#lib/copy/ja.ts';
@@ -18,13 +19,7 @@
 </svelte:head>
 
 <main>
-	<nav class="crumbs" aria-label={ja.bill.page.crumbs}>
-		<a href="/houan">{ja.bill.page.breadcrumb}</a>
-		{ja.bill.page.crumbSeparator}
-		<a href={base}>{data.bill.title}</a>
-		{ja.bill.page.crumbSeparator}
-		<span>{ja.bill.page.fullTextCrumb}</span>
-	</nav>
+	<Crumbs current={ja.bill.page.fullTextCrumb} />
 	<h1>{data.law.title}</h1>
 	<p class="note">{ja.bill.page.fullTextNote}</p>
 	<p class="back"><a href="{base}/henkou">{ja.bill.page.fullTextBack}</a></p>
@@ -86,7 +81,6 @@
 		padding: 1rem;
 	}
 
-	.crumbs,
 	.note,
 	.back {
 		margin: 0.5rem 0;

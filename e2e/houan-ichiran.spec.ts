@@ -52,7 +52,7 @@ test('基準1：ログインしていなくても見られる。タブは審議�
 test('基準2：書く画面はログインを求め、ログインしていれば解決策から書き始める案内へ。ホームから一覧へ移れる', async ({ browser, page }, info) => {
 	const p = info.project.name;
 	await page.goto('/');
-	await page.getByRole('link', { name: '法案を見る' }).click();
+	await page.getByRole('navigation', { name: 'メニュー', exact: true }).getByRole('link', { name: '法案', exact: true }).click();
 	await expect(page).toHaveURL('/houan');
 	// 一覧の案の場所は「法案の書き方を見る」（Issue #59。e2e/kakikata.spec.ts）。書く画面を直接開く
 	await page.goto('/houan/kaku');

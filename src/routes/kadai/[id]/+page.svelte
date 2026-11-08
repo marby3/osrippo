@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { enhance } from '$app/forms';
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
@@ -58,6 +59,7 @@
 </svelte:head>
 
 <main>
+	<Crumbs current={ja.menu.pages.issue} />
 	{#if data.view === 'merged'}
 		<!-- 統合された課題への操作を断ったあと（POST）だけここに来る。GET は統合先へ転送する -->
 		<p><a href="/kadai/{data.mergedInto}">{ja.merge.mergedInto(data.mergedInto)}</a></p>

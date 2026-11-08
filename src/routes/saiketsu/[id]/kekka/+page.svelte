@@ -1,7 +1,7 @@
 <script lang="ts">
 	// 採決の結果（SpResult・PcResult）。帯グラフは色だけで示さない（反対は斜線、棄権は白で、数も出す）。
 	// 参考の票はスマホでは開閉し、PC は最初から出す。見出しの文字は1か所に置き、開くボタンはその上に重ねる
-	import IfBand from '#lib/components/IfBand.svelte';
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import { VOTE_CHOICES } from '#lib/domain/votes.ts';
 	import type { PageProps } from './$types';
@@ -30,12 +30,8 @@
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-<IfBand />
-
 <main>
-	<nav class="crumbs" aria-label={ja.vote.crumbs}>
-		<a href="/saiketsu">{ja.vote.heading}</a> {ja.vote.crumbSeparator} <span>{ja.result.crumb(data.session)}</span>
-	</nav>
+	<Crumbs current={ja.result.crumb(data.session)} keepOnSp />
 	<h1>{data.bill.title}</h1>
 
 	{#if data.phase === 'withdrawn'}
@@ -121,7 +117,6 @@
 		padding: 1rem;
 	}
 
-	.crumbs,
 	.deadline {
 		color: var(--color-text-sub);
 		font-size: var(--font-size-sub);

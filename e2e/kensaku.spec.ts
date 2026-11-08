@@ -46,7 +46,7 @@ test('基準1：法令・条文・課題・解決策の欄に分けて件数と2
 
 	await section(page, '課題').getByRole('link', { name: 'もっと見る（21件）' }).click();
 	await expect(page).toHaveURL(searchUrl(c, '&shurui=kadai'));
-	await expect(page.getByRole('listitem')).toHaveCount(21);
+	await expect(page.getByRole('main').getByRole('listitem')).toHaveCount(21);
 
 	// 法令名
 	await page.goto(searchUrl('特定商取引'));

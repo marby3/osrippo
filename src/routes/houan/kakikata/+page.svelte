@@ -1,5 +1,6 @@
 <script lang="ts">
 	// 法案の書き方（Issue #59）。キャンバスに案がないので、法案のページと法令ページの文字の組み方に合わせて組む
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -21,11 +22,7 @@
 </svelte:head>
 
 <main>
-	<nav class="crumbs" aria-label={ja.bill.page.crumbs}>
-		<a href="/houan">{ja.bill.page.breadcrumb}</a>
-		{ja.bill.page.crumbSeparator}
-		<span>{t.heading}</span>
-	</nav>
+	<Crumbs current={t.heading} />
 	<h1>{t.heading}</h1>
 	<p class="lead">{t.lead}</p>
 
@@ -67,7 +64,6 @@
 		padding: 1rem;
 	}
 
-	.crumbs,
 	.note {
 		font-size: var(--font-size-sub);
 	}

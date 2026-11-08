@@ -11,5 +11,5 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	if (page === null) error(404);
 	const data = await importPage(drizzle(env.DB), params.lawId, page);
 	if (!data || (page > 1 && data.imports.length === 0)) error(404);
-	return { ...data, page };
+	return { ...data, page, ifBand: true as const };
 };

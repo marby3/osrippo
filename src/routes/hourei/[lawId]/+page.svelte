@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { ja, jaDate } from '#lib/copy/ja.ts';
 	import { fullYears } from '#lib/domain/law/display.ts';
 	import DiffText from '#lib/components/DiffText.svelte';
@@ -101,6 +102,7 @@
 </svelte:head>
 
 <main>
+	<Crumbs current={data.law.title} />
 	<LawSwitch lawId={data.law.id} current="real" />
 	<header class="law-head">
 		<h1>{data.law.title}</h1>

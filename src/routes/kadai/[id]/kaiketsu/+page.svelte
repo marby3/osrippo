@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Crumbs from '#lib/components/Crumbs.svelte';
 	import SolutionCard from '#lib/components/SolutionCard.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
@@ -27,6 +28,7 @@
 </svelte:head>
 
 <main>
+	<Crumbs current={ja.solution.listHeading} />
 	{#if data.view === 'merged'}
 		<p><a href="/kadai/{data.mergedInto}/kaiketsu">{ja.merge.mergedInto(data.mergedInto)}</a></p>
 		{#if message}<p role="alert">{message}</p>{/if}
