@@ -64,7 +64,7 @@
 	{/if}
 
 	<!-- 案の「法案の書き方を見る」の場所：スマホは一覧の下（SpBills）、PC は見出しの右（PcBills）。リンクは1つで、PC は CSS で動かす -->
-	<p class="write"><a href="/houan/kaku">{ja.bill.list.write}</a></p>
+	<p class="write"><a href="/houan/kakikata">{ja.bill.list.howto}</a></p>
 </main>
 
 <style>

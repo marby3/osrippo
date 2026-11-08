@@ -431,7 +431,10 @@ export function billListHref(tab: BillTab, page: number): string {
 // ---- 発議要件（Issue #49。設計書 docs/spec/49.md 決めたこと2・3） ----
 
 /** 今月の参加者の 5% を切り上げ、最低3人。割合は小数を使わず整数で計算する */
-export const proposalRequirement = (participants: number) => Math.max(3, Math.ceil((participants * 5) / 100));
+/** 発議要件：今月の参加者の PROPOSAL_PERCENT %、最低 PROPOSAL_MIN 人（書き方のページもこの値から出す） */
+export const PROPOSAL_PERCENT = 5;
+export const PROPOSAL_MIN = 3;
+export const proposalRequirement = (participants: number) => Math.max(PROPOSAL_MIN, Math.ceil((participants * PROPOSAL_PERCENT) / 100));
 
 /**
  * 今月の参加者に数える行動：課題・わかる・解決策・解決策への反応・法案の起草（作る・保存・発議）・賛同・質疑・答弁・補足・評価・修正案・投票。
