@@ -45,5 +45,26 @@
 		"crons": ["1 15 * * *"]
 	},
 	"workers_dev": true,
-	"preview_urls": true
+	"preview_urls": true,
+	// 確かめるためのステージング（Issue #113）。pnpm build のあと wrangler deploy --env staging。公開ではない（URL は広めない）。
+	// 秘密の値は wrangler secret put --env staging。ログインのクライアントはまだないので、ログインの値はダミー
+	"env": {
+		"staging": {
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "osrippo-staging",
+					"database_id": "ca1c0d81-d4ea-4b62-a31e-58048ac622c6",
+					"migrations_dir": "drizzle"
+				}
+			],
+			"vars": {
+				// Turnstile のサイトキー（公開してよい値）。ウィジェット osrippo-staging（osrippo-staging.marbyxmax10.workers.dev だけ）
+				"TURNSTILE_SITE_KEY": "0x4AAAAAAF4cryiiv6FIHZHg"
+			},
+			"triggers": {
+				"crons": ["1 15 * * *"]
+			}
+		}
+	}
 }
