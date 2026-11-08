@@ -372,7 +372,8 @@ export async function billFullText(db: Db, bill: NonNullable<Bill>, seq: number)
 	const titles = await lawTitlesOf(db, bill);
 	const titleOf = (l: (typeof bill.laws)[number]) => (l.lawId ? (titles.get(l.lawId) ?? '') : (l.newTitle ?? ''));
 	const laws = bill.laws.map((l) => ({ seq: l.seq, title: titleOf(l), action: l.action }));
-	const law = bill.laws[seq];
+	const law = bill.laws.find((l) => l.seq === seq);
+	if (!law) return undefined;
 	const shown = { seq, title: titleOf(law), action: law.action, lawId: law.lawId };
 	if (law.action === 'repeal') return { laws, law: shown, articles: [] as FullArticle[] };
 	const added = (c: BillChange): FullArticle => ({

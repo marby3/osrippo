@@ -14,6 +14,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	// 法令の位置（0 から）。ないときは1本目。形が違うか法令の数を超えたら 404
 	const raw = url.searchParams.get('hourei');
 	const seq = raw === null ? 0 : /^(0|[1-9]\d?)$/.test(raw) ? Number(raw) : -1;
-	if (seq < 0 || seq >= bill.laws.length) error(404);
-	return { bill: { id: bill.id, title: bill.title }, supplementary: bill.supplementary, ...(await billFullText(db, bill, seq)) };
+	const full = seq < 0 ? undefined : await billFullText(db, bill, seq);
+	if (!full) error(404);
+	return { bill: { id: bill.id, title: bill.title }, supplementary: bill.supplementary, ...full };
 };

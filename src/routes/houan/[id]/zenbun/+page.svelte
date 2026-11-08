@@ -42,7 +42,7 @@
 		<p><a href="/if/hourei/{data.law.lawId}">{ja.ifLaw.toLaw}</a></p>
 	{:else}
 		{#if changed.length || data.supplementary}
-			<nav class="changed" aria-labelledby="changed-heading">
+			<nav class="changed-list" aria-labelledby="changed-heading">
 				<h2 id="changed-heading">{ja.bill.page.fullTextChanged}</h2>
 				<ul>
 					{#each changed as a (a.num)}
@@ -60,7 +60,7 @@
 					<h3>
 						<span id="article-{article.num}">{article.label}</span>
 						{#if article.captionBefore !== null}
-							<span class="caption"><del>−{article.captionBefore}</del><ins>＋{article.caption}</ins></span>
+							<span class="caption">{#if article.captionBefore}<del>−{article.captionBefore}</del>{/if}{#if article.caption}<ins>＋{article.caption}</ins>{/if}</span>
 						{:else}
 							<span class="caption">{article.caption}</span>
 						{/if}
@@ -125,18 +125,18 @@
 		font-weight: bold;
 	}
 
-	.changed h2,
+	.changed-list h2,
 	.band {
 		margin: 1.5rem 0 0.5rem;
 		font-size: var(--font-size-body);
 	}
 
-	.changed ul {
+	.changed-list ul {
 		margin: 0;
 		padding-left: 1.25em;
 	}
 
-	.changed li a {
+	.changed-list li a {
 		display: inline-block;
 		min-height: var(--tap-min);
 		line-height: var(--tap-min);
