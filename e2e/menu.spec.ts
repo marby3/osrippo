@@ -270,6 +270,7 @@ test('#118 基準2：スマホの投票の画面で、「票を選んでくだ�
 	// 小さいスマホでページが画面からはみ出し、ボタンが画面の下に留まる
 	await s.reader.setViewportSize({ width: 390, height: 480 });
 	await s.reader.goto(`/saiketsu/${s.billId}`);
+	expect(await s.reader.evaluate(() => document.documentElement.scrollHeight > innerHeight), 'ページが画面からはみ出していない').toBe(true);
 	await reachable(s.reader, s.reader.getByRole('button', { name: '票を選んでください' }));
 });
 
@@ -283,8 +284,10 @@ test('#118 基準3：スマホの質疑のタブで、「質疑を書く」が�
 	await s.reader.setViewportSize({ width: 390, height: 480 });
 	await s.reader.goto(`${s.bill}/shitsugi`);
 	const write = s.reader.getByRole('link', { name: '質疑を書く', exact: true });
+	expect(await s.reader.evaluate(() => document.documentElement.scrollHeight > innerHeight), 'ページが画面からはみ出していない').toBe(true);
 	await reachable(s.reader, write);
 	await expect(menu(s.reader)).toBeVisible();
 	const tabs = (await menu(s.reader).boundingBox())!;
-	expect((await write.boundingBox())!.y + (await write.boundingBox())!.height).toBeLessThanOrEqual(tabs.y);
+	const button = (await write.boundingBox())!;
+	expect(button.y + button.height).toBeLessThanOrEqual(tabs.y);
 });
