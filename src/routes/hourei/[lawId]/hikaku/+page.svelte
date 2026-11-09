@@ -204,6 +204,12 @@
 			border-left: 1px solid var(--color-input-border);
 		}
 
+		/* 新しく入った条・なくなった条は片側だけなので、表の幅いっぱいに出す */
+		section:only-of-type {
+			grid-column: 1 / 3;
+			border-left: 0;
+		}
+
 		h3 {
 			margin: 0;
 			padding: 0.75rem 1rem;

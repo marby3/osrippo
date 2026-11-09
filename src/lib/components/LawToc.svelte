@@ -1,7 +1,7 @@
 <script lang="ts">
 	// 法令ページの目次（SpLaw・PcLaw）。現実の法律と IF世界の法律で同じものを使う（Issue #124）。
 	// PC は左にいつも出し、スマホは「目次から探す」で開く。
-	// いま画面のいちばん上に出ている章（節）に aria-current を付け、その章と親の章を太字にする（スクリプトがないときは付けない）
+	// いま画面のいちばん上に出ている章（節）に aria-current を付けて太字にする（スクリプトがないときは付けない）
 	import { onMount } from 'svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { tableOfContents } from '#lib/domain/law/display.ts';
@@ -21,14 +21,24 @@
 	const LINE = 120;
 
 	function update() {
+		// ページの下まで送ったら、最後の章が短くても線まで上がらないので、画面に見えている最後の見出しにする
+		const bottom = scrollY + innerHeight >= document.documentElement.scrollHeight - 2;
+		const line = bottom ? innerHeight : LINE;
 		let found: Item | null = null;
 		for (const h of entries) {
 			const el = document.getElementById(`jo-${h.first}`);
 			// 親と子の最初の条が同じなら、あとに並ぶ子（節）が勝つ
-			if (el && el.getBoundingClientRect().top <= LINE) found = h;
+			if (el && el.getBoundingClientRect().top <= line) found = h;
 		}
 		current = found ?? entries[0] ?? null;
 	}
+
+	// 同じ部品のまま別の法令へ移ったときも、いまの見出しを決め直す（画面が描き変わったあと）
+	$effect(() => {
+		void entries;
+		const frame = requestAnimationFrame(update);
+		return () => cancelAnimationFrame(frame);
+	});
 
 	onMount(() => {
 		let frame = 0;
@@ -119,9 +129,8 @@
 		text-decoration: none;
 	}
 
-	/* いまの章（節）と、それを含む章を太字に */
-	li:has(a[aria-current]) > a,
-	li:has(a[aria-current]) > span {
+	/* いまの章（節）を太字に */
+	a[aria-current] {
 		font-weight: bold;
 	}
 

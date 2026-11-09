@@ -151,12 +151,22 @@
 			align-items: start;
 		}
 
-		.law-top > :global(nav) {
-			grid-area: 1 / 2;
+		/* 「架空の法令」の札の下の法令名の行にそろえるため、header の中身を表の行として並べる */
+		header {
+			display: contents;
 		}
 
-		header {
-			grid-area: 1 / 1;
+		header > * {
+			grid-column: 1;
+		}
+
+		.fictional {
+			justify-self: start;
+		}
+
+		.law-top > :global(nav) {
+			grid-area: 2 / 2;
+			align-self: center;
 		}
 
 		.layout {

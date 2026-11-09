@@ -42,7 +42,7 @@
 		border-color: var(--color-base);
 	}
 
-	/* IF世界を開いているときは紫の塗り。現実の法律は白地に灰色の枠（PcCompare・SpCompare、Issue #124） */
+	/* IF世界を開いているときは紫の塗り。現実の法律は白地に灰色の枠（SpLaw・PcLaw・PcCompare、Issue #124） */
 	a.if[aria-current='page'] {
 		border-color: var(--color-if);
 		background: var(--color-if);
