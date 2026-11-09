@@ -41,7 +41,7 @@
 		<article>
 			<!-- 読み上げは「1. 第1条 ・ 書きかえ」。PC の「場所」の欄は場所だけを見せる（PcBillChanges） -->
 			<h2>
-				{#if !supplementary}<span class="extra">{ja.bill.page.changeNumber(i + 1)}</span>{/if}<span class="place"
+				{#if !supplementary}<span class="extra">{ja.bill.page.changeNumber(i + 1)}</span>{/if}<span
 					>{supplementary ? ja.bill.page.supplementary : change.location}</span
 				><span class="extra">{ja.bill.page.changeOp(supplementary ? ja.bill.ops.supplementary : ja.bill.ops[change.op])}</span>
 			</h2>

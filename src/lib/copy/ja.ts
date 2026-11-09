@@ -43,6 +43,10 @@ const sessionPoint = (s: Session, ms: number, withDay: boolean) =>
 /** 投稿の種類の名前 */
 const POST_KINDS = { question: '質疑', answer: '答弁', supplement: '補足' };
 
+/** 変更点の見出しの番号と種類（ja.bill.page.changeHeading の部品） */
+const changeNumber = (n: number) => `${n}. `;
+const changeOp = (op: string) => ` ・ ${op}`;
+
 export const ja = {
 	siteName: 'オープンソース立法府',
 	unofficial: '国会・政府とは無関係の非公式サービスです',
@@ -726,10 +730,10 @@ export const ja = {
 			none: '（なし）',
 			deleted: '削除',
 			supplementary: '附則',
-			changeHeading: (n: number | null, location: string, op: string) => `${n === null ? '' : `${n}. `}${location} ・ ${op}`,
-			/** 変更点の見出しを分けたもの（PC の表は場所だけを見せる。Issue #122）。つなぐと changeHeading と同じ */
-			changeNumber: (n: number) => `${n}. `,
-			changeOp: (op: string) => ` ・ ${op}`,
+			/** 変更点の見出し「1. 第1条 ・ 書きかえ」。番号・場所・種類に分けて組み立てる（PC の表は場所だけを見せる。Issue #122） */
+			changeHeading: (n: number | null, location: string, op: string) => `${n === null ? '' : changeNumber(n)}${location}${changeOp(op)}`,
+			changeNumber,
+			changeOp,
 			repeal: (title: string) => `${title}をまるごと廃止します。`,
 			/** 条文全体のなかで見る（Issue #54） */
 			fullTextLink: '条文全体のなかで見る',
