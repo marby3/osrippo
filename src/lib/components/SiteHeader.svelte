@@ -32,7 +32,7 @@
 {/snippet}
 
 <header>
-	<div class="bar">
+	<div class="bar frame">
 		<a class="brand" href="/">
 			<span class="mark" aria-hidden="true">立</span>
 			<span class="name">{ja.siteName}</span>
@@ -74,10 +74,7 @@
 		display: flex;
 		gap: 0.75rem;
 		align-items: center;
-		max-width: 72rem;
 		min-height: 3.5rem;
-		margin: 0 auto;
-		padding: 0 1rem;
 	}
 
 	a {

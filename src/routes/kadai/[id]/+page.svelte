@@ -58,7 +58,7 @@
 	{/if}
 </svelte:head>
 
-<main>
+<main class="frame">
 	<Crumbs current={ja.menu.pages.issue} />
 	{#if data.view === 'merged'}
 		<!-- 統合された課題への操作を断ったあと（POST）だけここに来る。GET は統合先へ転送する -->
@@ -190,9 +190,6 @@
 
 <style>
 	main {
-		/* 全体のメニューと同じ幅。PC で本文の左右の端がメニューとそろう（Issue #119） */
-		max-width: 72rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 
@@ -365,10 +362,10 @@
 		font-weight: bold;
 	}
 
-	/* PC：外枠はメニューの端にそろえ、中身は案（PcIssue）の左の列の幅に収める。2列にするのは #121 */
+	/* PC：外枠だけをメニューの端にそろえ、中身はいままでの幅（40rem）のまま左に寄せる。2列にする #121 で外す */
 	@media (min-width: 64rem) {
 		main > :global(*) {
-			max-width: 50rem;
+			max-width: 40rem;
 		}
 	}
 </style>

@@ -15,7 +15,7 @@
 	);
 </script>
 
-<main>
+<main class="frame">
 	<h1>{ja.siteName}</h1>
 
 	<!-- 今の会期（画面の案 SpHome・PcHome）。進み具合は「いまは …」の文でも分かる -->
@@ -48,9 +48,6 @@
 
 <style>
 	main {
-		/* 全体のメニューと同じ幅。PC で本文の左右の端がメニューとそろう（Issue #119） */
-		max-width: 72rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 	.session {

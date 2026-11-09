@@ -26,7 +26,7 @@
 	</ul>
 {/snippet}
 
-<main>
+<main class="frame">
 	<Crumbs current={ja.menu.pages.ifLaw(data.law.title)} />
 	{#if data.real}<LawSwitch lawId={data.law.id} current="if" />{/if}
 	<header>
@@ -63,9 +63,6 @@
 
 <style>
 	main {
-		/* 全体のメニューと同じ幅。PC で本文の左右の端がメニューとそろう（Issue #119） */
-		max-width: 72rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 

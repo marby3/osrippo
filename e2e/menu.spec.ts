@@ -332,6 +332,7 @@ test('#119 基準2：PC の採決の一覧は、狭い1列を真ん中に置く'
 	const e = await edges(page);
 	const width = page.viewportSize()!.width;
 	expect(Math.abs(e.left - (width - e.right))).toBeLessThanOrEqual(1);
+	// 広いページの幅（メニューの端から端）より、はっきり狭い（100px 以上）
 	expect(e.right - e.left).toBeLessThan(e.menuRight - e.menuLeft - 100);
 });
 

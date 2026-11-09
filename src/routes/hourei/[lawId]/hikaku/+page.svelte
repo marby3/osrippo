@@ -24,7 +24,7 @@
 	<title>{ja.compare.pageTitle(data.law.title)}</title>
 </svelte:head>
 
-<main>
+<main class="frame">
 	<Crumbs current={ja.compare.heading} />
 	<p class="sub"><a href="/hourei/{data.law.id}">{data.law.title}</a></p>
 	<h1>{ja.compare.heading}</h1>
@@ -79,9 +79,6 @@
 
 <style>
 	main {
-		/* 全体のメニューと同じ幅。PC で本文の左右の端がメニューとそろう（Issue #119） */
-		max-width: 72rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 

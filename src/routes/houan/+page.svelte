@@ -16,7 +16,7 @@
 	<title>{ja.bill.list.pageTitle}</title>
 </svelte:head>
 
-<main>
+<main class="frame">
 	<h1>{ja.bill.list.heading}</h1>
 
 	<nav class="tabs" aria-label={ja.bill.list.tabs}>
@@ -71,9 +71,6 @@
 	main {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		/* 全体のメニューと同じ幅。PC で本文の左右の端がメニューとそろう（Issue #119） */
-		max-width: 72rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 
