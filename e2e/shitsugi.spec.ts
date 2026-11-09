@@ -272,7 +272,8 @@ test('基準6：自分の考えは残り、ほかの人に出ない。最初の�
 		await posted(u, () => stance(u, name).click());
 		await u.goto(qa(bill));
 	};
-	const left = (u: Page, n: number) => expect(u.getByText(`この会期はあと${n}回変えられます`)).toBeVisible();
+	// 残りの回数はスマホはボタンの下、PC は見出しの下に出す（Issue #122）。見えているほうを確かめる
+	const left = (u: Page, n: number) => expect(u.getByText(`この会期はあと${n}回変えられます`).filter({ visible: true })).toBeVisible();
 
 	// 何も選んでいなければ未定。未定を押しても回数を失わない
 	await e.page.goto(qa(bill));
@@ -300,7 +301,7 @@ test('基準6：自分の考えは残り、ほかの人に出ない。最初の�
 	await press(e.page, '反対寄り');
 	await left(e.page, 1);
 	await press(e.page, '未定');
-	await expect(e.page.getByText('この会期はもう変えられません')).toBeVisible();
+	await expect(e.page.getByText('この会期はもう変えられません').filter({ visible: true })).toBeVisible();
 	await expect(stance(e.page, '賛成寄り')).toBeDisabled();
 	expect((await billRequest(e.page, `${qa(bill)}?/stance`, { stance: 'for' })).status()).toBe(409);
 

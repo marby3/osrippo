@@ -133,6 +133,8 @@ export const ja = {
 		writePageTitle: (title: string) => `${title}の質疑を書く｜オープンソース立法府`,
 		stanceHeading: 'あなたの今の考え',
 		onlyYou: '自分だけに見えます',
+		/** PC で「自分だけに見えます」と残りの回数をつなぐ */
+		noteJoin: ' ・ ',
 		stances: { for: '賛成寄り', undecided: '未定', against: '反対寄り' },
 		stanceLeft: (n: number) => `この会期はあと${n}回変えられます`,
 		stanceNone: 'この会期はもう変えられません',
@@ -725,6 +727,9 @@ export const ja = {
 			deleted: '削除',
 			supplementary: '附則',
 			changeHeading: (n: number | null, location: string, op: string) => `${n === null ? '' : `${n}. `}${location} ・ ${op}`,
+			/** 変更点の見出しを分けたもの（PC の表は場所だけを見せる。Issue #122）。つなぐと changeHeading と同じ */
+			changeNumber: (n: number) => `${n}. `,
+			changeOp: (op: string) => ` ・ ${op}`,
 			repeal: (title: string) => `${title}をまるごと廃止します。`,
 			/** 条文全体のなかで見る（Issue #54） */
 			fullTextLink: '条文全体のなかで見る',

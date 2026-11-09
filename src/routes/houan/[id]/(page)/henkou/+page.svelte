@@ -39,10 +39,11 @@
 	{#each data.changes as change, i (i)}
 		{@const supplementary = change.op === 'supplementary'}
 		<article>
+			<!-- 読み上げは「1. 第1条 ・ 書きかえ」。PC の「場所」の欄は場所だけを見せる（PcBillChanges） -->
 			<h2>
-				{supplementary
-					? ja.bill.page.changeHeading(null, ja.bill.page.supplementary, ja.bill.ops.supplementary)
-					: ja.bill.page.changeHeading(i + 1, change.location, ja.bill.ops[change.op])}
+				{#if !supplementary}<span class="extra">{ja.bill.page.changeNumber(i + 1)}</span>{/if}<span class="place"
+					>{supplementary ? ja.bill.page.supplementary : change.location}</span
+				><span class="extra">{ja.bill.page.changeOp(supplementary ? ja.bill.ops.supplementary : ja.bill.ops[change.op])}</span>
 			</h2>
 			<!-- 新しく足すものは、スマホでは変更後だけ（SpBillChanges）、PC は表の欄に（なし）（PcBillChanges） -->
 			<section class="before" class:empty={!change.before}>
@@ -96,6 +97,12 @@
 		gap: 1rem;
 		margin: 0;
 		font-size: var(--font-size-sub);
+	}
+
+	/* 凡例は札の形（PcBillChanges・SpBillChanges） */
+	.legend span {
+		padding: 0.125rem 0.5rem;
+		border-radius: var(--radius-s);
 	}
 
 	.legend .del {
@@ -170,7 +177,7 @@
 			gap: 0;
 		}
 
-		.legend {
+		.legend-row {
 			margin-bottom: 1rem;
 		}
 
@@ -200,7 +207,7 @@
 			border-radius: 0;
 		}
 
-		article:last-child {
+		article:last-of-type {
 			border-radius: 0 0 var(--radius-l) var(--radius-l);
 		}
 
@@ -233,11 +240,15 @@
 			display: block;
 		}
 
-		/* 見出しの行（場所・変更後・いま）があるので、欄の中の名前は読み上げだけにする */
-		h3 {
+		/* 見出しの行（場所・変更後・いま）があるので、欄の中の名前と、場所の欄の番号・種類は読み上げだけにする */
+		h3,
+		h2 .extra {
 			position: absolute;
 			width: 1px;
 			height: 1px;
+			margin: -1px;
+			padding: 0;
+			border: 0;
 			overflow: hidden;
 			clip-path: inset(50%);
 			white-space: nowrap;

@@ -20,6 +20,10 @@
 	/** 失敗した答弁か補足（そのカードの欄に出す） */
 	const failure = $derived(form?.question !== undefined ? { question: form.question, body: form.body ?? '', error: form.error, message: form.message } : null);
 	const stanceMessage = $derived(form && 'stanceMessage' in form ? form.stanceMessage : undefined);
+	/** 考えを変えられる残りの回数（スマホはボタンの下、PC は見出しの下に「自分だけに見えます」と並べる。Issue #122） */
+	const stanceLeft = $derived(
+		data.stance ? (data.stance.left > 0 ? ja.post.stanceLeft(data.stance.left) : ja.post.stanceNone) : null
+	);
 	/** 断られた評価（そのボタンの下に出す） */
 	const evaluationFailure = $derived(form && 'evaluationPost' in form && form.evaluationPost != null ? { post: form.evaluationPost, message: form.message ?? '' } : null);
 	// 読んだ記録：応答は画面に出さない。失敗しても黙って捨てる（docs/spec/67.md 決めたこと4）
@@ -57,8 +61,11 @@
 <div class="layout">
 	{#if data.stanceShown}
 		<section class="stance" aria-labelledby="stance-heading">
-			<h2 id="stance-heading">{ja.post.stanceHeading}</h2>
-			<p class="note">{ja.post.onlyYou}</p>
+			<!-- スマホは見出しの右に「自分だけに見えます」（SpBillQA）。PC は見出しの下に残りの回数と1行で（PcBillQA） -->
+			<div class="stance-head">
+				<h2 id="stance-heading">{ja.post.stanceHeading}</h2>
+				<p class="note"><span>{ja.post.onlyYou}</span>{#if stanceLeft}<span class="left-pc">{ja.post.noteJoin}{stanceLeft}</span>{/if}</p>
+			</div>
 			<div class="choices">
 				{#each choices as choice (choice)}
 					{#if data.stance}
@@ -75,9 +82,7 @@
 					{/if}
 				{/each}
 			</div>
-			{#if data.stance}
-				<p class="note">{data.stance.left > 0 ? ja.post.stanceLeft(data.stance.left) : ja.post.stanceNone}</p>
-			{/if}
+			{#if stanceLeft}<p class="note left-sp">{stanceLeft}</p>{/if}
 			{#if stanceMessage}<p role="alert" class="alert">{stanceMessage}</p>{/if}
 		</section>
 	{/if}
@@ -177,6 +182,21 @@
 		padding: 1rem;
 		border: 2px solid var(--color-base);
 		border-radius: var(--radius-l);
+	}
+
+	.stance-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		column-gap: 0.5rem;
+	}
+
+	.stance-head .note {
+		margin: 0;
+	}
+
+	.left-pc {
+		display: none;
 	}
 
 	.choices {
@@ -384,6 +404,27 @@
 
 		.choices {
 			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.stance-head {
+			display: block;
+		}
+
+		.stance-head .note {
+			margin-top: 0.25rem;
+		}
+
+		.left-pc {
+			display: inline;
+		}
+
+		.left-sp {
+			display: none;
+		}
+
+		/* 絞り込みと最初の質疑のあいだにも区切り線（PcBillQA）。質疑は1件ずつ下に線がある（QuestionCard） */
+		.filters + :global(article) {
+			border-top: 1px solid var(--color-divider);
 		}
 	}
 </style>
