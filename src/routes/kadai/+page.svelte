@@ -341,8 +341,8 @@
 		}
 
 		.side {
-			display: grid;
 			gap: 1.5rem;
+			margin-top: 0;
 		}
 
 		.controls {
