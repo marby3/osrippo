@@ -30,7 +30,7 @@
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-<main>
+<main class="frame">
 	<Crumbs current={ja.result.crumb(data.session)} keepOnSp />
 	<h1>{data.bill.title}</h1>
 
@@ -112,8 +112,6 @@
 
 <style>
 	main {
-		max-width: 76rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 

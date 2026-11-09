@@ -39,7 +39,7 @@
 	});
 </script>
 
-<main>
+<main class="frame">
 	<Crumbs current={data.position === null ? ja.vote.otherHeading : ja.vote.position(data.position, data.total)} keepOnSp />
 	<h1>{bill.title}</h1>
 
@@ -134,8 +134,6 @@
 
 <style>
 	main {
-		max-width: 76rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 

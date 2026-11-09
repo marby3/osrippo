@@ -291,3 +291,79 @@ test('#118 基準3：スマホの質疑のタブで、「質疑を書く」が�
 	const button = (await write.boundingBox())!;
 	expect(button.y + button.height).toBeLessThanOrEqual(tabs.y);
 });
+
+// Issue #119：PC の本文の左右の端をメニューにそろえる
+
+/** PC のメニューの端（ロゴの左端と「わたしの記録」の右端）と、本文（main の中身の箱）の左右 */
+async function edges(page: Page) {
+	const banner = page.getByRole('banner');
+	const logo = (await banner.getByRole('link', { name: SITE, exact: true }).boundingBox())!;
+	const mine = (await banner.getByRole('link', { name: 'わたしの記録', exact: true }).boundingBox())!;
+	const main = await page.getByRole('main').evaluate((el) => {
+		const r = el.getBoundingClientRect();
+		const s = getComputedStyle(el);
+		return { left: r.left + parseFloat(s.paddingLeft), right: r.right - parseFloat(s.paddingRight) };
+	});
+	return { menuLeft: logo.x, menuRight: mine.x + mine.width, ...main };
+}
+
+test('#119 基準1：PC の広いページは、本文の左右の端がメニューの端とそろう', async ({ browser }, info) => {
+	test.skip(info.project.name !== 'pc', 'PC だけ');
+	test.setTimeout(180_000);
+	const s = await proposedBill(browser, 'pc', 4);
+	const check = async (page: Page, path: string) => {
+		await page.goto(path);
+		const e = await edges(page);
+		expect(Math.abs(e.left - e.menuLeft), `${path} の左端`).toBeLessThanOrEqual(1);
+		expect(Math.abs(e.right - e.menuRight), `${path} の右端`).toBeLessThanOrEqual(1);
+	};
+	for (const path of ['/', '/kadai', `/kadai/${s.issueId}`, '/kadai/kaku', '/houan', `/hourei/${LAW}`, `/if/hourei/${LAW}`, `/hourei/${LAW}/hikaku`]) await check(s.author, path);
+	await s.propose();
+	await s.setDay(15);
+	for (const path of [s.bill, `${s.bill}/henkou`, `${s.bill}/shitsugi`, `${s.bill}/shusei`, `${s.bill}/shitsugi/kaku`, `${s.bill}/shusei/kaku`]) await check(s.reader, path);
+	await s.setDay(22);
+	for (const path of [`/saiketsu/${s.billId}`, `/saiketsu/${s.billId}/kekka`]) await check(s.reader, path);
+});
+
+test('#119 基準2：PC の採決の一覧は、狭い1列を真ん中に置く', async ({ browser }, info) => {
+	test.skip(info.project.name !== 'pc', 'PC だけ');
+	const page = await person(browser, 'pc', 7, at('pc', 7, 25));
+	await page.goto('/saiketsu');
+	const e = await edges(page);
+	const width = page.viewportSize()!.width;
+	expect(Math.abs(e.left - (width - e.right))).toBeLessThanOrEqual(1);
+	// 広いページの幅（メニューの端から端）より、はっきり狭い（100px 以上）
+	expect(e.right - e.left).toBeLessThan(e.menuRight - e.menuLeft - 100);
+});
+
+test('#119 基準3：PC の案のないページは、本文がメニューの端より外に広がらない', async ({ browser }, info) => {
+	test.skip(info.project.name !== 'pc', 'PC だけ');
+	test.setTimeout(180_000);
+	const s = await proposedBill(browser, 'pc', 5);
+	const check = async (page: Page, path: string) => {
+		await page.goto(path);
+		const e = await edges(page);
+		expect(e.left, `${path} の左端`).toBeGreaterThanOrEqual(e.menuLeft - 1);
+		expect(e.right, `${path} の右端`).toBeLessThanOrEqual(e.menuRight + 1);
+	};
+	for (const path of [
+		'/kensaku?q=契約',
+		'/watashi',
+		'/tsuchi',
+		'/iinkai',
+		'/unei',
+		'/hourei',
+		'/houan/kakikata',
+		'/houan/kaku',
+		`${s.bill}/kaku`,
+		`/kadai/${s.issueId}/kaiketsu`,
+		`/kadai/${s.issueId}/kaiketsu/kaku`,
+		`/if/hourei/${LAW}/torikomi`
+	])
+		await check(s.author, path);
+	await s.propose();
+	await s.setDay(15);
+	await check(s.reader, `${s.bill}/zenbun`);
+	await s.setDay(22);
+	await check(s.reader, '/saiketsu/hoka');
+});

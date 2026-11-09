@@ -15,7 +15,7 @@
 	);
 </script>
 
-<main>
+<main class="frame">
 	<h1>{ja.siteName}</h1>
 
 	<!-- 今の会期（画面の案 SpHome・PcHome）。進み具合は「いまは …」の文でも分かる -->
@@ -48,8 +48,6 @@
 
 <style>
 	main {
-		max-width: 84rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 	.session {

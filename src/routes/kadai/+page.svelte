@@ -20,7 +20,7 @@
 	{#if q.q.trim()}<meta name="robots" content="noindex" />{/if}
 </svelte:head>
 
-<main>
+<main class="frame">
 	<header>
 		<h1>{ja.issue.heading}</h1>
 		<a class="write" href="/kadai/kaku"><span aria-hidden="true">＋</span> {ja.issue.write}</a>
@@ -112,8 +112,6 @@
 
 <style>
 	main {
-		max-width: 72rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 

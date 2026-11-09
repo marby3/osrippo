@@ -16,7 +16,7 @@
 	<title>{ja.bill.list.pageTitle}</title>
 </svelte:head>
 
-<main>
+<main class="frame">
 	<h1>{ja.bill.list.heading}</h1>
 
 	<nav class="tabs" aria-label={ja.bill.list.tabs}>
@@ -71,8 +71,6 @@
 	main {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		max-width: 76rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 
@@ -178,7 +176,7 @@
 	@media (min-width: 64rem) {
 		main {
 			grid-template-columns: minmax(0, 1fr) auto;
-			padding: 1.5rem 4rem;
+			padding: 1.5rem 1rem;
 		}
 
 		h1 {

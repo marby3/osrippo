@@ -26,7 +26,7 @@
 	</ul>
 {/snippet}
 
-<main>
+<main class="frame">
 	<Crumbs current={ja.menu.pages.ifLaw(data.law.title)} />
 	{#if data.real}<LawSwitch lawId={data.law.id} current="if" />{/if}
 	<header>
@@ -63,8 +63,6 @@
 
 <style>
 	main {
-		max-width: 76rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 

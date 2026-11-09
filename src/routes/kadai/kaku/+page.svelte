@@ -90,7 +90,7 @@
 	<title>{ja.issue.writePageTitle}</title>
 </svelte:head>
 
-<main>
+<main class="frame">
 	<Crumbs current={ja.issue.write} />
 	<h1>{ja.issue.write}</h1>
 	<ol class="steps">
@@ -235,9 +235,14 @@
 
 <style>
 	main {
-		max-width: 40rem;
-		margin: 0 auto;
 		padding: 1rem;
+	}
+
+	/* スマホと狭い画面は1列。PC の幅は外枠（.frame）でメニューの端にそろえる（Issue #119） */
+	@media (max-width: 63.99rem) {
+		main {
+			max-width: 40rem;
+		}
 	}
 
 	.similar {
@@ -293,7 +298,6 @@
 			display: grid;
 			grid-template-columns: minmax(0, 1fr) 24rem;
 			column-gap: 3rem;
-			max-width: 76rem;
 		}
 
 		main > :not(.similar-live) {

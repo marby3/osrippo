@@ -101,7 +101,7 @@
 	<title>{ja.law.pageTitle(data.law.title)}</title>
 </svelte:head>
 
-<main>
+<main class="frame">
 	<Crumbs current={data.law.title} />
 	<LawSwitch lawId={data.law.id} current="real" />
 	<header class="law-head">
@@ -189,8 +189,6 @@
 
 <style>
 	main {
-		max-width: 84rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 

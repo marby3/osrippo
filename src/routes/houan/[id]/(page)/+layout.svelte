@@ -16,7 +16,7 @@
 	]);
 </script>
 
-<main>
+<main class="frame">
 	<Crumbs current={bill.title} />
 	<p class="badge">{ja.bill.kinds[bill.kind]}</p>
 	<h1>{bill.title}</h1>
@@ -53,8 +53,6 @@
 
 <style>
 	main {
-		max-width: 76rem;
-		margin: 0 auto;
 		padding: 1rem;
 	}
 
@@ -140,7 +138,7 @@
 
 	@media (min-width: 64rem) {
 		main {
-			padding: 1.5rem 4rem;
+			padding: 1.5rem 1rem;
 		}
 
 		.sp {
