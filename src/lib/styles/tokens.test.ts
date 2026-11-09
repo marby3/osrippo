@@ -65,10 +65,26 @@ function files(dir: string): string[] {
 	});
 }
 
+/**
+ * 色の直書きを探す。コメント（/* *\/・<!-- -->・行の頭の //）は色を付けないので外す。
+ * コメントに書く「Issue #120」が3桁の色に見えるため。行の途中の // は URL と見分けにくいので外さない
+ */
+function colorLiterals(source: string): string[] {
+	const code = source
+		.replace(/\/\*[\s\S]*?\*\//g, '')
+		.replace(/<!--[\s\S]*?-->/g, '')
+		.replace(/^\s*\/\/.*$/gm, '');
+	return [...code.matchAll(/#[0-9a-f]{3,8}\b|\b(rgb|hsl)a?\(/gi)].map((m) => m[0]);
+}
+
+test('色の直書きの探し方：コメントの中の「Issue #120」などは数えず、コードの色は数える', () => {
+	const source = ['/* Issue #120 */', '<!-- Issue #118 -->', '\t// Issue #119', '\t/** Issue #122 */', 'a { color: #fff; }'].join('\n');
+	expect(colorLiterals(source)).toEqual(['#fff']);
+});
+
 test('基準3：tokens.css 以外の .svelte と .css に色の直書きがない', () => {
-	const literal = /#[0-9a-f]{3,8}\b|\b(rgb|hsl)a?\(/gi;
 	const found = files(SRC)
 		.filter((p) => /\.(svelte|css)$/.test(p) && p !== TOKENS)
-		.flatMap((p) => [...readFileSync(p, 'utf8').matchAll(literal)].map((m) => `${p.slice(SRC.length)}: ${m[0]}`));
+		.flatMap((p) => colorLiterals(readFileSync(p, 'utf8')).map((m) => `${p.slice(SRC.length)}: ${m}`));
 	expect(found).toEqual([]);
 });
