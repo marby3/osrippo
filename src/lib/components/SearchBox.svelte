@@ -48,4 +48,21 @@
 	input::placeholder {
 		color: var(--color-text-sub);
 	}
+
+	/* キーボードで移ったときだけボタンを見せる（フォーカスが見えるように） */
+	button:focus-visible {
+		position: static;
+		width: auto;
+		height: auto;
+		min-height: var(--tap-min);
+		margin: 0.25rem 0 0;
+		padding: 0 1rem;
+		border: 1px solid var(--color-base);
+		border-radius: var(--radius-m);
+		clip-path: none;
+		background: var(--color-base);
+		color: var(--color-bg);
+		font: inherit;
+		font-weight: bold;
+	}
 </style>

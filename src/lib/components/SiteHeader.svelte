@@ -182,7 +182,7 @@
 		gap: 0.125rem;
 		align-items: center;
 		justify-content: center;
-		/* 高さを変えたら +layout.svelte の .tab-space と、質疑のタブの .write の bottom も */
+		/* 高さを変えたら +layout.svelte の .tab-space（.bar も）、質疑のタブの .write と課題の一覧の .write-bar の bottom も */
 		min-height: 3.5rem;
 		border-top: 3px solid transparent;
 		color: var(--color-text-sub);

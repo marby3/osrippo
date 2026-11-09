@@ -44,8 +44,8 @@
 
 			<div class="controls">
 				<!-- PC は丸い選択肢の形（PcIssues）。スクリプトなしでも移れるよう、中身はリンク -->
-				<p class="filter-label" aria-hidden="true">{ja.issue.filterLabel}</p>
-				<nav aria-label={ja.issue.filterLabel}>
+				<p class="filter-label" id="filter-label">{ja.issue.filterLabel}</p>
+				<nav aria-labelledby="filter-label">
 					{#each filters as f (f.key)}
 						<a
 							class="chip"
@@ -56,11 +56,15 @@
 				</nav>
 				<label class="sort">
 					<span class="sort-sp">{ja.issue.sortLabel}：</span><span class="sort-pc">{ja.issue.sortLabelPc}</span>
-					<select value={q.sort} onchange={(e) => goto(listHref({ ...q, sort: e.currentTarget.value as Sort, page: 1 }))}>
-						{#each SORTS as sort (sort)}
-							<option value={sort}>{ja.issue.sorts[sort]}</option>
-						{/each}
-					</select>
+					<span class="select">
+						<select value={q.sort} onchange={(e) => goto(listHref({ ...q, sort: e.currentTarget.value as Sort, page: 1 }))}>
+							{#each SORTS as sort (sort)}
+								<option value={sort}>{ja.issue.sorts[sort]}</option>
+							{/each}
+						</select>
+						<!-- スマホの「⌄」。既定の描画を外すので自前で描く（iOS でも枠を出さない） -->
+						<svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
+					</span>
 				</label>
 				<noscript>
 					<p>
@@ -198,15 +202,35 @@
 		display: none;
 	}
 
-	/* スマホの並び：枠のない文字だけの選択欄（SpIssues） */
+	/* スマホの並び：枠のない文字だけの選択欄と「⌄」（SpIssues） */
+	.select {
+		display: inline-flex;
+		position: relative;
+		align-items: center;
+	}
+
 	.sort select {
 		min-height: var(--tap-min);
-		padding: 0;
+		padding: 0 1.75rem 0 0;
 		border: 0;
+		appearance: none;
 		background: transparent;
 		color: var(--color-text);
 		font: inherit;
 		font-weight: bold;
+	}
+
+	.chevron {
+		position: absolute;
+		right: 0;
+		width: 1.25rem;
+		height: 1.25rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		pointer-events: none;
 	}
 
 	table {
@@ -304,16 +328,20 @@
 
 	/* スマホ：見出しは上の帯が代わり（見えない見出し）。「＋課題を書く」は下のタブの上に、横いっぱいで留める（SpIssues） */
 	@media (max-width: 63.99rem) {
+		/* base.css の .visually-hidden と同じ中身（スマホだけに効かせるので写す） */
 		h1 {
 			position: absolute;
 			width: 1px;
 			height: 1px;
+			margin: -1px;
+			padding: 0;
+			border: 0;
 			overflow: hidden;
 			clip-path: inset(50%);
 			white-space: nowrap;
 		}
 
-		/* 下のタブ（高さ 3.75rem。SiteHeader.svelte）のすぐ上 */
+		/* 下のタブ（高さ 3.75rem。SiteHeader.svelte）のすぐ上。帯の高さを変えたら +layout.svelte の .tab-space.bar も */
 		.write-bar {
 			position: fixed;
 			z-index: 9;
@@ -403,13 +431,23 @@
 			font-weight: bold;
 		}
 
+		.select {
+			display: flex;
+		}
+
 		.sort select {
+			flex: 1;
 			min-height: var(--tap-secondary);
 			padding: 0 0.75rem;
 			border: 1px solid var(--color-input-border);
 			border-radius: var(--radius-m);
+			appearance: auto;
 			background: var(--color-bg);
 			font-weight: normal;
+		}
+
+		.chevron {
+			display: none;
 		}
 	}
 </style>

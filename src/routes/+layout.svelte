@@ -45,7 +45,7 @@
 		height: 3.75rem;
 	}
 
-	/* タブの上に留める帯（主ボタンと上下 0.5rem、区切り 1px）の分も空ける */
+	/* タブの上に留める帯（主ボタンと上下 0.5rem、区切り 1px。課題の一覧の .write-bar）の分も空ける */
 	.tab-space.bar {
 		height: calc(3.75rem + var(--tap-primary) + 1rem + 1px);
 	}
