@@ -1148,6 +1148,8 @@ export const ja = {
 		supportHint: '同じことで困っていたら押してください',
 		writePageTitle: '課題を書く｜オープンソース立法府',
 		steps: ['タイトル', 'くわしく', '確認'],
+		stepsLabel: '課題を書く段',
+		stepCount: (n: number, total: number) => `ステップ ${n} / ${total}`,
 		titleLabel: '何に困っていますか？',
 		affectedLabel: '困っている人',
 		exampleLabel: '具体的には',

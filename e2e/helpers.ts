@@ -166,9 +166,10 @@ export function solutionStaffRequest(page: Page, action: 'hideSolution' | 'resto
 /** 全体を探すページ */
 export const searchUrl = (q: string, extra = '') => `/kensaku?q=${encodeURIComponent(q)}${extra}`;
 
-/** 課題と解決策を書き、課題と解決策の番号を返す */
+/** 課題と解決策を書き、課題と解決策の番号と課題のタイトルを返す */
 export async function issueWithSolutions(page: Page, label: string, bodies: string[]) {
-	const issueId = await postIssue(page, { title: `法案の元の課題 ${label}` });
+	const title = `法案の元の課題 ${label}`;
+	const issueId = await postIssue(page, { title });
 	for (const body of bodies) {
 		const res = await solutionRequest(page, issueId, body);
 		expect(res.status(), await res.text()).toBe(303);
@@ -180,7 +181,7 @@ export async function issueWithSolutions(page: Page, label: string, bodies: stri
 		expect(id).toMatch(/^kaiketsu-\d+$/);
 		ids.push((id as string).replace('kaiketsu-', ''));
 	}
-	return { issueId, ids };
+	return { issueId, ids, title };
 }
 
 export type BillForm = Record<string, string | string[]>;

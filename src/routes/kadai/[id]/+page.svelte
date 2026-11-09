@@ -72,6 +72,9 @@
 		<p><a href="/unei">{ja.hidden.toLog}</a></p>
 	{:else}
 		{@const issue = data.issue}
+		<!-- PC は左に本文と解決策、右の列に「わかる」の枠と通報（PcIssue）。スマホは並べた順の1列（SpIssue）。
+		     左の本文と解決策が1つの列に続くよう、本文の行の高さは本文と「わかる」の枠の高いほうで決まり、残りは下の行に入る -->
+		<!-- 知らせは2列の上に横いっぱいで出し、右の列が見出しの高さから始まるようにする -->
 		{#if data.fromSimilar}
 			<p class="from-similar" role="status">
 				{ja.solution.fromSimilar}
@@ -84,107 +87,113 @@
 				<a href="/unei">{ja.hidden.toLog}</a>
 			</p>
 		{/if}
-		<h1>{issue.title}</h1>
-		{#if issue.topicName}<p class="topic">{ja.issue.topicMark(issue.topicName)}</p>{/if}
+		<!-- 非表示の課題は「わかる」も通報も出さないので、右の列を空けずに1列にする -->
+		<div class="layout" class:single={data.hidden}>
+			<div class="head">
+				<h1>{issue.title}</h1>
+				{#if issue.topicName}<p class="topic">{ja.issue.topicMark(issue.topicName)}</p>{/if}
 
-		<h2>{ja.issue.affected}</h2>
-		<p>{issue.affected}</p>
-		<h2>{ja.issue.example}</h2>
-		<p class="example">{issue.example}</p>
-
-		{#if !data.hidden}
-			<form method="post" action="?/support" use:enhance>
-				<input type="hidden" name="op" value={issue.supported ? 'remove' : 'add'} />
-				<button class="support" aria-pressed={issue.supported}>
-					<svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20">
-						<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" />
-						<path d="m8 12 3 3 5-6" fill="none" stroke="currentColor" stroke-width="2" />
-					</svg>
-					{ja.issue.support}
-					{issue.supports}
-				</button>
-				<p class="hint">{ja.issue.supportHint}</p>
-				{#if message}<p role="alert">{message}</p>{/if}
-			</form>
-		{/if}
-
-		<section class="solutions" aria-labelledby="solutions-heading">
-			<div class="solutions-head">
-				<h2 id="solutions-heading">{ja.solution.heading} <span>{ja.solution.count(data.solutionCount)}</span></h2>
-				{#if !data.hidden}<a class="write" href="/kadai/{issue.id}/kaiketsu/kaku">{ja.solution.write}</a>{/if}
+				<h2>{ja.issue.affected}</h2>
+				<p>{issue.affected}</p>
+				<h2>{ja.issue.example}</h2>
+				<p class="example">{issue.example}</p>
 			</div>
-			{#if data.solutions.length === 0}
-				<p class="empty">{ja.solution.empty}</p>
+
+			{#if !data.hidden}
+				<form class="support-box" method="post" action="?/support" use:enhance>
+					<input type="hidden" name="op" value={issue.supported ? 'remove' : 'add'} />
+					<button class="support" aria-pressed={issue.supported}>
+						<svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20">
+							<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" />
+							<path d="m8 12 3 3 5-6" fill="none" stroke="currentColor" stroke-width="2" />
+						</svg>
+						{ja.issue.support}
+						{issue.supports}
+					</button>
+					<p class="hint">{ja.issue.supportHint}</p>
+					{#if message}<p role="alert">{message}</p>{/if}
+				</form>
 			{/if}
-			{#each data.solutions as solution (solution.id)}
-				<SolutionCard
-					{solution}
-					loggedIn={data.loggedIn}
-					readonly={data.hidden}
-					back="/kadai/{issue.id}"
-					message={solutionMessage(solution.id)}
-				done={solutionDone(solution.id)}
-					reported={data.reportedSolutions.includes(solution.id)}
-					staff={data.staff}
-				/>
-			{/each}
-			{#if data.solutionCount > data.solutions.length}
-				<p><a href="/kadai/{issue.id}/kaiketsu">{ja.solution.all(data.solutionCount)}</a></p>
-			{:else if data.hasHiddenSolutions}
-				<!-- 本人・運営に見せられる非表示の解決策は、解決策の一覧の最後に出す（設計書 docs/spec/36.md 決めたこと4） -->
-				<p><a href="/kadai/{issue.id}/kaiketsu">{ja.solution.showHidden}</a></p>
-			{/if}
-		</section>
 
-		{#if data.sources.length}
-			<h2>{ja.merge.sourcesHeading}</h2>
-			<!-- 元の URL は統合先（このページ）へ転送されるので、リンクにしない -->
-			<ul class="sources">
-				{#each data.sources as source (source.id)}<li>{source.title}</li>{/each}
-			</ul>
-		{/if}
-
-		{#if data.staff}
-			<p><a href="/kanri?issue={issue.id}">{ja.hidden.staffLink}</a></p>
-		{/if}
-
-		{#if !data.hidden && !data.mine}
-			<section class="report">
-				{#if reportMessage}<p role="status">{reportMessage}</p>{/if}
-				{#if data.reported}
-					{#if reportMessage !== ja.report.already}<p>{ja.report.already}</p>{/if}
-				{:else if !data.loggedIn}
-					<!-- ログインしていなければ、押すとログインの画面へ（JS がなくても動く） -->
-					<form method="get" action="/login">
-						<input type="hidden" name="next" value="/kadai/{issue.id}" />
-						<button class="link">{ja.report.open}</button>
-					</form>
-				{:else}
-					{#if js && !reportOpen}
-						<button type="button" class="link" onclick={() => (reportOpen = true)}>{ja.report.open}</button>
+			<div class="rest">
+				<!-- 「解決策を書く」は並びのあと（スマホは並びの下に横いっぱい）。PC は見出しの右に置く（PcIssue） -->
+				<section class="solutions" aria-labelledby="solutions-heading">
+					<h2 id="solutions-heading">{ja.solution.heading} <span>{ja.solution.count(data.solutionCount)}</span></h2>
+					{#if data.solutions.length === 0}
+						<p class="empty">{ja.solution.empty}</p>
 					{/if}
-					{#if !js || reportOpen}
-						<form method="post" action="?/report" use:enhance>
-							<fieldset>
-								<legend>{ja.report.legend}</legend>
-								{#each ['attack', 'spam', 'duplicate', 'other'] as const as reason (reason)}
-									<label class="radio">
-										<input type="radio" name="reason" value={reason} bind:group={reasonChoice} />
-										{ja.report.reasons[reason]}
-									</label>
-								{/each}
-							</fieldset>
-							{#if !js || reasonChoice === 'other'}
-								<label for="note">{ja.report.noteLabel}</label>
-								<textarea id="note" name="note" maxlength="200" rows="3"></textarea>
-							{/if}
-							<p class="criteria">{ja.report.criteria} <a href="/unei">{ja.report.criteriaLink}</a></p>
-							<button class="submit">{ja.report.submit}</button>
-						</form>
+					{#each data.solutions as solution (solution.id)}
+						<SolutionCard
+							{solution}
+							loggedIn={data.loggedIn}
+							readonly={data.hidden}
+							back="/kadai/{issue.id}"
+							message={solutionMessage(solution.id)}
+							done={solutionDone(solution.id)}
+							reported={data.reportedSolutions.includes(solution.id)}
+							staff={data.staff}
+						/>
+					{/each}
+					{#if data.solutionCount > data.solutions.length}
+						<p class="more"><a href="/kadai/{issue.id}/kaiketsu">{ja.solution.all(data.solutionCount)}</a></p>
+					{:else if data.hasHiddenSolutions}
+						<!-- 本人・運営に見せられる非表示の解決策は、解決策の一覧の最後に出す（設計書 docs/spec/36.md 決めたこと4） -->
+						<p class="more"><a href="/kadai/{issue.id}/kaiketsu">{ja.solution.showHidden}</a></p>
 					{/if}
+					{#if !data.hidden}<a class="write" href="/kadai/{issue.id}/kaiketsu/kaku">{ja.solution.write}</a>{/if}
+				</section>
+
+				{#if data.sources.length}
+					<h2>{ja.merge.sourcesHeading}</h2>
+					<!-- 元の URL は統合先（このページ）へ転送されるので、リンクにしない -->
+					<ul class="sources">
+						{#each data.sources as source (source.id)}<li>{source.title}</li>{/each}
+					</ul>
 				{/if}
-			</section>
-		{/if}
+
+				{#if data.staff}
+					<p><a href="/kanri?issue={issue.id}">{ja.hidden.staffLink}</a></p>
+				{/if}
+			</div>
+
+			{#if !data.hidden && !data.mine}
+				<section class="report">
+					{#if reportMessage}<p role="status">{reportMessage}</p>{/if}
+					{#if data.reported}
+						{#if reportMessage !== ja.report.already}<p>{ja.report.already}</p>{/if}
+					{:else if !data.loggedIn}
+						<!-- ログインしていなければ、押すとログインの画面へ（JS がなくても動く） -->
+						<form method="get" action="/login">
+							<input type="hidden" name="next" value="/kadai/{issue.id}" />
+							<button class="link">{ja.report.open}</button>
+						</form>
+					{:else}
+						{#if js && !reportOpen}
+							<button type="button" class="link" onclick={() => (reportOpen = true)}>{ja.report.open}</button>
+						{/if}
+						{#if !js || reportOpen}
+							<form method="post" action="?/report" use:enhance>
+								<fieldset>
+									<legend>{ja.report.legend}</legend>
+									{#each ['attack', 'spam', 'duplicate', 'other'] as const as reason (reason)}
+										<label class="radio">
+											<input type="radio" name="reason" value={reason} bind:group={reasonChoice} />
+											{ja.report.reasons[reason]}
+										</label>
+									{/each}
+								</fieldset>
+								{#if !js || reasonChoice === 'other'}
+									<label for="note">{ja.report.noteLabel}</label>
+									<textarea id="note" name="note" maxlength="200" rows="3"></textarea>
+								{/if}
+								<p class="criteria">{ja.report.criteria} <a href="/unei">{ja.report.criteriaLink}</a></p>
+								<button class="submit">{ja.report.submit}</button>
+							</form>
+						{/if}
+					{/if}
+				</section>
+			{/if}
+		</div>
 	{/if}
 </main>
 
@@ -226,29 +235,24 @@
 		margin-top: 2rem;
 	}
 
-	.solutions-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-		border-bottom: 1px solid var(--color-divider);
-	}
-
-	.solutions-head h2 {
+	.solutions h2 {
 		margin: 0;
 		color: var(--color-text);
 		font-size: var(--font-size-heading);
 	}
 
-	.solutions-head h2 span {
+	.solutions h2 span {
 		color: var(--color-text-sub);
 		font-weight: normal;
 	}
 
+	/* スマホは解決策の並びの下に横いっぱい（SpIssue）。PC は見出しの右（下の @media） */
 	.solutions .write {
-		display: inline-flex;
+		display: flex;
 		align-items: center;
-		min-height: var(--tap-min);
+		justify-content: center;
+		min-height: var(--tap-secondary);
+		margin-top: 1rem;
 		padding: 0 1rem;
 		border: 1px solid var(--color-base);
 		border-radius: var(--radius-m);
@@ -362,10 +366,74 @@
 		font-weight: bold;
 	}
 
-	/* PC：外枠だけをメニューの端にそろえ、中身はいままでの幅（40rem）のまま左に寄せる。2列にする #121 で外す */
+	/* PC：左に本文と解決策、右の列に「わかる」の枠と通報（PcIssue）。
+	   本文の行の高さは本文と枠の高いほうで決まり、解決策と通報は下の行に入る（右の列の高さで左に空きができない） */
 	@media (min-width: 64rem) {
-		main > :global(*) {
-			max-width: 40rem;
+		.layout {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) 18.75rem;
+			grid-template-rows: auto 1fr;
+			column-gap: 3rem;
+			align-items: start;
+		}
+
+		.head {
+			grid-area: 1 / 1;
+		}
+
+		.layout.single {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.head > h1 {
+			margin-top: 0;
+		}
+
+		.support-box {
+			grid-area: 1 / 2;
+			margin-top: 0;
+			padding: 1.25rem;
+			border: 1px solid var(--color-input-border);
+			border-radius: var(--radius-l);
+		}
+
+		.support-box .hint {
+			margin-bottom: 0;
+		}
+
+		.rest {
+			grid-area: 2 / 1;
+		}
+
+		.report {
+			grid-area: 2 / 2;
+			margin-top: 2rem;
+		}
+
+		/* 解決策の見出しの右に「解決策を書く」。下の区切り線のあとに1行ずつ並べる */
+		.solutions {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) auto;
+			align-items: center;
+			column-gap: 1rem;
+		}
+
+		.solutions > :global(*) {
+			grid-column: 1 / -1;
+		}
+
+		.solutions > h2 {
+			grid-area: 1 / 1;
+			padding-bottom: 0.75rem;
+		}
+
+		.solutions > .write {
+			grid-area: 1 / 2;
+			margin: 0 0 0.75rem;
+		}
+
+		.solutions > h2 + :global(*) {
+			border-top: 1px solid var(--color-divider);
 		}
 	}
 </style>

@@ -29,8 +29,12 @@
 {@render children()}
 
 <footer>{ja.unofficial}</footer>
-<!-- スマホ：下に固定したタブの高さの分を空け、最後の行が隠れないようにする -->
-{#if !hidesTabsOnSp(page.route.id)}<div class="tab-space" class:bar={page.data.spBottomBar} aria-hidden="true"></div>{/if}
+<!-- スマホ：下に固定したタブ（タブを隠す画面では、下に留めたボタンの帯）の高さの分を空け、最後の行が隠れないようにする -->
+{#if !hidesTabsOnSp(page.route.id)}
+	<div class="tab-space" class:bar={page.data.spBottomBar} aria-hidden="true"></div>
+{:else if page.data.spBottomBar}
+	<div class="tab-space input-bar" aria-hidden="true"></div>
+{/if}
 
 <style>
 	footer {
@@ -48,6 +52,11 @@
 	/* タブの上に留める帯（主ボタンと上下 0.5rem、区切り 1px。課題の一覧の .write-bar）の分も空ける */
 	.tab-space.bar {
 		height: calc(3.75rem + var(--tap-primary) + 1rem + 1px);
+	}
+
+	/* タブを隠す画面で、画面の下に留めるボタンの帯（ボタンと上下 0.5rem、区切り 1px。課題を書く画面の .buttons） */
+	.tab-space.input-bar {
+		height: calc(var(--tap-secondary) + 1rem + 1px);
 	}
 
 	@media (min-width: 64rem) {

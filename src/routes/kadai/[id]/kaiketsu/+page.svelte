@@ -108,4 +108,12 @@
 	[role='alert'] {
 		color: var(--color-caution);
 	}
+
+	/* PC の解決策は1行ずつ下に区切り線（SolutionCard）。並びの最初の行の上にも線を引く（Issue #121） */
+	@media (min-width: 64rem) {
+		main > :global(article:first-of-type),
+		main > h2 + :global(article) {
+			border-top: 1px solid var(--color-divider);
+		}
+	}
 </style>

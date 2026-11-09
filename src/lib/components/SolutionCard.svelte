@@ -57,9 +57,11 @@
 
 <article id="kaiketsu-{solution.id}">
 	{#if notice}<p class="notice">{notice}</p>{/if}
-	<p id="kaiketsu-body-{solution.id}" class="body">{solution.body}</p>
-	<!-- 法案は解決策から書き始める（Issue #46）。非表示のものには出さない -->
-	{#if !readonly}<p class="to-bill"><a href="/houan/kaku?kaiketsu={solution.id}">{ja.solution.toBill}</a></p>{/if}
+	<div class="text">
+		<p id="kaiketsu-body-{solution.id}" class="body">{solution.body}</p>
+		<!-- 法案は解決策から書き始める（Issue #46）。非表示のものには出さない -->
+		{#if !readonly}<p class="to-bill"><a href="/houan/kaku?kaiketsu={solution.id}">{ja.solution.toBill}</a></p>{/if}
+	</div>
 	<div class="reactions">
 		{#if solution.mine || readonly}
 			<!-- 自分の解決策と、非表示のものには押せない。数だけを出す -->
@@ -137,8 +139,47 @@
 	article {
 		display: grid;
 		gap: 0.5rem;
-		padding: 1rem 0;
-		border-bottom: 1px solid var(--color-divider);
+	}
+
+	/* スマホは1件ずつ枠つきのカード（SpIssue） */
+	@media (max-width: 63.99rem) {
+		article {
+			margin-top: 0.75rem;
+			padding: 1rem;
+			border: 1px solid var(--color-input-border);
+			border-radius: var(--radius-l);
+		}
+	}
+
+	/* PC は1件を1行：本文（と法案を書くリンク）が左、「わかる」「考えが変わった」が右。行のあいだに区切り線（PcIssue）。
+	   断った理由・運営のリンク・通報は本文の下、通報の欄は行の幅いっぱい */
+	@media (min-width: 64rem) {
+		article {
+			grid-template-columns: minmax(0, 1fr) auto;
+			column-gap: 1.5rem;
+			padding: 1rem 0;
+			border-bottom: 1px solid var(--color-divider);
+		}
+
+		article > * {
+			grid-column: 1;
+		}
+
+		article > .notice,
+		article > .report {
+			grid-column: 1 / -1;
+		}
+
+		article > .reactions {
+			grid-column: 2;
+			align-self: start;
+			flex-wrap: nowrap;
+		}
+	}
+
+	.text {
+		display: grid;
+		gap: 0.5rem;
 	}
 
 	.body {
