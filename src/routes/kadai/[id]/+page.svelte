@@ -190,7 +190,8 @@
 
 <style>
 	main {
-		max-width: 40rem;
+		/* 全体のメニューと同じ幅。PC で本文の左右の端がメニューとそろう（Issue #119） */
+		max-width: 72rem;
 		margin: 0 auto;
 		padding: 1rem;
 	}
@@ -362,5 +363,12 @@
 		color: var(--color-base);
 		font: inherit;
 		font-weight: bold;
+	}
+
+	/* PC：外枠はメニューの端にそろえ、中身は案（PcIssue）の左の列の幅に収める。2列にするのは #121 */
+	@media (min-width: 64rem) {
+		main > :global(*) {
+			max-width: 50rem;
+		}
 	}
 </style>

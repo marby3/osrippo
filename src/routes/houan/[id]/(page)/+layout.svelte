@@ -53,7 +53,8 @@
 
 <style>
 	main {
-		max-width: 76rem;
+		/* 全体のメニューと同じ幅。PC で本文の左右の端がメニューとそろう（Issue #119） */
+		max-width: 72rem;
 		margin: 0 auto;
 		padding: 1rem;
 	}
@@ -140,7 +141,7 @@
 
 	@media (min-width: 64rem) {
 		main {
-			padding: 1.5rem 4rem;
+			padding: 1.5rem 1rem;
 		}
 
 		.sp {

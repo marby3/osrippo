@@ -293,7 +293,8 @@
 			display: grid;
 			grid-template-columns: minmax(0, 1fr) 24rem;
 			column-gap: 3rem;
-			max-width: 76rem;
+			/* 全体のメニューと同じ幅（Issue #119） */
+			max-width: 72rem;
 		}
 
 		main > :not(.similar-live) {
