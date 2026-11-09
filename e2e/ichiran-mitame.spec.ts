@@ -1,6 +1,6 @@
 // Issue #120：ホームと課題の一覧の見た目を案に合わせる（SpIssues・PcIssues・SpHome・PcHome）
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { ORIGIN } from './helpers';
+import { newUser, ORIGIN, postIssue } from './helpers';
 
 const sp = (name: string) => name === 'sp';
 const menu = (page: Page) => page.getByRole('navigation', { name: 'メニュー', exact: true });
@@ -73,6 +73,10 @@ test('基準4：スマホの並びは枠のない文字だけの選択欄', asyn
 
 test('基準5：PC は左の列に探す・表示する課題（丸い選択肢）・並び順、右の列に表。スクリプトなしでも絞り込める', async ({ browser }, info) => {
 	test.skip(sp(info.project.name), 'PC の案（PcIssues）');
+	// 表が出るように、課題を1件書いておく
+	const writer = await newUser(browser, { name: `ichiran${Date.now() % 1e8}`, ip: '10.114.0.1', days: 8 });
+	await postIssue(writer.page, { title: `一覧の見た目 ${Date.now() % 1e8}` });
+	await writer.context.close();
 	const context = await browser.newContext({ baseURL: ORIGIN, javaScriptEnabled: false, viewport: { width: 1280, height: 800 } });
 	const page = await context.newPage();
 	await page.goto('/kadai');
