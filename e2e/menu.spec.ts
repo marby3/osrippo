@@ -100,7 +100,8 @@ test('基準3：開いているページのタブを太字と線で示し、aria
 	for (const [path, tab] of [
 		['/', 'ホーム'],
 		['/kadai', '課題'],
-		['/kadai/kaku', '課題'],
+		// 書く画面のスマホは下のタブを隠す（#118）ので、PC だけで確かめる
+		...(info.project.name === 'pc' ? ([['/kadai/kaku', '課題']] as const) : []),
 		['/houan', '法案'],
 		['/houan/kakikata', '法案'],
 		['/saiketsu', '採決'],

@@ -7,6 +7,7 @@
 	import IfBand from '#lib/components/IfBand.svelte';
 	import SiteHeader from '#lib/components/SiteHeader.svelte';
 	import { ja } from '#lib/copy/ja.ts';
+	import { hidesTabsOnSp } from '#lib/menu.ts';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -23,13 +24,13 @@
 
 <!-- IF世界の帯はメニューより上（案 SpResult）。出すかはページの load が ifBand で決める -->
 {#if page.data.ifBand}<IfBand />{/if}
-<SiteHeader unread={data.menu.unread} />
+<SiteHeader unread={data.menu.unread} hideTabsOnSp={hidesTabsOnSp(page.route.id)} />
 
 {@render children()}
 
 <footer>{ja.unofficial}</footer>
 <!-- スマホ：下に固定したタブの高さの分を空け、最後の行が隠れないようにする -->
-<div class="tab-space" aria-hidden="true"></div>
+{#if !hidesTabsOnSp(page.route.id)}<div class="tab-space" aria-hidden="true"></div>{/if}
 
 <style>
 	footer {

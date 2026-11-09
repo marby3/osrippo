@@ -233,9 +233,12 @@
 		grid-row: 1;
 	}
 
+	/* 下のタブ（高さ 3.75rem、+layout.svelte の .tab-space と同じ）のすぐ上に、白い帯つきで留める（Issue #118） */
 	.write {
 		position: sticky;
-		bottom: 0.5rem;
+		bottom: 3.75rem;
+		padding: 0.5rem 0;
+		background: var(--color-bg);
 		grid-column: 1;
 		grid-row: 2;
 		align-self: end;
@@ -367,6 +370,7 @@
 
 		.write {
 			position: static;
+			padding: 0;
 			grid-row: 2;
 			align-self: start;
 		}
