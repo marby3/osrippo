@@ -98,17 +98,40 @@
 						{#if data.comparison === 'same'}<p class="same">{ja.result.same}</p>{/if}
 					</div>
 				</section>
-				{#each data.places as place (place.lawId)}
-					<p class="to-bill"><a href="/if/hourei/{place.lawId}">{data.places.length > 1 ? ja.ifLaw.toLawNamed(place.title) : ja.ifLaw.toLaw}</a></p>
-				{/each}
-				<p class="to-bill"><a href="/houan/{data.bill.id}">{ja.result.billLink}</a></p>
-				{#if data.resubmittable}<p class="to-bill"><a href="/houan/{data.bill.id}">{ja.bill.resubmit.fromResult}</a></p>{/if}
+				{@render links([
+					...data.places.map((place) => ({
+						href: `/if/hourei/${place.lawId}`,
+						label: data.places.length > 1 ? ja.ifLaw.toLawNamed(place.title) : ja.ifLaw.toLaw
+					})),
+					{ href: `/houan/${data.bill.id}`, label: ja.result.billLink },
+					...(data.resubmittable ? [{ href: `/houan/${data.bill.id}`, label: ja.bill.resubmit.fromResult }] : []),
+					{ href: '/iinkai', label: ja.chair.link }
+				])}
 			</aside>
 		</div>
 	{/if}
-	{#if data.phase !== 'done'}<p class="to-bill"><a href="/houan/{data.bill.id}">{ja.result.billLink}</a></p>{/if}
-	<p class="to-bill"><a href="/iinkai">{ja.chair.link}</a></p>
+	{#if data.phase !== 'done'}
+		{@render links([
+			{ href: `/houan/${data.bill.id}`, label: ja.result.billLink },
+			{ href: '/iinkai', label: ja.chair.link }
+		])}
+	{/if}
 </main>
+
+<!-- 下のリンクは「›」の付いた行の一覧（SpResult・PcResult、Issue #123）。行全体を押せる -->
+{#snippet links(items: { href: string; label: string }[])}
+	<ul class="links">
+		{#each items as item, i (i)}
+			<li>
+				<a href={item.href}
+					>{item.label}<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+						><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" /></svg
+					></a
+				>
+			</li>
+		{/each}
+	</ul>
+{/snippet}
 
 <style>
 	main {
@@ -290,8 +313,29 @@
 		font-size: var(--font-size-sub);
 	}
 
-	.to-bill {
-		margin-top: 1rem;
+	.links {
+		margin: 1.5rem 0 0;
+		padding: 0;
+		border-top: 1px solid var(--color-divider);
+		list-style: none;
+	}
+
+	.links li {
+		border-bottom: 1px solid var(--color-divider);
+	}
+
+	.links a {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		min-height: var(--tap-primary);
+		color: var(--color-text);
+		text-decoration: none;
+	}
+
+	.links svg {
+		flex: none;
 	}
 
 	@media (min-width: 64rem) {

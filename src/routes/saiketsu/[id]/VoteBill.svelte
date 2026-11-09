@@ -5,6 +5,7 @@
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
 	import DiffText from '#lib/components/DiffText.svelte';
+	import { excerptDiff } from '#lib/domain/law/excerpt.ts';
 	import Turnstile from '#lib/components/Turnstile.svelte';
 	import VoteStanding from '#lib/components/VoteStanding.svelte';
 	import { ja } from '#lib/copy/ja.ts';
@@ -85,7 +86,8 @@
 									? ja.bill.page.changeHeading(null, ja.bill.page.supplementary, ja.bill.ops.supplementary)
 									: ja.bill.page.changeHeading(null, change.location, ja.bill.ops[change.op])}
 							</h3>
-							{#if parts}<DiffText {parts} />{/if}
+							<!-- 見出しと同じ行から、変わったところの前後だけ（SpVote・PcVote、Issue #123） -->
+							{#if parts}<DiffText parts={excerptDiff(parts)} />{/if}
 						</div>
 					{/each}
 				</div>
@@ -208,9 +210,15 @@
 		overflow-wrap: anywhere;
 	}
 
+	/* 場所の見出しのすぐ右に、同じ行から条文を続ける（SpVote・PcVote）。DiffText の外側の <p> を inline にする */
 	.row h3 {
-		margin: 0;
-		font-size: var(--font-size-sub);
+		display: inline;
+		margin: 0 0.75rem 0 0;
+		font-size: var(--font-size-body);
+	}
+
+	.row > :global(p) {
+		display: inline;
 	}
 
 	.read {
