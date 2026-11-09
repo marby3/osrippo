@@ -5,6 +5,7 @@
 	import DiffText from '#lib/components/DiffText.svelte';
 	import LawParagraphs from '#lib/components/LawParagraphs.svelte';
 	import LawSwitch from '#lib/components/LawSwitch.svelte';
+	import LawToc from '#lib/components/LawToc.svelte';
 	import { changedLines, type DiffPart } from '#lib/domain/law/compare.ts';
 	import type { PageProps } from './$types';
 
@@ -22,9 +23,6 @@
 	let openNum = $state<string | null>(null);
 	let record = $state<ArticleRecord | null>(null);
 	let failed = $state(false);
-
-	/** 目次：PC は左にいつも出す。スマホは「目次から探す」で開く */
-	let tocOpen = $state(false);
 
 	/** PC は右の欄、スマホは条の下に開く */
 	let wide = $state(false);
@@ -56,17 +54,6 @@
 		}
 	}
 </script>
-
-{#snippet tocList(items: PageProps['data']['toc'])}
-	<ul>
-		{#each items as h (h.title)}
-			<li>
-				{#if h.first}<a href="#jo-{h.first}" onclick={() => (tocOpen = false)}>{h.title}</a>{:else}{h.title}{/if}
-				{#if h.children.length}{@render tocList(h.children)}{/if}
-			</li>
-		{/each}
-	</ul>
-{/snippet}
 
 {#snippet recordPanel(r: ArticleRecord)}
 	<section class="record" id="record" aria-labelledby="record-title">
@@ -103,27 +90,20 @@
 
 <main class="frame">
 	<Crumbs current={data.law.title} />
-	<LawSwitch lawId={data.law.id} current="real" />
-	<header class="law-head">
-		<h1>{data.law.title}</h1>
-		<p class="sub">{ja.law.meta(data.law.lawNum, data.current.enforcementDate)}</p>
-		<p><a href="/hourei/{data.law.id}/hikaku">{ja.law.compareLink}</a></p>
-		<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7） -->
-		<p><a href="/kensaku">{ja.search.entry}</a></p>
-	</header>
+	<!-- 切り替えは、スマホは法令名の上、PC は法令名の行の右（SpLaw・PcLaw、Issue #124） -->
+	<div class="law-top">
+		<LawSwitch lawId={data.law.id} current="real" />
+		<header class="law-head">
+			<h1>{data.law.title}</h1>
+			<p class="sub">{ja.law.meta(data.law.lawNum, data.current.enforcementDate)}</p>
+			<p><a href="/hourei/{data.law.id}/hikaku">{ja.law.compareLink}</a></p>
+			<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7） -->
+			<p><a href="/kensaku">{ja.search.entry}</a></p>
+		</header>
+	</div>
 
 	<div class="layout">
-	{#if data.toc.length}
-		<div class="toc">
-			<button class="toc-toggle" aria-expanded={tocOpen} aria-controls="toc" onclick={() => (tocOpen = !tocOpen)}>
-				{ja.law.openToc}
-			</button>
-			<nav id="toc" aria-labelledby="toc-title" class:shown={tocOpen}>
-				<h2 id="toc-title">{ja.law.toc}</h2>
-				{@render tocList(data.toc)}
-			</nav>
-		</div>
-	{/if}
+	{#if data.toc.length}<LawToc items={data.toc} />{/if}
 	<div>
 	{#each data.articles as article (article.num)}
 		{#if article.band}<h2 class="band">{ja.law.band(article.band)}</h2>{/if}
@@ -254,51 +234,6 @@
 		scroll-margin-top: 1rem;
 	}
 
-	.toc-toggle {
-		min-height: var(--tap-min);
-		margin-bottom: 1rem;
-		padding: 0;
-		border: 0;
-		background: none;
-		color: var(--color-link);
-		font: inherit;
-		text-decoration: underline;
-	}
-
-	/* スマホは「目次から探す」で開く */
-	nav {
-		display: none;
-		margin-bottom: 1.5rem;
-	}
-
-	nav.shown {
-		display: block;
-	}
-
-	nav h2 {
-		font-size: var(--font-size-sub);
-		color: var(--color-text-sub);
-	}
-
-	nav ul {
-		margin: 0;
-		padding-left: 1em;
-		list-style: none;
-	}
-
-	nav > ul {
-		padding-left: 0;
-	}
-
-	nav li {
-		padding: 0.25rem 0;
-	}
-
-	nav a {
-		color: var(--color-text);
-		text-decoration: none;
-	}
-
 	/* 開くと「⌄」が上を向く */
 	.open::after {
 		content: '⌄';
@@ -355,17 +290,20 @@
 
 	/* PC：記録は右の欄に出す */
 	@media (min-width: 64rem) {
-		/* PC は左に目次をいつも出す */
-		.toc-toggle {
-			display: none;
+		/* 切り替えは法令名の行の右 */
+		.law-top {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) auto;
+			column-gap: 2rem;
+			align-items: start;
 		}
 
-		nav {
-			display: block;
-			position: sticky;
-			top: 1rem;
-			max-height: calc(100vh - 2rem);
-			overflow-y: auto;
+		.law-top > :global(nav) {
+			grid-area: 1 / 2;
+		}
+
+		.law-head {
+			grid-area: 1 / 1;
 		}
 
 		.layout {

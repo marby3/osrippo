@@ -4,6 +4,7 @@
 	import Crumbs from '#lib/components/Crumbs.svelte';
 	import LawParagraphs from '#lib/components/LawParagraphs.svelte';
 	import LawSwitch from '#lib/components/LawSwitch.svelte';
+	import LawToc from '#lib/components/LawToc.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -15,36 +16,24 @@
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-{#snippet tocList(items: typeof data.toc)}
-	<ul>
-		{#each items as h (h.title)}
-			<li>
-				{#if h.first}<a href="#jo-{h.first}">{h.title}</a>{:else}{h.title}{/if}
-				{#if h.children.length}{@render tocList(h.children)}{/if}
-			</li>
-		{/each}
-	</ul>
-{/snippet}
-
 <main class="frame">
 	<Crumbs current={ja.menu.pages.ifLaw(data.law.title)} />
-	{#if data.real}<LawSwitch lawId={data.law.id} current="if" />{/if}
-	<header>
-		<p class="fictional">{ja.ifLaw.fictional}</p>
-		<h1>{data.law.title}</h1>
-		{#if data.law.lawNum}<p class="sub">{data.law.lawNum}</p>{/if}
-		{#if data.repealedBy}<p class="notice">{ja.ifLaw.repealedBy}<a href="/houan/{data.repealedBy.id}">{data.repealedBy.title}</a></p>{/if}
-		{#if data.enactedBy}<p class="notice">{ja.ifLaw.enactedBy}<a href="/houan/{data.enactedBy.id}">{data.enactedBy.title}</a></p>{/if}
-		{#if data.real}<p class="torikomi"><a href="/if/hourei/{data.law.id}/torikomi">{ja.torikomi.heading}</a></p>{/if}
-	</header>
+	<!-- 切り替えは、スマホは法令名の上、PC は法令名の行の右（SpLaw・PcLaw、Issue #124） -->
+	<div class="law-top">
+		{#if data.real}<LawSwitch lawId={data.law.id} current="if" />{/if}
+		<header>
+			<p class="fictional">{ja.ifLaw.fictional}</p>
+			<h1>{data.law.title}</h1>
+			{#if data.law.lawNum}<p class="sub">{data.law.lawNum}</p>{/if}
+			{#if data.repealedBy}<p class="notice">{ja.ifLaw.repealedBy}<a href="/houan/{data.repealedBy.id}">{data.repealedBy.title}</a></p>{/if}
+			{#if data.enactedBy}<p class="notice">{ja.ifLaw.enactedBy}<a href="/houan/{data.enactedBy.id}">{data.enactedBy.title}</a></p>{/if}
+			{#if data.real}<p class="torikomi"><a href="/if/hourei/{data.law.id}/torikomi">{ja.torikomi.heading}</a></p>{/if}
+		</header>
+	</div>
 
 	<div class="layout">
-		{#if data.toc.length}
-			<nav aria-labelledby="toc-title">
-				<h2 id="toc-title">{ja.law.toc}</h2>
-				{@render tocList(data.toc)}
-			</nav>
-		{/if}
+		<!-- 目次は現実の法律と同じ部品（スマホは「目次から探す」で開く。Issue #124） -->
+		{#if data.toc.length}<LawToc items={data.toc} />{/if}
 		<div>
 			{#each data.articles as article (article.num)}
 				{#if article.band}<h2 class="band">{ja.law.band(article.band)}</h2>{/if}
@@ -113,17 +102,6 @@
 		font-weight: bold;
 	}
 
-	nav h2 {
-		font-size: var(--font-size-sub);
-	}
-
-	nav ul {
-		margin: 0;
-		padding-left: 1em;
-		list-style: none;
-		font-size: var(--font-size-sub);
-	}
-
 	.band {
 		margin: 1.5rem 0 1rem;
 		padding: 0.5rem 0.75rem;
@@ -160,20 +138,32 @@
 		font-size: var(--font-size-sub);
 	}
 
-	nav {
-		display: none;
+	.layout {
+		margin-top: 1rem;
 	}
 
 	@media (min-width: 64rem) {
+		/* 切り替えは法令名の行の右 */
+		.law-top {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) auto;
+			column-gap: 2rem;
+			align-items: start;
+		}
+
+		.law-top > :global(nav) {
+			grid-area: 1 / 2;
+		}
+
+		header {
+			grid-area: 1 / 1;
+		}
+
 		.layout {
 			display: grid;
 			grid-template-columns: 15rem minmax(0, 1fr);
 			gap: 2.5rem;
 			margin-top: 1rem;
-		}
-
-		nav {
-			display: block;
 		}
 	}
 </style>

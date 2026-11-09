@@ -57,7 +57,9 @@
 				{#if change.kind === 'added'}<span class="note">{ja.compare.added}</span>{/if}
 				{#if change.kind === 'removed'}<span class="note">{ja.compare.removed}</span>{/if}
 			</h2>
+			<!-- スマホは改正前が上の縦並び。PC は注記と見出しの行のある1つの新旧対照表（PcCompare、Issue #124） -->
 			<div class="sides">
+				<p class="legend">{ja.compare.legend}</p>
 				{#if change.kind !== 'added'}
 					<section class="before" aria-labelledby="before-{change.num}-{change.kind}">
 						<h3 id="before-{change.num}-{change.kind}">{ja.compare.beforeSide}</h3>
@@ -154,7 +156,11 @@
 		font-size: var(--font-size-sub);
 	}
 
-	/* PC：改正後を左、改正前を右の新旧対照表 */
+	.legend {
+		display: none;
+	}
+
+	/* PC：改正後を左、改正前を右の新旧対照表。いちばん上の行に注記、次の行に見出し */
 	@media (min-width: 48rem) {
 		form {
 			grid-template-columns: 1fr 1fr auto;
@@ -167,15 +173,46 @@
 
 		.sides {
 			grid-template-columns: 1fr 1fr;
-			align-items: start;
+			gap: 0;
+			border: 1px solid var(--color-input-border);
+			border-radius: var(--radius-l);
+			overflow: hidden;
+		}
+
+		.legend {
+			display: block;
+			grid-area: 1 / 1 / 2 / 3;
+			margin: 0;
+			padding: 0.5rem 1rem;
+			border-bottom: 1px solid var(--color-input-border);
+			color: var(--color-text-sub);
+			font-size: var(--font-size-sub);
+		}
+
+		section {
+			border: 0;
+			border-radius: 0;
+			padding: 0;
 		}
 
 		.after {
-			order: -1;
+			grid-area: 2 / 1;
 		}
 
-		.before:only-child {
-			grid-column: 2;
+		.before {
+			grid-area: 2 / 2;
+			border-left: 1px solid var(--color-input-border);
+		}
+
+		h3 {
+			margin: 0;
+			padding: 0.75rem 1rem;
+			border-bottom: 1px solid var(--color-input-border);
+			background: var(--color-surface);
+		}
+
+		section > :global(p) {
+			padding: 0 1rem;
 		}
 	}
 </style>
