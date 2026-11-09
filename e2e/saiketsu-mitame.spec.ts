@@ -50,7 +50,7 @@ async function voteRow(browser: Browser, w: string, n: number) {
 
 test('基準1：変更点は、場所の見出しのすぐ右に同じ行から続ける', async ({ browser }, info) => {
 	test.setTimeout(120_000);
-	const { reader, heading } = await voteRow(browser, info.project.name, 1);
+	const { heading } = await voteRow(browser, info.project.name, 1);
 	const h = await box(heading);
 	// 条文は見出しの下の段落ではなく、見出しと同じ行から始まる（最初の行の頭は見出しの右）
 	const text = await box(heading.locator('xpath=following-sibling::*[1]'));
@@ -67,7 +67,7 @@ test('基準1：変更点は、場所の見出しのすぐ右に同じ行から�
 
 test('基準2：変わっていないところは前後10文字だけを残して「…」にし、変わったところは全部出す。改行は空白', async ({ browser }, info) => {
 	test.setTimeout(120_000);
-	const { reader, heading, added } = await voteRow(browser, info.project.name, 2);
+	const { heading, added } = await voteRow(browser, info.project.name, 2);
 	const row = heading.locator('xpath=..');
 	// 「（目的）\nこの法律は、消費者と事業者との間の情報の質及び量並びに交渉力の格差に鑑み、」の最後の10文字だけ
 	await expect(row).toContainText('…交渉力の格差に鑑み、');

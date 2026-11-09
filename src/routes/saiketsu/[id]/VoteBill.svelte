@@ -210,7 +210,7 @@
 		overflow-wrap: anywhere;
 	}
 
-	/* 場所の見出しのすぐ右に、同じ行から条文を続ける（PcVote） */
+	/* 場所の見出しのすぐ右に、同じ行から条文を続ける（SpVote・PcVote）。DiffText の外側の <p> を inline にする */
 	.row h3 {
 		display: inline;
 		margin: 0 0.75rem 0 0;
