@@ -16,6 +16,8 @@ declare global {
 		interface PageData {
 			/** IF世界の帯を出すページ。帯はメニューより上に出すので、ページの load が返し、全体の枠が出す（Issue #85） */
 			ifBand?: true;
+			/** スマホで下のタブの上に留める帯（「＋課題を書く」など）があるページ。全体の枠がその分を空ける（Issue #120） */
+			spBottomBar?: true;
 		}
 		// interface PageState {}
 		// interface Platform {}

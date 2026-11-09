@@ -21,5 +21,6 @@ export const load: PageServerLoad = async (event) => {
 		: { rows: [], hasNext: false };
 	// 2ページ目以降で課題がなければ 404
 	if (query.page > 1 && rows.length === 0) error(404);
-	return { query, topic, rows, hasNext, searchError: search.ok ? null : search.error, searching: search.ok && search.words.length > 0 };
+	// スマホの「＋課題を書く」は下のタブの上に留める（Issue #120）
+	return { spBottomBar: true as const, query, topic, rows, hasNext, searchError: search.ok ? null : search.error, searching: search.ok && search.words.length > 0 };
 };

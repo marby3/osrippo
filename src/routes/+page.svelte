@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SearchBox from '#lib/components/SearchBox.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -16,7 +17,8 @@
 </script>
 
 <main class="frame">
-	<h1>{ja.siteName}</h1>
+	<!-- 見出しは読み上げ用。画面ではメニューのサイト名が代わり（SpHome・PcHome、Issue #120） -->
+	<h1 class="visually-hidden">{ja.siteName}</h1>
 
 	<!-- 今の会期（画面の案 SpHome・PcHome）。進み具合は「いまは …」の文でも分かる -->
 	<section class="session" aria-labelledby="session-now">
@@ -38,18 +40,18 @@
 		<p class="next sp">{next[0]}{' '}<strong>{next[1]}</strong>{' '}{next[2]}</p>
 	</section>
 
-	<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7） -->
-	<form method="get" action="/kensaku">
-		<label for="top-search">{ja.search.entry}</label>
-		<input id="top-search" name="q" type="search" maxlength="60" />
-		<button>{ja.search.submit}</button>
-	</form>
+	<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7）。課題の一覧と同じ形（Issue #120） -->
+	<div class="search"><SearchBox id="top-search" label={ja.search.entry} action="/kensaku" /></div>
 </main>
 
 <style>
 	main {
 		padding: 1rem;
 	}
+	.search {
+		max-width: 50rem;
+	}
+
 	.session {
 		margin: 1rem 0 1.5rem;
 		max-width: 50rem;

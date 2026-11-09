@@ -158,7 +158,8 @@ test('基準6：課題の一覧の「課題を探す」で課題だけを探し�
 	await page.goto('/kadai?sort=new');
 	await hydrated(page);
 	await page.getByLabel('課題を探す').fill(c);
-	await page.getByRole('button', { name: '探す' }).click();
+	// 見えるボタンはなく、Enter で探す（Issue #120）
+	await page.getByLabel('課題を探す').press('Enter');
 	await expect(page).toHaveURL(`/kadai?sort=new&q=${c}`);
 	await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
 	const titles = await page.locator('main a[href^="/kadai/"]:not([href="/kadai/kaku"])').allInnerTexts();
@@ -183,7 +184,8 @@ test('基準7：トップページと法令のページから探せる。新し�
 	await page.goto('/');
 	await hydrated(page);
 	await page.getByLabel('法令や課題を探す').fill(c);
-	await page.getByRole('button', { name: '探す' }).click();
+	// 見えるボタンはなく、Enter で探す（Issue #120）
+	await page.getByLabel('法令や課題を探す').press('Enter');
 	await expect(page).toHaveURL(searchUrl(c));
 	await expect(section(page, '課題').getByRole('link', { name: `${c} 書いたばかりの課題` })).toBeVisible();
 	await expect(section(page, '解決策')).toContainText(`${c} 書いたばかりの解決策`);
