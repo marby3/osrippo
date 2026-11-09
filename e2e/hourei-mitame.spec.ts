@@ -96,6 +96,13 @@ test('基準4：PC の目次は、いま画面のいちばん上に出ている�
 		await expect(first, path).not.toHaveAttribute('aria-current', /.+/);
 		await expect(first, path).not.toHaveCSS('font-weight', '700');
 	}
+	// 最後の章が短く画面が高いと、ページの下まで送っても最後の章の最初の条が上まで上がらない。それでも最後の章になる
+	await page.setViewportSize({ width: 1280, height: 1600 });
+	await page.goto('/if/hourei/337AC0000000134');
+	await hydrated(page);
+	const last = toc(page).getByRole('link').last();
+	await last.click();
+	await expect(last).toHaveAttribute('aria-current', 'location');
 });
 
 test('基準5：PC の比較は、変わった条ごとに注記の行と見出しの行のある1つの表。スマホはいまのまま', async ({ page }, info) => {
