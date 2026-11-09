@@ -25,11 +25,11 @@ async function issuePage(browser: Browser, w: string, n: number, solutions = 3) 
 	const label = `${w}${n}-${Date.now() % 1e7}-${++seq}`;
 	const writer = await newUser(browser, { name: `km${label}`, ip: `10.121.${n}.${sp(w) ? 1 : 2}`, days: 8 });
 	const bodies = Array.from({ length: solutions }, (_, i) => `解決策の見た目 ${label} その${i + 1}`);
-	const { issueId } = await issueWithSolutions(writer.page, label, bodies);
+	const { issueId, title } = await issueWithSolutions(writer.page, label, bodies);
 	await writer.context.close();
 	const reader = await newUser(browser, { name: `kr${label}`, ip: `10.121.${n}.${sp(w) ? 3 : 4}`, days: 8 });
 	await reader.page.goto(`/kadai/${issueId}`);
-	return { page: reader.page, title: `法案の元の課題 ${label}` };
+	return { page: reader.page, title };
 }
 
 /** 課題の「わかる」のボタン（解決策の「わかる」は読み上げで「この解決策に」が前に付く） */

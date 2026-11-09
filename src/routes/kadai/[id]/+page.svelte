@@ -74,20 +74,22 @@
 		{@const issue = data.issue}
 		<!-- PC は左に本文と解決策、右の列に「わかる」の枠と通報（PcIssue）。スマホは並べた順の1列（SpIssue）。
 		     左の本文と解決策が1つの列に続くよう、本文の行の高さは本文と「わかる」の枠の高いほうで決まり、残りは下の行に入る -->
-		<div class="layout">
+		<!-- 知らせは2列の上に横いっぱいで出し、右の列が見出しの高さから始まるようにする -->
+		{#if data.fromSimilar}
+			<p class="from-similar" role="status">
+				{ja.solution.fromSimilar}
+				<a href="/kadai/{issue.id}/kaiketsu/kaku">{ja.solution.write}</a>
+			</p>
+		{/if}
+		{#if data.hidden}
+			<p class="notice" role="status">
+				{hiddenMessage(issue.status, issue.statusReason)}
+				<a href="/unei">{ja.hidden.toLog}</a>
+			</p>
+		{/if}
+		<!-- 非表示の課題は「わかる」も通報も出さないので、右の列を空けずに1列にする -->
+		<div class="layout" class:single={data.hidden}>
 			<div class="head">
-				{#if data.fromSimilar}
-					<p class="from-similar" role="status">
-						{ja.solution.fromSimilar}
-						<a href="/kadai/{issue.id}/kaiketsu/kaku">{ja.solution.write}</a>
-					</p>
-				{/if}
-				{#if data.hidden}
-					<p class="notice" role="status">
-						{hiddenMessage(issue.status, issue.statusReason)}
-						<a href="/unei">{ja.hidden.toLog}</a>
-					</p>
-				{/if}
 				<h1>{issue.title}</h1>
 				{#if issue.topicName}<p class="topic">{ja.issue.topicMark(issue.topicName)}</p>{/if}
 
@@ -379,7 +381,11 @@
 			grid-area: 1 / 1;
 		}
 
-		.head > h1:first-child {
+		.layout.single {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.head > h1 {
 			margin-top: 0;
 		}
 
