@@ -11,7 +11,8 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
 	requireUser(event);
-	return { topic: await currentTopic(drizzle(env.DB)), siteKey: env.TURNSTILE_SITE_KEY };
+	// スマホは段のボタンを画面の下に留める（Issue #121）
+	return { spBottomBar: true as const, topic: await currentTopic(drizzle(env.DB)), siteKey: env.TURNSTILE_SITE_KEY };
 };
 
 const FIELDS: IssueField[] = ['title', 'affected', 'example', 'topic'];
