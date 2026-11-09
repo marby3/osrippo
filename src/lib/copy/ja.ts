@@ -878,6 +878,7 @@ export const ja = {
 		heading: '探す',
 		label: '探す言葉',
 		submit: '探す',
+		placeholder: '例：自転車',
 		entry: '法令や課題を探す',
 		issueLabel: '課題を探す',
 		errors: {
@@ -1126,6 +1127,7 @@ export const ja = {
 		filterTopic: '今回のお題',
 		filterSolutions: '解決策あり',
 		sortLabel: '並び',
+		sortLabelPc: '並び順',
 		sorts: { support: '「わかる」の多い順', new: '新しい順', rising: '最近「わかる」が増えている順' },
 		columnTitle: '課題',
 		columnSupports: 'わかる',

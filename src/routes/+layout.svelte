@@ -30,7 +30,7 @@
 
 <footer>{ja.unofficial}</footer>
 <!-- スマホ：下に固定したタブの高さの分を空け、最後の行が隠れないようにする -->
-{#if !hidesTabsOnSp(page.route.id)}<div class="tab-space" aria-hidden="true"></div>{/if}
+{#if !hidesTabsOnSp(page.route.id)}<div class="tab-space" class:bar={page.data.spBottomBar} aria-hidden="true"></div>{/if}
 
 <style>
 	footer {
@@ -43,6 +43,11 @@
 	/* 下のタブの高さ（SiteHeader.svelte の nav a の 3.5rem と上の線 3px・区切り 1px）。片方を変えたらもう片方も */
 	.tab-space {
 		height: 3.75rem;
+	}
+
+	/* タブの上に留める帯（主ボタンと上下 0.5rem、区切り 1px）の分も空ける */
+	.tab-space.bar {
+		height: calc(3.75rem + var(--tap-primary) + 1rem + 1px);
 	}
 
 	@media (min-width: 64rem) {
