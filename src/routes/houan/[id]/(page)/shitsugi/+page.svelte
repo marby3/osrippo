@@ -226,16 +226,21 @@
 		grid-row: 2;
 		display: grid;
 		gap: 1rem;
-		padding-bottom: calc(var(--tap-primary) + 1rem);
+		/* 留めた「質疑を書く」の帯（ボタンと上下 0.5rem）の分と、その上の間 1rem */
+		padding-bottom: calc(var(--tap-primary) + 2rem);
 	}
 
 	.stance {
 		grid-row: 1;
 	}
 
+	/* 下のタブ（高さ 3.75rem、+layout.svelte の .tab-space と同じ）のすぐ上に、白い帯つきで留める（Issue #118） */
 	.write {
 		position: sticky;
-		bottom: 0.5rem;
+		bottom: 3.75rem;
+		padding: 0.5rem 0;
+		border-top: 1px solid var(--color-divider);
+		background: var(--color-bg);
 		grid-column: 1;
 		grid-row: 2;
 		align-self: end;
@@ -367,6 +372,8 @@
 
 		.write {
 			position: static;
+			padding: 0;
+			border-top: 0;
 			grid-row: 2;
 			align-self: start;
 		}

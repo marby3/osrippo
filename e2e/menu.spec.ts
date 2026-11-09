@@ -1,6 +1,6 @@
 // Issue #85：全体のメニュー（PcHeader・SpNav）とパンくず
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { newUser, ORIGIN, postIssue } from './helpers';
+import { billSupportRequest, createAmendBill, issueWithSolutions, newUser, ORIGIN, postIssue, proposeRequest } from './helpers';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -100,7 +100,8 @@ test('基準3：開いているページのタブを太字と線で示し、aria
 	for (const [path, tab] of [
 		['/', 'ホーム'],
 		['/kadai', '課題'],
-		['/kadai/kaku', '課題'],
+		// 書く画面のスマホは下のタブを隠す（#118）ので、PC だけで確かめる
+		...(info.project.name === 'pc' ? ([['/kadai/kaku', '課題']] as const) : []),
 		['/houan', '法案'],
 		['/houan/kakikata', '法案'],
 		['/saiketsu', '採決'],
@@ -190,4 +191,103 @@ test('基準6：ホームの「課題」「法案」「採決」「通知」へ�
 	for (const name of ['課題を見る', '法案を見る', '採決を見る']) await expect(page.getByRole('link', { name, exact: true })).toHaveCount(0);
 	await expect(main.getByRole('link', { name: /^通知/ })).toHaveCount(0);
 	await expect(main.getByRole('searchbox', { name: '法令や課題を探す' })).toBeVisible();
+});
+
+// Issue #118：スマホで入力・投票中は下のタブを隠し（Tokens）、画面の下に留めたボタンをタブに重ねない
+
+/** 発議した法案と、その月の時刻を進める手立て。w と n で年を分ける */
+async function proposedBill(browser: Parameters<typeof newUser>[0], w: string, n: number) {
+	const year = 2500 + n * 2 + (w === 'sp' ? 0 : 1);
+	const day = (d: number) => `${year}-05-${String(d).padStart(2, '0')}T09:00:00+09:00`;
+	const label = `${w}${n}-${Date.now() % 1e8}`;
+	const people: { page: Page; ip: string }[] = [];
+	const person = async (who: string) => {
+		const ip = `10.${w === 'sp' ? 112 : 113}.${n}.${people.length + 1}`;
+		const u = await newUser(browser, { name: `${who}${label}`, ip, days: 8 });
+		contexts.push(u.context);
+		await u.context.setExtraHTTPHeaders({ 'x-test-ip': ip, 'x-test-now': day(5) });
+		people.push({ page: u.page, ip });
+		return u.page;
+	};
+	const author = await person('a');
+	const { issueId, ids } = await issueWithSolutions(author, `隠すタブ ${label}`, [`解決策 ${label}`]);
+	const bill = await createAmendBill(author, `隠すタブの法案 ${label}`, ids[0], { 'body.0': `この法律は、${label}のためのものである。` });
+	const backers = [await person('b'), await person('c'), await person('d')];
+	const reader = await person('e');
+	const setDay = async (d: number) => {
+		for (const p of people) await p.page.context().setExtraHTTPHeaders({ 'x-test-ip': p.ip, 'x-test-now': day(d) });
+	};
+	const propose = async () => {
+		for (const b of backers) expect((await billSupportRequest(b, bill, { op: 'add', rev: '1' })).status()).toBe(200);
+		expect((await proposeRequest(author, bill)).status()).toBe(200);
+	};
+	return { author, reader, issueId, bill, billId: bill.replace('/houan/', ''), setDay, propose };
+}
+
+/** 画面の中に収まり、真ん中を押すとその部品に当たる（ほかの部品に重なっていない） */
+async function reachable(page: Page, target: ReturnType<Page['locator']>) {
+	await expect(target).toBeVisible();
+	const box = (await target.boundingBox())!;
+	expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+	const hit = await target.evaluate((el) => {
+		const r = el.getBoundingClientRect();
+		const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+		return top !== null && (top === el || el.contains(top));
+	});
+	expect(hit, '真ん中がほかの部品に隠れている').toBe(true);
+}
+
+test('#118 基準1：スマホは書く画面と投票の画面で下のタブを隠し、上の帯は出す（PC は変えない）', async ({ browser }, info) => {
+	test.setTimeout(180_000);
+	const w = info.project.name;
+	const s = await proposedBill(browser, w, 1);
+	const check = async (page: Page, path: string) => {
+		await page.goto(path);
+		await expect(page.getByRole('banner'), path).toBeVisible();
+		if (w === 'sp') await expect(menu(page), path).toBeHidden();
+		else await expect(menu(page), path).toBeVisible();
+	};
+	// 下書きのうちに書く画面
+	for (const path of ['/kadai/kaku', `/kadai/${s.issueId}/kaiketsu/kaku`, '/houan/kaku', `${s.bill}/kaku`]) await check(s.author, path);
+	// 質疑と修正（15日）
+	await s.propose();
+	await s.setDay(15);
+	for (const path of [`${s.bill}/shitsugi/kaku`, `${s.bill}/shusei/kaku`]) await check(s.reader, path);
+	// 投票（22日）
+	await s.setDay(22);
+	await check(s.reader, `/saiketsu/${s.billId}`);
+	// 書く画面でない法案のページには出す
+	await s.reader.goto(s.bill);
+	await expect(menu(s.reader)).toBeVisible();
+});
+
+test('#118 基準2：スマホの投票の画面で、「票を選んでください」が画面の下に留まり、押せる', async ({ browser }, info) => {
+	test.skip(info.project.name !== 'sp', 'スマホの案（SpVote）');
+	test.setTimeout(180_000);
+	const s = await proposedBill(browser, 'sp', 2);
+	await s.propose();
+	await s.setDay(22);
+	// 小さいスマホでページが画面からはみ出し、ボタンが画面の下に留まる
+	await s.reader.setViewportSize({ width: 390, height: 480 });
+	await s.reader.goto(`/saiketsu/${s.billId}`);
+	expect(await s.reader.evaluate(() => document.documentElement.scrollHeight > innerHeight), 'ページが画面からはみ出していない').toBe(true);
+	await reachable(s.reader, s.reader.getByRole('button', { name: '票を選んでください' }));
+});
+
+test('#118 基準3：スマホの質疑のタブで、「質疑を書く」が下のタブのすぐ上に留まり、重ならない', async ({ browser }, info) => {
+	test.skip(info.project.name !== 'sp', 'スマホの案（SpBillQA）');
+	test.setTimeout(180_000);
+	const s = await proposedBill(browser, 'sp', 3);
+	await s.propose();
+	await s.setDay(15);
+	// 小さいスマホでページが画面からはみ出し、ボタンが画面の下に留まる
+	await s.reader.setViewportSize({ width: 390, height: 480 });
+	await s.reader.goto(`${s.bill}/shitsugi`);
+	const write = s.reader.getByRole('link', { name: '質疑を書く', exact: true });
+	expect(await s.reader.evaluate(() => document.documentElement.scrollHeight > innerHeight), 'ページが画面からはみ出していない').toBe(true);
+	await reachable(s.reader, write);
+	await expect(menu(s.reader)).toBeVisible();
+	const tabs = (await menu(s.reader).boundingBox())!;
+	const button = (await write.boundingBox())!;
+	expect(button.y + button.height).toBeLessThanOrEqual(tabs.y);
 });

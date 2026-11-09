@@ -4,8 +4,11 @@
 	import { ja } from '../copy/ja';
 	import { TABS, tabOf, type Tab } from '../menu';
 
-	/** 未読の数。ログインしていなければ null（ベルを出さない） */
-	let { unread }: { unread: number | null } = $props();
+	/**
+	 * unread：未読の数。ログインしていなければ null（ベルを出さない）。
+	 * hideTabsOnSp：スマホで下のタブを隠す（入力・投票中。Issue #118）
+	 */
+	let { unread, hideTabsOnSp = false }: { unread: number | null; hideTabsOnSp?: boolean } = $props();
 
 	const current = $derived(tabOf(page.url.pathname));
 	/** スマホの上の帯の見出し：タブの下のページはタブの名前、それ以外はサイト名 */
@@ -36,7 +39,7 @@
 		</a>
 		<span class="title" data-menu-title>{title}</span>
 
-		<nav aria-label={ja.menu.label}>
+		<nav class:input={hideTabsOnSp} aria-label={ja.menu.label}>
 			{#each TABS as tab (tab.key)}
 				<a href={tab.href} aria-current={current === tab.key ? 'page' : undefined}>
 					{@render icon(tab.key)}
@@ -172,13 +175,17 @@
 		background: var(--color-bg);
 	}
 
+	nav.input {
+		display: none;
+	}
+
 	nav a {
 		display: flex;
 		flex-direction: column;
 		gap: 0.125rem;
 		align-items: center;
 		justify-content: center;
-		/* 高さを変えたら +layout.svelte の .tab-space も */
+		/* 高さを変えたら +layout.svelte の .tab-space と、質疑のタブの .write の bottom も */
 		min-height: 3.5rem;
 		border-top: 3px solid transparent;
 		color: var(--color-text-sub);
@@ -214,8 +221,9 @@
 			display: none;
 		}
 
-		/* PC：タブは上の帯に並べる（PcHeader）。いまのタブは太字と下の線 */
-		nav {
+		/* PC：タブは上の帯に並べる（PcHeader）。いまのタブは太字と下の線。入力・投票中も隠さない */
+		nav,
+		nav.input {
 			display: flex;
 			position: static;
 			flex: 1;

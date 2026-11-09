@@ -18,3 +18,12 @@ export function tabOf(pathname: string): Tab | null {
 	if (under(pathname, '/if/hourei')) return 'hourei';
 	return TABS.find((t) => t.key !== 'home' && under(pathname, t.href))?.key ?? null;
 }
+
+/**
+ * スマホで下のタブを隠すページ（Tokens「スマホで入力・投票中は下のメニューを隠す」、Issue #118）。
+ * 書く画面（パスの最後が kaku）と投票の画面
+ */
+export function hidesTabsOnSp(routeId: string | null): boolean {
+	if (routeId === null) return false;
+	return routeId.endsWith('/kaku') || routeId === '/saiketsu/[id]';
+}
