@@ -86,10 +86,30 @@
 		font-size: var(--font-size-page-title);
 	}
 
+	/* スマホは上の帯が見出しの代わり（SpBills）。base.css の .visually-hidden と同じ中身（スマホだけに効かせるので写す）。
+	   タブは上の帯のすぐ下に付ける（.tabs の上の余白は 0。PC は下の @media で空ける） */
+	@media (max-width: 63.99rem) {
+		main {
+			padding-top: 0;
+		}
+
+		h1 {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			margin: -1px;
+			padding: 0;
+			border: 0;
+			overflow: hidden;
+			clip-path: inset(50%);
+			white-space: nowrap;
+		}
+	}
+
 	.tabs {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
-		margin: 0.5rem -1rem 0;
+		margin: 0 -1rem;
 		border-bottom: 1px solid var(--color-divider);
 	}
 
