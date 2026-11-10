@@ -6,7 +6,8 @@
 	import { DEFAULT_DISPLAY, TEXT_SIZES } from '../domain/display';
 
 	const current = $derived(page.data.display ?? DEFAULT_DISPLAY);
-	const back = $derived(page.url.pathname + page.url.search);
+	// # はサーバーに届かないので、スクリプトが動いたあとの値で足す（開いていた条へ戻る）
+	const back = $derived(page.url.pathname + page.url.search + page.url.hash);
 </script>
 
 <details class="display">

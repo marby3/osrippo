@@ -8,6 +8,9 @@
 	font-size: var(--text-scale-xl);
 }
 /* 読み仮名は属性から描く（文の文字に入れない。コピーとページ内の検索に混ざらないように） */
+rt {
+	font-size: var(--font-size-rt);
+}
 rt[data-rt]::before {
 	content: attr(data-rt);
 }

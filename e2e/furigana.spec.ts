@@ -1,6 +1,6 @@
 // Issue #129：法令用語のふりがなと「表示の設定」。一覧の当て方は src/lib/domain/law/glossary.test.ts
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { createAmendBill, issueWithSolutions, newUser } from './helpers';
+import { createAmendBill, issueWithSolutions, newUser, ORIGIN } from './helpers';
 
 const LAW = '351AC0000000057';
 const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
@@ -51,7 +51,7 @@ test('基準3：法令のページの法令名に、e-Gov の読み仮名が付�
 
 test('基準4：法令のページの「表示の設定」で文字の大きさとふりがなを選べる（スクリプトなしでも）', async ({ browser }) => {
 	for (const javaScriptEnabled of [true, false]) {
-		const context = await browser.newContext({ javaScriptEnabled, baseURL: 'http://localhost:4173' });
+		const context = await browser.newContext({ javaScriptEnabled, baseURL: ORIGIN });
 		const page = await context.newPage();
 		await page.goto(`/hourei/${LAW}`);
 		if (javaScriptEnabled) await hydrated(page);
@@ -64,11 +64,20 @@ test('基準4：法令のページの「表示の設定」で文字の大きさ�
 		await expect.poll(() => htmlFontSize(page), String(javaScriptEnabled)).toBe('18px');
 		await expect(article17(page).locator('rt').first()).toBeHidden();
 		await context.close();
-	}
+	}	// IF世界の法令のページにも同じ設定がある
+	const context = await browser.newContext({ baseURL: ORIGIN });
+	const page = await context.newPage();
+	await page.goto(`/if/hourei/${LAW}`);
+	await page.getByText('表示の設定', { exact: true }).click();
+	await page.getByRole('group', { name: '文字の大きさ' }).getByLabel('大きい', { exact: true }).check();
+	await page.getByRole('button', { name: '保存する' }).click();
+	await expect(page).toHaveURL(new RegExp(`/if/hourei/${LAW}$`));
+	await expect.poll(() => htmlFontSize(page)).toBe('18px');
+	await context.close();
 });
 
 test('基準5：設定はブラウザに覚え、ほかの画面にも効き、最初から設定のとおりに描く', async ({ browser }) => {
-	const context = await browser.newContext({ baseURL: 'http://localhost:4173' });
+	const context = await browser.newContext({ baseURL: ORIGIN });
 	const page = await context.newPage();
 	await page.goto(`/hourei/${LAW}`);
 	await page.getByText('表示の設定', { exact: true }).click();
@@ -108,4 +117,16 @@ test('基準6：読み仮名を付けても、消した部分は取り消し線�
 	expect(await removed.evaluate((el) => getComputedStyle(el).textDecorationLine)).toContain('line-through');
 	expect(await reading(removed.locator('ruby rt').first())).toBe('えきむ');
 	await context.close();
+});
+
+test('信頼の境界：形の違う値は使わない（戻り先はサイトの中だけ、知らない大きさとふりがなは覚えない）', async ({ page }) => {
+	for (const back of ['/\t/evil.example', '//evil.example', 'https://evil.example/', '/.//evil.example']) {
+		const res = await page.request.post('/hyouji', { form: { back, size: 'huge', ruby: 'maybe' }, headers: { origin: ORIGIN }, maxRedirects: 0 });
+		expect(res.status(), back).toBe(303);
+		expect(res.headers()['location'], back).toBe('/');
+		expect(res.headers()['set-cookie'] ?? '', back).toBe('');
+	}
+	// 同じサイトの中は、# まで戻す
+	const res = await page.request.post('/hyouji', { form: { back: `/hourei/${LAW}?x=1#jo-17`, size: 'l', ruby: 'on' }, headers: { origin: ORIGIN }, maxRedirects: 0 });
+	expect(res.headers()['location']).toBe(`/hourei/${LAW}?x=1#jo-17`);
 });

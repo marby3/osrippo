@@ -54,7 +54,8 @@ const GLOSSARY = [
 
 /** 読み仮名を付けた部分（rt あり）と、そのままの部分 */
 export type RubySegment = { text: string; rt?: string };
-type Entry = { word: string; parts: RubySegment[] };
+export type GlossaryEntry = { word: string; parts: RubySegment[] };
+type Entry = GlossaryEntry;
 
 /** 「若(も)しくは」→ 言葉「若しくは」と部分 [若/も, しくは] */
 function parseEntry(source: string): Entry {
@@ -77,8 +78,9 @@ const PATTERN = new RegExp(
 	'g'
 );
 
-export function glossaryEntries(): Entry[] {
-	return ENTRIES;
+/** 一覧の言葉と読み（写しを返す） */
+export function glossaryEntries(): GlossaryEntry[] {
+	return ENTRIES.map((e) => ({ word: e.word, parts: e.parts.map((p) => ({ ...p })) }));
 }
 
 /** 文を、一覧の言葉に読み仮名を付けた部分に分ける。そのままの部分は隣どうしをつなげる */

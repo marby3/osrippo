@@ -18,8 +18,3 @@ export function parseDisplay(get: (name: string) => string | undefined): Display
 
 /** html に付ける属性（サーバーで描くときに入れるので、開いた直後から設定のとおり。基準5） */
 export const displayAttributes = (d: Display) => `data-text-size="${d.size}" data-ruby="${d.ruby ? 'on' : 'off'}"`;
-
-/** 保存のあとに戻る先。同じサイトの中のパスだけ（外へは戻さない） */
-export function safeReturn(value: unknown): string {
-	return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\') ? value : '/';
-}

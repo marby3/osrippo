@@ -30,5 +30,5 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const display = parseDisplay((name) => event.cookies.get(name));
 	event.locals.display = display;
 	if (PUBLIC_AUTH_PATHS.has(event.url.pathname)) return svelteKitHandler({ event, resolve, auth: getAuth(), building });
-	return resolve(event, { transformPageChunk: ({ html }) => html.replace('<html lang="ja">', `<html lang="ja" ${displayAttributes(display)}>`) });
+	return resolve(event, { transformPageChunk: ({ html }) => html.replace(/<html\b([^>]*)>/, `<html$1 ${displayAttributes(display)}>`) });
 };
