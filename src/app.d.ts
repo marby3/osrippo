@@ -26,13 +26,15 @@ declare global {
 	}
 
 	// 秘密の値の型は wrangler.jsonc の secrets.required から wrangler types が作る。
-	// TEST_LOGIN はどこにも宣言しない（画面のテストのサーバーだけが --var で渡す）ので、ここで足す
+	// 本番の vars にない値（TEST_LOGIN は画面のテストのサーバーが --var で、NOINDEX はステージングの vars で渡す）は、ここで足す
 	namespace Cloudflare {
 		interface Env {
 			/** 画面のテストのサーバーだけで "1"。テスト用のログインを有効にする（設計書 docs/spec/23.md） */
 			TEST_LOGIN?: string;
 			/** pnpm dev のときだけ使う、開発用の短い会期の分数（1〜1440。Issue #44）。ビルドしたサーバーでは使わない */
 			SESSION_MINUTES?: string;
+			/** ステージングだけで "1"。すべての応答に X-Robots-Tag: noindex を付ける（Issue #156） */
+			NOINDEX?: string;
 		}
 	}
 }

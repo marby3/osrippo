@@ -60,7 +60,9 @@
 			],
 			"vars": {
 				// Turnstile のサイトキー（公開してよい値）。ウィジェット osrippo-staging（osrippo-staging.marbyxmax10.workers.dev だけ）
-				"TURNSTILE_SITE_KEY": "0x4AAAAAAF4cryiiv6FIHZHg"
+				"TURNSTILE_SITE_KEY": "0x4AAAAAAF4cryiiv6FIHZHg",
+				// 検索に載せない（Issue #156）。すべての応答に X-Robots-Tag: noindex, nofollow を付ける。本番には置かない
+				"NOINDEX": "1"
 			},
 			"triggers": {
 				"crons": ["1 15 * * *"]
