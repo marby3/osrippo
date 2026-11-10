@@ -164,10 +164,16 @@ test('基準4：付けた・延ばした・取り消したを、運営の記録�
 	const viewer = await browser.newContext({ baseURL: ORIGIN });
 	contexts.push(viewer);
 	const v = await viewer.newPage();
-	await v.goto('/unei');
-	const log = v.getByRole('region', { name: '認証の記録' }).getByRole('listitem').filter({ hasText: name });
+	// ほかのテストも同じ時に認証を付けるので、この人の行が2ページ目以降に回ることがある。ページを順にたどって集める
+	const lines: string[] = [];
+	for (let n = 1; n <= 20; n++) {
+		await v.goto(n === 1 ? '/unei' : `/unei?ninsho=${n}`);
+		const region = v.getByRole('region', { name: '認証の記録' });
+		lines.push(...(await region.getByRole('listitem').filter({ hasText: name }).allInnerTexts()).map((t) => t.trim()));
+		if ((await region.getByRole('link', { name: '前の記録' }).count()) === 0) break;
+	}
 	const day = (d: number) => `${Number(month.slice(0, 4))}年${Number(month.slice(5))}月${d}日`;
-	await expect(log).toHaveText([
+	expect(lines).toEqual([
 		`有識者の認証を取り消した・${name}（消費者法）・${day(6)}`,
 		`有識者の認証を1年延ばした・${name}（消費者法）・${day(5)}`,
 		`有識者の認証を付けた・${name}（消費者法）・${day(4)}`
