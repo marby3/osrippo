@@ -39,11 +39,12 @@
 	{:else}
 		<p class="issue"><a href="/kadai/{data.issue.id}">{data.issue.title}</a></p>
 		<h1>{ja.solution.listHeading}</h1>
-		{#if !data.hidden}<p><a href="/kadai/{data.issue.id}/kaiketsu/kaku">{ja.solution.write}</a></p>{/if}
+		{#if !data.hidden && !data.legislator}<p><a href="/kadai/{data.issue.id}/kaiketsu/kaku">{ja.solution.write}</a></p>{/if}
 		{#if message}<p role="alert">{message}</p>{/if}
 		{#if data.solutions.length === 0}<p>{ja.solution.empty}</p>{/if}
 		{#each data.solutions as solution (solution.id)}
 			<SolutionCard
+				legislator={data.legislator}
 				{solution}
 				loggedIn={data.loggedIn}
 				readonly={data.hidden}
@@ -58,6 +59,7 @@
 			<h2>{ja.solution.hiddenHeading}</h2>
 			{#each data.hiddenSolutions as solution (solution.id)}
 				<SolutionCard
+					legislator={data.legislator}
 					{solution}
 					loggedIn={data.loggedIn}
 					readonly

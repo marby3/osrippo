@@ -13,7 +13,7 @@ import { refuse, type Actor } from './issues';
 import { mergeBlock, proposeMerged } from './merge';
 import { baseArticlesOf, ifArticles, ifHeadOf, repealedLawIds } from './if-world';
 import type { Db, BatchDb } from './law';
-import { personOf, verifiedColumns, verifiedJoin, verifiedTable } from './verifications';
+import { legislatorIds, personOf, verifiedColumns, verifiedJoin, verifiedTable } from './verifications';
 
 /** 作りかけ（rev = 0）を除く条件。法案を引くところは必ずこれを使う */
 export const savedBill = gt(bills.rev, 0);
@@ -487,7 +487,15 @@ export async function sessionParticipants(db: Db, committeeId: number, session: 
 	const [row] = await db
 		.select({ n: countDistinct(actions.userId) })
 		.from(actions)
-		.where(and(inArray(actions.kind, PARTICIPANT_KINDS), gte(actions.createdAt, previous.startsAt), lt(actions.createdAt, previous.endsAt)));
+		.where(
+			and(
+				inArray(actions.kind, PARTICIPANT_KINDS),
+				gte(actions.createdAt, previous.startsAt),
+				lt(actions.createdAt, previous.endsAt),
+				// 数える時点で議員の人は数えない（設計書 docs/spec/158.md の 5）
+				sql`${actions.userId} NOT IN (${legislatorIds(now)})`
+			)
+		);
 	await db.insert(sessionParticipantCounts).values({ committeeId, sessionKey: session.key, activeCount: row.n, fixedAt: now }).onConflictDoNothing();
 	return (await read()) as number;
 }

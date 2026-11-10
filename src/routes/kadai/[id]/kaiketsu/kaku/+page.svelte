@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { enhance } from '$app/forms';
 	import Turnstile from '#lib/components/Turnstile.svelte';
@@ -28,6 +29,9 @@
 	<Crumbs current={ja.solution.write} />
 	<p class="issue"><a href="/kadai/{data.issue.id}">{data.issue.title}</a></p>
 	<h1>{ja.solution.write}</h1>
+	{#if data.legislator}
+		<LegislatorNote />
+	{:else}
 	<form
 		method="post"
 		use:enhance={() =>
@@ -53,6 +57,7 @@
 		{#if message}<p role="alert" class="error">{message}</p>{/if}
 		<button disabled={!token}>{ja.solution.submit}</button>
 	</form>
+	{/if}
 </main>
 
 <style>

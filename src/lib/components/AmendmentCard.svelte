@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from './LegislatorNote.svelte';
 	// 修正案のカード。提案者の名前は出さない。押された票の数も出さない
 	import { enhance } from '$app/forms';
 	import { ja } from '../copy/ja';
@@ -10,6 +11,7 @@
 	import Turnstile from './Turnstile.svelte';
 
 	let {
+		legislator = false,
 		amendment,
 		progress,
 		required,
@@ -41,6 +43,8 @@
 		waiting: boolean;
 		/** 投票資格（4週目にログインしているときだけ） */
 		eligible: boolean | null;
+		/** 議員が見るとき：賛同と採決の代わりに文言（docs/spec/158.md の 3） */
+		legislator?: boolean;
 		siteKey: string;
 		updateHref: string;
 		back: string;
@@ -108,7 +112,7 @@
 		{/if}
 	{/if}
 
-	{#if deliberation && open && !amendment.mine && !isSide && !waiting && (current || amendment.supported)}
+	{#if deliberation && open && !amendment.mine && !isSide && !waiting && !legislator && (current || amendment.supported)}
 		{#if loggedIn}
 			<form method="post" action="?/support" use:enhance={() => async ({ update }) => update({ reset: false })}>
 				<input type="hidden" name="amendment" value={amendment.id} />
@@ -124,7 +128,10 @@
 		{/if}
 	{/if}
 
-	{#if votable}
+	{#if votable && legislator}
+		<!-- 議員は採決できない（docs/spec/158.md の 3） -->
+		<LegislatorNote />
+	{:else if votable}
 		<p class="note">{ja.amendment.secret}</p>
 		{#if eligible === false}<p class="note">{ja.amendment.reference}</p>{/if}
 		<div class="choices">

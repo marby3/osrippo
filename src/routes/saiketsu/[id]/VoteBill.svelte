@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	// 投票の画面（SpVote・PcVote）。変更点の一覧はスマホでは閉じ、PC では開いている。票の欄は PC では右に置く。
 	// 棄権は一覧を開くまで選べない。この決まりは画面だけで守る（Issue #70 確認の点）
 	import Crumbs from '#lib/components/Crumbs.svelte';
@@ -98,6 +99,10 @@
 
 		<section class="ballot" aria-labelledby="your-vote">
 			<h2 id="your-vote">{ja.vote.yourVote}</h2>
+			{#if data.legislator}
+				<!-- 議員は投票できない（docs/spec/158.md の 3） -->
+				<LegislatorNote />
+			{:else}
 			<div class="standing"><VoteStanding eligible={data.eligible} total={data.total} done={data.done} /></div>
 			<form
 				method="post"
@@ -130,6 +135,7 @@
 					<button class="primary" disabled={!selected || !token}>{!selected ? ja.vote.choose : token ? ja.vote.submit : ja.vote.checking}</button>
 				</div>
 			</form>
+			{/if}
 		</section>
 	</div>
 </main>

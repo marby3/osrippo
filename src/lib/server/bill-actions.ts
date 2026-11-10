@@ -29,7 +29,7 @@ export async function submitBill(event: RequestEvent, user: { id: string; create
 	const values = readBillForm(form);
 	const refuse = (status: number, data: Omit<BillFormFailure, 'values'>) => fail(status, { values, ...data } satisfies BillFormFailure);
 
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'participate');
 	if (!guard.ok) return refuse(guard.failure.status, guard.failure.data);
 	const wait = billWaitUntil(guard.actor.registeredAt, now);
 	if (wait !== null) return refuse(403, { message: ja.bill.tooNew(wait) });
@@ -82,7 +82,7 @@ async function billOf(event: RequestEvent) {
 /** 確かめる順：ログイン → 日本から → 締め出し → 登録から7日 */
 async function billGuard(event: RequestEvent, db: Db, now: number, checkAge: boolean) {
 	const user = requireUser(event);
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'participate');
 	if (!guard.ok) return { failure: fail(guard.failure.status, guard.failure.data) };
 	const wait = checkAge ? billWaitUntil(guard.actor.registeredAt, now) : null;
 	if (wait !== null) return { failure: fail(403, { message: ja.bill.support.tooNew(wait) }) };

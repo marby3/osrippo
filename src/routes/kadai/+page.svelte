@@ -34,7 +34,7 @@
 		<h1>{ja.issue.heading}</h1>
 		<!-- スマホは下のタブの上に留める帯、PC は見出しの右（SpIssues・PcIssues） -->
 		<div class="write-bar">
-			<a class="write" href="/kadai/kaku"><span aria-hidden="true">＋</span> {ja.issue.write}</a>
+			{#if !data.legislator}<a class="write" href="/kadai/kaku"><span aria-hidden="true">＋</span> {ja.issue.write}</a>{/if}
 		</div>
 	</header>
 

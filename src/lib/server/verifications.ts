@@ -1,7 +1,7 @@
 // 議員・有識者の認証（設計書 docs/spec/157.md）
 import { and, asc, desc, eq, gt, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import { user, userVerificationLogs, userVerifications } from '../db/schema';
-import { verificationExpiry, type Person, type Verified, type VerificationAction, type VerificationInput, type VerificationKind } from '../domain/verification';
+import { isLegislator, verificationExpiry, type Person, type Verified, type VerificationAction, type VerificationInput, type VerificationKind } from '../domain/verification';
 import type { BatchDb, Db } from './law';
 
 export type { Person, Verified };
@@ -29,6 +29,20 @@ export const verifiedColumns = {
 /** 列から Person を作る */
 export function personOf(row: { name: string; vKind: VerificationKind | null; vName: string | null; vField: string | null }): Person {
 	return { name: row.name, verified: row.vKind && row.vName ? { kind: row.vKind, name: row.vName, field: row.vField } : null };
+}
+
+/** いま議員か（有効な認証の種類が議員。設計書 docs/spec/158.md の 1） */
+export async function legislatorAt(db: Db, userId: string, now: number): Promise<boolean> {
+	const [row] = await db
+		.select({ kind: userVerifications.kind })
+		.from(userVerifications)
+		.where(and(eq(userVerifications.userId, userId), activeVerification(now)));
+	return isLegislator(row?.kind);
+}
+
+/** その時点で有効な議員の認証がある人（今月の参加者から除く。設計書 docs/spec/158.md の 5） */
+export function legislatorIds(now: number) {
+	return sql`SELECT ${userVerifications.userId} FROM ${userVerifications} WHERE ${userVerifications.kind} = 'legislator' AND ${userVerifications.revokedAt} IS NULL AND ${userVerifications.expiresAt} > ${now}`;
 }
 
 /** 投稿を書いた人のうち、有効な認証のある人だけ（user_id → 表示する名前とバッジ）。投稿の user_id は画面に渡さない */

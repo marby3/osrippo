@@ -79,7 +79,7 @@ async function writer(event: RequestEvent, form: FormData, now: number) {
 	const user = event.locals.user;
 	if (!user) redirect(303, LOGIN);
 	const db = drizzle(env.DB);
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'participate');
 	if (!guard.ok) return { failure: guard.failure };
 	const wait = billWaitUntil(guard.actor.registeredAt, now);
 	if (wait !== null) return { failure: fail(403, { message: ja.chair.tooNew(wait) }) };

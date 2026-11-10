@@ -864,6 +864,8 @@ export const ja = {
 	},
 	/** 書き込みの前の確かめ（設計書 docs/spec/25.md） */
 	guard: {
+		/** 議員にできない書き込み（Issue #158） */
+		legislator: '議員のアカウントではできません。閲覧と質疑ができます。',
 		outsideJapan: '日本国内からのみ参加できます。見ることは国外からもできます。',
 		turnstileFailed: '確認できませんでした。もう一度お試しください。',
 		turnstileUnavailable: '確認の仕組みを読み込めませんでした。ページを読み直してください。',

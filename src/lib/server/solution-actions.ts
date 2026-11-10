@@ -24,7 +24,7 @@ export async function reactAction(event: RequestEvent<{ id: string }>, back: (id
 	const form = await event.request.formData();
 	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
 	const raw = field('solution');
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'participate');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, solution: parseIssueId(raw ?? '') });
 	const input = parseReaction({ solution: raw, kind: field('kind'), op: field('op') });
 	if (!input) error(400);
@@ -58,7 +58,7 @@ export async function reportSolutionAction(event: RequestEvent<{ id: string }>, 
 	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
 	// 解決策の番号の形は課題の番号と同じ判定（断った理由を出す場所にも使う）
 	const solutionId = parseIssueId(field('solution') ?? '');
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'report');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, solution: solutionId });
 
 	const checked = validateSolutionReport({ reason: field('reason'), note: field('note') });

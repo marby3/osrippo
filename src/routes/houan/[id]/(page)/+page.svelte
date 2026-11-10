@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import PersonName from '#lib/components/PersonName.svelte';
 	// 法案のページの概要（SpBillSummary・PcBillSummary）
 	import { enhance } from '$app/forms';
@@ -168,7 +169,7 @@
 			<p class="note">{ja.bill.cosponsor.leftNote}</p>
 		{:else if data.progress === 'draft' && data.cosponsor.mine === 'declined'}
 			<p class="note">{ja.bill.cosponsor.declinedNote}</p>
-		{:else if data.cosponsor.canAsk}
+		{:else if data.cosponsor.canAsk && !data.legislator}
 			<form method="post" action="?/cosponsor" use:enhance class="act">
 				<input type="hidden" name="op" value="request" />
 				<button>{ja.bill.cosponsor.request}</button>
@@ -253,7 +254,10 @@
 				{#if remaining > 0}<p class="note">{ja.bill.support.remaining(remaining)}</p>{/if}
 			</form>
 		{:else if support.open}
-			{#if support.waitUntil !== null}
+			{#if data.legislator}
+				<!-- 議員は賛同できない（docs/spec/158.md の 3） -->
+				<LegislatorNote />
+			{:else if support.waitUntil !== null}
 				<p class="note">{ja.bill.support.tooNew(support.waitUntil)}</p>
 			{:else if !support.loggedIn}
 				<!-- ログインしていなければ、押すとログインの画面へ（JS がなくても動く） -->

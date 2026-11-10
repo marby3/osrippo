@@ -59,7 +59,8 @@
 </svelte:head>
 
 <div class="layout">
-	{#if data.stanceShown}
+	<!-- 議員は考えと評価を持たない（docs/spec/158.md の 3）。質疑は書ける -->
+	{#if data.stanceShown && !data.legislator}
 		<section class="stance" aria-labelledby="stance-heading">
 			<!-- スマホは見出しの右に「自分だけに見えます」（SpBillQA）。PC は見出しの下に残りの回数と1行で（PcBillQA） -->
 			<div class="stance-head">
@@ -110,7 +111,7 @@
 				{failure}
 				{afterReply}
 				back={here}
-				evaluationShown={!relatedBill && !past && data.evaluationShown}
+				evaluationShown={!relatedBill && !past && data.evaluationShown && !data.legislator}
 				{evaluationFailure}
 				track={relatedBill || past ? null : track}
 				staffHere={!relatedBill && data.staffHere}
@@ -160,7 +161,7 @@
 					<a href="{base}/kaku">{ja.post.writeQuestion}</a>
 				{/if}
 			{/if}
-			{#if data.evaluationShown}<p class="hint">{ja.post.evaluationHint}</p>{/if}
+			{#if data.evaluationShown && !data.legislator}<p class="hint">{ja.post.evaluationHint}</p>{/if}
 		</div>
 	{/if}
 </div>

@@ -39,7 +39,7 @@ export function progressOf(bill: { status: 'draft' | 'proposed' | 'withdrawn'; p
 async function writer(event: RequestEvent, db: Parameters<typeof writeGuard>[1], billId: number, now: number, form: FormData, keep: Record<string, unknown>) {
 	const user = event.locals.user;
 	if (!user) redirect(303, `/login?next=${encodeURIComponent(questionsPath(billId))}`);
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'speak');
 	if (!guard.ok) return { failure: fail(guard.failure.status, { ...guard.failure.data, ...keep }) };
 	const wait = billWaitUntil(guard.actor.registeredAt, now);
 	if (wait !== null) return { failure: fail(403, { message: ja.post.tooNew(wait), ...keep }) };
@@ -111,7 +111,7 @@ export async function stanceAction(event: RequestEvent) {
 	if (!user) redirect(303, `/login?next=${encodeURIComponent(questionsPath(bill.id))}`);
 	const now = nowOf(event);
 	const form = await event.request.formData();
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'participate');
 	if (!guard.ok) return fail(guard.failure.status, { stanceMessage: guard.failure.data.message });
 	const stance = parseStance(form.has('stance') ? String(form.get('stance')) : null);
 	if (!stance) error(400);
@@ -130,7 +130,7 @@ export async function evaluationAction(event: RequestEvent) {
 	const form = await event.request.formData();
 	const postId = parseIssueId(String(form.get('post') ?? ''));
 	const keep = { evaluationPost: postId };
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'participate');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, ...keep });
 	const wait = billWaitUntil(guard.actor.registeredAt, now);
 	if (wait !== null) return fail(403, { message: ja.post.tooNew(wait), ...keep });
@@ -161,7 +161,7 @@ export async function reportPostAction(event: RequestEvent) {
 	const form = await event.request.formData();
 	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
 	const postId = parseIssueId(field('post') ?? '');
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'report');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, reportPost: postId });
 	const checked = validateSolutionReport({ reason: field('reason'), note: field('note') });
 	if (postId === null || !checked.ok) error(400);
@@ -182,7 +182,7 @@ export async function readAction(event: RequestEvent) {
 	if (!user) return fail(401);
 	const now = nowOf(event);
 	const form = await event.request.formData();
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'speak');
 	if (!guard.ok) return fail(guard.failure.status);
 	if (billWaitUntil(guard.actor.registeredAt, now) !== null) return fail(403);
 	const raw = form.getAll('post');

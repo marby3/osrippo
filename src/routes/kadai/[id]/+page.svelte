@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { enhance } from '$app/forms';
 	import { afterNavigate, replaceState } from '$app/navigation';
@@ -99,7 +100,12 @@
 				<p class="example">{issue.example}</p>
 			</div>
 
-			{#if !data.hidden}
+			{#if !data.hidden && data.legislator}
+				<div class="support-box">
+					<p class="count">{ja.issue.support} {issue.supports}</p>
+					<LegislatorNote />
+				</div>
+			{:else if !data.hidden}
 				<form class="support-box" method="post" action="?/support" use:enhance>
 					<input type="hidden" name="op" value={issue.supported ? 'remove' : 'add'} />
 					<button class="support" aria-pressed={issue.supported}>
@@ -132,6 +138,7 @@
 							done={solutionDone(solution.id)}
 							reported={data.reportedSolutions.includes(solution.id)}
 							staff={data.staff}
+							legislator={data.legislator}
 						/>
 					{/each}
 					{#if data.solutionCount > data.solutions.length}
@@ -140,7 +147,7 @@
 						<!-- 本人・運営に見せられる非表示の解決策は、解決策の一覧の最後に出す（設計書 docs/spec/36.md 決めたこと4） -->
 						<p class="more"><a href="/kadai/{issue.id}/kaiketsu">{ja.solution.showHidden}</a></p>
 					{/if}
-					{#if !data.hidden}<a class="write" href="/kadai/{issue.id}/kaiketsu/kaku">{ja.solution.write}</a>{/if}
+					{#if !data.hidden && !data.legislator}<a class="write" href="/kadai/{issue.id}/kaiketsu/kaku">{ja.solution.write}</a>{/if}
 				</section>
 
 				{#if data.sources.length}

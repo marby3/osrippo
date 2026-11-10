@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
@@ -96,6 +97,10 @@
 	<div class="layout">
 		<div class="body">
 			<h1>{ja.issue.write}</h1>
+			<!-- 議員は課題を書けない（docs/spec/158.md の 3） -->
+			{#if data.legislator}
+				<LegislatorNote />
+			{:else}
 			<!-- スマホは「ステップ 1 / 3」と棒だけを見せる（SpIssueNew）。読み上げは段の名前と aria-current で伝わるので、この行は読ませない -->
 			<!-- 行は先に置いて高さを取っておき、JS が動いてから中身を出す（JS がないときは段を分けないので出さない） -->
 			<p class="step-count" aria-hidden="true">{#if js}{ja.issue.stepCount(step, ja.issue.steps.length)}{/if}</p>
@@ -211,6 +216,7 @@
 					</div>
 				</section>
 			</form>
+			{/if}
 		</div>
 
 		<!-- 主のフォームの中にフォームは置けないので、似た課題の欄は外に置く（PC は右に並べ、スマホは段のボタンを下に留めるので入力欄のすぐ下に来る） -->

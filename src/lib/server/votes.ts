@@ -9,6 +9,7 @@ import { ASSIGNMENT_COUNT, drawAssignments, VOTE_PAGE_SIZE, type VoteChoice, typ
 import { savedBill } from './bills';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
+import { legislatorAt } from './verifications';
 
 /**
  * 投票資格の条件：会期の始まりより前に登録し、その前に今月の参加者に数える行動がある。user の行を読む問い合わせの中で使う（isEligibleVoter と tallyVotes で共通）。
@@ -76,6 +77,8 @@ export async function assignedBills(db: Db, userId: string, session: Session, pr
 
 /** 割り当ての法案と、それぞれに入れた票。順はくじの順 */
 export async function assignmentRows(db: Db, userId: string, session: Session, previous: Session, now: number, random: () => number) {
+	// 議員は投票できないので割り当てを作らない（設計書 docs/spec/158.md の 4）
+	if (await legislatorAt(db, userId, now)) return [];
 	await assignedBills(db, userId, session, previous, now, random);
 	return db
 		.select({ id: bills.id, title: bills.title, choice: votes.choice })

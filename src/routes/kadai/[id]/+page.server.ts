@@ -5,7 +5,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '#lib/copy/ja.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { isHidden, validateReport } from '#lib/domain/reports.ts';
-import { nowOf, refusalMessage, sessionsAt, writeGuard } from '#lib/server/client.ts';
+import { nowOf, refusalMessage, sessionsAt, writeGuard, type WriteUse } from '#lib/server/client.ts';
 import { getIssue, issueMeta, setSupport } from '#lib/server/issues.ts';
 import { issueBillCount } from '#lib/server/issue-bills.ts';
 import { hasReported, mergedSources, reportIssue } from '#lib/server/reports.ts';
@@ -73,7 +73,7 @@ async function solutionsFor(db: Db, id: number, userId: string | null, staff: bo
 }
 
 /** 番号の形と課題があるかを、ログインより先に確かめる。そのあとログイン → 国 → 締め出し */
-async function prepare(event: RequestEvent) {
+async function prepare(event: RequestEvent, use: WriteUse) {
 	const id = parseIssueId(event.params.id);
 	if (id === null) error(404);
 	const db = drizzle(env.DB);
@@ -82,7 +82,7 @@ async function prepare(event: RequestEvent) {
 	const user = event.locals.user;
 	if (!user) redirect(303, `/login?next=${encodeURIComponent(`/kadai/${id}`)}`);
 	const now = nowOf(event);
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, use);
 	return { id, db, meta, user, now, guard };
 }
 
@@ -90,7 +90,7 @@ export const actions: Actions = {
 	react: (event) => reactAction(event, (id) => `/kadai/${id}`),
 	reportSolution: (event) => reportSolutionAction(event, (id) => `/kadai/${id}`),
 	support: async (event) => {
-		const { id, db, meta, now, guard } = await prepare(event);
+		const { id, db, meta, now, guard } = await prepare(event, 'participate');
 		if (!guard.ok) return guard.failure;
 		const op = (await event.request.formData()).get('op');
 		if (op !== 'add' && op !== 'remove') error(400);
@@ -101,7 +101,7 @@ export const actions: Actions = {
 		return { supported: result.supported };
 	},
 	report: async (event) => {
-		const { id, db, meta, user, now, guard } = await prepare(event);
+		const { id, db, meta, user, now, guard } = await prepare(event, 'report');
 		if (!guard.ok) return guard.failure;
 		const form = await event.request.formData();
 		const checked = validateReport({

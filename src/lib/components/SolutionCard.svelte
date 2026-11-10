@@ -23,12 +23,15 @@
 		done,
 		notice,
 		reported = false,
-		staff = false
+		staff = false,
+		legislator = false
 	}: {
 		solution: Solution;
 		loggedIn: boolean;
 		/** 非表示の課題・解決策を本人・運営が見るとき：ボタンの代わりに数だけ、通報のボタンも出さない */
 		readonly?: boolean;
+		/** 議員が見るとき：「わかる」などは数だけで、法案を書くリンクも出さない。通報はできる（docs/spec/158.md の 3） */
+		legislator?: boolean;
 		/** ログインしていないとき、ログインのあとに戻るパス */
 		back: string;
 		/** この解決策への操作を断った理由 */
@@ -60,10 +63,10 @@
 	<div class="text">
 		<p id="kaiketsu-body-{solution.id}" class="body">{solution.body}</p>
 		<!-- 法案は解決策から書き始める（Issue #46）。非表示のものには出さない -->
-		{#if !readonly}<p class="to-bill"><a href="/houan/kaku?kaiketsu={solution.id}">{ja.solution.toBill}</a></p>{/if}
+		{#if !readonly && !legislator}<p class="to-bill"><a href="/houan/kaku?kaiketsu={solution.id}">{ja.solution.toBill}</a></p>{/if}
 	</div>
 	<div class="reactions">
-		{#if solution.mine || readonly}
+		{#if solution.mine || readonly || legislator}
 			<!-- 自分の解決策と、非表示のものには押せない。数だけを出す -->
 			{#each REACTIONS as kind (kind)}<span class="count">{label(kind)}</span>{/each}
 		{:else if !loggedIn}

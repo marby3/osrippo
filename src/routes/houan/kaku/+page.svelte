@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import Crumbs from '#lib/components/Crumbs.svelte';
 	import BillForm from '#lib/components/BillForm.svelte';
 	import { ja } from '#lib/copy/ja.ts';
@@ -14,7 +15,10 @@
 <main>
 	<Crumbs current={ja.bill.write.heading} />
 	<h1>{ja.bill.write.heading}</h1>
-	{#if data.view === 'wait'}
+	{#if data.legislator}
+		<!-- 議員は法案を書けない（docs/spec/158.md の 3） -->
+		<LegislatorNote />
+	{:else if data.view === 'wait'}
 		<p>{ja.bill.tooNew(data.until)}</p>
 	{:else if data.view === 'start'}
 		<p>{ja.bill.write.start}</p>

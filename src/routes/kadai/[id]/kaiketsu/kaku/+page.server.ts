@@ -39,7 +39,7 @@ export const actions: Actions = {
 		const form = await event.request.formData();
 		const body = String(form.get('body') ?? '');
 
-		const guard = await writeGuard(event, db, user, now);
+		const guard = await writeGuard(event, db, user, now, 'participate');
 		if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, body });
 		if (!(await checkTurnstile(event, String(form.get('cf-turnstile-response') ?? ''), guard.ip))) {
 			return fail(400, { message: ja.guard.turnstileFailed, body });
