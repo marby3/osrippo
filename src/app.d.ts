@@ -33,7 +33,7 @@ declare global {
 			TEST_LOGIN?: string;
 			/** pnpm dev のときだけ使う、開発用の短い会期の分数（1〜1440。Issue #44）。ビルドしたサーバーでは使わない */
 			SESSION_MINUTES?: string;
-			/** ステージングだけで "1"。すべての応答に X-Robots-Tag: noindex を付ける（Issue #156） */
+			/** ステージングだけで "1"。Worker の入口で、すべての応答に X-Robots-Tag: noindex, nofollow を付ける（Issue #156。src/worker/fetch.ts） */
 			NOINDEX?: string;
 		}
 	}

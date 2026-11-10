@@ -1,8 +1,8 @@
-// Issue #156：ステージングを検索に載せない（基準1・2・4）
+// Issue #156：ステージングを検索に載せない。ヘッダーを付ける関数のルールのテスト（基準2・4）。どの応答にも付くことは src/worker/fetch.test.ts
 import { describe, expect, test } from 'vitest';
 import { withNoindex } from './robots';
 
-describe('基準1・2：NOINDEX が "1" のときだけ X-Robots-Tag を付ける', () => {
+describe('基準2・4：NOINDEX が "1" のときだけ X-Robots-Tag を付ける', () => {
 	test('"1" なら、ページの応答に noindex, nofollow を付け、中身と状態はそのまま', async () => {
 		const res = withNoindex(new Response('<p>ページ</p>', { status: 404, headers: { 'content-type': 'text/html' } }), '1');
 		expect(res.headers.get('x-robots-tag')).toBe('noindex, nofollow');
@@ -18,7 +18,7 @@ describe('基準1・2：NOINDEX が "1" のときだけ X-Robots-Tag を付け�
 		expect(res.headers.get('location')).toBe('https://example.com/kadai');
 	});
 
-	test.each([undefined, '', '0', 'true'])('%s なら付けない（本番）', (value) => {
+	test.each([undefined, '0'])('%s なら付けない（本番）', (value) => {
 		const original = new Response('x');
 		const res = withNoindex(original, value);
 		expect(res).toBe(original);

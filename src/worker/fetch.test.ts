@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'vitest';
 import { withNoindexFetch } from './fetch';
 
-const env = (NOINDEX?: string) => ({ NOINDEX }) as unknown as Env;
+const env = (NOINDEX?: string) => ({ NOINDEX }) as unknown as Cloudflare.Env;
 const ctx = {} as ExecutionContext;
 
 describe('基準1：Worker の入口で、すべての応答に X-Robots-Tag を付ける', () => {

@@ -7,7 +7,9 @@ export function withNoindex(response: Response, noindex: string | undefined): Re
 	try {
 		response.headers.set('x-robots-tag', VALUE);
 		return response;
-	} catch {
+	} catch (e) {
+		// 変えられないヘッダー（Response.redirect など）だけを作り直す。ほかの失敗はそのまま投げる
+		if (!(e instanceof TypeError)) throw e;
 		const copy = new Response(response.body, response);
 		copy.headers.set('x-robots-tag', VALUE);
 		return copy;

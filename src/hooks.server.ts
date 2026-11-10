@@ -4,7 +4,6 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import type { Handle } from '@sveltejs/kit/hooks';
 import { displayAttributes, parseDisplay } from '#lib/domain/display.ts';
 import { createAuth, hasSessionCookie } from '#lib/server/auth.ts';
-import { withNoindex } from '#lib/server/robots.ts';
 
 /**
  * Better Auth の経路のうち、外から呼べるのは提供元から戻るところだけ。
@@ -13,10 +12,7 @@ import { withNoindex } from '#lib/server/robots.ts';
  */
 const PUBLIC_AUTH_PATHS = new Set(['/api/auth/callback/google', '/api/auth/callback/line']);
 
-/** ステージングでは、すべての応答に X-Robots-Tag を付ける（Issue #156） */
-export const handle: Handle = async (input) => withNoindex(await handleRequest(input), env.NOINDEX);
-
-const handleRequest: Handle = async ({ event, resolve }) => {
+export const handle: Handle = async ({ event, resolve }) => {
 	if (event.url.pathname.startsWith('/api/auth/') && !PUBLIC_AUTH_PATHS.has(event.url.pathname)) {
 		return new Response('Not Found', { status: 404 });
 	}
