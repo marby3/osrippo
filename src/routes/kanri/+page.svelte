@@ -30,7 +30,7 @@
 <main>
 	<h1>{ja.kanri.heading}</h1>
 	<!-- 断った文言は、その課題・解決策のところに出す（どれか分からないときだけ上に） -->
-	{#if form && 'message' in form && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('amendmentId' in form && form.amendmentId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
+	{#if form && 'message' in form && !('verification' in form) && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('amendmentId' in form && form.amendmentId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
 		<p role="alert">{form.message}</p>
 	{/if}
 	{#if data.rows.length === 0}
@@ -319,6 +319,54 @@
 			</article>
 		{/each}
 	</section>
+
+	<!-- 議員・有識者の認証（設計書 docs/spec/157.md の 3）。運営にだけ出す -->
+	{#if data.verifications}
+		<section class="verify" aria-labelledby="verify-heading">
+			<h2 id="verify-heading" class="section">{ja.verification.heading}</h2>
+			{#if form && 'verification' in form && 'message' in form}<p role="alert">{form.message}</p>{/if}
+			<form method="post" action="?/verifyGrant" use:enhance>
+				<label for="verify-target">{ja.verification.target}</label>
+				<input id="verify-target" name="target" required autocomplete="off" />
+				<fieldset>
+					<legend>{ja.verification.kind}</legend>
+					<label class="choice"><input type="radio" name="kind" value="legislator" required />{ja.verification.kinds.legislator}</label>
+					<label class="choice"><input type="radio" name="kind" value="expert" />{ja.verification.kinds.expert}</label>
+				</fieldset>
+				<label for="verify-name">{ja.verification.name}</label>
+				<input id="verify-name" name="name" required maxlength="40" autocomplete="off" />
+				<label for="verify-field">{ja.verification.field}</label>
+				<input id="verify-field" name="field" maxlength="40" autocomplete="off" />
+				<button>{ja.verification.grant}</button>
+			</form>
+			<h3>{ja.verification.listHeading}</h3>
+			{#if data.verifications.length === 0}
+				<p>{ja.verification.empty}</p>
+			{:else}
+				<ul class="verified">
+					{#each data.verifications as v (v.userId)}
+						<li>
+							<p>
+								<strong>{v.name}</strong>
+								{ja.verification.kinds[v.kind]}{v.field ? `（${v.field}）` : ''} ・ {ja.verification.until(v.lastDay)}
+							</p>
+							<p class="account">{ja.verification.account(v.userName)}</p>
+							<div class="actions">
+								<form method="post" action="?/verifyRenew" use:enhance>
+									<input type="hidden" name="user" value={v.userId} />
+									<button>{ja.verification.renew}</button>
+								</form>
+								<form method="post" action="?/verifyRevoke" use:enhance>
+									<input type="hidden" name="user" value={v.userId} />
+									<button>{ja.verification.revoke}</button>
+								</form>
+							</div>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+	{/if}
 </main>
 
 <style>
@@ -371,6 +419,44 @@
 
 	.status {
 		font-weight: bold;
+	}
+
+	.verify form,
+	.verify fieldset {
+		display: grid;
+		gap: 0.5rem;
+	}
+
+	.verify fieldset {
+		border: none;
+		padding: 0;
+	}
+
+	.choice {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+		min-height: var(--tap-min);
+	}
+
+	.verified {
+		list-style: none;
+		padding: 0;
+	}
+
+	.verified li {
+		border-top: 1px solid var(--color-divider);
+		padding: 0.5rem 0;
+	}
+
+	.account {
+		font-size: var(--font-size-sub);
+		color: var(--color-text-sub);
+	}
+
+	.actions {
+		display: flex;
+		gap: 0.5rem;
 	}
 
 	.reasons,

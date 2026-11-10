@@ -35,10 +35,10 @@ async function user(browser: Browser, w: Width, who: string, now: string, role?:
 const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
 const section = (page: Page) => page.getByRole('region', { name: '議員・有識者の認証' });
 
-/** 書き込みの応答が返るまで待つ */
-async function posted(u: Page, act: () => Promise<void>) {
+/** 書き込みの応答が返るまで待つ。ok なら成功の応答であることも確かめる（断るときは理由の文で確かめる） */
+async function posted(u: Page, act: () => Promise<void>, ok = true) {
 	const [res] = await Promise.all([u.waitForResponse((r) => r.request().method() === 'POST'), act()]);
-	expect(res.status()).toBeLessThan(400);
+	if (ok) expect(res.status()).toBeLessThan(400);
 }
 
 /** 運営の画面で認証を付ける */
@@ -50,7 +50,7 @@ async function grant(op: Page, target: string, kind: '議員' | '有識者', nam
 	await s.getByRole('group', { name: '種類' }).getByRole('radio', { name: kind, exact: true }).check();
 	await s.getByLabel('表示する名前').fill(name);
 	if (field) await s.getByLabel('専門分野').fill(field);
-	await posted(op, () => s.getByRole('button', { name: '認証を付ける' }).click());
+	await posted(op, () => s.getByRole('button', { name: '認証を付ける' }).click(), false);
 }
 
 /** 一覧のその人の行 */

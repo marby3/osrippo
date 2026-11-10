@@ -42,7 +42,7 @@ export const load: PageServerLoad = async (event) => {
 	const panel = await chairPanelOf(db, FIRST_COMMITTEE, session, now);
 	const [name, election, recall] = await Promise.all([
 		committeeNameOf(db, FIRST_COMMITTEE),
-		electionPage(db, FIRST_COMMITTEE, session, userId, Math.random),
+		electionPage(db, FIRST_COMMITTEE, session, userId, Math.random, now),
 		panel.chair ? recallStateOf(db, FIRST_COMMITTEE, session, previous, userId, now) : null
 	]);
 	const blocks =

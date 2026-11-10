@@ -28,7 +28,7 @@ export const load: PageServerLoad = async (event) => {
 	const user = event.locals.user;
 	const now = nowOf(event);
 	const { progress, session } = progressOf(bill, now);
-	const { rows, hasNext } = await listQuestions(db, bill.id, user?.id ?? null, onlyWaiting, page, relatedIds, session.key);
+	const { rows, hasNext } = await listQuestions(db, bill.id, user?.id ?? null, onlyWaiting, page, relatedIds, session.key, now);
 	if (page > 1 && rows.length === 0) error(404);
 
 	const userId = user?.id ?? null;

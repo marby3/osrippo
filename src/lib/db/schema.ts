@@ -10,6 +10,7 @@ import { EVALUATION_KINDS } from '../domain/evaluations';
 import type { NotificationKind } from '../domain/notifications';
 import type { AmendmentStatus } from '../domain/amendments';
 import { ADJUSTMENT_REASONS, BILL_OUTCOMES, REVIEW_STATUSES, VOTE_CHOICES } from '../domain/votes';
+import { VERIFICATION_ACTIONS, VERIFICATION_KINDS } from '../domain/verification';
 
 export const laws = sqliteTable('laws', {
 	/** e-Gov の law_id */
@@ -1339,3 +1340,52 @@ export const notificationReads = sqliteTable('notification_reads', {
 	readAt: integer('read_at').notNull(),
 	readId: integer('read_id').notNull()
 });
+
+// 議員・有識者の認証（設計書 docs/spec/157.md）。Better Auth の verification 表（メールの確認用）とは別物
+
+/** 利用者ごとに1行。いまの認証か、最後の認証。有効なのは revoked_at が NULL で expires_at が今より後のとき */
+export const userVerifications = sqliteTable(
+	'user_verifications',
+	{
+		userId: text('user_id')
+			.primaryKey()
+			.references(() => user.id),
+		kind: text('kind', { enum: VERIFICATION_KINDS }).notNull(),
+		/** 表示する名前（議員は氏名、有識者は実名か肩書） */
+		displayName: text('display_name').notNull(),
+		/** 専門分野。有識者だけ（議員は NULL） */
+		field: text('field'),
+		grantedAt: integer('granted_at').notNull(),
+		expiresAt: integer('expires_at').notNull(),
+		revokedAt: integer('revoked_at'),
+		updatedAt: integer('updated_at').notNull(),
+		/** 最後にこの行を書いた操作の印（要求ごと）。記録はこの印の行から作る */
+		op: text('op').notNull()
+	},
+	(t) => [
+		check('user_verifications_kind', sql`${t.kind} IN ('legislator', 'expert')`),
+		check('user_verifications_field', sql`(${t.kind} = 'expert') = (${t.field} IS NOT NULL)`)
+	]
+);
+
+/** 付与・延長・取り消しの記録（公開する）。名前はその時点の写し */
+export const userVerificationLogs = sqliteTable(
+	'user_verification_logs',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		action: text('action', { enum: VERIFICATION_ACTIONS }).notNull(),
+		kind: text('kind', { enum: VERIFICATION_KINDS }).notNull(),
+		displayName: text('display_name').notNull(),
+		field: text('field'),
+		/** 操作した運営。画面には出さない */
+		actorUserId: text('actor_user_id').notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		check('user_verification_logs_action', sql`${t.action} IN ('grant', 'renew', 'revoke')`),
+		index('user_verification_logs_created').on(t.createdAt, t.id)
+	]
+);

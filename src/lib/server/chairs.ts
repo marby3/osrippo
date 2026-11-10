@@ -12,6 +12,7 @@ import type { BatchDb, Db } from './law';
 import { notify, notifyStatement } from './notifications';
 import { roleOf } from './reports';
 import { isEligibleVoter } from './votes';
+import { personOf, verifiedColumns, verifiedJoin, verifiedTable } from './verifications';
 
 const isStaff = async (db: Db, userId: string) => (await roleOf(db, userId)) !== null;
 
@@ -108,15 +109,16 @@ async function myChairVote(db: Db, committeeId: number, session: Session, userId
 }
 
 /** 選挙の区画のデータ。名前と候補の行の番号だけで、得票、user_id、回線は渡さない。候補の順は読むたびに混ぜる */
-export async function electionPage(db: Db, committeeId: number, session: Session, userId: string | null, random: () => number) {
+export async function electionPage(db: Db, committeeId: number, session: Session, userId: string | null, random: () => number, now: number) {
 	const rows = await db
-		.select({ id: chairCandidates.id, name: user.name, userId: chairCandidates.userId })
+		.select({ id: chairCandidates.id, name: user.name, userId: chairCandidates.userId, ...verifiedColumns })
 		.from(chairCandidates)
 		.innerJoin(user, eq(user.id, chairCandidates.userId))
+		.leftJoin(verifiedTable, verifiedJoin(now))
 		.where(and(eq(chairCandidates.committeeId, committeeId), eq(chairCandidates.sessionKey, session.key)))
 		.orderBy(asc(chairCandidates.id));
 	return {
-		candidates: drawAssignments(rows, rows.length, random).map((r) => ({ id: r.id, name: r.name })),
+		candidates: drawAssignments(rows, rows.length, random).map((r) => ({ id: r.id, person: personOf(r) })),
 		isCandidate: userId !== null && rows.some((r) => r.userId === userId),
 		myVote: userId === null ? null : await myChairVote(db, committeeId, session, userId)
 	};
@@ -219,16 +221,17 @@ export async function staffRoleOf(db: Db, userId: string, now: number, minutes: 
 /** 委員長と理事の区画。名前だけで、順位と得票は渡さない。締め出しのあいだの代行は出さない（締め出しを推測させないため） */
 export async function chairPanelOf(db: Db, committeeId: number, session: Session, now: number) {
 	const rows = await db
-		.select({ name: user.name, userId: chairTerms.userId, role: chairTerms.role, recalledAt: chairTerms.recalledAt })
+		.select({ name: user.name, userId: chairTerms.userId, role: chairTerms.role, recalledAt: chairTerms.recalledAt, ...verifiedColumns })
 		.from(chairTerms)
 		.innerJoin(user, eq(user.id, chairTerms.userId))
+		.leftJoin(verifiedTable, verifiedJoin(now))
 		.where(and(eq(chairTerms.committeeId, committeeId), eq(chairTerms.sessionKey, session.key)))
 		.orderBy(asc(user.name));
 	const chair = rows.find((r) => r.role === 'chair');
-	const directors = rows.filter((r) => r.role === 'director').map((r) => ({ name: r.name }));
+	const directors = rows.filter((r) => r.role === 'director').map(personOf);
 	const recalled = chair !== undefined && chair.recalledAt !== null;
 	const acting = chair !== undefined && directors.length > 0 && (recalled || (await chairIdle(db, chair.userId, session, now)));
-	return { chair: chair ? { name: chair.name } : null, directors, recalled, acting, settling: rows.length === 0 && now < session.startsAt + SETTLE_GRACE };
+	return { chair: chair ? personOf(chair) : null, directors, recalled, acting, settling: rows.length === 0 && now < session.startsAt + SETTLE_GRACE };
 }
 
 export const committeeNameOf = async (db: Db, committeeId: number) => (await db.select({ name: committees.name }).from(committees).where(eq(committees.id, committeeId)))[0]?.name ?? '';

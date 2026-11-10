@@ -7,6 +7,8 @@
 	import { POST_MAX, type PostRole } from '../domain/posts';
 	import type { EvaluationKind } from '../domain/evaluations';
 	import type { IssueError } from '../domain/issues';
+	import type { Verified } from '../domain/verification';
+	import PersonName from './PersonName.svelte';
 	import EvaluationButtons from './EvaluationButtons.svelte';
 	import PostReport from './PostReport.svelte';
 	import { readWhenSeen, type ReadTracker } from './read-tracker';
@@ -19,9 +21,11 @@
 		body: string;
 		mergedCount: number;
 		mine: boolean;
+		/** 書いた人に有効な認証があるときだけ（docs/spec/157.md の 5）。ない人は名前を出さない */
+		author: Verified | null;
 		pressed: Pressed;
-		answers: { id: number; role: PostRole; body: string; mine: boolean; pressed: Pressed }[];
-		supplements: { id: number; body: string; mine: boolean }[];
+		answers: { id: number; role: PostRole; body: string; mine: boolean; author: Verified | null; pressed: Pressed }[];
+		supplements: { id: number; body: string; mine: boolean; author: Verified | null }[];
 	};
 	type Failure = { question: number | null; body: string; error?: IssueError; message?: string };
 
@@ -123,8 +127,13 @@
 	{/if}
 {/snippet}
 
+{#snippet byline(author: Verified | null)}
+	{#if author}<p class="byline"><PersonName person={{ name: author.name, verified: author }} /></p>{/if}
+{/snippet}
+
 <article id="shitsugi-{question.id}">
 	{#if relatedBill}<p class="from"><a href="/houan/{relatedBill.id}/shitsugi#shitsugi-{question.id}">{ja.post.fromBill(relatedBill.title)}</a></p>{/if}
+	{@render byline(question.author)}
 	<p class="body" use:readWhenSeen={trackIf(question.id, !hasAnswers && !question.mine)}>{question.body}</p>
 	{#if question.mergedCount > 0}<p class="merged">{ja.post.mergedCount(question.mergedCount)}</p>{/if}
 	{@render moderation(question.id, question.mine, ja.post.reportOpen.question)}
@@ -140,6 +149,7 @@
 			{#each question.answers as answer (answer.id)}
 				<section class="answer" use:readWhenSeen={trackIf(answer.id, !answer.mine)}>
 					<h3>{ja.post.answerHeading(ja.post.roles[answer.role])}</h3>
+					{@render byline(answer.author)}
 					<p class="body">{answer.body}</p>
 					{#if evaluationShown && question.answers.length > 1 && !answer.mine}
 						<EvaluationButtons postId={answer.id} pressed={answer.pressed} {loggedIn} {back} message={messageFor(answer.id)} />
@@ -169,6 +179,7 @@
 	{#each question.supplements as supplement (supplement.id)}
 		<section class="supplement">
 			<h3>{ja.post.supplementHeading}</h3>
+			{@render byline(supplement.author)}
 			<p class="body">{supplement.body}</p>
 			{@render moderation(supplement.id, supplement.mine, ja.post.reportOpen.supplement)}
 		</section>
@@ -239,6 +250,11 @@
 		margin: 0 0 0.5rem;
 		font-size: var(--font-size-sub);
 		overflow-wrap: anywhere;
+	}
+
+	.byline {
+		margin: 0;
+		font-weight: bold;
 	}
 
 	.body {

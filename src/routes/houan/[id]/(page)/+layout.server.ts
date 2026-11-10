@@ -43,15 +43,15 @@ export const load: LayoutServerLoad = async (event) => {
 	if (draft && isAuthor) {
 		required = proposalRequirement(await sessionParticipants(db, FIRST_COMMITTEE, session, previous, now));
 	}
-	const withdrawState = (progress === 'proposed' || progress === 'deliberation') && user ? await withdrawStateOf(db, bill, user.id) : null;
+	const withdrawState = (progress === 'proposed' || progress === 'deliberation') && user ? await withdrawStateOf(db, bill, user.id, now) : null;
 	return {
-		bill: await billView(db, bill),
+		bill: await billView(db, bill, now),
 		// 共同提出者（docs/spec/76.md）。申し出の名前は提出者にだけ渡す
-		cosponsors: await cosponsorsOf(db, bill.id),
+		cosponsors: await cosponsorsOf(db, bill.id, now),
 		cosponsor: {
 			mine: myCosponsor,
 			canAsk: draft && Boolean(user) && !isAuthor && billWaitUntil(user?.createdAt.getTime() ?? 0, now) === null,
-			panel: draft && isAuthor ? await cosponsorPanel(db, bill.id) : null
+			panel: draft && isAuthor ? await cosponsorPanel(db, bill.id, now) : null
 		},
 		// 同意の状況は提出者と共同提出者にだけ渡す
 		withdraw: withdrawState?.member ? withdrawState : null,
@@ -67,7 +67,7 @@ export const load: LayoutServerLoad = async (event) => {
 		questionCount: draft || bill.proposedAt === null ? null : await questionTotal(db, bill.id),
 		// 変えられる条のない法案（廃止だけの法案）には修正案のタブを出さない
 		amendmentTotal: draft || bill.proposedAt === null || !hasAmendableLaw(bill.laws) ? null : await amendmentCount(db, bill.id),
-		coDrafters: draft ? [] : await coDrafters(db, bill.id),
+		coDrafters: draft ? [] : await coDrafters(db, bill.id, now),
 		related: draft ? [] : await relatedBills(db, bill, minutes),
 		canEdit: (draft && (isAuthor || myCosponsor === 'accepted')) || (isAuthor && stage === 'adjusting'),
 		// 出し直し（docs/spec/75.md）。提出者にだけ渡す

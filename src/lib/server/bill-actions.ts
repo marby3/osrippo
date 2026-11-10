@@ -158,7 +158,7 @@ export async function withdrawAction(event: RequestEvent) {
 	if ((op !== 'consent' && op !== 'cancel') || (op === 'consent' && form.get('confirm') !== 'on')) return fail(400, { message: ja.bill.formInvalid });
 	if (op === 'cancel') {
 		if (await cancelWithdraw(db, checked.actor, bill)) return { withdraw: true };
-		return (await withdrawStateOf(db, bill, checked.actor.userId)).member ? fail(409, { message: ja.bill.withdraw.closed }) : fail(403, { message: ja.bill.withdraw.forbidden });
+		return (await withdrawStateOf(db, bill, checked.actor.userId, now)).member ? fail(409, { message: ja.bill.withdraw.closed }) : fail(403, { message: ja.bill.withdraw.forbidden });
 	}
 	const result = await consentWithdraw(db as unknown as BatchDb, checked.actor, bill, now, sessionsAt(now).minutes);
 	if (result.ok) return { withdraw: true };

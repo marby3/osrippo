@@ -10,6 +10,8 @@ import { proposeBlock, staleArticles } from '../server/if-world';
 import { billStageNow, settleSession } from '../server/results';
 import { confirmResubmit, resubmitBill, resubmitStateOf } from '../server/resubmit';
 import { openMemoryDb, type MemoryDb } from './memory';
+/** 名前だけを比べる（認証のバッジは docs/spec/157.md） */
+const names = (ps: { name: string }[]) => ps.map((p) => p.name);
 
 const jst = (s: string) => Date.parse(`${s}+09:00`);
 const monthOf = (key: string) => sessionAt(jst(`${key}-10T00:00:00`), null);
@@ -162,7 +164,7 @@ test('基準3：読む版の中身を複製した下書きを作り、賛同は0
 	w.sqlite.prepare("INSERT INTO posts (bill_id, session_key, user_id, kind, body, created_at) VALUES (?, ?, ?, 'question', '質疑', 0)").run(origin.id, s.key, backer);
 	w.sqlite.prepare("INSERT INTO stances (session_key, bill_id, user_id, stance, updated_at) VALUES (?, ?, ?, 'for', 0)").run(s.key, origin.id, backer);
 	await w.settle(s);
-	expect(await coDrafters(w.db, origin.id)).toHaveLength(1);
+	expect(names(await coDrafters(w.db, origin.id, 0))).toHaveLength(1);
 	const before = w.sqlite.prepare('SELECT * FROM bills WHERE id = ?').get(origin.id);
 	const issueBefore = w.sqlite.prepare('SELECT * FROM issues WHERE id = 1').get();
 	const actor = w.actorOf(origin.author);
@@ -205,7 +207,7 @@ test('基準3：読む版の中身を複製した下書きを作り、賛同は0
 	const nextNow = after(next);
 	await w.settle(next);
 	expect(await w.can(id, nextNow)).toBe(true);
-	expect(await coDrafters(w.db, id), '共同起草者は引き継がない').toEqual([]);
+	expect(names(await coDrafters(w.db, id, 0)), '共同起草者は引き継がない').toEqual([]);
 	const again = await resubmitBill(w.db, actor, await w.load(id), nextNow);
 	expect(again).toMatchObject({ ok: true, created: true });
 	expect((await w.load((again as { id: number }).id)).resubmittedFrom).toBe(id);

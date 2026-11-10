@@ -7,6 +7,8 @@ import { billById, billSupportState, listBills, supportRev } from '../server/bil
 import { acceptAmendment, castAmendmentVote, coDrafters, createAmendment, settleAmendments, tallyAmendmentVotes, updateAmendment, amendmentOf } from '../server/amendments';
 import { isSupporter } from '../server/posts';
 import { castVote } from '../server/votes';
+/** 名前だけを比べる（認証のバッジは docs/spec/157.md） */
+const names = (ps: { name: string }[]) => ps.map((p) => p.name);
 
 let sqlite: DatabaseSync;
 let db: MemoryDb;
@@ -87,7 +89,7 @@ beforeAll(() => {
 test('基準3：取り込むと本案の版が進み、条の本文が修正案になり、ほかの条は変わらない。提案者が共同起草者になる。古い本文や版では取り込めない', async () => {
 	const id = addBill();
 	const a = await addAmendment(id, 'p1', '1', '取り込む本文');
-	expect(await coDrafters(db, id)).toEqual([]);
+	expect(names(await coDrafters(db, id, 0))).toEqual([]);
 
 	// 読んだ本文（revision）が違えば取り込まない
 	expect(await accept(id, a, 99)).toBe(false);
@@ -101,7 +103,7 @@ test('基準3：取り込むと本案の版が進み、条の本文が修正案�
 	expect(after?.laws[0].changes.map((c) => c.num)).toEqual(['1', '2', '3']);
 	expect(statusOf(a)).toBe('accepted');
 	expect(sqlite.prepare('SELECT applied_rev FROM amendments WHERE id = ?').get(a)).toMatchObject({ applied_rev: 2 });
-	expect(await coDrafters(db, id)).toEqual(['name-p1']);
+	expect(names(await coDrafters(db, id, 0))).toEqual(['name-p1']);
 
 	// 同じ修正案を2回取り込めない（版が進んでいる）
 	expect(await accept(id, a)).toBe(false);
@@ -167,7 +169,7 @@ test('基準7：定足数と可決の条件は本案と同じ。可決だけを�
 	expect(await bodyOf(id, '1')).toBe('可決する本文');
 	expect(await bodyOf(id, '2')).toBe('第2条のもとの本文');
 	expect(await bodyOf(id, '3')).toBe('第3条のもとの本文');
-	expect(await coDrafters(db, id)).toEqual(['name-p1']);
+	expect(names(await coDrafters(db, id, 0))).toEqual(['name-p1']);
 	const rev = (await billById(db, id))?.rev;
 	expect(rev).toBe(2);
 
@@ -187,7 +189,7 @@ test('基準7：状態を書いたあと版を進める前に失敗しても、�
 	expect(await bodyOf(id, '2')).toBe('2本目の本文');
 	expect((await billById(db, id))?.rev).toBe(2);
 	expect(statusOf(first)).toBe('passed');
-	expect(await coDrafters(db, id)).toEqual(['name-p1', 'name-p2']);
+	expect(names(await coDrafters(db, id, 0))).toEqual(['name-p1', 'name-p2']);
 });
 
 test('基準7：修正案の票は、投票資格があり割り当てを本案の票で済ませた人だけを数える。修正案の票は割り当てを済ませる条件に入らない', async () => {

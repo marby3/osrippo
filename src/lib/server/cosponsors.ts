@@ -9,6 +9,7 @@ import { refuse, type Actor } from './issues';
 import type { BatchDb, Db } from './law';
 import { notify, oneUser } from './notifications';
 import { isSupporter } from './posts';
+import { personOf, verifiedColumns, verifiedJoin, verifiedTable } from './verifications';
 
 export type CosponsorStatus = 'requested' | 'accepted' | 'left' | 'declined';
 type BillLike = Pick<NonNullable<Bill>, 'id' | 'userId' | 'status'>;
@@ -46,29 +47,31 @@ export async function billRoleOf(db: Db, bill: Pick<NonNullable<Bill>, 'id' | 'u
 }
 
 /** 名前を出す共同提出者（承認の順） */
-export async function cosponsorsOf(db: Db, billId: number) {
+export async function cosponsorsOf(db: Db, billId: number, now: number) {
 	const rows = await db
-		.select({ name: user.name })
+		.select({ name: user.name, ...verifiedColumns })
 		.from(billCosponsors)
 		.innerJoin(user, eq(user.id, billCosponsors.userId))
+		.leftJoin(verifiedTable, verifiedJoin(now))
 		.where(and(eq(billCosponsors.billId, billId), eq(billCosponsors.status, 'accepted')))
 		.orderBy(asc(billCosponsors.acceptedAt), asc(billCosponsors.id));
-	return rows.map((r) => r.name);
+	return rows.map(personOf);
 }
 
 /** 提出者に出す一覧。内部IDは渡さず、行の番号で指す */
-export async function cosponsorPanel(db: Db, billId: number) {
+export async function cosponsorPanel(db: Db, billId: number, now: number) {
 	const rows = await db
-		.select({ id: billCosponsors.id, name: user.name, status: billCosponsors.status })
+		.select({ id: billCosponsors.id, name: user.name, status: billCosponsors.status, ...verifiedColumns })
 		.from(billCosponsors)
 		.innerJoin(user, eq(user.id, billCosponsors.userId))
+		.leftJoin(verifiedTable, verifiedJoin(now))
 		.where(eq(billCosponsors.billId, billId))
 		.orderBy(asc(billCosponsors.id));
 	const requests = rows.filter((r) => r.status === 'requested');
 	return {
-		requests: requests.slice(0, REQUESTS_SHOWN).map(({ id, name }) => ({ id, name })),
+		requests: requests.slice(0, REQUESTS_SHOWN).map((r) => ({ id: r.id, person: personOf(r) })),
 		moreRequests: Math.max(0, requests.length - REQUESTS_SHOWN),
-		members: rows.filter((r) => r.status === 'accepted').map(({ id, name }) => ({ id, name })),
+		members: rows.filter((r) => r.status === 'accepted').map((r) => ({ id: r.id, person: personOf(r) })),
 		full: rows.filter((r) => r.status === 'accepted').length >= COSPONSOR_MAX
 	};
 }

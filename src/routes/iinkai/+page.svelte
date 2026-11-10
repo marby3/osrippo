@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PersonName from '#lib/components/PersonName.svelte';
 	// 委員会のページ（docs/spec/77.md 決めたこと7）。画面の案はないので、採決の画面にそろえる。
 	// Turnstile は1つを共有し、立候補、投票、署名のフォームに同じトークンを入れる（1回使うと作り直す）
 	import { enhance } from '$app/forms';
@@ -51,14 +52,14 @@
 			<dl>
 				<dt>{ja.chair.chair}</dt>
 				<dd>
-					{data.panel.chair.name}
+					<PersonName person={data.panel.chair} />
 					{#if data.panel.recalled}<span class="state">{ja.chair.recalled}</span>{/if}
 				</dd>
 				{#if data.panel.directors.length}
 					<dt>{ja.chair.directors}</dt>
 					<dd>
 						<ul>
-							{#each data.panel.directors as director (director.name)}<li>{director.name}</li>{/each}
+							{#each data.panel.directors as director (director.name)}<li><PersonName person={director} /></li>{/each}
 						</ul>
 					</dd>
 				{/if}
@@ -111,7 +112,7 @@
 						{#each election.candidates as candidate (candidate.id)}
 							<label>
 								<input type="radio" name="candidate" value={candidate.id} checked={selected === candidate.id} onchange={() => (picked = candidate.id)} />
-								{candidate.name}
+								<PersonName person={candidate.person} />
 							</label>
 						{/each}
 					</div>
@@ -121,7 +122,7 @@
 				</form>
 			{:else}
 				<ul class="names">
-					{#each election.candidates as candidate (candidate.id)}<li>{candidate.name}</li>{/each}
+					{#each election.candidates as candidate (candidate.id)}<li><PersonName person={candidate.person} /></li>{/each}
 				</ul>
 				{#if data.blocks?.vote}<p class="sub">{ja.chair.blocks[data.blocks.vote]}</p>{/if}
 			{/if}

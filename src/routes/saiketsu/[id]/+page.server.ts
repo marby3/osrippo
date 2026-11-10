@@ -25,7 +25,7 @@ export const load: PageServerLoad = async (event) => {
 	const rows = await assignmentRows(db, user.id, session, previous, now, Math.random);
 	const required = await priorRequirementAt(db, bill.committeeId, now);
 	const [view, changes, mine, eligible, prior] = await Promise.all([
-		billView(db, bill),
+		billView(db, bill, now),
 		billChangeViews(db, bill),
 		myVote(db, session.key, bill.id, user.id),
 		isEligibleVoter(db, user.id, session),
