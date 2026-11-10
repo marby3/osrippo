@@ -137,7 +137,7 @@ export async function amendmentSupportAction(event: RequestEvent) {
 	const form = await event.request.formData();
 	const id = parseIssueId(String(form.get('amendment') ?? ''));
 	const keep = { amendment: id };
-	const guard = await writeGuard(event, db, user, now, 'participate');
+	const guard = await writeGuard(event, db, user, now, form.get('op') === 'remove' ? 'settle' : 'participate');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, ...keep });
 	const wait = billWaitUntil(guard.actor.registeredAt, now);
 	if (wait !== null) return fail(403, { message: ja.amendment.tooNew(wait), ...keep });

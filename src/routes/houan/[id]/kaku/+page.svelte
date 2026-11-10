@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import Crumbs from '#lib/components/Crumbs.svelte';
 	import BillForm from '#lib/components/BillForm.svelte';
 	import { ja } from '#lib/copy/ja.ts';
@@ -18,6 +19,10 @@
 	{#each data.repealed as law (law.id)}<p class="notice">{law.named ? ja.ifLaw.lawRepealedNamed(law.title) : ja.ifLaw.lawRepealed}</p>{/each}
 	<!-- 要調整を直しても賛同は保つ（docs/spec/72.md の B） -->
 	{#if data.supports > 0 && !data.adjusting}<p class="notice">{ja.bill.support.resetNotice(data.supports)}</p>{/if}
+	{#if data.legislator}
+		<!-- 議員は法案を直せない（docs/spec/158.md の 3） -->
+		<LegislatorNote />
+	{:else}
 	<BillForm
 		laws={data.laws}
 		candidates={data.candidates}
@@ -34,6 +39,7 @@
 		back="/houan/{data.edit.id}"
 		{form}
 	/>
+	{/if}
 </main>
 
 <style>

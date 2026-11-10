@@ -95,9 +95,10 @@ export function refusalMessage(refusal: Refusal): string {
 
 /**
  * 何のための書き込みか（設計書 docs/spec/158.md の 2）。participate はゲームに参加する書き込みで、議員は断る。
- * speak は法案の質疑・答弁・補足と「読んだ」の記録、report は通報で、議員もできる
+ * speak は法案の質疑・答弁・補足と「読んだ」の記録、report は通報、settle は前にした参加の取り消しと、
+ * 提出者・共同提出者としての同意や後始末で、議員もできる（議員になる前の約束を果たせるように）
  */
-export type WriteUse = 'participate' | 'speak' | 'report';
+export type WriteUse = 'participate' | 'speak' | 'report' | 'settle';
 
 /**
  * 書き込みの前の確かめ：国 → 締め出し（設計書 決めたこと12）→ 議員（docs/spec/158.md）。

@@ -90,9 +90,10 @@ export const actions: Actions = {
 	react: (event) => reactAction(event, (id) => `/kadai/${id}`),
 	reportSolution: (event) => reportSolutionAction(event, (id) => `/kadai/${id}`),
 	support: async (event) => {
-		const { id, db, meta, now, guard } = await prepare(event, 'participate');
-		if (!guard.ok) return guard.failure;
 		const op = (await event.request.formData()).get('op');
+		// 取り消しは前にした参加の後始末（議員もできる。docs/spec/158.md の 2）
+		const { id, db, meta, now, guard } = await prepare(event, op === 'remove' ? 'settle' : 'participate');
+		if (!guard.ok) return guard.failure;
 		if (op !== 'add' && op !== 'remove') error(400);
 		if (meta.status === 'merged') return fail(403, { message: ja.merge.mergedOp });
 		if (isHidden(meta.status)) return fail(403, { message: ja.report.hiddenIssue });

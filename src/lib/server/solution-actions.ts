@@ -24,7 +24,8 @@ export async function reactAction(event: RequestEvent<{ id: string }>, back: (id
 	const form = await event.request.formData();
 	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
 	const raw = field('solution');
-	const guard = await writeGuard(event, db, user, now, 'participate');
+	// 取り消しは前にした参加の後始末（議員もできる。docs/spec/158.md の 2）
+	const guard = await writeGuard(event, db, user, now, field('op') === 'remove' ? 'settle' : 'participate');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, solution: parseIssueId(raw ?? '') });
 	const input = parseReaction({ solution: raw, kind: field('kind'), op: field('op') });
 	if (!input) error(400);

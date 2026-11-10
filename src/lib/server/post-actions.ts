@@ -130,7 +130,7 @@ export async function evaluationAction(event: RequestEvent) {
 	const form = await event.request.formData();
 	const postId = parseIssueId(String(form.get('post') ?? ''));
 	const keep = { evaluationPost: postId };
-	const guard = await writeGuard(event, db, user, now, 'participate');
+	const guard = await writeGuard(event, db, user, now, form.get('op') === 'remove' ? 'settle' : 'participate');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, ...keep });
 	const wait = billWaitUntil(guard.actor.registeredAt, now);
 	if (wait !== null) return fail(403, { message: ja.post.tooNew(wait), ...keep });

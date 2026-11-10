@@ -96,11 +96,11 @@
 	{/if}
 
 	<p class="status">{statusText}</p>
-	{#if deliberation && amendment.stale && amendment.mine}
+	{#if deliberation && amendment.stale && amendment.mine && !legislator}
 		<p><a href={updateHref}>{ja.amendment.update}</a></p>
 	{/if}
 
-	{#if deliberation && current && isAuthor}
+	{#if deliberation && current && isAuthor && !legislator}
 		{#if canAccept}
 			<form method="post" action="?/accept" use:enhance={() => async ({ update }) => update({ reset: false })}>
 				<input type="hidden" name="amendment" value={amendment.id} />

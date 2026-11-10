@@ -73,14 +73,16 @@ async function proposedBill(browser: Browser, w: Width, month: string) {
 		expect((await billSupportRequest(s.page, bill, { op: 'add', rev: '1' })).status()).toBe(200);
 	}
 	expect((await proposeRequest(a.page, bill)).status()).toBe(200);
-	return { issueId, solutionId: ids[0], bill, billId: bill.replace('/houan/', ''), tag };
+	return { a, issueId, solutionId: ids[0], bill, billId: bill.replace('/houan/', ''), tag };
 }
 
 test('基準1：議員には参加のボタンを出さず文言を出す。画面を通さずに送っても断る', async ({ browser }, info) => {
 	test.setTimeout(150_000);
 	const w = info.project.name as Width;
 	const month = MONTH[w];
-	const { issueId, solutionId, bill, billId, tag } = await proposedBill(browser, w, month);
+	const { a, issueId, solutionId, bill, billId, tag } = await proposedBill(browser, w, month);
+	// 賛同を集めている下書き（賛同のボタンは発議の前の下書きにだけ出る）
+	const draft = await createAmendBill(a.page, `賛同を集める下書き ${tag}`, String(solutionId));
 	const op = await user(browser, w, 'op', at(month, 5), 'operator');
 	const p = await user(browser, w, 'p', at(month, 5));
 	await grant(op.page, p.name, '議員');
@@ -89,10 +91,16 @@ test('基準1：議員には参加のボタンを出さず文言を出す。画�
 	await p.page.goto(`/kadai/${issueId}`);
 	await expect(p.page.getByRole('main').getByRole('button', { name: /^わかる/ })).toHaveCount(0);
 	await expect(p.page.getByText(LEGISLATOR).first()).toBeVisible();
+	// 解決策の「わかる」「考えが変わった」も押せない（数だけ）
+	await expect(p.page.getByRole('main').locator('form[action="?/react"]')).toHaveCount(0);
 	for (const path of ['/kadai/kaku', '/houan/kaku']) {
 		await p.page.goto(path);
 		await expect(p.page.getByText(LEGISLATOR).first(), path).toBeVisible();
 	}
+	// 法案のページ（賛同を集めている下書き）：賛同のボタンがなく、文言が出る
+	await p.page.goto(draft);
+	await expect(p.page.locator('form[action="?/support"]')).toHaveCount(0);
+	await expect(p.page.getByText(LEGISLATOR).first()).toBeVisible();
 
 	// 送っても断る（403）
 	const refused = async (label: string, res: Promise<{ status(): number }>) => expect((await res).status(), label).toBe(403);
@@ -105,6 +113,8 @@ test('基準1：議員には参加のボタンを出さず文言を出す。画�
 	await refused('考え', post(p.page, `${bill}/shitsugi?/stance`, { stance: 'support' }));
 	await refused('評価', post(p.page, `${bill}/shitsugi?/evaluate`, { post: '1', kind: 'reasonable', op: 'add' }));
 	await refused('立候補', post(p.page, '/iinkai?/stand', { 'cf-turnstile-response': 'test-pass' }));
+	await refused('解任の署名', post(p.page, '/iinkai?/recall', { 'cf-turnstile-response': 'test-pass' }));
+	await refused('修正案の賛同', post(p.page, `${bill}/shusei?/support`, { amendment: '1', revision: '1', op: 'add' }));
 
 	// 採決の期間：割り当てがなく（0 / 0）、文言が出る。投票は断る
 	await p.setNow(at(month, 22));
@@ -112,6 +122,37 @@ test('基準1：議員には参加のボタンを出さず文言を出す。画�
 	await expect(p.page.getByText(/割り当て法案\s*0\s*\/\s*0/)).toBeVisible();
 	await expect(p.page.getByText(LEGISLATOR).first()).toBeVisible();
 	await refused('投票', post(p.page, `/saiketsu/${billId}?/vote`, { choice: 'yes', 'cf-turnstile-response': 'test-pass' }));
+	// 投票の画面：票を選ぶ欄がなく、文言が出る
+	await p.page.goto(`/saiketsu/${billId}`);
+	await expect(p.page.getByRole('radio')).toHaveCount(0);
+	await expect(p.page.getByText(LEGISLATOR).first()).toBeVisible();
+});
+
+test('基準4：議員になる前の「わかる」は数え続け、取り消せる。提出者として撤回に同意できる', async ({ browser }, info) => {
+	test.setTimeout(150_000);
+	const w = info.project.name as Width;
+	const month = MONTH[w];
+	// A が課題に「わかる」を付け、法案を発議したあとで議員になる
+	const { a, issueId, bill } = await proposedBill(browser, w, month);
+	expect((await supportRequest(a.page, issueId, 'add')).status()).toBeLessThan(400);
+	const supports = async () => {
+		await a.page.goto(`/kadai/${issueId}`);
+		return Number(/わかる\s*(\d+)/.exec(await a.page.getByRole('main').innerText())![1]);
+	};
+	const before = await supports();
+	const op = await user(browser, w, 'op4', at(month, 6), 'operator');
+	await a.setNow(at(month, 6));
+	await grant(op.page, a.name, '議員');
+
+	// 議員になっても、前に付けた「わかる」は数える
+	expect(await supports()).toBe(before);
+	// 取り消しは前にした参加の後始末なので、できる
+	expect((await supportRequest(a.page, issueId, 'remove')).status()).toBeLessThan(400);
+	expect(await supports()).toBe(before - 1);
+	// 付け直しは新しい参加なので、断る
+	expect((await supportRequest(a.page, issueId, 'add')).status()).toBe(403);
+	// 提出者としての撤回の同意はできる（ほかに共同提出者がいないので、撤回される）
+	expect((await billRequest(a.page, `${bill}?/withdraw`, { op: 'consent', confirm: 'on' })).status()).toBe(200);
 });
 
 test('基準2：議員は法案の質疑を書け、通報できる', async ({ browser }, info) => {

@@ -9,7 +9,7 @@ import { billWaitUntil } from '../domain/limits';
 import { parseIssueId } from '../domain/issues';
 import { checkBillForm, FIRST_COMMITTEE, readBillForm, type BillFormErrors, type BillFormValues } from './bill-form';
 import { billById, createDraftLimited, lawTitlesOf, proposeBill, saveDraftLimited, sessionParticipants, setBillSupport, type Bill } from './bills';
-import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard } from './client';
+import { checkTurnstile, nowOf, refusalMessage, sessionsAt, writeGuard, type WriteUse } from './client';
 import { proposeBlock, saveAdjustedBill, staleArticlesOfBill } from './if-world';
 import type { BatchDb, Db } from './law';
 import { cancelCosponsorRequest, decideCosponsor, leaveCosponsor, requestCosponsor, type CosponsorRefused } from './cosponsors';
@@ -80,9 +80,9 @@ async function billOf(event: RequestEvent) {
 }
 
 /** 確かめる順：ログイン → 日本から → 締め出し → 登録から7日 */
-async function billGuard(event: RequestEvent, db: Db, now: number, checkAge: boolean) {
+async function billGuard(event: RequestEvent, db: Db, now: number, checkAge: boolean, use: WriteUse) {
 	const user = requireUser(event);
-	const guard = await writeGuard(event, db, user, now, 'participate');
+	const guard = await writeGuard(event, db, user, now, use);
 	if (!guard.ok) return { failure: fail(guard.failure.status, guard.failure.data) };
 	const wait = checkAge ? billWaitUntil(guard.actor.registeredAt, now) : null;
 	if (wait !== null) return { failure: fail(403, { message: ja.bill.support.tooNew(wait) }) };
@@ -94,7 +94,7 @@ export async function supportAction(event: RequestEvent) {
 	const now = nowOf(event);
 	const form = await event.request.formData();
 	const op = form.get('op');
-	const checked = await billGuard(event, db, now, op !== 'remove');
+	const checked = await billGuard(event, db, now, op !== 'remove', op === 'remove' ? 'settle' : 'participate');
 	if (checked.failure) return checked.failure;
 	const rev = parseIssueId(String(form.get('rev') ?? ''));
 	if ((op !== 'add' && op !== 'remove') || rev === null) return fail(400, { message: ja.bill.formInvalid });
@@ -116,7 +116,8 @@ export async function cosponsorAction(event: RequestEvent) {
 	const now = nowOf(event);
 	const form = await event.request.formData();
 	const op = String(form.get('op') ?? '');
-	const checked = await billGuard(event, db, now, op === 'request');
+	// 申し出だけが新しい参加。取り消し・承認・辞退・離脱・外すは、すでにある関係の後始末
+	const checked = await billGuard(event, db, now, op === 'request', op === 'request' ? 'participate' : 'settle');
 	if (checked.failure) return checked.failure;
 	if (!(COSPONSOR_OPS as readonly string[]).includes(op)) return fail(400, { message: ja.bill.formInvalid });
 	const id = parseIssueId(String(form.get('id') ?? ''));
@@ -152,7 +153,8 @@ export async function withdrawAction(event: RequestEvent) {
 	const { db, bill } = await billOf(event);
 	const now = nowOf(event);
 	const form = await event.request.formData();
-	const checked = await billGuard(event, db, now, false);
+	// 撤回の同意は、提出者と共同提出者の務め（議員になっても果たせるように）
+	const checked = await billGuard(event, db, now, false, 'settle');
 	if (checked.failure) return checked.failure;
 	const op = form.get('op');
 	if ((op !== 'consent' && op !== 'cancel') || (op === 'consent' && form.get('confirm') !== 'on')) return fail(400, { message: ja.bill.formInvalid });
@@ -171,7 +173,7 @@ export async function mergeAction(event: RequestEvent) {
 	const now = nowOf(event);
 	const form = await event.request.formData();
 	const op = form.get('op');
-	const checked = await billGuard(event, db, now, op === 'create');
+	const checked = await billGuard(event, db, now, op === 'create', op === 'create' ? 'participate' : 'settle');
 	if (checked.failure) return checked.failure;
 	const refused = (reason: 'forbidden' | 'closed' | 'stale' | 'full') => fail(reason === 'forbidden' ? 403 : 409, { message: ja.bill.merge.refused[reason] });
 	if (op === 'create') {
@@ -196,7 +198,7 @@ export async function mergeAction(event: RequestEvent) {
 export async function resubmitAction(event: RequestEvent) {
 	const { db, bill } = await billOf(event);
 	const now = nowOf(event);
-	const checked = await billGuard(event, db, now, true);
+	const checked = await billGuard(event, db, now, true, 'participate');
 	if (checked.failure) return checked.failure;
 	if (bill.userId !== checked.actor.userId) return fail(403, { message: ja.bill.resubmit.notAuthor });
 	// 受け付けが最初の読み手でも、結果を確定して修正案を当てたあとの中身を複製する
@@ -211,7 +213,7 @@ export async function resubmitAction(event: RequestEvent) {
 export async function proposeAction(event: RequestEvent) {
 	const { db, bill } = await billOf(event);
 	const now = nowOf(event);
-	const checked = await billGuard(event, db, now, true);
+	const checked = await billGuard(event, db, now, true, 'participate');
 	if (checked.failure) return checked.failure;
 	// 読んだ版（docs/spec/76.md 決めたこと9）。編集する人が複数なので、提出者が読んでいない版を発議しない
 	const rev = parseIssueId(String((await event.request.formData()).get('rev') ?? ''));
