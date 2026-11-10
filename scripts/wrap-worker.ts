@@ -1,4 +1,4 @@
-// SvelteKit が書き出した Worker に Cron の入口を足す（設計書 docs/spec/71.md 決めたこと4）。pnpm build の最後に走る。
+// SvelteKit が書き出した Worker に Cron の入口を足し、fetch をステージングの X-Robots-Tag で包む（設計書 docs/spec/71.md 決めたこと4、Issue #156）。pnpm build の最後に走る。
 // アダプターは wrangler.jsonc の main の場所に Worker を書き出すので、main を自前のファイルにできない
 import { appendFileSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,8 +18,9 @@ writeFileSync(
 	`${MARK}
 import app from './_app_worker.js';
 import { scheduled } from '../../src/worker/scheduled.ts';
+import { withNoindexFetch } from '../../src/worker/fetch.ts';
 
-export default { fetch: app.fetch, scheduled };
+export default { fetch: withNoindexFetch(app.fetch), scheduled };
 `
 );
 // このフォルダは公開ファイルの置き場でもある。入れないとサーバーの入口が公開される
