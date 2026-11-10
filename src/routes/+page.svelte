@@ -30,6 +30,15 @@
 	);
 </script>
 
+{#snippet today(t: NonNullable<typeof data.todayArticle>, where: 'sp' | 'pc')}
+	<!-- 今日の条文（Issue #128）。日本時間の日付で1日1本 -->
+	<section class="today" aria-labelledby="today-heading-{where}">
+		<h2 id="today-heading-{where}">{ja.today.heading}{ja.today.join}<a href="/hourei/{t.lawId}#jo-{t.num}">{t.lawTitle}{' '}{t.label}</a></h2>
+		<p class="text" data-today-text>{t.text}</p>
+		<p class="age" data-today-age>{age}</p>
+	</section>
+{/snippet}
+
 <main class="frame home">
 	<!-- 見出しは読み上げ用。画面ではメニューのサイト名が代わり（SpHome・PcHome、Issue #120） -->
 	<h1 class="visually-hidden">{ja.siteName}</h1>
@@ -54,51 +63,38 @@
 		<p class="next sp">{next[0]}{' '}<strong>{next[1]}</strong>{' '}{next[2]}</p>
 	</section>
 
-	<!-- PC の右の列（PcHome）。スマホでは囲みをなくし、今日の条文は探す欄の下へ回す -->
+	<!-- PC の右の列（PcHome） -->
 	<div class="side">
-	{#if a}
-		<!-- あなたの割り当て法案（Issue #127）。本数は採決の期間に決まる。スマホは今の会期の下、PC は右の列 -->
-		<section class="assignment" aria-labelledby="assignment-heading">
-			<h2 id="assignment-heading">{ja.assignment.heading(a.open ? a.total : null)}</h2>
-			{#if !a.open}
-				<p>{ja.assignment.before}</p>
-			{:else}
-				{#if a.total > 0}
-					<p class="progress">{ja.assignment.progress(a.done, a.total)}</p>
+		{#if a}
+			<!-- あなたの割り当て法案（Issue #127）。本数は採決の期間に決まる。スマホは今の会期の下、PC は右の列 -->
+			<section class="assignment" aria-labelledby="assignment-heading">
+				<h2 id="assignment-heading">{ja.assignment.heading(a.open ? a.total : null)}</h2>
+				{#if !a.open}
+					<p>{ja.assignment.before}</p>
+				{:else}
+					{#if a.total > 0}
+						<p class="progress">{ja.assignment.progress(a.done, a.total)}</p>
+					{/if}
+					<VoteStanding eligible={a.eligible} total={a.total} done={a.done} />
+					<a class="open" href="/saiketsu">{a.total > 0 ? ja.assignment.open : ja.assignment.list}</a>
 				{/if}
-				<VoteStanding eligible={a.eligible} total={a.total} done={a.done} />
-				<a class="open" href="/saiketsu">{a.total > 0 ? ja.assignment.open : ja.assignment.list}</a>
-			{/if}
-		</section>
-	{/if}
-	{#if t}
-		<!-- 今日の条文（Issue #128）。日本時間の日付で1日1本 -->
-		<section class="today" aria-labelledby="today-heading">
-			<h2 id="today-heading">{ja.today.heading}{ja.today.join}<a href="/hourei/{t.lawId}#jo-{t.num}">{t.lawTitle}{' '}{t.label}</a></h2>
-			<p class="text" data-today-text>{t.text}</p>
-			<p class="age" data-today-age>{age}</p>
-		</section>
-	{/if}
+			</section>
+		{/if}
+		{#if t}<div class="pc">{@render today(t, 'pc')}</div>{/if}
 	</div>
 
 	<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7）。課題の一覧と同じ形（Issue #120） -->
 	<div class="search"><SearchBox id="top-search" label={ja.search.entry} action="/kensaku" /></div>
+
+	<!-- スマホは探す欄の下（SpHome）。見た目の順と読み上げの順をそろえるため、PC とスマホで別の場所に置き、片方は出さない -->
+	{#if t}<div class="sp">{@render today(t, 'sp')}</div>{/if}
 </main>
 
 <style>
 	main {
 		padding: 1rem;
 	}
-	/* スマホ：今の会期 → 割り当てのカード → 探す欄 → 今日の条文（SpHome） */
-	.home {
-		display: flex;
-		flex-direction: column;
-	}
-	.side {
-		display: contents;
-	}
 	.today {
-		order: 1;
 		margin-top: 1.5rem;
 		padding: 1rem;
 		border: 1px solid var(--color-input-border);

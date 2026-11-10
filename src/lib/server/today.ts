@@ -1,5 +1,5 @@
 // 今日の条文（Issue #128）。委員会の対象法令の短い条から、日本時間の日付で1日1本を選ぶ
-import { articleLabel, compareNum, fullYears } from '../domain/law';
+import { articleLabel, fullYears } from '../domain/law';
 import { articlesOfRevision, committeeLawList, currentRevision, enactmentRevision, lastAmendedDates, type Db } from './law';
 
 /** 候補にする本文の長さの上限（カードに収まる長さ） */
@@ -18,8 +18,8 @@ export async function todayCandidates(db: Db, today: string): Promise<TodayArtic
 		if (!current) continue;
 		const amended = await lastAmendedDates(db, law.id);
 		const enactedOn = (await enactmentRevision(db, law.id))?.date ?? null;
-		const articles = (await articlesOfRevision(db, current.id)).sort((a, b) => compareNum(a.num, b.num));
-		for (const a of articles) {
+		// 条の順に並んでいる
+		for (const a of await articlesOfRevision(db, current.id)) {
 			const [p] = a.paragraphs;
 			if (a.paragraphs.length !== 1 || p.items.length || p.text.length > MAX_LENGTH || p.text === '削除') continue;
 			const lastAmended = amended.get(a.id) ?? null;
@@ -41,10 +41,15 @@ export async function todayArticle(db: Db, today: string): Promise<TodayArticle 
 	return list.length ? list[dayNumber(today) % list.length] : null;
 }
 
-let cached: { today: string; article: TodayArticle | null } | null = null;
+let cached: { today: string; article: TodayArticle } | null = null;
 
-/** ホームから呼ぶ。同じ日は Workers の中で覚えておき、条を読み直さない（決めることC） */
+/**
+ * ホームから呼ぶ。同じ日は Workers の中で覚えておき、条を読み直さない（決めることC）。
+ * 候補がなかった日は覚えない（取り込みの前に読んだ isolate が、その日ずっと出さないままにならないように）
+ */
 export async function cachedTodayArticle(db: Db, today: string): Promise<TodayArticle | null> {
-	if (cached?.today !== today) cached = { today, article: await todayArticle(db, today) };
-	return cached.article;
+	if (cached?.today === today) return cached.article;
+	const article = await todayArticle(db, today);
+	cached = article ? { today, article } : null;
+	return article;
 }

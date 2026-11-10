@@ -9,6 +9,7 @@ const AGE = /^(2017年4月より前から変更なし|\d{4}年\d{1,2}月に(改�
 /** リンク先の条（画面の中の移動では :target が付かないので、リンクの # から探す） */
 const target = async (page: Page, href: string) => page.locator(`[id="${href.split('#')[1]}"]`);
 const at = (day: number) => `2790-07-${String(day).padStart(2, '0')}T09:00:00+09:00`;
+// 1つめの時刻（9時）は UTC で 0時なので、UTC の日付で選ぶと8時半とは別の日になる
 
 test('基準1：ログインしていなくても、ホームに「今日の条文 ・ 法令名 第N条」、本文、どれだけ変わっていないかを出す', async ({ page }) => {
 	await page.goto('/');
@@ -36,7 +37,8 @@ test('基準3：その日のうちはだれが開いても同じ条で、日が�
 	await page.goto('/');
 	const first = await lawLink(page).getAttribute('href');
 	const other = await newUser(browser, { name: `kyou${info.project.name}${Date.now() % 1e7}`, ip: `10.128.0.${info.project.name === 'sp' ? 1 : 2}` });
-	await other.context.setExtraHTTPHeaders({ 'x-test-ip': `10.128.0.${info.project.name === 'sp' ? 1 : 2}`, 'x-test-now': at(10).replace('09:00', '23:30') });
+	// 日本時間の朝8時半（UTC ではまだ前の日）。日本時間の日付で選んでいれば同じ条になる
+	await other.context.setExtraHTTPHeaders({ 'x-test-ip': `10.128.0.${info.project.name === 'sp' ? 1 : 2}`, 'x-test-now': at(10).replace('09:00', '08:30') });
 	await other.page.goto('/');
 	expect(await lawLink(other.page).getAttribute('href')).toBe(first);
 	await page.context().setExtraHTTPHeaders({ 'x-test-now': at(11) });
