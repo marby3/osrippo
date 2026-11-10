@@ -9,6 +9,7 @@ import { ASSIGNMENT_COUNT, drawAssignments, VOTE_PAGE_SIZE, type VoteChoice, typ
 import { savedBill } from './bills';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
+import { legislatorAt } from './verifications';
 
 /**
  * 投票資格の条件：会期の始まりより前に登録し、その前に今月の参加者に数える行動がある。user の行を読む問い合わせの中で使う（isEligibleVoter と tallyVotes で共通）。
@@ -49,6 +50,8 @@ const inPeriod = (session: Session, now: number) => session.voteAt <= now && now
  * 同時に開いても先に入った組だけが残る。主キーが seq なので、後の文は違う組でも全部の行がぶつかる（候補は締切のあとは変わらないので、どちらの文も同じ本数になる）
  */
 export async function assignedBills(db: Db, userId: string, session: Session, previous: Session, now: number, random: () => number): Promise<number[]> {
+	// 議員は投票できないので割り当てを作らない（設計書 docs/spec/158.md の 4）。採決の一覧、ほかの法案のページ、投票のどれから呼ばれても同じ
+	if (await legislatorAt(db, userId, now)) return [];
 	const mine = and(eq(voteAssignments.sessionKey, session.key), eq(voteAssignments.userId, userId));
 	const read = async () =>
 		(await db.select({ billId: voteAssignments.billId }).from(voteAssignments).where(mine).orderBy(asc(voteAssignments.seq))).map((r) => r.billId);

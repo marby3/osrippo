@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import PersonName from '#lib/components/PersonName.svelte';
 	// 法案のページの概要（SpBillSummary・PcBillSummary）
 	import { enhance } from '$app/forms';
@@ -168,7 +169,7 @@
 			<p class="note">{ja.bill.cosponsor.leftNote}</p>
 		{:else if data.progress === 'draft' && data.cosponsor.mine === 'declined'}
 			<p class="note">{ja.bill.cosponsor.declinedNote}</p>
-		{:else if data.cosponsor.canAsk}
+		{:else if data.cosponsor.canAsk && !data.legislator}
 			<form method="post" action="?/cosponsor" use:enhance class="act">
 				<input type="hidden" name="op" value="request" />
 				<button>{ja.bill.cosponsor.request}</button>
@@ -205,7 +206,7 @@
 			</section>
 		{/if}
 		<!-- 統合案を作る -->
-		{#if data.canStartMerge}
+		{#if data.canStartMerge && !data.legislator}
 			<details class="box">
 				<summary>{ja.bill.merge.start}</summary>
 				<form method="post" action="?/merge" use:enhance>
@@ -239,6 +240,8 @@
 		<!-- 出し直し（docs/spec/75.md）。提出者にだけ出る -->
 		{#if data.resubmit?.next}
 			<p class="act"><a href="/houan/{data.resubmit.next.id}">{ja.bill.resubmit.open}</a></p>
+		{:else if data.resubmit?.can && data.legislator}
+			<LegislatorNote />
 		{:else if data.resubmit?.can}
 			<form method="post" action="?/resubmit" use:enhance class="act">
 				<button class="primary">{ja.bill.resubmit.button}</button>
@@ -246,14 +249,20 @@
 			</form>
 		{/if}
 		<!-- 賛同と発議（docs/spec/49.md 決めたこと7） -->
-		{#if remaining !== null}
+		{#if remaining !== null && data.legislator}
+			<!-- 議員になる前の法案も、発議はしない（docs/spec/158.md の 2） -->
+			<LegislatorNote />
+		{:else if remaining !== null}
 			<form method="post" action="?/propose" use:enhance class="act">
 				<input type="hidden" name="rev" value={support.rev} />
 				<button class="primary" disabled={remaining > 0}>{ja.bill.support.propose}</button>
 				{#if remaining > 0}<p class="note">{ja.bill.support.remaining(remaining)}</p>{/if}
 			</form>
 		{:else if support.open}
-			{#if support.waitUntil !== null}
+			{#if data.legislator}
+				<!-- 議員は賛同できない（docs/spec/158.md の 3） -->
+				<LegislatorNote />
+			{:else if support.waitUntil !== null}
 				<p class="note">{ja.bill.support.tooNew(support.waitUntil)}</p>
 			{:else if !support.loggedIn}
 				<!-- ログインしていなければ、押すとログインの画面へ（JS がなくても動く） -->

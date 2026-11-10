@@ -39,7 +39,7 @@
 	</p>
 	{#if data.next}<p class="next sp">{ja.bill.page.nextLine(ja.bill.progress[data.next.stage], data.next.session, data.next.at)}</p>{/if}
 	{#if data.adjustment}<p class="adjusting">{ja.ifLaw.adjusting[data.adjustment.reason as 'article' | 'title']} {ja.ifLaw.due(data.adjustment.dueAt)}</p>{/if}
-	{#if data.canEdit}<p class="edit"><a href="{base}/kaku">{data.adjustment ? ja.ifLaw.fix : ja.bill.page.edit}</a></p>{/if}
+	{#if data.canEdit && !data.legislator}<p class="edit"><a href="{base}/kaku">{data.adjustment ? ja.ifLaw.fix : ja.bill.page.edit}</a></p>{/if}
 
 	<nav class="tabs" aria-label={ja.bill.page.tabs}>
 		{#each tabs as tab (tab.href)}

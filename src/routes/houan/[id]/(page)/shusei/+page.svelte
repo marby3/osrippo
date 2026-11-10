@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	// 法案の修正案のタブ。古い順（先に出したものが先に採られる）
 	import { page } from '$app/state';
 	import AmendmentCard from '#lib/components/AmendmentCard.svelte';
@@ -29,7 +30,9 @@
 <div class="list">
 	{#if goneNotice}<p role="status" class="gone">{goneNotice}</p>{/if}
 	{#if data.canPost}
-		{#if data.waitUntil !== null}
+		{#if data.legislator}
+			<LegislatorNote />
+		{:else if data.waitUntil !== null}
 			<p class="note">{ja.amendment.tooNew(data.waitUntil)}</p>
 		{:else}
 			<a class="write" href="{base}/kaku">{ja.amendment.write}</a>
@@ -46,6 +49,7 @@
 			loggedIn={data.loggedIn}
 			waiting={data.waitUntil !== null}
 			eligible={data.eligible}
+			legislator={data.legislator}
 			siteKey={data.siteKey}
 			updateHref="{base}/kaku?koushin={amendment.id}"
 			back={here}

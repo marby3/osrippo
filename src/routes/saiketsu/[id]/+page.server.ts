@@ -53,7 +53,7 @@ export const actions: Actions = {
 		if (!user) redirect(303, `/login?next=${encodeURIComponent(`/saiketsu/${bill.id}`)}`);
 		const now = nowOf(event);
 		const form = await event.request.formData();
-		const guard = await writeGuard(event, db, user, now);
+		const guard = await writeGuard(event, db, user, now, 'participate');
 		if (!guard.ok) return guard.failure;
 		if (!(await checkTurnstile(event, String(form.get('cf-turnstile-response') ?? ''), guard.ip))) return fail(400, { message: ja.guard.turnstileFailed });
 		const choice = parseVoteChoice(form.get('choice'));

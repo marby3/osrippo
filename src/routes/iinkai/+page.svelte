@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import PersonName from '#lib/components/PersonName.svelte';
 	// 委員会のページ（docs/spec/77.md 決めたこと7）。画面の案はないので、採決の画面にそろえる。
 	// Turnstile は1つを共有し、立候補、投票、署名のフォームに同じトークンを入れる（1回使うと作り直す）
@@ -12,9 +13,10 @@
 	const message = $derived(form && 'message' in form ? form.message : null);
 	const election = $derived(data.election);
 
-	const canStand = $derived(data.loggedIn && election.candidacyOpen && !election.isCandidate && data.blocks?.stand === null);
-	const canVote = $derived(data.loggedIn && election.open && election.candidates.length > 0 && data.blocks?.vote === null);
-	const canSign = $derived(data.loggedIn && data.recall?.open === true && !data.recall.signed && data.blocks?.recall === null);
+	// 議員は立候補・投票・署名をしない（docs/spec/158.md の 3）
+	const canStand = $derived(!data.legislator && data.loggedIn && election.candidacyOpen && !election.isCandidate && data.blocks?.stand === null);
+	const canVote = $derived(!data.legislator && data.loggedIn && election.open && election.candidates.length > 0 && data.blocks?.vote === null);
+	const canSign = $derived(!data.legislator && data.loggedIn && data.recall?.open === true && !data.recall.signed && data.blocks?.recall === null);
 
 	let token = $state('');
 	let turnstile: ReturnType<typeof Turnstile> | undefined = $state();
@@ -96,6 +98,8 @@
 					<input type="hidden" name="cf-turnstile-response" value={token} />
 					<button class="primary" disabled={!token}>{token ? ja.chair.election.stand : ja.chair.election.checking}</button>
 				</form>
+			{:else if data.legislator}
+				<LegislatorNote />
 			{:else if data.blocks?.stand}
 				<p class="sub">{ja.chair.blocks[data.blocks.stand]}</p>
 			{/if}
@@ -124,7 +128,7 @@
 				<ul class="names">
 					{#each election.candidates as candidate (candidate.id)}<li><PersonName person={candidate.person} /></li>{/each}
 				</ul>
-				{#if data.blocks?.vote}<p class="sub">{ja.chair.blocks[data.blocks.vote]}</p>{/if}
+				{#if data.legislator}<LegislatorNote />{:else if data.blocks?.vote}<p class="sub">{ja.chair.blocks[data.blocks.vote]}</p>{/if}
 			{/if}
 		{/if}
 	</section>
@@ -146,6 +150,8 @@
 						<input type="hidden" name="cf-turnstile-response" value={token} />
 						<button disabled={!token}>{token ? ja.chair.recall.sign : ja.chair.election.checking}</button>
 					</form>
+				{:else if data.legislator}
+					<LegislatorNote />
 				{:else if data.blocks?.recall && data.blocks.recall !== 'closed'}
 					<p class="sub">{data.blocks.recall === 'ineligible' ? ja.chair.blocks.recallIneligible : ja.chair.blocks[data.blocks.recall]}</p>
 				{/if}

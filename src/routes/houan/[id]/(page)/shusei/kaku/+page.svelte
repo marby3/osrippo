@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import { enhance } from '$app/forms';
 	import Turnstile from '#lib/components/Turnstile.svelte';
 	import { ja } from '#lib/copy/ja.ts';
@@ -39,7 +40,10 @@
 
 <div class="write">
 	<h2>{heading}</h2>
-	{#if data.blocked}
+	{#if data.legislator}
+		<!-- 議員は修正案を出せない（docs/spec/158.md の 3） -->
+		<LegislatorNote />
+	{:else if data.blocked}
 		<p class="note">{data.blocked}</p>
 	{:else}
 		<p class="note">{ja.amendment.coDrafterNotice}</p>

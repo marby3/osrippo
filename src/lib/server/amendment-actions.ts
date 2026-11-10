@@ -51,7 +51,7 @@ export async function amendmentPostAction(event: RequestEvent) {
 	const articleRaw = String(form.get('article') ?? '');
 	const keep = { article: articleRaw, body, reason: reasonRaw };
 
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'participate');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, ...keep });
 	const wait = billWaitUntil(guard.actor.registeredAt, now);
 	if (wait !== null) return fail(403, { message: ja.amendment.tooNew(wait), ...keep });
@@ -114,7 +114,7 @@ export async function acceptAction(event: RequestEvent) {
 	const form = await event.request.formData();
 	const id = parseIssueId(String(form.get('amendment') ?? ''));
 	const keep = { amendment: id };
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'participate');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, ...keep });
 	const revision = parseIssueId(String(form.get('revision') ?? ''));
 	if (id === null || revision === null) error(400);
@@ -137,7 +137,7 @@ export async function amendmentSupportAction(event: RequestEvent) {
 	const form = await event.request.formData();
 	const id = parseIssueId(String(form.get('amendment') ?? ''));
 	const keep = { amendment: id };
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, form.get('op') === 'remove' ? 'settle' : 'participate');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, ...keep });
 	const wait = billWaitUntil(guard.actor.registeredAt, now);
 	if (wait !== null) return fail(403, { message: ja.amendment.tooNew(wait), ...keep });
@@ -171,7 +171,7 @@ export async function reportAmendmentAction(event: RequestEvent) {
 	const form = await event.request.formData();
 	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
 	const id = parseIssueId(field('amendment') ?? '');
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'report');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, reportAmendment: id });
 	const checked = validateSolutionReport({ reason: field('reason'), note: field('note') });
 	if (id === null || !checked.ok) error(400);
@@ -195,7 +195,7 @@ export async function amendmentVoteAction(event: RequestEvent) {
 	const form = await event.request.formData();
 	const id = parseIssueId(String(form.get('amendment') ?? ''));
 	const keep = { amendment: id };
-	const guard = await writeGuard(event, db, user, now);
+	const guard = await writeGuard(event, db, user, now, 'participate');
 	if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, ...keep });
 	if (!(await checkTurnstile(event, String(form.get('cf-turnstile-response') ?? ''), guard.ip))) return fail(400, { message: ja.guard.turnstileFailed, ...keep });
 	const choice = String(form.get('choice'));

@@ -38,6 +38,11 @@ export function verificationLastDay(expiresAt: number): string {
 	return new Date(expiresAt - 1 + JST).toISOString().slice(0, 10);
 }
 
+/** 議員か（有効な認証の種類から。Issue #158）。有識者と認証のない人は一般の参加者と同じ */
+export function isLegislator(kind: VerificationKind | null | undefined): boolean {
+	return kind === 'legislator';
+}
+
 /** 認証を付け・延ばし・取り消せる役職（運営だけ）。欄を出すか、一覧を返すか、操作を受けるかを、すべてこれで決める */
 export function canVerify(role: string | null | undefined): boolean {
 	return role === 'operator';

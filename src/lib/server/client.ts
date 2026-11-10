@@ -8,6 +8,7 @@ import { sessionAt, sessionMinutes } from '../domain/session';
 import { activeBan, type Actor } from './issues';
 import type { Db } from './law';
 import { verifyTurnstile } from './turnstile';
+import { legislatorAt } from './verifications';
 
 const isLocalHost = (url: URL) => ['localhost', '127.0.0.1'].includes(url.hostname);
 
@@ -93,18 +94,27 @@ export function refusalMessage(refusal: Refusal): string {
 }
 
 /**
- * 課題の投稿と「わかる」の前の確かめ：国 → 締め出し（設計書 決めたこと12）。
+ * 何のための書き込みか（設計書 docs/spec/158.md の 2）。participate はゲームに参加する書き込みで、議員は断る。
+ * speak は法案の質疑・答弁・補足と「読んだ」の記録、report は通報、settle は前にした参加の取り消しと、
+ * 提出者・共同提出者としての同意や後始末で、議員もできる（議員になる前の約束を果たせるように）
+ */
+export type WriteUse = 'participate' | 'speak' | 'report' | 'settle';
+
+/**
+ * 書き込みの前の確かめ：国 → 締め出し（設計書 決めたこと12）→ 議員（docs/spec/158.md）。
  * 通れば書き込む人（IP はハッシュ）を、通らなければ画面に出す失敗を返す
  */
 export async function writeGuard(
 	event: Pick<RequestEvent, 'url' | 'request'>,
 	db: Db,
 	user: { id: string; createdAt: Date },
-	now: number
+	now: number,
+	use: WriteUse
 ): Promise<{ ok: true; actor: Actor; ip: string } | { ok: false; failure: ActionFailure<{ message: string }> }> {
 	const { country, ip } = clientOf(event);
 	if (!allowedCountry(country) || !ip) return { ok: false, failure: fail(403, { message: ja.guard.outsideJapan }) };
 	const until = await activeBan(db, user.id, now);
 	if (until !== null) return { ok: false, failure: fail(429, { message: ja.guard.banned(until) }) };
+	if (use === 'participate' && (await legislatorAt(db, user.id, now))) return { ok: false, failure: fail(403, { message: ja.guard.legislator }) };
 	return { ok: true, ip, actor: { userId: user.id, registeredAt: user.createdAt.getTime(), ipHash: await ipHashOf(ip) } };
 }

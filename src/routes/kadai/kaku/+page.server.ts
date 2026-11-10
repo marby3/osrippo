@@ -26,7 +26,7 @@ export const actions: Actions = {
 		// 断ったときも入力は残す
 		const values = Object.fromEntries(FIELDS.map((f) => [f, String(form.get(f) ?? '')])) as Record<IssueField, string>;
 
-		const guard = await writeGuard(event, db, user, now);
+		const guard = await writeGuard(event, db, user, now, 'participate');
 		if (!guard.ok) return fail(guard.failure.status, { ...guard.failure.data, values });
 		if (!(await checkTurnstile(event, String(form.get('cf-turnstile-response') ?? ''), guard.ip))) {
 			return fail(400, { message: ja.guard.turnstileFailed, values });

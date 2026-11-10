@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import SearchBox from '#lib/components/SearchBox.svelte';
 	import LawText from '#lib/components/LawText.svelte';
 	import VoteStanding from '#lib/components/VoteStanding.svelte';
@@ -87,7 +88,7 @@
 					{#if a.total > 0}
 						<p class="progress">{ja.assignment.progress(a.done, a.total)}</p>
 					{/if}
-					<VoteStanding eligible={a.eligible} total={a.total} done={a.done} />
+					{#if data.legislator}<LegislatorNote />{:else}<VoteStanding eligible={a.eligible} total={a.total} done={a.done} />{/if}
 					<a class="open" href="/saiketsu">{a.total > 0 ? ja.assignment.open : ja.assignment.list}</a>
 				{/if}
 			</section>

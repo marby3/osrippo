@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	// 採決の一覧（SpVoteList・PcVoteList）。スマホは「まだ」、PC は「投票する」と出す。進み具合は投票した本数だけ左から埋める
 	import VoteStanding from '#lib/components/VoteStanding.svelte';
 	import { ja } from '#lib/copy/ja.ts';
@@ -24,7 +25,7 @@
 				{#each data.rows as row, i (row.id)}<li data-filled={i < done ? '' : undefined}></li>{/each}
 			</ol>
 		{/if}
-		<div class="standing"><VoteStanding eligible={data.eligible} {total} {done} /></div>
+		<div class="standing">{#if data.legislator}<LegislatorNote />{:else}<VoteStanding eligible={data.eligible} {total} {done} />{/if}</div>
 		{#if total}
 			<ul class="rows">
 				{#each data.rows as row (row.id)}
