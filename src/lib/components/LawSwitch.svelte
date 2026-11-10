@@ -1,5 +1,5 @@
 <script lang="ts">
-	// 現実の法律と IF世界の法律の切り替え（SpLaw・PcLaw）
+	// 現実の法律と IF世界の法律の切り替え（SpLaw・PcLaw）。IF世界を開いているときは紫の塗り
 	import { ja } from '../copy/ja';
 
 	let { lawId, current }: { lawId: string; current: 'real' | 'if' } = $props();
@@ -25,6 +25,7 @@
 		min-height: var(--tap-min);
 		border: 1px solid var(--color-input-border);
 		border-radius: var(--radius-m);
+		background: var(--color-bg);
 		color: var(--color-text);
 		font-weight: bold;
 		text-decoration: none;
@@ -39,5 +40,24 @@
 	a[aria-current='page'] {
 		border-width: 2px;
 		border-color: var(--color-base);
+	}
+
+	/* IF世界を開いているときは紫の塗り。現実の法律は白地に灰色の枠（SpLaw・PcLaw・PcCompare、Issue #124） */
+	a.if[aria-current='page'] {
+		border-color: var(--color-if);
+		background: var(--color-if);
+		color: var(--color-bg);
+	}
+
+	/* PC は法令名の行の右に置く（置き場所はページが決める）。幅は文字に合わせる */
+	@media (min-width: 64rem) {
+		.switch {
+			grid-template-columns: auto auto;
+			margin-bottom: 0;
+		}
+
+		a {
+			padding: 0 1.25rem;
+		}
 	}
 </style>

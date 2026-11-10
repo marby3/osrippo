@@ -1194,6 +1194,8 @@ export const ja = {
 			`${jaDate(date)}施行${scheduled ? '（施行予定）' : ''}　${title}`,
 		beforeSide: '改正前',
 		afterSide: '改正後',
+		/** PC の新旧対照表のいちばん上の行（PcCompare）。消すところは取り消し線、足すところは下線なので「傍線」とは言わない */
+		legend: '線を引いた部分がちがうところです',
 		added: '新しく入った条',
 		removed: 'なくなった条',
 		renumbered: (label: string) => `（改正前は${label}）`,
