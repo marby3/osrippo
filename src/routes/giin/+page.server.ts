@@ -74,5 +74,5 @@ export const load: PageServerLoad = async (event) => {
 	}
 	const { rows, hasNext } = await passedBills(db, query.page);
 	if (query.page > 1 && rows.length === 0) error(404);
-	return { ...base, issues: [], bills: [], passed: rows.map(({ rev: _, ...r }) => r), hasNext, bridgeFallback: false };
+	return { ...base, issues: [], bills: [], passed: rows, hasNext, bridgeFallback: false };
 };

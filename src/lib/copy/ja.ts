@@ -1205,19 +1205,15 @@ export const ja = {
 		filters: { all: 'すべて', kaiketsu: '解決策あり', houan: '法案になった' },
 		sortLabel: '並び順',
 		sorts: { bridge: '立場を超えた支持が多い順', support: 'わかるが多い順', new: '新しい順' },
-		sortApply: '並べ替える',
 		columns: { issue: '課題', supports: 'わかる', bridge: '立場を超えた支持', solution: 'いちばんの解決策', bill: '法案', stage: 'いま', origin: '元の課題', session: '可決した会期', laws: '対象の法令' },
-		supports: (n: number) => `わかる ${n}`,
-		bridge: (ratio: number | null) => `立場を超えた支持 ${ratio === null ? '—' : `${ratio}%`}`,
 		ratio: (ratio: number | null) => (ratio === null ? '—' : `${ratio}%`),
 		/** 割合を出せないときの読み上げ */
 		ratioNone: '人数が足りないので出していません',
-		solution: (body: string) => `いちばんの解決策：${body}`,
 		none: 'まだありません',
 		empty: 'まだありません',
 		more: 'もっと見る',
-		/** "2041-05" → "2041年5月の会期" */
-		session: (key: string) => `${jaMonth(key)}の会期`
+		/** "2041-05" → "2041年5月の会期"（開発用の短い会期の番号は、そのまま） */
+		session: (key: string) => (/^\d{4}-\d{2}$/.test(key) ? `${jaMonth(key)}の会期` : key)
 	},
 	/** 議員・有識者の認証（Issue #157、設計書 docs/spec/157.md） */
 	verification: {

@@ -43,10 +43,14 @@ export async function originIssues(db: Db, billIds: number[]): Promise<Map<numbe
 	return origin;
 }
 
-/** 可決して IF世界の法律になった法案の条件：結果が可決で、確認中・無効にしていない */
+/**
+ * 可決して IF世界の法律になった法案の条件：結果が可決で、確認中・無効にしていない。
+ * その会期にぶつかって要調整になった結果は、IF世界に入っていないので出さない（直して次の会期に可決すれば、その結果が出る。1つの法案は1行）
+ */
 const passed = and(
 	eq(billResults.outcome, 'passed'),
-	sql`NOT EXISTS (SELECT 1 FROM vote_reviews v WHERE v.session_key = ${billResults.sessionKey} AND v.bill_id = ${billResults.billId} AND v.status IN ('open', 'voided'))`
+	sql`NOT EXISTS (SELECT 1 FROM vote_reviews v WHERE v.session_key = ${billResults.sessionKey} AND v.bill_id = ${billResults.billId} AND v.status IN ('open', 'voided'))`,
+	sql`NOT EXISTS (SELECT 1 FROM bill_adjustments a WHERE a.session_key = ${billResults.sessionKey} AND a.bill_id = ${billResults.billId})`
 );
 
 /** IF世界で可決のタブ：新しい会期の順（同じ会期は新しい法案から）。対象の法令は IF世界の法令へのリンク */
@@ -70,15 +74,14 @@ export async function passedBills(db: Db, page: number) {
 				.orderBy(asc(billLaws.seq))
 		: [];
 	return {
-		rows: shown.map((b) => ({
+		rows: shown.map(({ rev, ...b }) => ({
 			...b,
 			laws: lawRows
-				.filter((l) => l.billId === b.id && l.rev === b.rev)
+				.filter((l) => l.billId === b.id && l.rev === rev)
 				.map((l) => ({ id: l.lawId ?? l.ifLawId, title: l.title ?? l.newTitle ?? '' }))
 				.filter((l): l is { id: string; title: string } => l.id !== null)
 		})),
-		hasNext: rows.length > GIIN_PAGE_SIZE,
-		total: await passedCount(db)
+		hasNext: rows.length > GIIN_PAGE_SIZE
 	};
 }
 
