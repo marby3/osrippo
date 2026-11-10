@@ -17,9 +17,13 @@ export const load: PageServerLoad = async (event) => {
 	const db = drizzle(env.DB);
 	const today = tokyoDate(now);
 	// 注目の課題：課題の一覧の「最近『わかる』が増えている順」の上から（スマホは3件、PC は4件。決めることA）
-	const { rows: listed } = await listIssues(db, { sort: 'rising', topic: 'all', solutions: false, bills: false, q: '', page: 1 }, null, now);
-	const featured = listed.slice(0, FEATURED_COUNT).map(({ id, title, supports }) => ({ id, title, supports }));
-	const base = { session, today, todayArticle: await cachedTodayArticle(db, today), featured };
+	// 一覧と同じ問い合わせで、読むのは4件だけ（決めることB）
+	const [{ rows: listed }, todayArticle] = await Promise.all([
+		listIssues(db, { sort: 'rising', topic: 'all', solutions: false, bills: false, q: '', page: 1 }, null, now, [], null, FEATURED_COUNT),
+		cachedTodayArticle(db, today)
+	]);
+	const featured = listed.map(({ id, title, supports }) => ({ id, title, supports }));
+	const base = { session, today, todayArticle, featured };
 	const user = event.locals.user;
 	if (!user) return { ...base, assignment: null };
 	if (now < session.voteAt) return { ...base, assignment: { open: false as const } };

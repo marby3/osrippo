@@ -291,7 +291,8 @@
 		.home {
 			display: grid;
 			grid-template-columns: minmax(0, 1fr) 20rem;
-			/* 右の列が高くなった分は3段目（空き）が受け持ち、今の会期と探す欄は詰めたままにする */
+			/* 右の列が高くなった分は4段目（空き）が受け持ち、左の列（今の会期・注目の課題・探す欄）は詰めたままにする。
+			   読み上げの順は、スマホの見た目の順（今の会期 → 割り当て → 注目の課題）に合わせ、PC では右の列のカードが注目の課題より先になる */
 			grid-template-rows: auto auto auto 1fr;
 			column-gap: 2.5rem;
 			align-content: start;

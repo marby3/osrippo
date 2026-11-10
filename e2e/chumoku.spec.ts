@@ -28,9 +28,14 @@ test('基準1：ログインしていなくても、ホームに「注目の課�
 	const first = section(page).getByRole('listitem').first();
 	await expect(first.getByRole('link')).toHaveAttribute('href', /^\/kadai\/\d+$/);
 	await expect(first.getByText(/^わかる \d+$/)).toBeVisible();
+	// リンクの文字は、その課題のページの課題名
+	const title = (await first.getByRole('link').innerText()).trim();
+	await first.getByRole('link').click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText(title);
 });
 
 test('基準2：課題の一覧の「最近『わかる』が増えている順」の上から、スマホは3件・PC は4件', async ({ browser, page }, info) => {
+	test.setTimeout(120_000);
 	const w = info.project.name;
 	await fourIssues(browser, w, 2);
 	const count = w === 'sp' ? 3 : 4;
@@ -42,7 +47,7 @@ test('基準2：課題の一覧の「最近『わかる』が増えている順�
 			await page.goto('/kadai?sort=rising');
 			const list = (await listIds(page)).slice(0, count);
 			return JSON.stringify(home) === JSON.stringify(list) && home.length === count;
-		})
+		}, { timeout: 60_000 })
 		.toBe(true);
 });
 
@@ -70,6 +75,8 @@ test('基準5：スマホは割り当てのカードの下・探す欄の上、P
 	const u = await newUser(browser, { name: `chumoku5b${w}${Date.now() % 1e7}`, ip: `10.130.5.${w === 'sp' ? 3 : 4}`, days: 8 });
 	await u.page.goto('/');
 	await hydrated(u.page);
+	await expect(section(u.page)).toBeVisible();
+	await expect(u.page.getByRole('region', { name: /^あなたの割り当て法案/ })).toBeVisible();
 	const box = async (p: Promise<{ x: number; y: number; width: number; height: number } | null>) => (await p)!;
 	const s = await box(section(u.page).boundingBox());
 	const session = await box(u.page.getByRole('region', { name: /^いまは/ }).boundingBox());

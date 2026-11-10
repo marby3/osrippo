@@ -78,6 +78,7 @@ test('基準5：スマホは割り当てのカードと探す欄の下、PC は�
 		// 右の列が高くなっても、探す欄は左の列のすぐ上の段（注目の課題、なければ今の会期。Issue #130）の下のまま
 		const featured = u.page.getByRole('region', { name: '注目の課題' });
 		const above = (await ((await featured.count()) ? featured : u.page.getByRole('region', { name: /^いまは/ })).boundingBox())!;
+		expect(search.y).toBeGreaterThanOrEqual(above.y + above.height);
 		expect(search.y - (above.y + above.height)).toBeLessThan(80);
 	}
 	expect(await card(u.page).evaluate((el) => getComputedStyle(el).borderTopStyle)).toBe('solid');
