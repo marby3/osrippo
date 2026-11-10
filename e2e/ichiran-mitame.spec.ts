@@ -94,7 +94,7 @@ test('基準5：PC は左の列に探す・表示する課題（丸い選択肢�
 	await expect(page.getByText('並び順', { exact: true })).toBeVisible();
 	// 選択肢は縦に並び、丸い印が付く。選んでいるものは印が塗られる
 	const items = filters.getByRole('link');
-	await expect(items).toHaveCount(3);
+	await expect(items).toHaveCount(4); // すべて・今回のお題・解決策あり・法案あり（Issue #125）
 	const boxes = await Promise.all([0, 1, 2].map(async (i) => (await items.nth(i).boundingBox())!));
 	expect(boxes[1].y).toBeGreaterThan(boxes[0].y);
 	expect(boxes[2].y).toBeGreaterThan(boxes[1].y);

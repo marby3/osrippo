@@ -55,7 +55,8 @@ export const SORTS = ['support', 'new', 'rising'] as const;
 export type Sort = (typeof SORTS)[number];
 /** 絞り込みは「すべて」「今回のお題」「解決策あり」から1つ（設計書 docs/spec/34.md 決めたこと8） */
 /** q は「課題を探す」の言葉のまま（判定は domain/search の parseQuery。形が違っても 404 にしない） */
-export type ListQuery = { sort: Sort; topic: 'all' | 'current'; solutions: boolean; q: string; page: number };
+/** 絞り込みは1つだけ：今回のお題・解決策あり・法案あり（Issue #125）は一緒に選べない */
+export type ListQuery = { sort: Sort; topic: 'all' | 'current'; solutions: boolean; bills: boolean; q: string; page: number };
 
 /** 一覧の検索文字列。形が違えば null（404）。1ページ目は page なしの URL だけ */
 export function parseListQuery(params: URLSearchParams): ListQuery | null {
@@ -63,12 +64,21 @@ export function parseListQuery(params: URLSearchParams): ListQuery | null {
 	const topic = params.get('topic');
 	const page = params.get('page');
 	const kaiketsu = params.get('kaiketsu');
+	const houan = params.get('houan');
 	if (sort !== null && sort !== 'new' && sort !== 'rising') return null;
 	if (topic !== null && topic !== 'current') return null;
 	if (kaiketsu !== null && (kaiketsu !== 'ari' || topic !== null)) return null;
+	if (houan !== null && (houan !== 'ari' || topic !== null || kaiketsu !== null)) return null;
 	const pageNumber = parsePage(page);
 	if (pageNumber === null) return null;
-	return { sort: sort ?? 'support', topic: topic ?? 'all', solutions: kaiketsu === 'ari', q: params.get('q') ?? '', page: pageNumber };
+	return {
+		sort: sort ?? 'support',
+		topic: topic ?? 'all',
+		solutions: kaiketsu === 'ari',
+		bills: houan === 'ari',
+		q: params.get('q') ?? '',
+		page: pageNumber
+	};
 }
 
 /** ページの番号：なければ1。2〜9999 の整数（先頭の0なし）だけ。1ページ目は page なしの URL だけなので、page=1 は形が違う */
@@ -78,11 +88,12 @@ export function parsePage(raw: string | null): number | null {
 }
 
 /** 一覧の URL（既定の値は書かない） */
-export function listHref({ sort, topic, solutions, q, page }: ListQuery): string {
+export function listHref({ sort, topic, solutions, bills, q, page }: ListQuery): string {
 	const params = new URLSearchParams();
 	if (sort !== 'support') params.set('sort', sort);
 	if (topic !== 'all') params.set('topic', topic);
 	if (solutions) params.set('kaiketsu', 'ari');
+	if (bills) params.set('houan', 'ari');
 	if (q.trim()) params.set('q', q);
 	if (page > 1) params.set('page', String(page));
 	const search = params.toString();

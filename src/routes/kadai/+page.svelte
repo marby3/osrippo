@@ -7,18 +7,20 @@
 
 	let { data }: PageProps = $props();
 	const q = $derived(data.query);
-	// 絞り込みは1つだけ選ぶ（今回のお題と解決策ありは一緒に選べない）
+	// 絞り込みは1つだけ選ぶ（今回のお題・解決策あり・法案ありは一緒に選べない）
 	const filters = [
-		{ key: 'all', label: ja.issue.filterAll, topic: 'all', solutions: false },
-		{ key: 'current', label: ja.issue.filterTopic, topic: 'current', solutions: false },
-		{ key: 'solutions', label: ja.issue.filterSolutions, topic: 'all', solutions: true }
+		{ key: 'all', label: ja.issue.filterAll, topic: 'all', solutions: false, bills: false },
+		{ key: 'current', label: ja.issue.filterTopic, topic: 'current', solutions: false, bills: false },
+		{ key: 'solutions', label: ja.issue.filterSolutions, topic: 'all', solutions: true, bills: false },
+		{ key: 'bills', label: ja.issue.filterBills, topic: 'all', solutions: false, bills: true }
 	] as const;
-	const selected = $derived(q.solutions ? 'solutions' : q.topic);
+	const selected = $derived(q.bills ? 'bills' : q.solutions ? 'solutions' : q.topic);
 	/** 探すときも、いまの並びと絞り込みは残す */
 	const searchHidden = $derived({
 		...(q.sort !== 'support' ? { sort: q.sort } : {}),
 		...(q.topic !== 'all' ? { topic: q.topic } : {}),
-		...(q.solutions ? { kaiketsu: 'ari' } : {})
+		...(q.solutions ? { kaiketsu: 'ari' } : {}),
+		...(q.bills ? { houan: 'ari' } : {})
 	});
 </script>
 
@@ -49,7 +51,7 @@
 					{#each filters as f (f.key)}
 						<a
 							class="chip"
-							href={listHref({ ...q, topic: f.topic, solutions: f.solutions, page: 1 })}
+							href={listHref({ ...q, topic: f.topic, solutions: f.solutions, bills: f.bills, page: 1 })}
 							aria-current={selected === f.key ? 'page' : undefined}>{f.label}</a
 						>
 					{/each}
@@ -83,7 +85,9 @@
 					<p class="empty">
 						{data.searching
 							? ja.search.none
-							: q.solutions
+							: q.bills
+								? ja.issue.emptyBills
+								: q.solutions
 								? ja.issue.emptySolutions
 								: q.topic === 'current'
 									? ja.issue.emptyTopic
@@ -97,6 +101,7 @@
 							<th scope="col">{ja.issue.columnTitle}</th>
 							<th scope="col" class="num">{ja.issue.columnSupports}</th>
 							<th scope="col" class="num">{ja.issue.columnSolutions}</th>
+							<th scope="col">{ja.issue.columnBills}</th>
 							<th scope="col">{ja.issue.columnTopic}</th>
 						</tr>
 					</thead>
@@ -106,6 +111,10 @@
 								<td class="title"><a href="/kadai/{row.id}">{row.title}</a></td>
 								<td class="num"><span class="label">{ja.issue.supports}</span> {row.supports}</td>
 								<td class="num solutions"><span class="label">{ja.issue.solutions}</span> {row.solutions}</td>
+								<!-- スマホは法案のある課題だけ「・ 法案あり」（SpIssues）、PC は「あり」「なし」（PcIssues） -->
+								<td class="bills" class:none={!row.bills}
+									><span class="label">{ja.issue.bills}</span>{row.bills ? ja.issue.billsYes : ja.issue.billsNo}</td
+								>
 								<td class="topic">{row.topicName ? ja.issue.topicMark(row.topicName) : ''}</td>
 							</tr>
 						{/each}
@@ -266,6 +275,17 @@
 		display: none;
 	}
 
+	/* 法案の列（PcIssues）：「あり」は太字、「なし」は薄い字 */
+	.bills {
+		color: var(--color-text-sub);
+		white-space: nowrap;
+	}
+
+	.bills:not(.none) {
+		color: var(--color-text);
+		font-weight: bold;
+	}
+
 	.topic {
 		color: var(--color-text-sub);
 		font-size: var(--font-size-sub);
@@ -321,8 +341,23 @@
 		}
 
 		.solutions::before,
+		.bills::before,
 		.topic:not(:empty)::before {
 			content: ' ・ ';
+		}
+
+		/* 「・ 法案あり」は法案のある課題だけ（SpIssues） */
+		.bills {
+			font-size: var(--font-size-sub);
+		}
+
+		.bills.none {
+			display: none;
+		}
+
+		.bills::before {
+			color: var(--color-text-sub);
+			font-weight: normal;
 		}
 	}
 

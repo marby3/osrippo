@@ -14,6 +14,7 @@ import {
 import type { Db } from './law';
 import { indexTexts, issueMatchSql } from './search';
 import type { Word } from '../domain/search';
+import { billCountOfIssue } from './issue-bills';
 
 /** 押す操作として合わせて数える actions の種類 */
 export const PRESS_KINDS = ['support_add', 'support_remove', 'reaction_add', 'reaction_remove'] as const;
@@ -47,7 +48,9 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 			supports,
 			// 「わかる」と同じ JOIN に足すと行が掛け算で増えるので、相関サブクエリで数える（設計書 docs/spec/34.md 決めたこと8）
 			// 非表示の解決策は数えない（設計書 docs/spec/36.md 決めたこと4）
-			solutions: sql<number>`(SELECT count(*) FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`
+			solutions: sql<number>`(SELECT count(*) FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`,
+			// この課題から生まれた法案（Issue #125）
+			bills: billCountOfIssue(sql`${issues}.id`)
 		})
 		.from(issues)
 		.leftJoin(issueSupports, eq(issueSupports.issueId, issues.id))
@@ -61,6 +64,7 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 				q.solutions
 					? sql`EXISTS (SELECT 1 FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`
 					: undefined,
+				q.bills ? sql`${billCountOfIssue(sql`${issues}.id`)} > 0` : undefined,
 				words.length ? sql`${issues.id} IN (${issueMatchSql(words)})` : undefined
 			)
 		)

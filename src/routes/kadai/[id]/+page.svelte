@@ -156,42 +156,54 @@
 				{/if}
 			</div>
 
-			{#if !data.hidden && !data.mine}
-				<section class="report">
-					{#if reportMessage}<p role="status">{reportMessage}</p>{/if}
-					{#if data.reported}
-						{#if reportMessage !== ja.report.already}<p>{ja.report.already}</p>{/if}
-					{:else if !data.loggedIn}
-						<!-- ログインしていなければ、押すとログインの画面へ（JS がなくても動く） -->
-						<form method="get" action="/login">
-							<input type="hidden" name="next" value="/kadai/{issue.id}" />
-							<button class="link">{ja.report.open}</button>
-						</form>
-					{:else}
-						{#if js && !reportOpen}
-							<button type="button" class="link" onclick={() => (reportOpen = true)}>{ja.report.open}</button>
-						{/if}
-						{#if !js || reportOpen}
-							<form method="post" action="?/report" use:enhance>
-								<fieldset>
-									<legend>{ja.report.legend}</legend>
-									{#each ['attack', 'spam', 'duplicate', 'other'] as const as reason (reason)}
-										<label class="radio">
-											<input type="radio" name="reason" value={reason} bind:group={reasonChoice} />
-											{ja.report.reasons[reason]}
-										</label>
-									{/each}
-								</fieldset>
-								{#if !js || reasonChoice === 'other'}
-									<label for="note">{ja.report.noteLabel}</label>
-									<textarea id="note" name="note" maxlength="200" rows="3"></textarea>
-								{/if}
-								<p class="criteria">{ja.report.criteria} <a href="/unei">{ja.report.criteriaLink}</a></p>
-								<button class="submit">{ja.report.submit}</button>
-							</form>
-						{/if}
+			<!-- 右の列の下の段（PC）。スマホは解決策のあと。「この課題から生まれた法案」は通報より上（SpIssue・PcIssue、Issue #125） -->
+			{#if !data.hidden && (data.billCount > 0 || !data.mine)}
+				<div class="side-bottom">
+					{#if data.billCount > 0}
+						<a class="bills" href="/kadai/{issue.id}/houan"
+							>{ja.issue.billsRow(data.billCount)}<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+								><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" /></svg
+							></a
+						>
 					{/if}
-				</section>
+					{#if !data.mine}
+						<section class="report">
+							{#if reportMessage}<p role="status">{reportMessage}</p>{/if}
+							{#if data.reported}
+								{#if reportMessage !== ja.report.already}<p>{ja.report.already}</p>{/if}
+							{:else if !data.loggedIn}
+								<!-- ログインしていなければ、押すとログインの画面へ（JS がなくても動く） -->
+								<form method="get" action="/login">
+									<input type="hidden" name="next" value="/kadai/{issue.id}" />
+									<button class="link">{ja.report.open}</button>
+								</form>
+							{:else}
+								{#if js && !reportOpen}
+									<button type="button" class="link" onclick={() => (reportOpen = true)}>{ja.report.open}</button>
+								{/if}
+								{#if !js || reportOpen}
+									<form method="post" action="?/report" use:enhance>
+										<fieldset>
+											<legend>{ja.report.legend}</legend>
+											{#each ['attack', 'spam', 'duplicate', 'other'] as const as reason (reason)}
+												<label class="radio">
+													<input type="radio" name="reason" value={reason} bind:group={reasonChoice} />
+													{ja.report.reasons[reason]}
+												</label>
+											{/each}
+										</fieldset>
+										{#if !js || reasonChoice === 'other'}
+											<label for="note">{ja.report.noteLabel}</label>
+											<textarea id="note" name="note" maxlength="200" rows="3"></textarea>
+										{/if}
+										<p class="criteria">{ja.report.criteria} <a href="/unei">{ja.report.criteriaLink}</a></p>
+										<button class="submit">{ja.report.submit}</button>
+									</form>
+								{/if}
+							{/if}
+						</section>
+					{/if}
+				</div>
 			{/if}
 		</div>
 	{/if}
@@ -306,8 +318,33 @@
 		color: var(--color-caution);
 	}
 
-	.report {
+	.side-bottom {
 		margin-top: 2rem;
+	}
+
+	/* 「この課題から生まれた法案 N本 ›」：灰色の行全体が押せる */
+	.bills {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		min-height: var(--tap-primary);
+		padding: 0 1rem;
+		border-radius: var(--radius-m);
+		background: var(--color-surface);
+		color: var(--color-text);
+		text-decoration: none;
+	}
+
+	.bills svg {
+		flex: none;
+	}
+
+	.bills + .report {
+		margin-top: 1.5rem;
+	}
+
+	.report {
 		font-size: var(--font-size-sub);
 	}
 
@@ -405,9 +442,8 @@
 			grid-area: 2 / 1;
 		}
 
-		.report {
+		.side-bottom {
 			grid-area: 2 / 2;
-			margin-top: 2rem;
 		}
 
 		/* 解決策の見出しの右に「解決策を書く」。下の区切り線のあとに1行ずつ並べる */
