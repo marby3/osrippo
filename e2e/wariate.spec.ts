@@ -34,8 +34,10 @@ function people(browser: Browser, w: string, n: number) {
 /** 5月5日に発議した法案（5月22日から採決）。賛同した3人と提出者を返す */
 async function proposedBill(browser: Browser, w: string, n: number) {
 	const person = people(browser, w, n);
-	const author = await person(at(w, n, 5, 5));
+	// 提出者は前の月に課題を書く（投票資格がある。基準4で「割り当てがない」の案内を見るため）
+	const author = await person(at(w, n, 4, 10));
 	const { ids } = await issueWithSolutions(author.page, `割り当てのカード ${author.label}`, [`解決策 ${author.label}`]);
+	await author.setNow(at(w, n, 5, 5));
 	const path = await createAmendBill(author.page, `割り当てのカード ${author.label}`, ids[0]);
 	for (let i = 0; i < 3; i++) {
 		const b = await person(at(w, n, 5, 5));
