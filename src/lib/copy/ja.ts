@@ -119,6 +119,12 @@ export const ja = {
 		/** PC の 2:1:1 の区切り */
 		segments: (s: Session) => ['1〜2週 発議', '3週 質疑・修正', `4週 採決（${sessionPoint(s, s.voteAt, false)}から）`]
 	},
+	/** ホームの「注目の課題」（Issue #130。SpHome・PcHome） */
+	featured: {
+		heading: '注目の課題',
+		more: '課題をもっと見る',
+		supports: (n: number) => `わかる ${n}`
+	},
 	/** 表示の設定（Issue #129。法令のページ） */
 	display: {
 		open: '表示の設定',

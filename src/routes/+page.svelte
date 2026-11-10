@@ -84,6 +84,25 @@
 		{#if t}<div class="pc">{@render today(t, 'pc')}</div>{/if}
 	</div>
 
+	{#if data.featured.length}
+		<!-- 注目の課題（Issue #130）。課題の一覧の「最近『わかる』が増えている順」の上から。スマホは3件、PC は4件 -->
+		<section class="featured" aria-labelledby="featured-heading">
+			<div class="featured-head">
+				<h2 id="featured-heading">{ja.featured.heading}</h2>
+				<a class="pc" href="/kadai?sort=rising">{ja.featured.more}</a>
+			</div>
+			<ul>
+				{#each data.featured as issue, i (issue.id)}
+					<li class:fourth={i >= 3}>
+						<a href="/kadai/{issue.id}">{issue.title}</a>
+						<span class="count">{ja.featured.supports(issue.supports)}</span>
+					</li>
+				{/each}
+			</ul>
+			<p class="sp more"><a href="/kadai?sort=rising">{ja.featured.more}</a></p>
+		</section>
+	{/if}
+
 	<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7）。課題の一覧と同じ形（Issue #120） -->
 	<div class="search"><SearchBox id="top-search" label={ja.search.entry} action="/kensaku" /></div>
 
@@ -94,6 +113,45 @@
 <style>
 	main {
 		padding: 1rem;
+	}
+	.featured {
+		margin-bottom: 1.5rem;
+		max-width: 50rem;
+	}
+	.featured-head h2 {
+		margin: 0 0 0.5rem;
+		font-size: var(--font-size-heading);
+	}
+	.featured ul {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	.featured li {
+		display: grid;
+		gap: 0.25rem;
+		padding: 0.75rem 0;
+		border-bottom: 1px solid var(--color-divider);
+	}
+	.featured li a {
+		color: var(--color-text);
+		font-weight: bold;
+		text-decoration: none;
+		overflow-wrap: anywhere;
+	}
+	.featured li a:hover {
+		text-decoration: underline;
+	}
+	.featured .count {
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+	/* スマホは3件（SpHome） */
+	.featured li.fourth {
+		display: none;
+	}
+	.featured .more {
+		margin: 0.75rem 0 0;
 	}
 	.today {
 		margin-top: 1.5rem;
@@ -233,8 +291,9 @@
 		.home {
 			display: grid;
 			grid-template-columns: minmax(0, 1fr) 20rem;
-			/* 右の列が高くなった分は3段目（空き）が受け持ち、今の会期と探す欄は詰めたままにする */
-			grid-template-rows: auto auto 1fr;
+			/* 右の列が高くなった分は4段目（空き）が受け持ち、左の列（今の会期・注目の課題・探す欄）は詰めたままにする。
+			   読み上げの順は、スマホの見た目の順（今の会期 → 割り当て → 注目の課題）に合わせ、PC では右の列のカードが注目の課題より先になる */
+			grid-template-rows: auto auto auto 1fr;
 			column-gap: 2.5rem;
 			align-content: start;
 			align-items: start;
@@ -242,7 +301,7 @@
 		.home > :not(.side, h1) {
 			grid-column: 1;
 		}
-		/* 左の列は今の会期と探す欄の2段と空きの段。ホームに段を足したら rows も合わせる */
+		/* 左の列は今の会期・注目の課題・探す欄の3段と空きの段。ホームに段を足したら rows も合わせる */
 		.side {
 			display: grid;
 			gap: 1.5rem;
@@ -253,6 +312,27 @@
 		.assignment,
 		.today {
 			margin: 0;
+		}
+		/* PcHome：見出しの行の右に「課題をもっと見る」、行は課題名と「わかる」を左右に、4件 */
+		.featured-head {
+			display: flex;
+			align-items: baseline;
+			justify-content: space-between;
+			gap: 1rem;
+			padding-bottom: 0.75rem;
+			border-bottom: 1px solid var(--color-divider);
+		}
+		.featured-head h2 {
+			margin: 0;
+		}
+		.featured li {
+			grid-template-columns: minmax(0, 1fr) auto;
+			align-items: center;
+			gap: 1rem;
+			padding: 1.25rem 0;
+		}
+		.featured li.fourth {
+			display: grid;
 		}
 		.sp {
 			display: none;

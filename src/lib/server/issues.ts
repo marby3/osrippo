@@ -38,7 +38,7 @@ export async function currentTopic(db: Db) {
  * 課題の一覧。previous は直近に締め切った会期で、立場を超えた支持順（sort が bridge）のときだけ使う（Issue #126）。
  * bridgeFallback は、立場を超えた支持順でグループの人数が足りず「わかる」の多い順にしたか（ほかの並びでは false）
  */
-export async function listIssues(db: Db, q: ListQuery, topicId: number | null, now: number, words: Word[] = [], previous: Session | null = null) {
+export async function listIssues(db: Db, q: ListQuery, topicId: number | null, now: number, words: Word[] = [], previous: Session | null = null, size = PAGE_SIZE) {
 	const supports = sql<number>`count(${issueSupports.userId})`;
 	const recent = sql<number>`count(case when ${issueSupports.createdAt} > ${now - RISING_WINDOW} then 1 end)`;
 	const bySupports = [desc(supports), desc(issues.id)];
@@ -87,14 +87,14 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 		)
 		.groupBy(issues.id)
 		.orderBy(...order)
-		.limit(PAGE_SIZE + 1)
-		.offset((q.page - 1) * PAGE_SIZE);
-	const page = rows.slice(0, PAGE_SIZE);
+		.limit(size + 1)
+		.offset((q.page - 1) * size);
+	const page = rows.slice(0, size);
 	// この課題から生まれた法案の数は、ページに出る課題の分だけ別に数える（Issue #125）
 	const counts = await billCounts(db, page.map((r) => r.id));
 	return {
 		rows: page.map(({ fallback: _, ...r }) => ({ ...r, bills: counts.get(r.id) ?? 0 })),
-		hasNext: rows.length > PAGE_SIZE,
+		hasNext: rows.length > size,
 		// 立場を超えた支持順を選んでいて、人数が足りなかった（行がないときは出さない）
 		bridgeFallback: bridge !== null && Boolean(rows[0]?.fallback)
 	};
