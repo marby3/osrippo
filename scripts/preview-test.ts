@@ -2,7 +2,7 @@
 //   tsx scripts/preview-test.ts --port 4173 --test-login   … テスト用のログインを有効にする
 //   tsx scripts/preview-test.ts --port 4174 --persist-to .wrangler/state-nologin … 無効（404 を確かめる）
 // シェルの機能に頼らず Node だけで動かす（PowerShell と Linux で同じ）
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -28,6 +28,14 @@ const vars: Record<string, string> = {
 	IP_HASH_SECRET: 'test-ip-hash-secret',
 	...(values['test-login'] ? { TEST_LOGIN: '1' } : {})
 };
+
+// 別に置いた D1 にも表を作る（ホームは開くたびに DB を読む。Issue #128）。当て済みなら何もしない
+if (values['persist-to']) {
+	execFileSync(process.execPath, [join(root, 'node_modules/wrangler/bin/wrangler.js'), 'd1', 'migrations', 'apply', 'DB', '--local', '--persist-to', values['persist-to']], {
+		cwd: root,
+		stdio: ['ignore', 'inherit', 'inherit']
+	});
+}
 
 const args = [
 	join(root, 'node_modules/wrangler/bin/wrangler.js'),

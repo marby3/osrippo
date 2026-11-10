@@ -10,6 +10,7 @@ import {
 	compareNum,
 	headingPaths,
 	tableOfContents,
+	tokyoDate,
 	type Change
 } from '../domain/law';
 import { committeeLaws, laws, lawRevisions, provisions, provisionVersions } from '../db/schema';
@@ -281,5 +282,5 @@ export async function articleHistory(db: Db, lawId: string, num: string) {
 
 /** 日本時間の今日（YYYY-MM-DD） */
 export function todayInTokyo(): string {
-	return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
+	return tokyoDate(Date.now());
 }

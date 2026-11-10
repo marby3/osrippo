@@ -28,6 +28,11 @@ export function itemLabel(num: string): string {
 	return num.split('_').map((n) => kanji(Number(n))).join('の');
 }
 
+/** その時刻の日本時間の日付（YYYY-MM-DD） */
+export function tokyoDate(ms: number): string {
+	return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date(ms));
+}
+
 /** from（YYYY-MM-DD）から today（YYYY-MM-DD）までの満年数 */
 export function fullYears(from: string, today: string): number {
 	const years = Number(today.slice(0, 4)) - Number(from.slice(0, 4));

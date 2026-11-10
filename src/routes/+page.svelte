@@ -2,12 +2,24 @@
 	import SearchBox from '#lib/components/SearchBox.svelte';
 	import VoteStanding from '#lib/components/VoteStanding.svelte';
 	import { ja } from '#lib/copy/ja.ts';
+	import { fullYears } from '#lib/domain/law/index.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 	const s = $derived(data.session);
 	const a = $derived(data.assignment);
 	const next = $derived(ja.session.next(s));
+	const t = $derived(data.todayArticle);
+	/** どれだけ変わっていないか。法令のページの条の下と同じ文（Issue #128 基準2） */
+	const age = $derived(
+		!t
+			? ''
+			: t.lastAmended
+				? ja.law.amended(t.lastAmended, fullYears(t.lastAmended, data.today))
+				: t.enacted
+					? ja.law.enacted(t.enacted, fullYears(t.enacted, data.today))
+					: ja.law.unchangedSinceBaseline
+	);
 	/** PC の区切り：発議（1〜2週）・質疑と修正（3週）・採決（4週） */
 	const segments = $derived(
 		ja.session.segments(s).map((label, i) => ({
@@ -42,6 +54,8 @@
 		<p class="next sp">{next[0]}{' '}<strong>{next[1]}</strong>{' '}{next[2]}</p>
 	</section>
 
+	<!-- PC の右の列（PcHome）。スマホでは囲みをなくし、今日の条文は探す欄の下へ回す -->
+	<div class="side">
 	{#if a}
 		<!-- あなたの割り当て法案（Issue #127）。本数は採決の期間に決まる。スマホは今の会期の下、PC は右の列 -->
 		<section class="assignment" aria-labelledby="assignment-heading">
@@ -57,6 +71,15 @@
 			{/if}
 		</section>
 	{/if}
+	{#if t}
+		<!-- 今日の条文（Issue #128）。日本時間の日付で1日1本 -->
+		<section class="today" aria-labelledby="today-heading">
+			<h2 id="today-heading">{ja.today.heading}{ja.today.join}<a href="/hourei/{t.lawId}#jo-{t.num}">{t.lawTitle}{' '}{t.label}</a></h2>
+			<p class="text" data-today-text>{t.text}</p>
+			<p class="age" data-today-age>{age}</p>
+		</section>
+	{/if}
+	</div>
 
 	<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7）。課題の一覧と同じ形（Issue #120） -->
 	<div class="search"><SearchBox id="top-search" label={ja.search.entry} action="/kensaku" /></div>
@@ -65,6 +88,39 @@
 <style>
 	main {
 		padding: 1rem;
+	}
+	/* スマホ：今の会期 → 割り当てのカード → 探す欄 → 今日の条文（SpHome） */
+	.home {
+		display: flex;
+		flex-direction: column;
+	}
+	.side {
+		display: contents;
+	}
+	.today {
+		order: 1;
+		margin-top: 1.5rem;
+		padding: 1rem;
+		border: 1px solid var(--color-input-border);
+		border-radius: var(--radius-l);
+	}
+	.today h2 {
+		margin: 0 0 0.5rem;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+		font-weight: normal;
+	}
+	.today p {
+		margin: 0;
+		overflow-wrap: anywhere;
+	}
+	.today .text {
+		line-height: var(--line-height-law);
+	}
+	.today .age {
+		margin-top: 0.5rem;
+		font-size: var(--font-size-sub);
+		font-weight: bold;
 	}
 	.search {
 		max-width: 50rem;
@@ -180,18 +236,26 @@
 		.home {
 			display: grid;
 			grid-template-columns: minmax(0, 1fr) 20rem;
+			/* 右の列が高くなった分は3段目（空き）が受け持ち、今の会期と探す欄は詰めたままにする */
+			grid-template-rows: auto auto 1fr;
 			column-gap: 2.5rem;
 			align-content: start;
 			align-items: start;
 		}
-		.home > :not(.assignment, h1) {
+		.home > :not(.side, h1) {
 			grid-column: 1;
 		}
-		/* 左の列は今の会期と探す欄の2段。ホームに段を足したら span も合わせる */
-		.assignment {
+		/* 左の列は今の会期と探す欄の2段と空きの段。ホームに段を足したら rows も合わせる */
+		.side {
+			display: grid;
+			gap: 1.5rem;
 			grid-column: 2;
-			grid-row: 1 / span 2;
+			grid-row: 1 / -1;
 			margin-top: 1rem;
+		}
+		.assignment,
+		.today {
+			margin: 0;
 		}
 		.sp {
 			display: none;

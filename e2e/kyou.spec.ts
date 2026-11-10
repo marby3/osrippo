@@ -6,6 +6,8 @@ const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ s
 const card = (page: Page) => page.getByRole('region', { name: /^今日の条文/ });
 const lawLink = (page: Page) => card(page).getByRole('link', { name: /第\d+条/ });
 const AGE = /^(2017年4月より前から変更なし|\d{4}年\d{1,2}月に(改正|制定)(・\d+年変わっていない)?)$/;
+/** リンク先の条（画面の中の移動では :target が付かないので、リンクの # から探す） */
+const target = async (page: Page, href: string) => page.locator(`[id="${href.split('#')[1]}"]`);
 const at = (day: number) => `2790-07-${String(day).padStart(2, '0')}T09:00:00+09:00`;
 
 test('基準1：ログインしていなくても、ホームに「今日の条文 ・ 法令名 第N条」、本文、どれだけ変わっていないかを出す', async ({ page }) => {
@@ -22,8 +24,9 @@ test('基準2：どれだけ変わっていないかは、法令のページの�
 	await hydrated(page);
 	const age = (await card(page).locator('[data-today-age]').innerText()).trim();
 	const text = (await card(page).locator('[data-today-text]').innerText()).trim();
+	const href = (await lawLink(page).getAttribute('href'))!;
 	await lawLink(page).click();
-	const article = page.locator(':target');
+	const article = await target(page, href);
 	await expect(article).toContainText(text);
 	await expect(article.locator('p.amended')).toHaveText(age);
 });
@@ -49,7 +52,8 @@ test('基準4：「法令名 第N条」は、法令のページのその条へ�
 	const label = (await lawLink(page).innerText()).match(/第\d+条(の\d+)*/)![0];
 	await lawLink(page).click();
 	await expect(page).toHaveURL(new RegExp(`${href.replace(/[#]/g, '\\#')}$`));
-	await expect(page.locator(':target').getByRole('heading', { level: 3 })).toContainText(label);
+	await expect((await target(page, href)).getByRole('heading', { level: 3 })).toContainText(label);
+	await expect(await target(page, href)).toBeInViewport();
 });
 
 test('基準5：スマホは割り当てのカードと探す欄の下、PC は右の列の割り当てのカードの下。枠線で囲む', async ({ browser }, info) => {
@@ -69,6 +73,9 @@ test('基準5：スマホは割り当てのカードと探す欄の下、PC は�
 		// 割り当てのカードと同じ右の列
 		expect(Math.abs(box.x - assignment.x)).toBeLessThan(2);
 		expect(box.x).toBeGreaterThanOrEqual(search.x + search.width);
+		// 右の列が高くなっても、探す欄は今の会期のすぐ下のまま
+		const session = (await u.page.getByRole('region', { name: /^いまは/ }).boundingBox())!;
+		expect(search.y - (session.y + session.height)).toBeLessThan(80);
 	}
 	expect(await card(u.page).evaluate((el) => getComputedStyle(el).borderTopStyle)).toBe('solid');
 	await u.context.close();
