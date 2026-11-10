@@ -40,9 +40,20 @@
 	</section>
 {/snippet}
 
+{#snippet entry()}
+	<!-- はじめての方へ：遊び方（Issue #131）。スマホはいちばん上、PC は右の列のいちばん下（SpHome・PcHome） -->
+	<a class="entry" href="/asobikata"
+		>{ja.asobikata.entry}<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+			><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" /></svg
+		></a
+	>
+{/snippet}
+
 <main class="frame home">
 	<!-- 見出しは読み上げ用。画面ではメニューのサイト名が代わり（SpHome・PcHome、Issue #120） -->
 	<h1 class="visually-hidden">{ja.siteName}</h1>
+
+	<div class="sp">{@render entry()}</div>
 
 	<!-- 今の会期（画面の案 SpHome・PcHome）。進み具合は「いまは …」の文でも分かる -->
 	<section class="session" aria-labelledby="session-now">
@@ -82,6 +93,7 @@
 			</section>
 		{/if}
 		{#if t}<div class="pc">{@render today(t, 'pc')}</div>{/if}
+		<div class="pc">{@render entry()}</div>
 	</div>
 
 	{#if data.featured.length}
@@ -113,6 +125,22 @@
 <style>
 	main {
 		padding: 1rem;
+	}
+	.entry {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		min-height: var(--tap-primary);
+		margin-top: 0.5rem;
+		padding: 0 1rem;
+		border-radius: var(--radius-m);
+		background: var(--color-surface);
+		color: var(--color-text);
+		text-decoration: none;
+	}
+	.entry svg {
+		flex: none;
 	}
 	.featured {
 		margin-bottom: 1.5rem;
@@ -310,7 +338,8 @@
 			margin-top: 1rem;
 		}
 		.assignment,
-		.today {
+		.today,
+		.entry {
 			margin: 0;
 		}
 		/* PcHome：見出しの行の右に「課題をもっと見る」、行は課題名と「わかる」を左右に、4件 */
