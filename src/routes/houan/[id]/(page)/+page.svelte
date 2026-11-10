@@ -206,7 +206,7 @@
 			</section>
 		{/if}
 		<!-- 統合案を作る -->
-		{#if data.canStartMerge}
+		{#if data.canStartMerge && !data.legislator}
 			<details class="box">
 				<summary>{ja.bill.merge.start}</summary>
 				<form method="post" action="?/merge" use:enhance>
@@ -240,6 +240,8 @@
 		<!-- 出し直し（docs/spec/75.md）。提出者にだけ出る -->
 		{#if data.resubmit?.next}
 			<p class="act"><a href="/houan/{data.resubmit.next.id}">{ja.bill.resubmit.open}</a></p>
+		{:else if data.resubmit?.can && data.legislator}
+			<LegislatorNote />
 		{:else if data.resubmit?.can}
 			<form method="post" action="?/resubmit" use:enhance class="act">
 				<button class="primary">{ja.bill.resubmit.button}</button>
@@ -247,7 +249,10 @@
 			</form>
 		{/if}
 		<!-- 賛同と発議（docs/spec/49.md 決めたこと7） -->
-		{#if remaining !== null}
+		{#if remaining !== null && data.legislator}
+			<!-- 議員になる前の法案も、発議はしない（docs/spec/158.md の 2） -->
+			<LegislatorNote />
+		{:else if remaining !== null}
 			<form method="post" action="?/propose" use:enhance class="act">
 				<input type="hidden" name="rev" value={support.rev} />
 				<button class="primary" disabled={remaining > 0}>{ja.bill.support.propose}</button>

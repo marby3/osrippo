@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	// 法案の質疑のタブ（SpBillQA・PcBillQA）。スマホは 考え → 絞り込み → カード → 質疑を書く、PC はカードの右に考えと質疑を書く。
 	// 同じものを2つ描かず、1つの要素を CSS の格子で動かす
 	import { enhance } from '$app/forms';
@@ -60,7 +61,9 @@
 
 <div class="layout">
 	<!-- 議員は考えと評価を持たない（docs/spec/158.md の 3）。質疑は書ける -->
-	{#if data.stanceShown && !data.legislator}
+	{#if data.stanceShown && data.legislator}
+		<LegislatorNote />
+	{:else if data.stanceShown}
 		<section class="stance" aria-labelledby="stance-heading">
 			<!-- スマホは見出しの右に「自分だけに見えます」（SpBillQA）。PC は見出しの下に残りの回数と1行で（PcBillQA） -->
 			<div class="stance-head">

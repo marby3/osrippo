@@ -42,7 +42,7 @@ export async function legislatorAt(db: Db, userId: string, now: number): Promise
 
 /** その時点で有効な議員の認証がある人（今月の参加者から除く。設計書 docs/spec/158.md の 5） */
 export function legislatorIds(now: number) {
-	return sql`SELECT ${userVerifications.userId} FROM ${userVerifications} WHERE ${userVerifications.kind} = 'legislator' AND ${userVerifications.revokedAt} IS NULL AND ${userVerifications.expiresAt} > ${now}`;
+	return sql`SELECT ${userVerifications.userId} FROM ${userVerifications} WHERE ${userVerifications.kind} = 'legislator' AND ${activeVerification(now)}`;
 }
 
 /** 投稿を書いた人のうち、有効な認証のある人だけ（user_id → 表示する名前とバッジ）。投稿の user_id は画面に渡さない */

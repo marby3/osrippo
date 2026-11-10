@@ -76,7 +76,7 @@
 		<!-- PC は左に本文と解決策、右の列に「わかる」の枠と通報（PcIssue）。スマホは並べた順の1列（SpIssue）。
 		     左の本文と解決策が1つの列に続くよう、本文の行の高さは本文と「わかる」の枠の高いほうで決まり、残りは下の行に入る -->
 		<!-- 知らせは2列の上に横いっぱいで出し、右の列が見出しの高さから始まるようにする -->
-		{#if data.fromSimilar}
+		{#if data.fromSimilar && !data.legislator}
 			<p class="from-similar" role="status">
 				{ja.solution.fromSimilar}
 				<a href="/kadai/{issue.id}/kaiketsu/kaku">{ja.solution.write}</a>

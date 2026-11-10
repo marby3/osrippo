@@ -100,7 +100,9 @@
 		<p><a href={updateHref}>{ja.amendment.update}</a></p>
 	{/if}
 
-	{#if deliberation && current && isAuthor && !legislator}
+	{#if deliberation && current && isAuthor && legislator}
+		<LegislatorNote />
+	{:else if deliberation && current && isAuthor}
 		{#if canAccept}
 			<form method="post" action="?/accept" use:enhance={() => async ({ update }) => update({ reset: false })}>
 				<input type="hidden" name="amendment" value={amendment.id} />

@@ -133,8 +133,10 @@ test('基準4：議員になる前の「わかる」は数え続け、取り消�
 	const w = info.project.name as Width;
 	const month = MONTH[w];
 	// A が課題に「わかる」を付け、法案を発議したあとで議員になる
-	const { a, issueId, bill } = await proposedBill(browser, w, month);
+	const { a, issueId, solutionId, bill, tag } = await proposedBill(browser, w, month);
 	expect((await supportRequest(a.page, issueId, 'add')).status()).toBeLessThan(400);
+	// 議員になる前に書いた下書き
+	const draft = await createAmendBill(a.page, `議員になる前の下書き ${tag}`, String(solutionId));
 	const supports = async () => {
 		await a.page.goto(`/kadai/${issueId}`);
 		return Number(/わかる\s*(\d+)/.exec(await a.page.getByRole('main').innerText())![1]);
@@ -151,6 +153,11 @@ test('基準4：議員になる前の「わかる」は数え続け、取り消�
 	expect(await supports()).toBe(before - 1);
 	// 付け直しは新しい参加なので、断る
 	expect((await supportRequest(a.page, issueId, 'add')).status()).toBe(403);
+	// 議員になる前の下書きも、発議・直す・統合のボタンを出さず、文言を出す
+	await a.page.goto(draft);
+	await expect(a.page.locator('form[action="?/propose"], form[action="?/merge"]')).toHaveCount(0);
+	await expect(a.page.getByRole('link', { name: '編集する' })).toHaveCount(0);
+	await expect(a.page.getByText(LEGISLATOR).first()).toBeVisible();
 	// 提出者としての撤回の同意はできる（ほかに共同提出者がいないので、撤回される）
 	expect((await billRequest(a.page, `${bill}?/withdraw`, { op: 'consent', confirm: 'on' })).status()).toBe(200);
 });

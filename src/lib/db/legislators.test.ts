@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import { openMemoryDb } from './memory';
 import { sessionParticipants } from '../server/bills';
 import { writeGrant } from '../server/verifications';
-import { assignmentRows, castVote, tallyVotes } from '../server/votes';
+import { assignedBills, assignmentRows, castVote, tallyVotes } from '../server/votes';
 import { sessionAt, type Session } from '../domain/session';
 
 const jst = (s: string) => Date.parse(`${s}+09:00`);
@@ -76,4 +76,17 @@ test('割り当て：議員には採決の割り当てを作らない。議員�
 	// 取り消すと、一般の参加者と同じく割り当てる
 	w.sqlite.prepare("UPDATE user_verifications SET revoked_at = ? WHERE user_id = 'leg'").run(now);
 	expect(await assignmentRows(w.db, 'leg', s, previous, now + 1, first)).toHaveLength(1);
+});
+
+test('割り当て：採決の「ほかの法案」のページのように割り当てを直接決めるときも、議員には作らない', async () => {
+	const w = world();
+	const s = monthOf('2046-08');
+	const previous = previousOf(s);
+	w.addUser('author');
+	w.addUser('leg');
+	w.addBill('author', jst('2046-08-01T00:00:00'));
+	const now = s.voteAt + 1000;
+	expect(await w.grant('leg', 'legislator', now - 1000)).toBe(true);
+	expect(await assignedBills(w.db, 'leg', s, previous, now, first)).toEqual([]);
+	expect(w.sqlite.prepare("SELECT count(*) AS n FROM vote_assignments WHERE user_id = 'leg'").get()).toEqual({ n: 0 });
 });

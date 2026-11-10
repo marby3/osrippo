@@ -50,6 +50,8 @@ const inPeriod = (session: Session, now: number) => session.voteAt <= now && now
  * 同時に開いても先に入った組だけが残る。主キーが seq なので、後の文は違う組でも全部の行がぶつかる（候補は締切のあとは変わらないので、どちらの文も同じ本数になる）
  */
 export async function assignedBills(db: Db, userId: string, session: Session, previous: Session, now: number, random: () => number): Promise<number[]> {
+	// 議員は投票できないので割り当てを作らない（設計書 docs/spec/158.md の 4）。採決の一覧、ほかの法案のページ、投票のどれから呼ばれても同じ
+	if (await legislatorAt(db, userId, now)) return [];
 	const mine = and(eq(voteAssignments.sessionKey, session.key), eq(voteAssignments.userId, userId));
 	const read = async () =>
 		(await db.select({ billId: voteAssignments.billId }).from(voteAssignments).where(mine).orderBy(asc(voteAssignments.seq))).map((r) => r.billId);
@@ -77,8 +79,6 @@ export async function assignedBills(db: Db, userId: string, session: Session, pr
 
 /** 割り当ての法案と、それぞれに入れた票。順はくじの順 */
 export async function assignmentRows(db: Db, userId: string, session: Session, previous: Session, now: number, random: () => number) {
-	// 議員は投票できないので割り当てを作らない（設計書 docs/spec/158.md の 4）
-	if (await legislatorAt(db, userId, now)) return [];
 	await assignedBills(db, userId, session, previous, now, random);
 	return db
 		.select({ id: bills.id, title: bills.title, choice: votes.choice })

@@ -23,22 +23,22 @@
 		<!-- 議員は法案を直せない（docs/spec/158.md の 3） -->
 		<LegislatorNote />
 	{:else}
-	<BillForm
-		laws={data.laws}
-		candidates={data.candidates}
-		initial={data.initial}
-		articles={data.articles}
-		siteKey={data.siteKey}
-		edit={{ id: data.edit.id, rev: data.edit.rev }}
-		dropped={data.dropped}
-		conflicts={data.conflicts}
-		goneRows={data.goneRows}
-		goneLaws={data.repealed}
-		adjusting={data.adjusting}
-		titleFree={data.adjustmentReason === 'title'}
-		back="/houan/{data.edit.id}"
-		{form}
-	/>
+		<BillForm
+			laws={data.laws}
+			candidates={data.candidates}
+			initial={data.initial}
+			articles={data.articles}
+			siteKey={data.siteKey}
+			edit={{ id: data.edit.id, rev: data.edit.rev }}
+			dropped={data.dropped}
+			conflicts={data.conflicts}
+			goneRows={data.goneRows}
+			goneLaws={data.repealed}
+			adjusting={data.adjusting}
+			titleFree={data.adjustmentReason === 'title'}
+			back="/houan/{data.edit.id}"
+			{form}
+		/>
 	{/if}
 </main>
 
