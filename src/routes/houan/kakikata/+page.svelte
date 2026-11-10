@@ -25,6 +25,8 @@
 	<Crumbs current={t.heading} />
 	<h1>{t.heading}</h1>
 	<p class="lead">{t.lead}</p>
+	<!-- 全体の流れは遊び方へ（Issue #131） -->
+	<p class="asobikata"><a href="/asobikata">{ja.asobikata.back}</a></p>
 
 	<!-- 目次は節と同じ階層の見出しにしない -->
 	<nav class="toc" aria-label={t.toc}>
@@ -138,6 +140,7 @@
 		font-weight: bold;
 	}
 
+	.asobikata a,
 	.to-issues {
 		display: inline-flex;
 		align-items: center;

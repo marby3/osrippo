@@ -70,3 +70,18 @@ export function sessionMinutes(dev: boolean, raw: string | undefined): number | 
 	const n = Number(raw);
 	return n <= 1440 ? n : null;
 }
+
+/**
+ * 説明に出す会期の日（日本時間の日）：発議の締切・質疑の始まり・採決の始まり。どの月でも同じなので、ある月の会期から求める。
+ * 法案の書き方（Issue #59）と遊び方（Issue #131）で使う。発議の締切は質疑の始まりの0時なので、発議できるのはその前の日まで
+ */
+export function sessionDays(): { proposeUntil: number; deliberation: number; discussUntil: number; vote: number } {
+	const dayOf = (at: number) => new Date(at + JST).getUTCDate();
+	/** 見本にする月（どの月でも日は同じ） */
+	const SAMPLE = Date.UTC(2030, 0, 10);
+	const session = sessionAt(SAMPLE, null);
+	const deliberation = dayOf(session.deliberationAt);
+	const vote = dayOf(session.voteAt);
+	// 質疑と修正は採決の始まりの0時まで（その前の日まで）
+	return { proposeUntil: deliberation - 1, deliberation, discussUntil: vote - 1, vote };
+}

@@ -119,6 +119,53 @@ export const ja = {
 		/** PC の 2:1:1 の区切り */
 		segments: (s: Session) => ['1〜2週 発議', '3週 質疑・修正', `4週 採決（${sessionPoint(s, s.voteAt, false)}から）`]
 	},
+	/** はじめての方へ：遊び方（Issue #131）。中学生でも読める言葉で。日付は会期の決まりの値から渡す */
+	asobikata: {
+		entry: 'はじめての方へ：遊び方（3分）',
+		/** 法案の書き方のページの冒頭から戻るリンク */
+		back: 'はじめての方へ：遊び方',
+		pageTitle: (n: number) => `遊び方（${n} / 3）｜オープンソース立法府`,
+		stepsLabel: '遊び方の段',
+		pager: '前後の段へ',
+		stepCount: (n: number) => `ステップ ${n} / 3`,
+		prev: '前へ',
+		next: '次へ',
+		home: 'ホームへ',
+		steps: (d: { proposeUntil: number; deliberation: number; discussUntil: number; vote: number }) => [
+			{
+				title: '困りごとを出す',
+				when: 'いつでも',
+				body: [
+					'暮らしの中で「これはおかしい」「こまっている」と思うことを、課題として書きます。',
+					'同じことでこまっている課題があれば、「わかる」を押します。',
+					'どうすればよくなるか思いついたら、解決策として書きます。'
+				],
+				links: [{ href: '/kadai', label: '課題を見る' }]
+			},
+			{
+				title: '法案にして話し合う',
+				when: `毎月1日〜${d.discussUntil}日`,
+				body: [
+					'課題と解決策をもとに、法律をどう変えるかを法案に書きます。',
+					`賛同を集めて発議します（毎月${d.proposeUntil}日まで）。`,
+					`${d.deliberation}日からは質疑です。わからないところを質問したり、直す案（修正案）を出したりします。`
+				],
+				links: [
+					{ href: '/houan', label: '法案を見る' },
+					{ href: '/houan/kakikata', label: '法案の書き方を見る' }
+				]
+			},
+			{
+				title: '投票して決める',
+				when: `毎月${d.vote}日〜月末`,
+				body: [
+					`${d.vote}日から採決です。くじで選ばれた法案（3本まで）にすべて投票すると、あなたの票が数えた票になります。`,
+					'可決した法案は、IF世界の法律になります。IF世界は、みんなで作る「もしも」の世界で、現実の法律は変わりません。'
+				],
+				links: [{ href: '/saiketsu', label: '採決を見る' }]
+			}
+		]
+	},
 	/** ホームの「注目の課題」（Issue #130。SpHome・PcHome） */
 	featured: {
 		heading: '注目の課題',
