@@ -1,6 +1,6 @@
 // Issue #157：議員・有識者の認証のルール（設計書 docs/spec/157.md の 2・3）
 import { describe, expect, test } from 'vitest';
-import { canVerify, parseVerification, verificationExpiry, verificationLastDay } from './verification';
+import { canVerify, isLegislator, parseVerification, verificationExpiry, verificationLastDay } from './verification';
 
 const jst = (iso: string) => Date.parse(`${iso}+09:00`);
 
@@ -50,5 +50,13 @@ describe('基準1：入力の確かめ', () => {
 		expect(parseVerification({ kind: 'legislator', name: 'あ'.repeat(40), field: null }).ok).toBe(true);
 		expect(parseVerification({ kind: 'legislator', name: '試験\n太郎', field: null })).toEqual({ ok: false, error: 'nameInvalid' });
 		expect(parseVerification({ kind: 'admin', name: '試験 太郎', field: null })).toEqual({ ok: false, error: 'kind' });
+	});
+});
+
+describe('Issue #158：議員かどうか', () => {
+	test('有効な認証の種類が議員のときだけ真。有識者と認証のない人は偽', () => {
+		expect(isLegislator('legislator')).toBe(true);
+		expect(isLegislator('expert')).toBe(false);
+		expect(isLegislator(null)).toBe(false);
 	});
 });
