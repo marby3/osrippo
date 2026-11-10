@@ -102,7 +102,7 @@ export async function waitingQuestions(db: Db, billId: number, sessionKey: strin
  * related を渡すと関連法案の質疑も一緒に返す（Issue #69。どの法案の質疑かは billId で分かる）。
  * 書いた人に有効な認証があるときだけ author に表示する名前とバッジを入れる（設計書 docs/spec/157.md の 5）。ない人は null で、名前を出さない
  */
-export async function listQuestions(db: Db, billId: number, userId: string | null, onlyWaiting: boolean, page: number, related: number[] = [], sessionKey?: string, now: number = Date.now()) {
+export async function listQuestions(db: Db, billId: number, userId: string | null, onlyWaiting: boolean, page: number, related: number[], sessionKey: string | undefined, now: number) {
 	const rows = await db
 		.select({ id: posts.id, billId: posts.billId, sessionKey: posts.sessionKey, body: posts.body, userId: posts.userId, mergedCount: sql<number>`(SELECT count(*) FROM posts m WHERE m.merged_into = ${posts}.id AND m.status = 'merged')` })
 		.from(posts)

@@ -37,7 +37,8 @@ const section = (page: Page) => page.getByRole('region', { name: '議員・有�
 
 /** 書き込みの応答が返るまで待つ。ok なら成功の応答であることも確かめる（断るときは理由の文で確かめる） */
 async function posted(u: Page, act: () => Promise<void>, ok = true) {
-	const [res] = await Promise.all([u.waitForResponse((r) => r.request().method() === 'POST'), act()]);
+	// 質疑のタブの「読んだ」の POST（?/read）は待たない
+	const [res] = await Promise.all([u.waitForResponse((r) => r.request().method() === 'POST' && !r.url().includes('?/read')), act()]);
 	if (ok) expect(res.status()).toBeLessThan(400);
 }
 
@@ -74,7 +75,7 @@ test('基準1：運営が表示名で選んで付ける。ない表示名・運�
 	await grant(op.page, `いない人${p.name}`, '議員', '架空 花子');
 	await expect(section(op.page).getByRole('alert')).toHaveText('その表示名の利用者はいません');
 	await grant(op.page, mod.name, '議員', '架空 花子');
-	await expect(section(op.page).getByRole('alert')).toHaveText('運営のアカウントには付けられません');
+	await expect(section(op.page).getByRole('alert')).toHaveText('運営・運営協力者のアカウントには付けられません');
 	await grant(op.page, p.name, '有識者', '大学教授', '民法');
 	await expect(section(op.page).getByRole('alert')).toHaveText('すでに認証があります');
 	await expect(listed(op.page, name)).toHaveCount(1);
@@ -88,7 +89,7 @@ test('基準1：運営が表示名で選んで付ける。ない表示名・運�
 		{ target: q.name, kind: 'legislator', name: '   ', field: '' }
 	]) {
 		const res = await verifyRequest(op.page, 'verifyGrant', form);
-		expect(res.status(), form.kind).toBeLessThan(500);
+		expect(res.status(), form.kind).toBe(400);
 	}
 	await op.page.goto('/kanri');
 	await expect(section(op.page).getByRole('listitem').filter({ hasText: '架空 花子' })).toHaveCount(0);

@@ -94,16 +94,16 @@ test('基準3：その法案と関連法案の質疑を新しい順に20件ご�
 	const ids: number[] = [];
 	for (let i = 0; i < 21; i++) ids.push(Number(add.run(i % 2 ? b : a, session.key, `質疑${i}`).lastInsertRowid));
 
-	const first = await listQuestions(db, a, null, false, 1, [b]);
+	const first = await listQuestions(db, a, null, false, 1, [b], undefined, 0);
 	expect(first.rows.map((r) => r.id)).toEqual([...ids].reverse().slice(0, 20));
 	expect(first.hasNext).toBe(true);
 	expect(first.rows[0].billId).toBe(a);
 	expect(first.rows[1].billId).toBe(b);
-	const second = await listQuestions(db, a, null, false, 2, [b]);
+	const second = await listQuestions(db, a, null, false, 2, [b], undefined, 0);
 	expect(second.rows.map((r) => r.id)).toEqual([ids[0]]);
 	expect(second.hasNext).toBe(false);
 
-	expect((await listQuestions(db, a, null, false, 1)).rows.every((r) => r.billId === a)).toBe(true);
+	expect((await listQuestions(db, a, null, false, 1, [], undefined, 0)).rows.every((r) => r.billId === a)).toBe(true);
 	expect(await questionTotal(db, a)).toBe(11);
 	expect(await questionTotal(db, a, [b])).toBe(21);
 });

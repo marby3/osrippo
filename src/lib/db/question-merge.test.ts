@@ -88,7 +88,7 @@ test('基準2：答弁と補足が統合先に移り、元は一覧と数に出�
 	const supplement = w.addPost(bill, w.addUser(), 'supplement', source, '移る補足');
 	await w.hide(hiddenAnswer);
 	const target = w.addPost(bill, w.addUser());
-	const read = async () => (await listQuestions(db, bill, null, false, 1, [], SESSION.key)).rows;
+	const read = async () => (await listQuestions(db, bill, null, false, 1, [], SESSION.key, 0)).rows;
 
 	expect(await questionTotal(db, bill)).toBe(2);
 	expect(await waitingQuestions(db, bill, SESSION.key)).toBe(1);

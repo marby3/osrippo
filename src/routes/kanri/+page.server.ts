@@ -100,7 +100,7 @@ export const load: PageServerLoad = async (event) => {
 		reviews: await pendingReviews(db, staff.userId, staff.role),
 		// 議員・有識者の認証（設計書 docs/spec/157.md の 3）。運営でなければ一覧も返さない
 		verifications: canVerify(staff.role)
-			? (await activeVerificationList(db, now)).map((v) => ({ ...v, lastDay: verificationLastDay(v.expiresAt) }))
+			? (await activeVerificationList(db, now)).map(({ expiresAt, ...v }) => ({ ...v, lastDay: verificationLastDay(expiresAt) }))
 			: null
 	};
 };

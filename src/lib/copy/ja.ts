@@ -7,6 +7,10 @@ export const jaDate = (iso: string) => {
 	return `${y}年${m}月${d}日`;
 };
 
+/** 認証の種類と記録の操作（Issue #157） */
+const VERIFICATION_KIND_LABELS = { legislator: '議員', expert: '有識者' } as const;
+const VERIFICATION_LOG_ACTIONS = { grant: '付けた', renew: '1年延ばした', revoke: '取り消した' } as const;
+
 const jaMonth = (iso: string) => {
 	const [y, m] = iso.split('-').map(Number);
 	return `${y}年${m}月`;
@@ -1189,7 +1193,7 @@ export const ja = {
 		heading: '議員・有識者の認証',
 		target: '表示名',
 		kind: '種類',
-		kinds: { legislator: '議員', expert: '有識者' },
+		kinds: VERIFICATION_KIND_LABELS,
 		name: '表示する名前（議員は氏名、有識者は実名か肩書）',
 		field: '専門分野（有識者だけ）',
 		grant: '認証を付ける',
@@ -1202,7 +1206,7 @@ export const ja = {
 		until: (date: string) => `${jaDate(date)}まで`,
 		errors: {
 			noUser: 'その表示名の利用者はいません',
-			staff: '運営のアカウントには付けられません',
+			staff: '運営・運営協力者のアカウントには付けられません',
 			active: 'すでに認証があります',
 			inactive: 'この認証はもう有効ではありません',
 			kind: '種類を選んでください',
@@ -1214,14 +1218,13 @@ export const ja = {
 			fieldInvalid: '専門分野に使えない文字が入っています'
 		},
 		logHeading: '認証の記録',
-		logActions: { grant: '付けた', renew: '1年延ばした', revoke: '取り消した' },
 		/** 「議員の認証を付けた・試験 太郎・2036年4月3日」。日付は操作した日 */
 		logLine: (kind: 'legislator' | 'expert', action: 'grant' | 'renew' | 'revoke', name: string, field: string | null, date: string) =>
-			`${{ legislator: '議員', expert: '有識者' }[kind]}の認証を${{ grant: '付けた', renew: '1年延ばした', revoke: '取り消した' }[action]}・${name}${field ? `（${field}）` : ''}・${jaDate(date)}`,
+			`${VERIFICATION_KIND_LABELS[kind]}の認証を${VERIFICATION_LOG_ACTIONS[action]}・${name}${field ? `（${field}）` : ''}・${jaDate(date)}`,
 		logEmpty: 'まだ記録はありません',
 		logPrev: '新しい記録',
 		logNext: '前の記録',
-		badges: { legislator: '認証済み議員', expert: (field: string | null) => `有識者（${field ?? ''}）` }
+		badges: { legislator: '認証済み議員', expert: (field: string | null) => (field ? `有識者（${field}）` : '有識者') }
 	},
 	unei: {
 		pageTitle: '運営の記録｜オープンソース立法府',

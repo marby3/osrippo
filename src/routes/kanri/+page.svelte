@@ -10,6 +10,7 @@
 		REPORT_REASONS,
 		SOLUTION_REPORT_REASONS
 	} from '#lib/domain/reports.ts';
+	import { VERIFICATION_NAME_MAX } from '#lib/domain/verification.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -334,9 +335,9 @@
 					<label class="choice"><input type="radio" name="kind" value="expert" />{ja.verification.kinds.expert}</label>
 				</fieldset>
 				<label for="verify-name">{ja.verification.name}</label>
-				<input id="verify-name" name="name" required maxlength="40" autocomplete="off" />
+				<input id="verify-name" name="name" required maxlength={VERIFICATION_NAME_MAX} autocomplete="off" />
 				<label for="verify-field">{ja.verification.field}</label>
-				<input id="verify-field" name="field" maxlength="40" autocomplete="off" />
+				<input id="verify-field" name="field" maxlength={VERIFICATION_NAME_MAX} autocomplete="off" />
 				<button>{ja.verification.grant}</button>
 			</form>
 			<h3>{ja.verification.listHeading}</h3>

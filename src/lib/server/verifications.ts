@@ -31,11 +31,6 @@ export function personOf(row: { name: string; vKind: VerificationKind | null; vN
 	return { name: row.name, verified: row.vKind && row.vName ? { kind: row.vKind, name: row.vName, field: row.vField } : null };
 }
 
-/** 有効な認証だけを Verified で（ない人は null） */
-export function verifiedOf(row: { vKind: VerificationKind | null; vName: string | null; vField: string | null }): Verified | null {
-	return row.vKind && row.vName ? { kind: row.vKind, name: row.vName, field: row.vField } : null;
-}
-
 /** 投稿を書いた人のうち、有効な認証のある人だけ（user_id → 表示する名前とバッジ）。投稿の user_id は画面に渡さない */
 export async function verifiedAuthors(db: Db, userIds: string[], now: number): Promise<Map<string, Verified>> {
 	const ids = [...new Set(userIds)];
@@ -53,11 +48,8 @@ function logFromOp(db: Db, action: VerificationAction, actorId: string, now: num
 	return db.insert(userVerificationLogs).select(sql`SELECT NULL, user_id, ${action}, kind, display_name, field, ${actorId}, ${now} FROM user_verifications WHERE op = ${op}`);
 }
 
-/** 今回の操作の印の行があるか（書けたか） */
-async function written(db: Db, op: string): Promise<boolean> {
-	const [row] = await db.select({ op: userVerifications.op }).from(userVerifications).where(eq(userVerifications.op, op));
-	return Boolean(row);
-}
+/** batch の最初の文（returning 付きの書き込み）が行を返したか。印をあとで読むと、別の操作に上書きされて取り違える */
+const firstWrote = (results: unknown) => ((results as unknown[][])[0] ?? []).length > 0;
 
 /**
  * 認証を付ける書き込み。有効な認証がないときだけ行を書き（取り消しや期限切れのあとは上書きして付け直す）、
@@ -74,7 +66,7 @@ export async function writeGrant(db: BatchDb, target: VerificationInput & { user
 		updatedAt: now,
 		op
 	};
-	await db.batch([
+	const results = await db.batch([
 		db
 			.insert(userVerifications)
 			.values({ userId: target.userId, ...values })
@@ -82,10 +74,11 @@ export async function writeGrant(db: BatchDb, target: VerificationInput & { user
 				target: userVerifications.userId,
 				set: values,
 				where: or(sql`${userVerifications.revokedAt} IS NOT NULL`, lte(userVerifications.expiresAt, now))
-			}),
+			})
+			.returning({ userId: userVerifications.userId }),
 		logFromOp(db, 'grant', actorId, now, op)
 	] as never);
-	return written(db, op);
+	return firstWrote(results);
 }
 
 export type GrantError = 'noUser' | 'staff' | 'active';
@@ -111,14 +104,15 @@ export async function grantVerification(
 export async function changeVerification(db: BatchDb, action: 'renew' | 'revoke', userId: string, actorId: string, now: number): Promise<boolean> {
 	const op = crypto.randomUUID();
 	const set = action === 'renew' ? { expiresAt: verificationExpiry(now), updatedAt: now, op } : { revokedAt: now, updatedAt: now, op };
-	await db.batch([
+	const results = await db.batch([
 		db
 			.update(userVerifications)
 			.set(set)
-			.where(and(eq(userVerifications.userId, userId), activeVerification(now))),
+			.where(and(eq(userVerifications.userId, userId), activeVerification(now)))
+			.returning({ userId: userVerifications.userId }),
 		logFromOp(db, action, actorId, now, op)
 	] as never);
-	return written(db, op);
+	return firstWrote(results);
 }
 
 /** 運営の画面の一覧：いま有効な認証を、期限の近い順に */
