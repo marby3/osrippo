@@ -4,3 +4,4 @@ export * from './history';
 export * from './display';
 export * from './compare';
 export * from './changes';
+export * from './glossary';

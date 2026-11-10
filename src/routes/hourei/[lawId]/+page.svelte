@@ -3,7 +3,9 @@
 	import { ja, jaDate } from '#lib/copy/ja.ts';
 	import { fullYears } from '#lib/domain/law/display.ts';
 	import DiffText from '#lib/components/DiffText.svelte';
+	import DisplaySettings from '#lib/components/DisplaySettings.svelte';
 	import LawParagraphs from '#lib/components/LawParagraphs.svelte';
+	import LawTitle from '#lib/components/LawTitle.svelte';
 	import LawSwitch from '#lib/components/LawSwitch.svelte';
 	import LawToc from '#lib/components/LawToc.svelte';
 	import { changedLines, type DiffPart } from '#lib/domain/law/compare.ts';
@@ -94,7 +96,11 @@
 	<div class="law-top">
 		<LawSwitch lawId={data.law.id} current="real" />
 		<header class="law-head">
-			<h1>{data.law.title}</h1>
+			<!-- 法令名の行の右に「表示の設定」（SpLaw・PcLaw、Issue #129） -->
+			<div class="title-row">
+				<h1><LawTitle title={data.law.title} kana={data.law.titleKana} /></h1>
+				<DisplaySettings />
+			</div>
 			<p class="sub">{ja.law.meta(data.law.lawNum, data.current.enforcementDate)}</p>
 			<p><a href="/hourei/{data.law.id}/hikaku">{ja.law.compareLink}</a></p>
 			<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7） -->
@@ -168,6 +174,13 @@
 </main>
 
 <style>
+	.title-row {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
 	main {
 		padding: 1rem;
 	}

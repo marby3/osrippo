@@ -660,7 +660,7 @@ export async function ifLawPage(db: Db, lawId: string) {
 			.filter((c) => c.body !== null)
 			.sort((a, b) => compareNum(a.num, b.num))
 			.map((c) => ({ num: c.num, label: articleLabel(c.num), caption: c.caption ?? '', paragraphs: JSON.parse(c.body as string) as Paragraph[], changedBy: null as { id: number; title: string } | null, band: null as string[] | null, conflict: false }));
-		return { law: { id: enacted.id, title: enacted.title, lawNum: null as string | null }, real: false, repealed: false, repealedBy: null, enactedBy: bill[0], articles, toc: [] as ReturnType<typeof tableOfContents> };
+		return { law: { id: enacted.id, title: enacted.title, titleKana: null as string | null, lawNum: null as string | null }, real: false, repealed: false, repealedBy: null, enactedBy: bill[0], articles, toc: [] as ReturnType<typeof tableOfContents> };
 	}
 	const [law] = await db.select().from(laws).where(eq(laws.id, lawId));
 	if (!law) return undefined;
@@ -679,5 +679,5 @@ export async function ifLawPage(db: Db, lawId: string) {
 		return { ...a, band, conflict: conflicts.has(a.num) };
 	});
 	const [repealedBill] = head.repealedBy === null ? [] : await db.select({ id: bills.id, title: bills.title }).from(bills).where(eq(bills.id, head.repealedBy));
-	return { law: { id: law.id, title: law.title, lawNum: law.lawNum as string | null }, real: true, repealed: head.repealed, repealedBy: repealedBill ?? null, enactedBy: null, articles, toc: tableOfContents(revision?.headings ?? []) };
+	return { law: { id: law.id, title: law.title, titleKana: law.titleKana, lawNum: law.lawNum as string | null }, real: true, repealed: head.repealed, repealedBy: repealedBill ?? null, enactedBy: null, articles, toc: tableOfContents(revision?.headings ?? []) };
 }

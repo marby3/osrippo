@@ -1,5 +1,6 @@
 <script lang="ts">
 	import SearchBox from '#lib/components/SearchBox.svelte';
+	import LawText from '#lib/components/LawText.svelte';
 	import VoteStanding from '#lib/components/VoteStanding.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import { fullYears } from '#lib/domain/law/index.ts';
@@ -34,7 +35,7 @@
 	<!-- 今日の条文（Issue #128）。日本時間の日付で1日1本 -->
 	<section class="today" aria-labelledby="today-heading-{where}">
 		<h2 id="today-heading-{where}">{ja.today.heading}{ja.today.join}<a href="/hourei/{t.lawId}#jo-{t.num}">{t.lawTitle}{' '}{t.label}</a></h2>
-		<p class="text" data-today-text>{t.text}</p>
+		<p class="text" data-today-text><LawText text={t.text} /></p>
 		<p class="age" data-today-age>{age}</p>
 	</section>
 {/snippet}

@@ -7,6 +7,8 @@ const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ s
 /** 第17条（電話勧誘販売の再勧誘の禁止）：「役務」「勧誘」がある */
 const article17 = (page: Page) => page.locator('[id="jo-17"]');
 const rubyOf = (page: Page, base: string) => page.locator('ruby', { hasText: base });
+/** 読み仮名は CSS で描く（文の文字には入らない）ので、描いた中身を読む */
+const reading = (rt: ReturnType<Page['locator']>) => rt.evaluate((el) => getComputedStyle(el, '::before').content.replace(/^"|"$/g, ''));
 const htmlFontSize = (page: Page) => page.evaluate(() => getComputedStyle(document.documentElement).fontSize);
 
 /** 特定商取引法 第17条の「当該売買契約又は当該役務提供契約の締結について」を消す法案（変更点のページ） */
@@ -30,20 +32,20 @@ test('基準1・2：法令のページ（現実と IF世界）、法案の変更
 	const { page, context, bill } = await billChanges(browser, info.project.name);
 	for (const path of [`/hourei/${LAW}`, `/if/hourei/${LAW}`]) {
 		await page.goto(path);
-		await expect(article17(page).locator('ruby', { hasText: '役務' }).first().locator('rt')).toHaveText('えきむ');
-		await expect(article17(page).locator('ruby', { hasText: '勧誘' }).first().locator('rt')).toHaveText('かんゆう');
+		expect(await reading(article17(page).locator('ruby', { hasText: '役務' }).first().locator('rt'))).toBe('えきむ');
+		expect(await reading(article17(page).locator('ruby', { hasText: '勧誘' }).first().locator('rt'))).toBe('かんゆう');
 	}
 	await page.goto(`${bill}/henkou`);
-	await expect(page.locator('ins ruby, del ruby, .text ruby').filter({ hasText: '勧誘' }).first().locator('rt')).toHaveText('かんゆう');
+	expect(await reading(page.locator('ins ruby, del ruby, .text ruby').filter({ hasText: '勧誘' }).first().locator('rt'))).toBe('かんゆう');
 	await page.goto(`${bill}/zenbun`);
-	await expect(rubyOf(page, '役務').first().locator('rt')).toHaveText('えきむ');
+	expect(await reading(rubyOf(page, '役務').first().locator('rt'))).toBe('えきむ');
 	await context.close();
 });
 
 test('基準3：法令のページの法令名に、e-Gov の読み仮名が付く', async ({ page }) => {
 	for (const path of [`/hourei/${LAW}`, `/if/hourei/${LAW}`]) {
 		await page.goto(path);
-		await expect(page.getByRole('heading', { level: 1 }).locator('rt')).toHaveText('とくていしょうとりひきにかんするほうりつ');
+		expect(await reading(page.getByRole('heading', { level: 1 }).locator('rt'))).toBe('とくていしょうとりひきにかんするほうりつ');
 	}
 });
 
@@ -104,6 +106,6 @@ test('基準6：読み仮名を付けても、消した部分は取り消し線�
 	await expect(removed).toBeVisible();
 	expect((await removed.textContent())!.startsWith('−')).toBe(true);
 	expect(await removed.evaluate((el) => getComputedStyle(el).textDecorationLine)).toContain('line-through');
-	await expect(removed.locator('ruby rt')).toHaveText('えきむ');
+	expect(await reading(removed.locator('ruby rt').first())).toBe('えきむ');
 	await context.close();
 });

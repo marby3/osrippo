@@ -2,6 +2,7 @@ import { building } from '$app/env';
 import { env } from 'cloudflare:workers';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import type { Handle } from '@sveltejs/kit/hooks';
+import { displayAttributes, parseDisplay } from '#lib/domain/display.ts';
 import { createAuth, hasSessionCookie } from '#lib/server/auth.ts';
 
 /**
@@ -25,6 +26,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 		const session = await getAuth().api.getSession({ headers: event.request.headers });
 		event.locals.user = session?.user ?? null;
 	}
+	// 表示の設定（Issue #129）。html に属性で入れるので、開いた直後から設定の大きさとふりがなで描く
+	const display = parseDisplay((name) => event.cookies.get(name));
+	event.locals.display = display;
 	if (PUBLIC_AUTH_PATHS.has(event.url.pathname)) return svelteKitHandler({ event, resolve, auth: getAuth(), building });
-	return resolve(event);
+	return resolve(event, { transformPageChunk: ({ html }) => html.replace('<html lang="ja">', `<html lang="ja" ${displayAttributes(display)}>`) });
 };

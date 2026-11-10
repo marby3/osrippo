@@ -1,6 +1,7 @@
 <script lang="ts">
 	// 条の項と号（現実の法令ページと IF世界の法令ページで共通）
 	import { itemLabel } from '../domain/law/display';
+	import LawText from './LawText.svelte';
 	import type { Paragraph } from '../domain/law';
 
 	let { paragraphs }: { paragraphs: Paragraph[] } = $props();
@@ -8,11 +9,11 @@
 
 {#each paragraphs as paragraph, i (paragraph.num)}
 	<div class="paragraph">
-		<p>{#if i > 0}<span class="num">{paragraph.num}</span>{/if}{paragraph.text}</p>
+		<p>{#if i > 0}<span class="num">{paragraph.num}</span>{/if}<LawText text={paragraph.text} /></p>
 		{#if paragraph.items.length}
 			<ol>
 				{#each paragraph.items as item (item.num)}
-					<li><span class="num">{itemLabel(item.num)}</span>{item.text}</li>
+					<li><span class="num">{itemLabel(item.num)}</span><LawText text={item.text} /></li>
 				{/each}
 			</ol>
 		{/if}

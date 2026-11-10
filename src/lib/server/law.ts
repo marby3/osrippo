@@ -167,7 +167,7 @@ export async function lawPage(db: Db, lawId: string) {
 	const listed = revisions.filter((r) => r.seq !== 0);
 	const entry = (r: (typeof revisions)[number]) => ({ date: r.enforcementDate, title: r.amendmentLawTitle ?? '' });
 	return {
-		law: { id: law.id, title: law.title, lawNum: law.lawNum },
+		law: { id: law.id, title: law.title, titleKana: law.titleKana, lawNum: law.lawNum },
 		current: { enforcementDate: current.enforcementDate },
 		enacted,
 		articles,
