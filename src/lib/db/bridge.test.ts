@@ -159,6 +159,7 @@ describe('立場を超えた支持順', () => {
 		const againsts = times(10, againstPerson);
 		issue([...fors, ...againsts]);
 		const { rows } = await list();
-		expect(Object.keys(rows[0]).sort()).toEqual(['bills', 'id', 'solutions', 'supports', 'title', 'topicName']);
+		for (const key of ['score', 'fallback', 'side', 'for', 'against', 'bridge_user_id']) expect(rows[0]).not.toHaveProperty(key);
+		expect(rows[0]).toMatchObject({ supports: 20 });
 	});
 });

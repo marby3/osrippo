@@ -1,5 +1,6 @@
 // Issue #126：立場を超えた支持順（課題の橋渡しスコア）。計算と10人の基準は src/lib/db/bridge.test.ts
 import { expect, test, type Page } from '@playwright/test';
+import { newUser, postIssue } from './helpers';
 
 const select = (page: Page) => page.getByRole('combobox', { name: /並び/ });
 const NOTE = '人数が足りないので、いまは「わかる」の多い順に並べています';
@@ -17,7 +18,11 @@ test('基準1：並びに「立場を超えた支持順」があり、選び直�
 	await expect(page).toHaveURL(/houan=ari/);
 });
 
-test('基準3：人数が足りないときは注記を出す（画面のテストの DB は直近の会期に数えた票が足りない）。ほかの並びでは出さない', async ({ page }) => {
+test('基準3：人数が足りないときは注記を出す（画面のテストの DB は直近の会期に数えた票が足りない）。ほかの並びでは出さない', async ({ browser, page }, info) => {
+	// 注記は一覧の行と一緒に出すので、課題を1つ書いておく（このファイルだけを流しても一覧が空にならないように）
+	const writer = await newUser(browser, { name: `narabi${info.project.name}${Date.now() % 1e7}`, ip: `10.126.0.${info.project.name === 'sp' ? 1 : 2}`, days: 8 });
+	await postIssue(writer.page, { title: `並びの注記 ${Date.now() % 1e7}` });
+	await writer.context.close();
 	await page.goto('/kadai');
 	await expect(page.getByText(NOTE, { exact: true })).toBeVisible();
 	await page.goto('/kadai?sort=support');
