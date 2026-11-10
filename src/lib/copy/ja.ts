@@ -119,6 +119,11 @@ export const ja = {
 		/** PC の 2:1:1 の区切り */
 		segments: (s: Session) => ['1〜2週 発議', '3週 質疑・修正', `4週 採決（${sessionPoint(s, s.voteAt, false)}から）`]
 	},
+	/** ホームの「今日の条文」（Issue #128。SpHome・PcHome）。どれだけ変わっていないかは law の文を使う */
+	today: {
+		heading: '今日の条文',
+		join: ' ・ '
+	},
 	/** ホームの「あなたの割り当て法案」（Issue #127。SpHome・PcHome）。採決の前は本数が決まっていない */
 	assignment: {
 		/** 本数は決まったあとで、0本でないときだけ付ける */

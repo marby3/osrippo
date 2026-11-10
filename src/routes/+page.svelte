@@ -2,12 +2,24 @@
 	import SearchBox from '#lib/components/SearchBox.svelte';
 	import VoteStanding from '#lib/components/VoteStanding.svelte';
 	import { ja } from '#lib/copy/ja.ts';
+	import { fullYears } from '#lib/domain/law/index.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 	const s = $derived(data.session);
 	const a = $derived(data.assignment);
 	const next = $derived(ja.session.next(s));
+	const t = $derived(data.todayArticle);
+	/** どれだけ変わっていないか。法令のページの条の下と同じ文（Issue #128 基準2） */
+	const age = $derived(
+		!t
+			? ''
+			: t.lastAmended
+				? ja.law.amended(t.lastAmended, fullYears(t.lastAmended, data.today))
+				: t.enacted
+					? ja.law.enacted(t.enacted, fullYears(t.enacted, data.today))
+					: ja.law.unchangedSinceBaseline
+	);
 	/** PC の区切り：発議（1〜2週）・質疑と修正（3週）・採決（4週） */
 	const segments = $derived(
 		ja.session.segments(s).map((label, i) => ({
@@ -17,6 +29,15 @@
 		}))
 	);
 </script>
+
+{#snippet today(t: NonNullable<typeof data.todayArticle>, where: 'sp' | 'pc')}
+	<!-- 今日の条文（Issue #128）。日本時間の日付で1日1本 -->
+	<section class="today" aria-labelledby="today-heading-{where}">
+		<h2 id="today-heading-{where}">{ja.today.heading}{ja.today.join}<a href="/hourei/{t.lawId}#jo-{t.num}">{t.lawTitle}{' '}{t.label}</a></h2>
+		<p class="text" data-today-text>{t.text}</p>
+		<p class="age" data-today-age>{age}</p>
+	</section>
+{/snippet}
 
 <main class="frame home">
 	<!-- 見出しは読み上げ用。画面ではメニューのサイト名が代わり（SpHome・PcHome、Issue #120） -->
@@ -42,29 +63,60 @@
 		<p class="next sp">{next[0]}{' '}<strong>{next[1]}</strong>{' '}{next[2]}</p>
 	</section>
 
-	{#if a}
-		<!-- あなたの割り当て法案（Issue #127）。本数は採決の期間に決まる。スマホは今の会期の下、PC は右の列 -->
-		<section class="assignment" aria-labelledby="assignment-heading">
-			<h2 id="assignment-heading">{ja.assignment.heading(a.open ? a.total : null)}</h2>
-			{#if !a.open}
-				<p>{ja.assignment.before}</p>
-			{:else}
-				{#if a.total > 0}
-					<p class="progress">{ja.assignment.progress(a.done, a.total)}</p>
+	<!-- PC の右の列（PcHome） -->
+	<div class="side">
+		{#if a}
+			<!-- あなたの割り当て法案（Issue #127）。本数は採決の期間に決まる。スマホは今の会期の下、PC は右の列 -->
+			<section class="assignment" aria-labelledby="assignment-heading">
+				<h2 id="assignment-heading">{ja.assignment.heading(a.open ? a.total : null)}</h2>
+				{#if !a.open}
+					<p>{ja.assignment.before}</p>
+				{:else}
+					{#if a.total > 0}
+						<p class="progress">{ja.assignment.progress(a.done, a.total)}</p>
+					{/if}
+					<VoteStanding eligible={a.eligible} total={a.total} done={a.done} />
+					<a class="open" href="/saiketsu">{a.total > 0 ? ja.assignment.open : ja.assignment.list}</a>
 				{/if}
-				<VoteStanding eligible={a.eligible} total={a.total} done={a.done} />
-				<a class="open" href="/saiketsu">{a.total > 0 ? ja.assignment.open : ja.assignment.list}</a>
-			{/if}
-		</section>
-	{/if}
+			</section>
+		{/if}
+		{#if t}<div class="pc">{@render today(t, 'pc')}</div>{/if}
+	</div>
 
 	<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7）。課題の一覧と同じ形（Issue #120） -->
 	<div class="search"><SearchBox id="top-search" label={ja.search.entry} action="/kensaku" /></div>
+
+	<!-- スマホは探す欄の下（SpHome）。見た目の順と読み上げの順をそろえるため、PC とスマホで別の場所に置き、片方は出さない -->
+	{#if t}<div class="sp">{@render today(t, 'sp')}</div>{/if}
 </main>
 
 <style>
 	main {
 		padding: 1rem;
+	}
+	.today {
+		margin-top: 1.5rem;
+		padding: 1rem;
+		border: 1px solid var(--color-input-border);
+		border-radius: var(--radius-l);
+	}
+	.today h2 {
+		margin: 0 0 0.5rem;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+		font-weight: normal;
+	}
+	.today p {
+		margin: 0;
+		overflow-wrap: anywhere;
+	}
+	.today .text {
+		line-height: var(--line-height-law);
+	}
+	.today .age {
+		margin-top: 0.5rem;
+		font-size: var(--font-size-sub);
+		font-weight: bold;
 	}
 	.search {
 		max-width: 50rem;
@@ -180,18 +232,26 @@
 		.home {
 			display: grid;
 			grid-template-columns: minmax(0, 1fr) 20rem;
+			/* 右の列が高くなった分は3段目（空き）が受け持ち、今の会期と探す欄は詰めたままにする */
+			grid-template-rows: auto auto 1fr;
 			column-gap: 2.5rem;
 			align-content: start;
 			align-items: start;
 		}
-		.home > :not(.assignment, h1) {
+		.home > :not(.side, h1) {
 			grid-column: 1;
 		}
-		/* 左の列は今の会期と探す欄の2段。ホームに段を足したら span も合わせる */
-		.assignment {
+		/* 左の列は今の会期と探す欄の2段と空きの段。ホームに段を足したら rows も合わせる */
+		.side {
+			display: grid;
+			gap: 1.5rem;
 			grid-column: 2;
-			grid-row: 1 / span 2;
+			grid-row: 1 / -1;
 			margin-top: 1rem;
+		}
+		.assignment,
+		.today {
+			margin: 0;
 		}
 		.sp {
 			display: none;
