@@ -96,9 +96,10 @@ export function refusalMessage(refusal: Refusal): string {
 /**
  * 何のための書き込みか（設計書 docs/spec/158.md の 2）。participate はゲームに参加する書き込みで、議員は断る。
  * speak は法案の質疑・答弁・補足と「読んだ」の記録、report は通報、settle は前にした参加の取り消しと、
- * 提出者・共同提出者としての同意や後始末で、議員もできる（議員になる前の約束を果たせるように）
+ * 提出者・共同提出者としての同意や後始末で、議員もできる（議員になる前の約束を果たせるように）。
+ * legislator は議員だけの書き込み（「拾った」ステータス。Issue #150）で、議員でなければ断る
  */
-export type WriteUse = 'participate' | 'speak' | 'report' | 'settle';
+export type WriteUse = 'participate' | 'speak' | 'report' | 'settle' | 'legislator';
 
 /**
  * 書き込みの前の確かめ：国 → 締め出し（設計書 決めたこと12）→ 議員（docs/spec/158.md）。
@@ -116,5 +117,6 @@ export async function writeGuard(
 	const until = await activeBan(db, user.id, now);
 	if (until !== null) return { ok: false, failure: fail(429, { message: ja.guard.banned(until) }) };
 	if (use === 'participate' && (await legislatorAt(db, user.id, now))) return { ok: false, failure: fail(403, { message: ja.guard.legislator }) };
+	if (use === 'legislator' && !(await legislatorAt(db, user.id, now))) return { ok: false, failure: fail(403, { message: ja.guard.onlyLegislator }) };
 	return { ok: true, ip, actor: { userId: user.id, registeredAt: user.createdAt.getTime(), ipHash: await ipHashOf(ip) } };
 }

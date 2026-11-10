@@ -37,7 +37,10 @@ export const NOTIFICATION_KINDS = [
 	'chair_elected',
 	'director_elected',
 	'chair_recalled',
-	'chair_vote_removed'
+	'chair_vote_removed',
+	// 議員の「拾った」ステータス（Issue #150）
+	'issue_considered',
+	'issue_questioned'
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
@@ -67,6 +70,6 @@ export function hrefOf(kind: NoticeKind, ids: { billId?: number; issueId?: numbe
 	if (kind === 'mind_changed_post' || kind === 'post_hidden' || kind === 'post_restored' || kind === 'question_merged') return `/houan/${ids.billId}/shitsugi`;
 	if (kind === 'amendment_hidden' || kind === 'amendment_restored') return `/houan/${ids.billId}/shusei`;
 	if (kind === 'mind_changed_solution' || kind === 'solution_hidden' || kind === 'solution_restored') return `/kadai/${ids.issueId}/kaiketsu`;
-	if (kind === 'issue_hidden' || kind === 'issue_restored' || kind === 'issue_merged') return `/kadai/${ids.issueId}`;
+	if (kind === 'issue_hidden' || kind === 'issue_restored' || kind === 'issue_merged' || kind === 'issue_considered' || kind === 'issue_questioned') return `/kadai/${ids.issueId}`;
 	return RESULT_KINDS.includes(kind) ? `/saiketsu/${ids.billId}/kekka` : `/houan/${ids.billId}`;
 }

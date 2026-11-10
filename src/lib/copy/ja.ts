@@ -866,6 +866,8 @@ export const ja = {
 	guard: {
 		/** 議員にできない書き込み（Issue #158） */
 		legislator: '議員のアカウントではできません。閲覧と質疑ができます。',
+		/** 議員だけの書き込み（Issue #150） */
+		onlyLegislator: '議員のアカウントだけができます。',
 		outsideJapan: '日本国内からのみ参加できます。見ることは国外からもできます。',
 		turnstileFailed: '確認できませんでした。もう一度お試しください。',
 		turnstileUnavailable: '確認の仕組みを読み込めませんでした。ページを読み直してください。',
@@ -1071,6 +1073,8 @@ export const ja = {
 			bill_edited: (t: string) => `賛同や同意をした法案「${t}」が直されました。賛同や同意はもう一度必要です。`,
 			mind_changed_post: (t: string) => `法案「${t}」のあなたの投稿に「考えが変わった」が付きました。`,
 			mind_changed_solution: (t: string) => `課題「${t}」のあなたの解決策に「考えが変わった」が付きました。`,
+			issue_considered: (t: string) => `課題「${t}」に議員が「検討中」を付けました。`,
+			issue_questioned: (t: string) => `課題「${t}」を議員が質問で取り上げました。`,
 			issue_hidden: (t: string) => `あなたの課題「${t}」が非表示になりました。理由は課題のページで読めます。`,
 			issue_restored: (t: string) => `あなたの課題「${t}」が表示に戻りました。`,
 			issue_merged: (t: string) => `あなたの課題「${t}」は、似た課題に統合されました。`,
@@ -1189,6 +1193,30 @@ export const ja = {
 		alreadyShown: '表示されています',
 		ownIssue: '自分の課題には対応できません',
 		invalid: '入力を確かめてください'
+	},
+	/** 「拾った」ステータス（Issue #150） */
+	hirotta: {
+		heading: '議員の反応',
+		yourReaction: 'あなたの反応',
+		considering: '検討中',
+		consider: '検討中にする',
+		unconsider: '検討中を外す',
+		questioned: '質問で取り上げた',
+		unquestion: '質問で取り上げたを外す',
+		urlLabel: '会議録の URL',
+		urlHint: '国会会議録検索システムの会議録のページの URL を入れます。',
+		record: '会議録',
+		/** 「検討中：氏名（認証済み議員）」 */
+		line: (kind: 'considering' | 'questioned', name: string) => `${kind === 'considering' ? '検討中' : '質問で取り上げた'}：${name}（認証済み議員）`,
+		urlInvalid: '国会会議録検索システムの会議録の URL を入れてください',
+		urlNotFound: '会議録のページが見つかりませんでした',
+		hiddenIssue: '表示していない課題には付けられません',
+		hiddenTitle: '（表示していない課題）',
+		logHeading: '議員の反応の記録',
+		logActions: { 'considering:add': '検討中を付けた', 'considering:remove': '検討中を外した', 'questioned:add': '質問で取り上げた', 'questioned:remove': '質問で取り上げたを外した' },
+		logEmpty: 'まだ記録はありません',
+		logPrev: '新しい記録',
+		logNext: '前の記録'
 	},
 	/** 議員ダッシュボード（Issue #149、SpMember・PcMember） */
 	giin: {
