@@ -51,7 +51,8 @@ export function parseIssueId(raw: string): number | null {
 	return /^[1-9]\d{0,9}$/.test(raw) ? Number(raw) : null;
 }
 
-export const SORTS = ['support', 'new', 'rising'] as const;
+/** 並び。bridge（立場を超えた支持順）が既定で、URL に sort を付けない（Issue #126） */
+export const SORTS = ['bridge', 'support', 'new', 'rising'] as const;
 export type Sort = (typeof SORTS)[number];
 /** 絞り込みは「すべて」「今回のお題」「解決策あり」から1つ（設計書 docs/spec/34.md 決めたこと8） */
 /** q は「課題を探す」の言葉のまま（判定は domain/search の parseQuery。形が違っても 404 にしない） */
@@ -65,14 +66,15 @@ export function parseListQuery(params: URLSearchParams): ListQuery | null {
 	const page = params.get('page');
 	const kaiketsu = params.get('kaiketsu');
 	const houan = params.get('houan');
-	if (sort !== null && sort !== 'new' && sort !== 'rising') return null;
+	// 既定（立場を超えた支持順）は sort なしの URL だけ。sort=bridge は形が違う
+	if (sort !== null && sort !== 'support' && sort !== 'new' && sort !== 'rising') return null;
 	if (topic !== null && topic !== 'current') return null;
 	if (kaiketsu !== null && (kaiketsu !== 'ari' || topic !== null)) return null;
 	if (houan !== null && (houan !== 'ari' || topic !== null || kaiketsu !== null)) return null;
 	const pageNumber = parsePage(page);
 	if (pageNumber === null) return null;
 	return {
-		sort: sort ?? 'support',
+		sort: sort ?? 'bridge',
 		topic: topic ?? 'all',
 		solutions: kaiketsu === 'ari',
 		bills: houan === 'ari',
@@ -90,7 +92,7 @@ export function parsePage(raw: string | null): number | null {
 /** 一覧の URL（既定の値は書かない） */
 export function listHref({ sort, topic, solutions, bills, q, page }: ListQuery): string {
 	const params = new URLSearchParams();
-	if (sort !== 'support') params.set('sort', sort);
+	if (sort !== 'bridge') params.set('sort', sort);
 	if (topic !== 'all') params.set('topic', topic);
 	if (solutions) params.set('kaiketsu', 'ari');
 	if (bills) params.set('houan', 'ari');
