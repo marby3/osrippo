@@ -7,8 +7,10 @@
 	/**
 	 * unread：未読の数。ログインしていなければ null（ベルを出さない）。
 	 * hideTabsOnSp：スマホで下のタブを隠す（入力・投票中。Issue #118）
+	 * legislatorName：議員でログインしているときの氏名（「議員用」と「認証済み・氏名」。Issue #149）
 	 */
-	let { unread, hideTabsOnSp = false }: { unread: number | null; hideTabsOnSp?: boolean } = $props();
+	let { unread, hideTabsOnSp = false, legislatorName = null }: { unread: number | null; hideTabsOnSp?: boolean; legislatorName?: string | null } = $props();
+	const onDashboard = $derived(page.url.pathname === '/giin');
 
 	const current = $derived(tabOf(page.url.pathname));
 	/** スマホの上の帯の見出し：タブの下のページはタブの名前、それ以外はサイト名 */
@@ -37,6 +39,7 @@
 			<span class="mark" aria-hidden="true">立</span>
 			<span class="name">{ja.siteName}</span>
 		</a>
+		{#if legislatorName}<a class="giin" href="/giin" aria-current={onDashboard ? 'page' : undefined}>{ja.giin.headerLink}</a>{/if}
 		<span class="title" data-menu-title>{title}</span>
 
 		<nav class:input={hideTabsOnSp} aria-label={ja.menu.label}>
@@ -49,6 +52,13 @@
 		</nav>
 
 		<div class="actions">
+			{#if legislatorName && onDashboard}
+				<!-- PC はヘッダーの右に「認証済み・氏名」（PcMember）。スマホはダッシュボードの帯に出す（SpMember） -->
+				<span class="verified"
+					><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5.2 3.4 9.4 8 11 4.6-1.6 8-5.8 8-11V5z" /><path d="m8.5 12 2.5 2.5 4.5-5" /></svg
+					>{ja.giin.verifiedPc(legislatorName)}</span
+				>
+			{/if}
 			{#if unread !== null}
 				<!-- 先読みすると通知を開いたことになり、既読になってしまう -->
 				<a class="bell" href="/tsuchi" aria-label={ja.notifications.entry(unread)} data-sveltekit-preload-data="off">
@@ -119,6 +129,33 @@
 		overflow: hidden;
 		clip-path: inset(50%);
 		white-space: nowrap;
+	}
+
+	/* 議員用（Issue #149。PcMember のロゴの右の枠） */
+	.giin {
+		display: inline-flex;
+		align-items: center;
+		min-height: var(--tap-min);
+		padding: 0 0.5rem;
+		border: 1px solid currentColor;
+		border-radius: var(--radius-s);
+		font-size: var(--font-size-sub);
+		font-weight: 700;
+		white-space: nowrap;
+	}
+
+	/* 認証済み・氏名は PC だけ（スマホはダッシュボードの帯。SpMember） */
+	.verified {
+		display: none;
+		gap: 0.25rem;
+		align-items: center;
+		font-size: var(--font-size-sub);
+		white-space: nowrap;
+	}
+
+	.verified svg {
+		width: 1.25rem;
+		height: 1.25rem;
 	}
 
 	.title {
@@ -196,6 +233,10 @@
 	}
 
 	@media (min-width: 64rem) {
+		.verified {
+			display: inline-flex;
+		}
+
 		.bar {
 			gap: 1.5rem;
 			min-height: 4rem;

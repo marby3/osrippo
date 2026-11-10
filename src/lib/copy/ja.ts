@@ -1190,6 +1190,35 @@ export const ja = {
 		ownIssue: '自分の課題には対応できません',
 		invalid: '入力を確かめてください'
 	},
+	/** 議員ダッシュボード（Issue #149、SpMember・PcMember） */
+	giin: {
+		pageTitle: '議員ダッシュボード｜オープンソース立法府',
+		headerLink: '議員用',
+		verifiedPc: (name: string) => `認証済み・${name}`,
+		verifiedSp: (name: string) => `認証済み議員・${name}`,
+		heading: '市民の課題と解決策',
+		lead: '閲覧・質疑・答弁ができます。投票と評価はできません。',
+		footnote: '選挙期間中は、議員の機能が自動で止まります ・ 反応はすべて記録して公開されます',
+		tabsLabel: 'ダッシュボードのタブ',
+		tabs: { kadai: (n: number) => `課題 ${n}`, houan: (n: number) => `法案 ${n}`, kaketsu: (n: number) => `IF世界で可決 ${n}` },
+		filtersLabel: '絞り込み',
+		filters: { all: 'すべて', kaiketsu: '解決策あり', houan: '法案になった' },
+		sortLabel: '並び順',
+		sorts: { bridge: '立場を超えた支持が多い順', support: 'わかるが多い順', new: '新しい順' },
+		sortApply: '並べ替える',
+		columns: { issue: '課題', supports: 'わかる', bridge: '立場を超えた支持', solution: 'いちばんの解決策', bill: '法案', stage: 'いま', origin: '元の課題', session: '可決した会期', laws: '対象の法令' },
+		supports: (n: number) => `わかる ${n}`,
+		bridge: (ratio: number | null) => `立場を超えた支持 ${ratio === null ? '—' : `${ratio}%`}`,
+		ratio: (ratio: number | null) => (ratio === null ? '—' : `${ratio}%`),
+		/** 割合を出せないときの読み上げ */
+		ratioNone: '人数が足りないので出していません',
+		solution: (body: string) => `いちばんの解決策：${body}`,
+		none: 'まだありません',
+		empty: 'まだありません',
+		more: 'もっと見る',
+		/** "2041-05" → "2041年5月の会期" */
+		session: (key: string) => `${jaMonth(key)}の会期`
+	},
 	/** 議員・有識者の認証（Issue #157、設計書 docs/spec/157.md） */
 	verification: {
 		heading: '議員・有識者の認証',

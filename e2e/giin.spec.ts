@@ -1,7 +1,7 @@
 // Issue #149：議員ダッシュボード（SpMember・PcMember。設計書 docs/spec/149.md）。
 // 割合の値と可決の一覧の範囲は src/lib/db/bridge.test.ts・src/lib/db/giin.test.ts で確かめる（10人ずつのグループや可決を画面で作るのは重い）
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { ORIGIN, billSupportRequest, createAmendBill, issueWithSolutions, loginAs, postIssue, proposeRequest, reactRequest, stubTurnstile } from './helpers';
+import { ORIGIN, billSupportRequest, createAmendBill, issueWithSolutions, loginAs, postIssue, proposeRequest, reactRequest, stubTurnstile, supportRequest } from './helpers';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -123,6 +123,8 @@ test('基準5：課題のタブに、課題名・わかる・立場を超えた�
 	for (const who of ['r1', 'r2']) {
 		const r = await user(browser, w, who, now);
 		expect((await reactRequest(r.page, issueId, { solution: ids[1], kind: 'support', op: 'add' })).status()).toBeLessThan(400);
+		// 課題そのものへの「わかる」は r1 だけ
+		if (who === 'r1') expect((await supportRequest(r.page, issueId, 'add')).status()).toBeLessThan(400);
 	}
 	const bare = `解決策のない課題 149-${tag}`;
 	await postIssue(a.page, { title: bare });

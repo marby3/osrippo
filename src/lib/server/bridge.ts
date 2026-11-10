@@ -53,6 +53,11 @@ export function bridgeParts(db: Db, previous: Session, supports: SQL<number>) {
 		groups,
 		join: eq(groups.userId, issueSupports.userId),
 		fallback,
+		/**
+		 * 割合（丸める前）。区分がどちらも10人以上の課題だけ、ほかは NULL。議員ダッシュボードだけが選ぶ（docs/spec/149.md の 2）。
+		 * 一般の画面とページのデータには出さない（#126 の基準5）
+		 */
+		ratio: sql<number | null>`CASE WHEN ${scored} THEN ${score} END`,
 		// 割合を使う課題が先で割合の高い順、そのあと（と足りないとき）は「わかる」の多い順 → 新しい順
 		order: [sql`CASE WHEN ${scored} THEN 0 ELSE 1 END`, sql`CASE WHEN ${scored} THEN ${score} END DESC`, sql`${supports} DESC`, sql`${issues.id} DESC`]
 	};

@@ -16,6 +16,7 @@ import { indexTexts, issueMatchSql } from './search';
 import type { Word } from '../domain/search';
 import { billCounts, hasBills } from './issue-bills';
 import { bridgeParts } from './bridge';
+import { roundRatio } from '../domain/bridge';
 import type { Session } from '../domain/session';
 
 /** 押す操作として合わせて数える actions の種類 */
@@ -38,13 +39,14 @@ export async function currentTopic(db: Db) {
  * 課題の一覧。previous は直近に締め切った会期で、立場を超えた支持順（sort が bridge）のときだけ使う（Issue #126）。
  * bridgeFallback は、立場を超えた支持順でグループの人数が足りず「わかる」の多い順にしたか（ほかの並びでは false）
  */
-export async function listIssues(db: Db, q: ListQuery, topicId: number | null, now: number, words: Word[] = [], previous: Session | null = null, size = PAGE_SIZE) {
+export async function listIssues(db: Db, q: ListQuery, topicId: number | null, now: number, words: Word[] = [], previous: Session | null = null, size = PAGE_SIZE, withRatio = false) {
 	const supports = sql<number>`count(${issueSupports.userId})`;
 	const recent = sql<number>`count(case when ${issueSupports.createdAt} > ${now - RISING_WINDOW} then 1 end)`;
 	const bySupports = [desc(supports), desc(issues.id)];
-	// 立場を超えた支持順の部品。ほかの並びのときはグループを作らない（設計書 6）
-	const bridge = q.sort === 'bridge' && previous !== null ? bridgeParts(db, previous, supports) : null;
-	const order = bridge
+	// 立場を超えた支持順の部品。ほかの並びのときはグループを作らない（設計書 6）。議員ダッシュボードは割合のためにどの並びでも作る（docs/spec/149.md）
+	const bridge = (q.sort === 'bridge' || withRatio) && previous !== null ? bridgeParts(db, previous, supports) : null;
+	const order =
+		bridge && q.sort === 'bridge'
 		? bridge.order
 		: {
 				bridge: bySupports,
@@ -62,7 +64,8 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 			// 非表示の解決策は数えない（設計書 docs/spec/36.md 決めたこと4）
 			solutions: sql<number>`(SELECT count(*) FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`,
 			// 人数が足りなかったか（行には残さない）
-			fallback: bridge ? bridge.fallback : sql<number>`0`
+			fallback: bridge ? bridge.fallback : sql<number>`0`,
+			ratio: withRatio && bridge ? bridge.ratio : sql<number | null>`NULL`
 		})
 		.from(issues)
 		.leftJoin(issueSupports, eq(issueSupports.issueId, issues.id))
@@ -93,10 +96,11 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 	// この課題から生まれた法案の数は、ページに出る課題の分だけ別に数える（Issue #125）
 	const counts = await billCounts(db, page.map((r) => r.id));
 	return {
-		rows: page.map(({ fallback: _, ...r }) => ({ ...r, bills: counts.get(r.id) ?? 0 })),
+		// 割合は議員ダッシュボードだけに返す（ほかの呼び方では列ごと落とす。#126 の基準5）
+		rows: page.map(({ fallback: _, ratio, ...r }) => ({ ...r, bills: counts.get(r.id) ?? 0, ...(withRatio ? { ratio: roundRatio(ratio) } : {}) })),
 		hasNext: rows.length > size,
 		// 立場を超えた支持順を選んでいて、人数が足りなかった（行がないときは出さない）
-		bridgeFallback: bridge !== null && Boolean(rows[0]?.fallback)
+		bridgeFallback: bridge !== null && q.sort === 'bridge' && Boolean(rows[0]?.fallback)
 	};
 }
 
