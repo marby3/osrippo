@@ -10,10 +10,14 @@ export type HirottaAction = (typeof HIROTTA_ACTIONS)[number];
 export const KOKKAI_URL_MAX = 500;
 const KOKKAI_HOST = 'kokkai.ndl.go.jp';
 
+/** 会議録の番号（例 121205254X00720231120）と発言の番号 */
+const KOKKAI_PATH = /^\/txt\/([0-9A-Z]{10,30})(?:\/(\d{1,4}))?$/;
+
 /**
- * 国会会議録検索システムの https の URL だけを受け付け、正規の形で返す。ほかは null（開かずに断る。任意の URL をサーバーに開かせない）
+ * 国会会議録検索システムの会議録の URL（/txt/会議録の番号、または /txt/会議録の番号/発言の番号）だけを受け付け、
+ * 正規の形と会議録の番号を返す。ほかは null（問い合わせずに断る。任意の URL をサーバーに開かせない）
  */
-export function parseKokkaiUrl(raw: string | null | undefined): string | null {
+export function parseKokkaiUrl(raw: string | null | undefined): { url: string; meetingId: string } | null {
 	const text = (raw ?? '').trim();
 	if (!text || text.length > KOKKAI_URL_MAX) return null;
 	let url: URL;
@@ -23,8 +27,7 @@ export function parseKokkaiUrl(raw: string | null | undefined): string | null {
 		return null;
 	}
 	if (url.protocol !== 'https:' || url.hostname !== KOKKAI_HOST || url.port !== '' || url.username || url.password) return null;
-	return url.href.length > KOKKAI_URL_MAX ? null : url.href;
+	const match = KOKKAI_PATH.exec(url.pathname);
+	if (!match || url.href.length > KOKKAI_URL_MAX) return null;
+	return { url: url.href, meetingId: match[1] };
 }
-
-/** テストのサーバーでは会議録のサイトに問い合わせず、この形の URL だけを「ある」とする */
-export const testKokkaiExists = (url: string) => url.startsWith(`https://${KOKKAI_HOST}/txt/test-`);

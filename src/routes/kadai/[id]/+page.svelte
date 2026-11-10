@@ -177,7 +177,7 @@
 								{#each data.hirotta as r, i (i)}
 									<li>
 										{ja.hirotta.line(r.kind, r.name)}{#if r.url}・<a href={r.url} rel="noopener noreferrer">{ja.hirotta.record}</a>{/if}
-										<span class="date">{jaDate(tokyoDate(r.createdAt))}</span>
+										・<span class="date">{jaDate(tokyoDate(r.createdAt))}</span>
 									</li>
 								{/each}
 							</ul>

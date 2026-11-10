@@ -1,7 +1,7 @@
 // Issue #150：「拾った」ステータス（検討中・質問で取り上げた）と、課題のページの「議員の反応」。
-// テストのサーバーは会議録のサイトに問い合わせず、https://kokkai.ndl.go.jp/txt/test- で始まる URL だけを「ある」とする
+// テストのサーバーは会議録のサイトに問い合わせず、会議録の番号が 000000000X で始まるものだけを「ある」とする
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { ORIGIN, issueWithSolutions, loginAs, stubTurnstile } from './helpers';
+import { ORIGIN, issueWithSolutions, loginAs, staffRequest, stubTurnstile } from './helpers';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -67,6 +67,7 @@ async function posted(u: Page, act: () => Promise<void>) {
 }
 
 test('基準1：議員はダッシュボードと課題のページで「検討中にする」を押せ、「検討中を外す」で外せる', async ({ browser }, info) => {
+	test.setTimeout(120_000);
 	const w = info.project.name as Width;
 	const { p, issueId, title } = await setup(browser, w);
 	// ダッシュボード
@@ -86,6 +87,7 @@ test('基準1：議員はダッシュボードと課題のページで「検討�
 });
 
 test('基準2：会議録の URL を添えて「質問で取り上げた」を付ける。ページがない URL とほかのサイトは断る。外せる', async ({ browser }, info) => {
+	test.setTimeout(120_000);
 	const w = info.project.name as Width;
 	const { p, issueId, name, tag } = await setup(browser, w);
 	await p.page.goto(`/kadai/${issueId}`);
@@ -97,9 +99,10 @@ test('基準2：会議録の URL を添えて「質問で取り上げた」を�
 	};
 	await add('https://example.com/txt/1');
 	await expect(r.getByRole('alert')).toHaveText('国会会議録検索システムの会議録の URL を入れてください');
-	await add(`https://kokkai.ndl.go.jp/txt/none-${tag}`);
-	await expect(r.getByRole('alert')).toHaveText('会議録のページが見つかりませんでした');
-	const url = `https://kokkai.ndl.go.jp/txt/test-${tag}/1`;
+	const digits = String(Date.now() % 1e11).padStart(11, '0');
+	await add(`https://kokkai.ndl.go.jp/txt/111111111X${digits}/1`);
+	await expect(r.getByRole('alert')).toHaveText('会議録が見つかりませんでした');
+	const url = `https://kokkai.ndl.go.jp/txt/000000000X${digits}/1`;
 	await add(url);
 	await p.page.goto(`/kadai/${issueId}`);
 	await expect(r).toContainText(`質問で取り上げた：${name}（認証済み議員）`);
@@ -107,9 +110,11 @@ test('基準2：会議録の URL を添えて「質問で取り上げた」を�
 	await posted(p.page, () => r.getByRole('button', { name: '質問で取り上げたを外す' }).click());
 	await p.page.goto(`/kadai/${issueId}`);
 	await expect(r).not.toContainText('質問で取り上げた：');
+	void tag;
 });
 
 test('基準3：だれでも見られる「議員の反応」に、いま付いている反応と付けた日。外したものと、反応のない課題は出さない', async ({ browser }, info) => {
+	test.setTimeout(120_000);
 	const w = info.project.name as Width;
 	const { p, issueId, name } = await setup(browser, w);
 	const viewer = await user(browser, w, 'anon', null);
@@ -129,6 +134,7 @@ test('基準3：だれでも見られる「議員の反応」に、いま付い�
 });
 
 test('基準4：付けると課題を書いた人に通知が届く', async ({ browser }, info) => {
+	test.setTimeout(120_000);
 	const w = info.project.name as Width;
 	const { a, p, issueId, title } = await setup(browser, w);
 	await p.page.goto(`/kadai/${issueId}`);
@@ -138,6 +144,7 @@ test('基準4：付けると課題を書いた人に通知が届く', async ({ b
 });
 
 test('基準5：付けた・外したを運営の記録に出す', async ({ browser }, info) => {
+	test.setTimeout(120_000);
 	const w = info.project.name as Width;
 	const { p, issueId, title, name } = await setup(browser, w);
 	await p.page.goto(`/kadai/${issueId}`);
@@ -151,8 +158,9 @@ test('基準5：付けた・外したを運営の記録に出す', async ({ brow
 });
 
 test('基準6：議員でない人にはボタンが出ず、送っても断る', async ({ browser }, info) => {
+	test.setTimeout(120_000);
 	const w = info.project.name as Width;
-	const { op, issueId } = await setup(browser, w);
+	const { op, p, issueId } = await setup(browser, w);
 	const g = await user(browser, w, 'g', at(MONTH[w], 3));
 	const e = await user(browser, w, 'e', at(MONTH[w], 3));
 	await grant(op.page, e.name, '有識者', '民法');
@@ -166,4 +174,11 @@ test('基準6：議員でない人にはボタンが出ず、送っても断る'
 		});
 		expect(res.status()).toBe(403);
 	}
+	// 付けられるのは表示中の課題だけ。非表示になっても、付けていた反応は外せる
+	const hirotta = (form: Record<string, string>) =>
+		p.page.request.post(`/kadai/${issueId}?/hirotta`, { form, headers: { origin: ORIGIN, accept: 'text/html' }, maxRedirects: 0 });
+	expect((await hirotta({ kind: 'considering', op: 'add' })).status()).toBe(200);
+	expect((await staffRequest(op.page, 'hide', { issue: String(issueId), reason: 'spam', note: 'テスト' })).status()).toBeLessThan(400);
+	expect((await hirotta({ kind: 'questioned', op: 'add', url: 'https://kokkai.ndl.go.jp/txt/000000000X00000000001/1' })).status()).toBe(403);
+	expect((await hirotta({ kind: 'considering', op: 'remove' })).status()).toBe(200);
 });

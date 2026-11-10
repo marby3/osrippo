@@ -5,12 +5,12 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '../copy/ja';
 import { issueHirotta, issueHirottaLogs, issues, userVerifications } from '../db/schema';
-import { HIROTTA_KINDS, parseKokkaiUrl, testKokkaiExists, type HirottaKind } from '../domain/hirotta';
+import { HIROTTA_KINDS, parseKokkaiUrl, type HirottaKind } from '../domain/hirotta';
 import { LISTED } from '../domain/reports';
 import { isTestServer, nowOf, writeGuard } from './client';
 import { notify } from './notifications';
 import type { Db } from './law';
-import { activeVerification } from './verifications';
+import { activeVerification, legislatorNameAt } from './verifications';
 
 /** 課題のページの「議員の反応」：いま付いている反応のうち、いまも議員の人のもの（付けた順） */
 export async function hirottaOf(db: Db, issueId: number, now: number) {
@@ -35,14 +35,21 @@ export async function myHirotta(db: Db, userId: string, issueIds: number[]): Pro
 	return mine;
 }
 
-/** 会議録のページがあるか。リダイレクトは追わない（ほかのサイトへ移らない）。5秒で諦める */
-async function kokkaiExists(url: string, test: boolean): Promise<boolean> {
-	if (test) return testKokkaiExists(url);
+/**
+ * 会議録があるか。会議録のページは画面を JavaScript で組み立てるので、どの番号でも同じ応答を返す。
+ * そのため公開の検索 API（会議録の番号で引く）に問い合わせ、1件以上あれば「ある」。リダイレクトは追わない。5秒で諦める。
+ * テストのサーバーでは問い合わせず、番号が 000000000X で始まるものだけを「ある」とする
+ */
+async function kokkaiExists(meetingId: string, test: boolean): Promise<'yes' | 'no' | 'unreachable'> {
+	if (test) return meetingId.startsWith('000000000X') ? 'yes' : 'no';
 	try {
-		const res = await fetch(url, { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(5000) });
-		return res.status === 200;
+		const api = `https://kokkai.ndl.go.jp/api/meeting_list?issueID=${encodeURIComponent(meetingId)}&maximumRecords=1&recordPacking=json`;
+		const res = await fetch(api, { redirect: 'manual', signal: AbortSignal.timeout(5000), headers: { accept: 'application/json' } });
+		if (!res.ok) return 'unreachable';
+		const body = (await res.json()) as { numberOfRecords?: number };
+		return (body.numberOfRecords ?? 0) > 0 ? 'yes' : 'no';
 	} catch {
-		return false;
+		return 'unreachable';
 	}
 }
 
@@ -90,15 +97,18 @@ export async function hirottaAction(event: RequestEvent, issueId: number | null)
 	if (issueId === null || !HIROTTA_KINDS.includes(kind) || (op !== 'add' && op !== 'remove')) error(400);
 	const [issue] = await db.select({ status: issues.status }).from(issues).where(eq(issues.id, issueId));
 	if (!issue) error(404);
-	if (!LISTED.includes(issue.status)) return fail(403, { message: ja.hirotta.hiddenIssue, hirottaIssue: issueId });
+	// 付けられるのは表示中の課題だけ。外すのは、非表示になっても自分の反応ならできる
+	if (op === 'add' && !LISTED.includes(issue.status)) return fail(403, { message: ja.hirotta.hiddenIssue, hirottaIssue: issueId });
 	let url: string | null = null;
 	if (op === 'add' && kind === 'questioned') {
-		url = parseKokkaiUrl(String(form.get('url') ?? ''));
-		if (url === null) return fail(400, { message: ja.hirotta.urlInvalid, hirottaIssue: issueId });
-		if (!(await kokkaiExists(url, isTestServer(event.url)))) return fail(400, { message: ja.hirotta.urlNotFound, hirottaIssue: issueId });
+		const parsed = parseKokkaiUrl(String(form.get('url') ?? ''));
+		if (parsed === null) return fail(400, { message: ja.hirotta.urlInvalid, hirottaIssue: issueId });
+		const found = await kokkaiExists(parsed.meetingId, isTestServer(event.url));
+		if (found !== 'yes') return fail(found === 'no' ? 400 : 503, { message: found === 'no' ? ja.hirotta.urlNotFound : ja.hirotta.urlUnreachable, hirottaIssue: issueId });
+		url = parsed.url;
 	}
-	const [me] = await db.select({ name: userVerifications.displayName }).from(userVerifications).where(eq(userVerifications.userId, user.id));
-	await setHirotta(db, { issueId, userId: user.id, kind, op, url, name: me?.name ?? '' }, now);
+	const name = (await legislatorNameAt(db, user.id, now)) ?? '';
+	await setHirotta(db, { issueId, userId: user.id, kind, op, url, name }, now);
 	return { hirottaIssue: issueId, done: true };
 }
 
