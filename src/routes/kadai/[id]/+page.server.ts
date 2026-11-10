@@ -7,6 +7,7 @@ import { parseIssueId } from '#lib/domain/issues.ts';
 import { isHidden, validateReport } from '#lib/domain/reports.ts';
 import { nowOf, refusalMessage, sessionsAt, writeGuard } from '#lib/server/client.ts';
 import { getIssue, issueMeta, setSupport } from '#lib/server/issues.ts';
+import { issueBillCount } from '#lib/server/issue-bills.ts';
 import { hasReported, mergedSources, reportIssue } from '#lib/server/reports.ts';
 import { staffRoleOf } from '#lib/server/chairs.ts';
 import { reactAction, reportSolutionAction } from '#lib/server/solution-actions.ts';
@@ -48,6 +49,8 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 		loggedIn: userId !== null,
 		reported: userId !== null && (await hasReported(db, id, userId)),
 		sources: await mergedSources(db, id),
+		// この課題から生まれた法案の数（Issue #125）
+		billCount: await issueBillCount(db, id),
 		...(await solutionsFor(db, id, userId, staff)),
 		// 似た課題から「わかる」で来た人だけに、解決策を書く案内を出す（URL を共有された人には出さない）
 		fromSimilar: url.searchParams.get('from') === 'nita' && userId !== null && !hidden && issue.supported

@@ -43,6 +43,9 @@ const sessionPoint = (s: Session, ms: number, withDay: boolean) =>
 /** 投稿の種類の名前 */
 const POST_KINDS = { question: '質疑', answer: '答弁', supplement: '補足' };
 
+/** 法案の一覧のタブの名前 */
+const BILL_TAB_NAMES = { shingi: '審議中', shitagaki: '下書き', owari: '終わった' } as const;
+
 /** 変更点の見出しの番号と種類（ja.bill.page.changeHeading の部品） */
 const changeNumber = (n: number) => `${n}. `;
 const changeOp = (op: string) => ` ・ ${op}`;
@@ -599,9 +602,11 @@ export const ja = {
 			heading: '法案',
 			howto: '法案の書き方を見る',
 			tabs: '法案のタブ',
-			shingi: (n: number) => `審議中 ${n}`,
-			shitagaki: (n: number) => `下書き ${n}`,
-			owari: '終わった',
+			shingi: (n: number) => `${BILL_TAB_NAMES.shingi} ${n}`,
+			shitagaki: (n: number) => `${BILL_TAB_NAMES.shitagaki} ${n}`,
+			owari: BILL_TAB_NAMES.owari,
+			/** タブの名前（数なし）。課題から生まれた法案の一覧の状態にも使う（Issue #125） */
+			tabNames: BILL_TAB_NAMES,
 			kind: '種類',
 			bill: '法案',
 			stage: '段階',
@@ -1135,6 +1140,7 @@ export const ja = {
 		filterAll: 'すべて',
 		filterTopic: '今回のお題',
 		filterSolutions: '解決策あり',
+		filterBills: '法案あり',
 		sortLabel: '並び',
 		sortLabelPc: '並び順',
 		sorts: { support: '「わかる」の多い順', new: '新しい順', rising: '最近「わかる」が増えている順' },
@@ -1142,12 +1148,23 @@ export const ja = {
 		columnSupports: 'わかる',
 		columnTopic: 'お題',
 		columnSolutions: '解決策',
+		columnBills: '法案',
+		/** 行の印（Issue #125）。スマホは「法案あり」（法案のある課題だけ）、PC は「法案」の列に「あり」「なし」 */
+		bills: '法案',
+		billsYes: 'あり',
+		billsNo: 'なし',
 		solutions: '解決策',
 		supports: 'わかる',
 		topicMark: (name: string) => `お題：${name}`,
 		empty: 'まだ課題がありません',
 		emptyTopic: '今回のお題の課題はまだありません',
 		emptySolutions: '解決策のある課題はまだありません',
+		emptyBills: '法案のある課題はまだありません',
+		/** 課題のページの「この課題から生まれた法案 N本 ›」と、その一覧（Issue #125） */
+		billsRow: (n: number) => `この課題から生まれた法案 ${n}本`,
+		billsHeading: 'この課題から生まれた法案',
+		billsEmpty: 'この課題から生まれた法案はまだありません。',
+		billsPageTitle: (title: string) => `${title}から生まれた法案｜オープンソース立法府`,
 		prevPage: '前の50件',
 		nextPage: '次の50件',
 		pageTitle: (title: string) => `${title}｜オープンソース立法府`,
