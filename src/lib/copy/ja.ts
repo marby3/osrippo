@@ -43,6 +43,9 @@ const sessionPoint = (s: Session, ms: number, withDay: boolean) =>
 /** 投稿の種類の名前 */
 const POST_KINDS = { question: '質疑', answer: '答弁', supplement: '補足' };
 
+/** 法案の一覧のタブの名前 */
+const BILL_TAB_NAMES = { shingi: '審議中', shitagaki: '下書き', owari: '終わった' } as const;
+
 /** 変更点の見出しの番号と種類（ja.bill.page.changeHeading の部品） */
 const changeNumber = (n: number) => `${n}. `;
 const changeOp = (op: string) => ` ・ ${op}`;
@@ -599,9 +602,11 @@ export const ja = {
 			heading: '法案',
 			howto: '法案の書き方を見る',
 			tabs: '法案のタブ',
-			shingi: (n: number) => `審議中 ${n}`,
-			shitagaki: (n: number) => `下書き ${n}`,
-			owari: '終わった',
+			shingi: (n: number) => `${BILL_TAB_NAMES.shingi} ${n}`,
+			shitagaki: (n: number) => `${BILL_TAB_NAMES.shitagaki} ${n}`,
+			owari: BILL_TAB_NAMES.owari,
+			/** タブの名前（数なし）。課題から生まれた法案の一覧の状態にも使う（Issue #125） */
+			tabNames: BILL_TAB_NAMES,
 			kind: '種類',
 			bill: '法案',
 			stage: '段階',
@@ -1160,7 +1165,6 @@ export const ja = {
 		billsHeading: 'この課題から生まれた法案',
 		billsEmpty: 'この課題から生まれた法案はまだありません。',
 		billsPageTitle: (title: string) => `${title}から生まれた法案｜オープンソース立法府`,
-		billsTabs: { shingi: '審議中', shitagaki: '下書き', owari: '終わった' },
 		prevPage: '前の50件',
 		nextPage: '次の50件',
 		pageTitle: (title: string) => `${title}｜オープンソース立法府`,

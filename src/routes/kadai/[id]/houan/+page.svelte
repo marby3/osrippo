@@ -1,5 +1,5 @@
 <script lang="ts">
-	// この課題から生まれた法案の一覧（Issue #125）。種類の札・題名（法案のページへ）・いまの状態（法案の一覧のタブと同じ言い方）
+	// この課題から生まれた法案の一覧（Issue #125）。種類の札・題名（法案のページへ）・いまの状態（法案の一覧のタブの名前）
 	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
@@ -33,7 +33,7 @@
 					<li>
 						<span class="badge">{ja.bill.kinds[bill.kind]}</span>
 						<a href="/houan/{bill.id}">{bill.title}</a>
-						<span class="state">{ja.issue.billsTabs[bill.tab]}</span>
+						<span class="state">{ja.bill.list.tabNames[bill.tab]}</span>
 					</li>
 				{/each}
 			</ul>

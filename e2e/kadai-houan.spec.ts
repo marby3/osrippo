@@ -80,7 +80,9 @@ test('基準3：法案があると「この課題から生まれた法案 N本�
 		expect(l.y).toBeGreaterThanOrEqual(write.y + write.height);
 	} else {
 		const support = await box(s.page.getByRole('button', { name: /^わかる \d+$/ }));
-		expect(l.x).toBeGreaterThan(support.x - 32);
+		// 右の列：左の列の右端（見出しの右の「解決策を書く」）より右
+		const write = await box(s.page.getByRole('link', { name: '解決策を書く', exact: true }));
+		expect(l.x).toBeGreaterThan(write.x + write.width);
 		expect(l.y).toBeGreaterThan(support.y + support.height);
 	}
 	// 法案のない課題には出さない

@@ -14,7 +14,7 @@ import {
 import type { Db } from './law';
 import { indexTexts, issueMatchSql } from './search';
 import type { Word } from '../domain/search';
-import { billCountOfIssue } from './issue-bills';
+import { billCounts, hasBills } from './issue-bills';
 
 /** 押す操作として合わせて数える actions の種類 */
 export const PRESS_KINDS = ['support_add', 'support_remove', 'reaction_add', 'reaction_remove'] as const;
@@ -48,9 +48,7 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 			supports,
 			// 「わかる」と同じ JOIN に足すと行が掛け算で増えるので、相関サブクエリで数える（設計書 docs/spec/34.md 決めたこと8）
 			// 非表示の解決策は数えない（設計書 docs/spec/36.md 決めたこと4）
-			solutions: sql<number>`(SELECT count(*) FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`,
-			// この課題から生まれた法案（Issue #125）
-			bills: billCountOfIssue(sql`${issues}.id`)
+			solutions: sql<number>`(SELECT count(*) FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`
 		})
 		.from(issues)
 		.leftJoin(issueSupports, eq(issueSupports.issueId, issues.id))
@@ -64,7 +62,8 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 				q.solutions
 					? sql`EXISTS (SELECT 1 FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`
 					: undefined,
-				q.bills ? sql`${billCountOfIssue(sql`${issues}.id`)} > 0` : undefined,
+				// 法案あり（Issue #125）。相関させず1回だけ評価する
+				q.bills ? hasBills(sql`${issues}.id`) : undefined,
 				words.length ? sql`${issues.id} IN (${issueMatchSql(words)})` : undefined
 			)
 		)
@@ -72,7 +71,10 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 		.orderBy(...order)
 		.limit(PAGE_SIZE + 1)
 		.offset((q.page - 1) * PAGE_SIZE);
-	return { rows: rows.slice(0, PAGE_SIZE), hasNext: rows.length > PAGE_SIZE };
+	const page = rows.slice(0, PAGE_SIZE);
+	// この課題から生まれた法案の数は、ページに出る課題の分だけ別に数える（Issue #125）
+	const counts = await billCounts(db, page.map((r) => r.id));
+	return { rows: page.map((r) => ({ ...r, bills: counts.get(r.id) ?? 0 })), hasNext: rows.length > PAGE_SIZE };
 }
 
 export async function getIssue(db: Db, id: number, userId: string | null) {
