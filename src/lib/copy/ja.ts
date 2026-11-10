@@ -1143,7 +1143,9 @@ export const ja = {
 		filterBills: '法案あり',
 		sortLabel: '並び',
 		sortLabelPc: '並び順',
-		sorts: { support: '「わかる」の多い順', new: '新しい順', rising: '最近「わかる」が増えている順' },
+		sorts: { bridge: '立場を超えた支持順', support: '「わかる」の多い順', new: '新しい順', rising: '最近「わかる」が増えている順' },
+		/** 立場を超えた支持順で、グループの人数が足りないとき（Issue #126） */
+		bridgeFallback: '人数が足りないので、いまは「わかる」の多い順に並べています',
 		columnTitle: '課題',
 		columnSupports: 'わかる',
 		columnTopic: 'お題',

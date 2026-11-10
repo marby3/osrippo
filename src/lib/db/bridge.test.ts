@@ -130,6 +130,8 @@ describe('立場を超えた支持順', () => {
 		const unfinished = person();
 		vote(unfinished, A, 'no');
 		sqlite.prepare('INSERT INTO vote_assignments (session_key, user_id, seq, bill_id, created_at) VALUES (?, ?, 0, ?, 0)').run(previous.key, unfinished, B);
+		// 足りなかったかは一覧の行と一緒に返すので、課題を1つ置く
+		issue([]);
 		expect((await list()).bridgeFallback).toBe(true);
 
 		// 記録だけ（noted）と確かめた（confirmed）法案の票は使う：反対寄りが10人になる

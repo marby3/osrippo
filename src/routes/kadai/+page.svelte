@@ -17,7 +17,7 @@
 	const selected = $derived(q.bills ? 'bills' : q.solutions ? 'solutions' : q.topic);
 	/** 探すときも、いまの並びと絞り込みは残す */
 	const searchHidden = $derived({
-		...(q.sort !== 'support' ? { sort: q.sort } : {}),
+		...(q.sort !== 'bridge' ? { sort: q.sort } : {}),
 		...(q.topic !== 'all' ? { topic: q.topic } : {}),
 		...(q.solutions ? { kaiketsu: 'ari' } : {}),
 		...(q.bills ? { houan: 'ari' } : {})
@@ -79,6 +79,8 @@
 		</div>
 
 		<div class="content">
+			<!-- 立場を超えた支持順で、グループの人数が足りないとき（Issue #126） -->
+			{#if data.bridgeFallback}<p class="fallback">{ja.issue.bridgeFallback}</p>{/if}
 			{#if data.rows.length === 0}
 				<!-- 「課題を書く」は見出しの横の1つだけ -->
 				{#if !data.searchError}
@@ -284,6 +286,12 @@
 	.bills:not(.none) {
 		color: var(--color-text);
 		font-weight: bold;
+	}
+
+	.fallback {
+		margin: 0 0 0.5rem;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
 	}
 
 	.topic {

@@ -15,6 +15,8 @@ import type { Db } from './law';
 import { indexTexts, issueMatchSql } from './search';
 import type { Word } from '../domain/search';
 import { billCounts, hasBills } from './issue-bills';
+import { bridgeParts } from './bridge';
+import type { Session } from '../domain/session';
 
 /** 押す操作として合わせて数える actions の種類 */
 export const PRESS_KINDS = ['support_add', 'support_remove', 'reaction_add', 'reaction_remove'] as const;
@@ -32,15 +34,25 @@ export async function currentTopic(db: Db) {
 }
 
 /** words は「課題を探す」の言葉（空なら探さない。設計書 docs/spec/38.md 決めたこと5） */
-export async function listIssues(db: Db, q: ListQuery, topicId: number | null, now: number, words: Word[] = []) {
+/**
+ * 課題の一覧。previous は直近に締め切った会期で、立場を超えた支持順（sort が bridge）のときだけ使う（Issue #126）。
+ * bridgeFallback は、立場を超えた支持順でグループの人数が足りず「わかる」の多い順にしたか（ほかの並びでは false）
+ */
+export async function listIssues(db: Db, q: ListQuery, topicId: number | null, now: number, words: Word[] = [], previous: Session | null = null) {
 	const supports = sql<number>`count(${issueSupports.userId})`;
 	const recent = sql<number>`count(case when ${issueSupports.createdAt} > ${now - RISING_WINDOW} then 1 end)`;
-	const order = {
-		support: [desc(supports), desc(issues.id)],
-		new: [desc(issues.id)],
-		rising: [desc(recent), desc(supports), desc(issues.id)]
-	}[q.sort];
-	const rows = await db
+	const bySupports = [desc(supports), desc(issues.id)];
+	// 立場を超えた支持順の部品。ほかの並びのときはグループを作らない（設計書 6）
+	const bridge = q.sort === 'bridge' && previous !== null ? bridgeParts(db, previous, supports) : null;
+	const order = bridge
+		? bridge.order
+		: {
+				bridge: bySupports,
+				support: bySupports,
+				new: [desc(issues.id)],
+				rising: [desc(recent), desc(supports), desc(issues.id)]
+			}[q.sort];
+	let query = (bridge ? db.with(bridge.groups) : db)
 		.select({
 			id: issues.id,
 			title: issues.title,
@@ -48,11 +60,17 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 			supports,
 			// 「わかる」と同じ JOIN に足すと行が掛け算で増えるので、相関サブクエリで数える（設計書 docs/spec/34.md 決めたこと8）
 			// 非表示の解決策は数えない（設計書 docs/spec/36.md 決めたこと4）
-			solutions: sql<number>`(SELECT count(*) FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`
+			solutions: sql<number>`(SELECT count(*) FROM solutions WHERE solutions.issue_id = ${issues.id} AND solutions.status IN ('visible', 'restored'))`,
+			// 人数が足りなかったか（行には残さない）
+			fallback: bridge ? bridge.fallback : sql<number>`0`
 		})
 		.from(issues)
 		.leftJoin(issueSupports, eq(issueSupports.issueId, issues.id))
 		.leftJoin(topics, eq(topics.id, issues.topicId))
+		.$dynamic();
+	// グループは人ごとに1行なので、「わかる」の行は増えない
+	if (bridge) query = query.leftJoin(bridge.groups, bridge.join);
+	const rows = await query
 		.where(
 			and(
 				// 非表示の課題は出さない（設計書 docs/spec/28.md 決めたこと4）
@@ -74,7 +92,12 @@ export async function listIssues(db: Db, q: ListQuery, topicId: number | null, n
 	const page = rows.slice(0, PAGE_SIZE);
 	// この課題から生まれた法案の数は、ページに出る課題の分だけ別に数える（Issue #125）
 	const counts = await billCounts(db, page.map((r) => r.id));
-	return { rows: page.map((r) => ({ ...r, bills: counts.get(r.id) ?? 0 })), hasNext: rows.length > PAGE_SIZE };
+	return {
+		rows: page.map(({ fallback: _, ...r }) => ({ ...r, bills: counts.get(r.id) ?? 0 })),
+		hasNext: rows.length > PAGE_SIZE,
+		// 立場を超えた支持順を選んでいて、人数が足りなかった（行がないときは出さない）
+		bridgeFallback: bridge !== null && Boolean(rows[0]?.fallback)
+	};
 }
 
 export async function getIssue(db: Db, id: number, userId: string | null) {
