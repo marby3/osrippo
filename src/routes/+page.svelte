@@ -1,10 +1,12 @@
 <script lang="ts">
 	import SearchBox from '#lib/components/SearchBox.svelte';
+	import VoteStanding from '#lib/components/VoteStanding.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 	const s = $derived(data.session);
+	const a = $derived(data.assignment);
 	const next = $derived(ja.session.next(s));
 	/** PC の区切り：発議（1〜2週）・質疑と修正（3週）・採決（4週） */
 	const segments = $derived(
@@ -16,7 +18,7 @@
 	);
 </script>
 
-<main class="frame">
+<main class="frame home">
 	<!-- 見出しは読み上げ用。画面ではメニューのサイト名が代わり（SpHome・PcHome、Issue #120） -->
 	<h1 class="visually-hidden">{ja.siteName}</h1>
 
@@ -40,6 +42,22 @@
 		<p class="next sp">{next[0]}{' '}<strong>{next[1]}</strong>{' '}{next[2]}</p>
 	</section>
 
+	{#if a}
+		<!-- あなたの割り当て法案（Issue #127）。本数は採決の期間に決まる。スマホは今の会期の下、PC は右の列 -->
+		<section class="assignment" aria-labelledby="assignment-heading">
+			<h2 id="assignment-heading">{ja.assignment.heading(a.open ? a.total : null)}</h2>
+			{#if !a.open}
+				<p>{ja.assignment.before}</p>
+			{:else}
+				{#if a.total > 0}
+					<p class="progress">{ja.assignment.progress(a.done, a.total)}</p>
+				{/if}
+				<VoteStanding eligible={a.eligible} total={a.total} done={a.done} />
+				<a class="open" href="/saiketsu">{a.total > 0 ? ja.assignment.open : ja.assignment.list}</a>
+			{/if}
+		</section>
+	{/if}
+
 	<!-- 全文検索の入口（設計書 docs/spec/38.md 決めたこと7）。課題の一覧と同じ形（Issue #120） -->
 	<div class="search"><SearchBox id="top-search" label={ja.search.entry} action="/kensaku" /></div>
 </main>
@@ -50,6 +68,38 @@
 	}
 	.search {
 		max-width: 50rem;
+	}
+
+	.assignment {
+		display: grid;
+		gap: 0.75rem;
+		margin: 0 0 1.5rem;
+		padding: 1rem;
+		border: 2px solid var(--color-base);
+		border-radius: var(--radius-l);
+	}
+	.assignment h2 {
+		margin: 0;
+		font-size: var(--font-size-heading);
+	}
+	.assignment p {
+		margin: 0;
+	}
+	.assignment .progress {
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+	.open {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: var(--tap-primary);
+		padding: 0 1rem;
+		border-radius: var(--radius-m);
+		background: var(--color-base);
+		color: var(--color-bg);
+		font-weight: bold;
+		text-decoration: none;
 	}
 
 	.session {
@@ -126,6 +176,23 @@
 		display: none;
 	}
 	@media (min-width: 64rem) {
+		/* PcHome：左に今の会期と探す欄、右の列にカード */
+		.home {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) 20rem;
+			column-gap: 2.5rem;
+			align-content: start;
+			align-items: start;
+		}
+		.home > :not(.assignment, h1) {
+			grid-column: 1;
+		}
+		/* 左の列は今の会期と探す欄の2段。ホームに段を足したら span も合わせる */
+		.assignment {
+			grid-column: 2;
+			grid-row: 1 / span 2;
+			margin-top: 1rem;
+		}
 		.sp {
 			display: none;
 		}

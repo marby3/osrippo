@@ -119,6 +119,15 @@ export const ja = {
 		/** PC の 2:1:1 の区切り */
 		segments: (s: Session) => ['1〜2週 発議', '3週 質疑・修正', `4週 採決（${sessionPoint(s, s.voteAt, false)}から）`]
 	},
+	/** ホームの「あなたの割り当て法案」（Issue #127。SpHome・PcHome）。採決の前は本数が決まっていない */
+	assignment: {
+		/** 本数は決まったあとで、0本でないときだけ付ける */
+		heading: (n: number | null) => (n ? `あなたの割り当て法案 ${n}本` : 'あなたの割り当て法案'),
+		before: '採決が始まると、くじで法案が割り当てられます（3本まで）。すべてに投票すると、あなたの票が数えた票になります。',
+		progress: (done: number, total: number) => `投票済み ${done} / ${total}本`,
+		open: '割り当て法案を見る',
+		list: '採決の一覧へ'
+	},
 	/** 質疑・答弁・補足と自分の考え（Issue #66。SpBillQA・PcBillQA） */
 	post: {
 		kinds: POST_KINDS,
