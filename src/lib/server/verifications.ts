@@ -33,11 +33,16 @@ export function personOf(row: { name: string; vKind: VerificationKind | null; vN
 
 /** いま議員か（有効な認証の種類が議員。設計書 docs/spec/158.md の 1） */
 export async function legislatorAt(db: Db, userId: string, now: number): Promise<boolean> {
+	return (await legislatorNameAt(db, userId, now)) !== null;
+}
+
+/** いま議員なら表示する名前（氏名）、ちがえば null（ヘッダーの「認証済み・氏名」。docs/spec/149.md の 1） */
+export async function legislatorNameAt(db: Db, userId: string, now: number): Promise<string | null> {
 	const [row] = await db
-		.select({ kind: userVerifications.kind })
+		.select({ kind: userVerifications.kind, name: userVerifications.displayName })
 		.from(userVerifications)
 		.where(and(eq(userVerifications.userId, userId), activeVerification(now)));
-	return isLegislator(row?.kind);
+	return row && isLegislator(row.kind) ? row.name : null;
 }
 
 /** その時点で有効な議員の認証がある人（今月の参加者から除く。設計書 docs/spec/158.md の 5） */

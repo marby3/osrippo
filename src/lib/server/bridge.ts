@@ -1,6 +1,6 @@
 // 立場を超えた支持順（課題の橋渡しスコア。Issue #126、設計書 docs/spec/126.md）。
 // 直近に締め切った会期の数えた票で「賛成寄り」「反対寄り」に分け、課題ごとにグループの中で「わかる」を付けた人の割合の低いほうで並べる。
-// 割合・人数・だれがどちらかは返さない（並べるためにだけ使う。基準5）
+// 割合・人数・だれがどちらかは返さない（並べるためにだけ使う。基準5）。例外は議員ダッシュボードの5%刻みの割合だけ（Issue #149、docs/spec/149.md の 2）
 import { and, eq, sql, type SQL } from 'drizzle-orm';
 import { issueSupports, issues, user, voteReviews, votes } from '../db/schema';
 import type { Session } from '../domain/session';
@@ -53,6 +53,11 @@ export function bridgeParts(db: Db, previous: Session, supports: SQL<number>) {
 		groups,
 		join: eq(groups.userId, issueSupports.userId),
 		fallback,
+		/**
+		 * 割合（丸める前）。区分がどちらも10人以上の課題だけ、ほかは NULL。議員ダッシュボードだけが選ぶ（docs/spec/149.md の 2）。
+		 * 一般の画面とページのデータには出さない（#126 の基準5）
+		 */
+		ratio: sql<number | null>`CASE WHEN ${scored} THEN ${score} END`,
 		// 割合を使う課題が先で割合の高い順、そのあと（と足りないとき）は「わかる」の多い順 → 新しい順
 		order: [sql`CASE WHEN ${scored} THEN 0 ELSE 1 END`, sql`CASE WHEN ${scored} THEN ${score} END DESC`, sql`${supports} DESC`, sql`${issues.id} DESC`]
 	};

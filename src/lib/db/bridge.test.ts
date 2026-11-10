@@ -163,3 +163,29 @@ describe('立場を超えた支持順', () => {
 		expect(rows[0]).toMatchObject({ supports: 20 });
 	});
 });
+
+describe('Issue #149：議員ダッシュボードの割合（設計書 docs/spec/149.md の 2）', () => {
+	test('ダッシュボードの一覧だけが、どちらの区分も10人以上の課題に5%刻みの割合を返す。課題の一覧には割合を入れない', async () => {
+		const fors = times(13, forPerson);
+		const againsts = times(10, againstPerson);
+		// 10/13 = 0.769… と 10/10 = 1 の低いほう → 75%
+		const both = issue([...fors.slice(0, 10), ...againsts]);
+		// 反対寄りが9人なので割合を出さない
+		const short = issue([...fors.slice(0, 10), ...againsts.slice(0, 9)]);
+		const dashboard = await listIssues(db, query(), null, NOW, [], previous, 20, true);
+		const ratioOf = (id: number) => dashboard.rows.find((r) => r.id === id)?.ratio;
+		expect(ratioOf(both)).toBe(75);
+		expect(ratioOf(short)).toBeNull();
+		// 課題の一覧の呼び方では、割合の列そのものがない
+		const general = await list();
+		expect(general.rows.every((r) => !('ratio' in r))).toBe(true);
+	});
+
+	test('グループ全体が10人未満なら、どの課題も割合を出さない', async () => {
+		const fors = times(9, forPerson);
+		const againsts = times(12, againstPerson);
+		const id = issue([...fors, ...againsts]);
+		const dashboard = await listIssues(db, query(), null, NOW, [], previous, 20, true);
+		expect(dashboard.rows.find((r) => r.id === id)?.ratio).toBeNull();
+	});
+});

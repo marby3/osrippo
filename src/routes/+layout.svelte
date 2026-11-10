@@ -24,7 +24,7 @@
 
 <!-- IF世界の帯はメニューより上（案 SpResult）。出すかはページの load が ifBand で決める -->
 {#if page.data.ifBand}<IfBand />{/if}
-<SiteHeader unread={data.menu.unread} hideTabsOnSp={hidesTabsOnSp(page.route.id)} />
+<SiteHeader unread={data.menu.unread} hideTabsOnSp={hidesTabsOnSp(page.route.id)} legislatorName={data.legislatorName} />
 
 {@render children()}
 

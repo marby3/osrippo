@@ -444,9 +444,10 @@ const supportCount = sql<number>`(SELECT count(*) FROM ${billSupports} s WHERE s
 
 /**
  * タブの法案。下書きは保存が新しい順、審議中は作ったのが新しい順、終わったは発議が新しい順。
- * before は lapsedBefore の値で、これより前に発議した法案と、撤回された法案が終わった（docs/spec/50.md 決めたこと4・5、docs/spec/76.md）
+ * before は lapsedBefore の値で、これより前に発議した法案と、撤回された法案が終わった（docs/spec/50.md 決めたこと4・5、docs/spec/76.md）。
+ * size は1ページの件数（議員ダッシュボードは20件。Issue #149）
  */
-export async function listBills(db: Db, tab: BillTab, page: number, before: number) {
+export async function listBills(db: Db, tab: BillTab, page: number, before: number, size = PAGE_SIZE) {
 	const draft = tab === 'shitagaki';
 	const inTab = draft
 		? eq(bills.status, 'draft')
@@ -459,9 +460,9 @@ export async function listBills(db: Db, tab: BillTab, page: number, before: numb
 		.from(bills)
 		.where(and(savedBill, inTab))
 		.orderBy(desc(newest), desc(bills.id))
-		.limit(PAGE_SIZE + 1)
-		.offset((page - 1) * PAGE_SIZE);
-	return { rows: rows.slice(0, PAGE_SIZE), hasNext: rows.length > PAGE_SIZE };
+		.limit(size + 1)
+		.offset((page - 1) * size);
+	return { rows: rows.slice(0, size), hasNext: rows.length > size };
 }
 
 /** タブの件数。「終わった」には数を出さない（SpBills・PcBills） */
