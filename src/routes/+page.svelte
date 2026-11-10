@@ -45,7 +45,7 @@
 	{#if a}
 		<!-- あなたの割り当て法案（Issue #127）。本数は採決の期間に決まる。スマホは今の会期の下、PC は右の列 -->
 		<section class="assignment" aria-labelledby="assignment-heading">
-			<h2 id="assignment-heading">{ja.assignment.heading}{a.open && a.total > 0 ? ja.assignment.count(a.total) : ''}</h2>
+			<h2 id="assignment-heading">{ja.assignment.heading(a.open ? a.total : null)}</h2>
 			{#if !a.open}
 				<p>{ja.assignment.before}</p>
 			{:else}
@@ -53,7 +53,7 @@
 					<p class="progress">{ja.assignment.progress(a.done, a.total)}</p>
 				{/if}
 				<VoteStanding eligible={a.eligible} total={a.total} done={a.done} />
-				<a class="button" href="/saiketsu">{a.total > 0 ? ja.assignment.open : ja.assignment.list}</a>
+				<a class="open" href="/saiketsu">{a.total > 0 ? ja.assignment.open : ja.assignment.list}</a>
 			{/if}
 		</section>
 	{/if}
@@ -89,7 +89,7 @@
 		color: var(--color-text-sub);
 		font-size: var(--font-size-sub);
 	}
-	.button {
+	.open {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -187,6 +187,7 @@
 		.home > :not(.assignment, h1) {
 			grid-column: 1;
 		}
+		/* 左の列は今の会期と探す欄の2段。ホームに段を足したら span も合わせる */
 		.assignment {
 			grid-column: 2;
 			grid-row: 1 / span 2;

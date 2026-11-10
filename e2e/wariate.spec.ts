@@ -92,6 +92,7 @@ test('基準3：採決の期間は、ホームを開くと割り当てが決ま�
 	const res = await billRequest(voter.page, `/saiketsu/${id}?/vote`, { choice: 'yes', 'cf-turnstile-response': 'test-pass' });
 	expect(res.status()).toBe(200);
 	await voter.page.goto('/');
+	await hydrated(voter.page);
 	await expect(c.getByText('投票済み 1 / 1本', { exact: true })).toBeVisible();
 	await expect(c).toContainText('割り当ての法案はすべて投票済みです。あなたの票は数えた票になります。');
 

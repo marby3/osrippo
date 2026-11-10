@@ -121,8 +121,8 @@ export const ja = {
 	},
 	/** ホームの「あなたの割り当て法案」（Issue #127。SpHome・PcHome）。採決の前は本数が決まっていない */
 	assignment: {
-		heading: 'あなたの割り当て法案',
-		count: (n: number) => ` ${n}本`,
+		/** 本数は決まったあとで、0本でないときだけ付ける */
+		heading: (n: number | null) => (n ? `あなたの割り当て法案 ${n}本` : 'あなたの割り当て法案'),
 		before: '採決が始まると、くじで法案が割り当てられます（3本まで）。すべてに投票すると、あなたの票が数えた票になります。',
 		progress: (done: number, total: number) => `投票済み ${done} / ${total}本`,
 		open: '割り当て法案を見る',
