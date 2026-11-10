@@ -36,6 +36,10 @@
 	--line-height-body: 1.7;
 	--line-height-law: 2;
 
+	/* 表示の設定の文字の大きさ（Issue #129。ページの根の文字の大きさに掛ける） */
+	--text-scale-l: 112.5%;
+	--text-scale-xl: 125%;
+
 	/* 押せる大きさ */
 	--tap-primary: 3.25rem;
 	--tap-secondary: 3rem;

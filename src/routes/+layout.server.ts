@@ -9,9 +9,11 @@ export const load: LayoutServerLoad = async (event) => {
 	// url を読むと、ページを移るたびにこの load が走り直す（読まないと、通知を読んだあとも古い数が残る）
 	const { pathname, searchParams } = event.url;
 	const user = event.locals.user;
-	if (!user) return { menu: { unread: null } };
+	// 表示の設定（Issue #129）。法令のページの「表示の設定」が今の値を選んだ状態で出すために使う
+	const display = event.locals.display;
+	if (!user) return { display, menu: { unread: null } };
 	// 通知の1ページ目（page なし。?page=1 は 404）は開くと既読になる。ページの load と並んで走るので、ここでは 0 として出す
-	if (pathname === '/tsuchi' && searchParams.get('page') === null) return { menu: { unread: 0 } };
+	if (pathname === '/tsuchi' && searchParams.get('page') === null) return { display, menu: { unread: 0 } };
 	const now = nowOf(event);
-	return { menu: { unread: await unreadCount(drizzle(env.DB), user.id, now, sessionsAt(now).minutes) } };
+	return { display, menu: { unread: await unreadCount(drizzle(env.DB), user.id, now, sessionsAt(now).minutes) } };
 };

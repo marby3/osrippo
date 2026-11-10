@@ -2,7 +2,9 @@
 	// IF世界の法令ページ（SpLaw・PcLaw）。全ページに帯と「架空の法令」、noindex。
 	// 改正履歴、変わった記録、2時点の比較は出さない（docs/spec/72.md の G）
 	import Crumbs from '#lib/components/Crumbs.svelte';
+	import DisplaySettings from '#lib/components/DisplaySettings.svelte';
 	import LawParagraphs from '#lib/components/LawParagraphs.svelte';
+	import LawTitle from '#lib/components/LawTitle.svelte';
 	import LawSwitch from '#lib/components/LawSwitch.svelte';
 	import LawToc from '#lib/components/LawToc.svelte';
 	import { ja } from '#lib/copy/ja.ts';
@@ -23,7 +25,11 @@
 		{#if data.real}<LawSwitch lawId={data.law.id} current="if" />{/if}
 		<header>
 			<p class="fictional">{ja.ifLaw.fictional}</p>
-			<h1>{data.law.title}</h1>
+			<!-- 法令名の行の右に「表示の設定」（SpLaw・PcLaw、Issue #129） -->
+			<div class="title-row">
+				<h1><LawTitle title={data.law.title} kana={data.law.titleKana} /></h1>
+				<DisplaySettings />
+			</div>
 			{#if data.law.lawNum}<p class="sub">{data.law.lawNum}</p>{/if}
 			{#if data.repealedBy}<p class="notice">{ja.ifLaw.repealedBy}<a href="/houan/{data.repealedBy.id}">{data.repealedBy.title}</a></p>{/if}
 			{#if data.enactedBy}<p class="notice">{ja.ifLaw.enactedBy}<a href="/houan/{data.enactedBy.id}">{data.enactedBy.title}</a></p>{/if}
@@ -51,6 +57,13 @@
 </main>
 
 <style>
+	.title-row {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
 	main {
 		padding: 1rem;
 	}

@@ -12,6 +12,8 @@ declare global {
 			auth: () => Auth;
 			/** ログインしていなければ null */
 			user: Auth['$Infer']['Session']['user'] | null;
+			/** 表示の設定（Cookie から。Issue #129） */
+			display: import('#lib/domain/display.ts').Display;
 		}
 		interface PageData {
 			/** IF世界の帯を出すページ。帯はメニューより上に出すので、ページの load が返し、全体の枠が出す（Issue #85） */

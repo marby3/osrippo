@@ -1,4 +1,22 @@
 /* 要素の既定のスタイル。値は tokens.css の変数だけを使う */
+
+/* 表示の設定（Issue #129）。大きさはすべて rem なので、根を変えると全体がそろって大きくなる */
+:root[data-text-size='l'] {
+	font-size: var(--text-scale-l);
+}
+:root[data-text-size='xl'] {
+	font-size: var(--text-scale-xl);
+}
+/* 読み仮名は属性から描く（文の文字に入れない。コピーとページ内の検索に混ざらないように） */
+rt {
+	font-size: var(--font-size-rt);
+}
+rt[data-rt]::before {
+	content: attr(data-rt);
+}
+:root[data-ruby='off'] rt {
+	display: none;
+}
 body {
 	margin: 0;
 	background: var(--color-bg);

@@ -119,6 +119,16 @@ export const ja = {
 		/** PC の 2:1:1 の区切り */
 		segments: (s: Session) => ['1〜2週 発議', '3週 質疑・修正', `4週 採決（${sessionPoint(s, s.voteAt, false)}から）`]
 	},
+	/** 表示の設定（Issue #129。法令のページ） */
+	display: {
+		open: '表示の設定',
+		size: '文字の大きさ',
+		sizes: { m: '標準', l: '大きい', xl: 'とても大きい' },
+		ruby: 'ふりがな',
+		rubyOn: '付ける',
+		rubyOff: '付けない',
+		save: '保存する'
+	},
 	/** ホームの「今日の条文」（Issue #128。SpHome・PcHome）。どれだけ変わっていないかは law の文を使う */
 	today: {
 		heading: '今日の条文',
