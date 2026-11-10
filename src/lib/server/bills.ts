@@ -13,6 +13,7 @@ import { refuse, type Actor } from './issues';
 import { mergeBlock, proposeMerged } from './merge';
 import { baseArticlesOf, ifArticles, ifHeadOf, repealedLawIds } from './if-world';
 import type { Db, BatchDb } from './law';
+import { personOf, verifiedColumns, verifiedJoin, verifiedTable } from './verifications';
 
 /** 作りかけ（rev = 0）を除く条件。法案を引くところは必ずこれを使う */
 export const savedBill = gt(bills.rev, 0);
@@ -276,8 +277,12 @@ export async function lawTitlesOf(db: Db, bill: { laws: { lawId: string | null }
 }
 
 /** 法案のページの上の部分と概要のタブに出すもの。文字の比べは変更点のタブだけで行う（billChangeViews） */
-export async function billView(db: Db, bill: NonNullable<Bill>) {
-	const [author] = await db.select({ name: user.name }).from(user).where(eq(user.id, bill.userId));
+export async function billView(db: Db, bill: NonNullable<Bill>, now: number) {
+	const [author] = await db
+		.select({ name: user.name, ...verifiedColumns })
+		.from(user)
+		.leftJoin(verifiedTable, verifiedJoin(now))
+		.where(eq(user.id, bill.userId));
 	const titles = await lawTitlesOf(db, bill);
 	const lawTitle = (l: (typeof bill.laws)[number]) => (l.lawId ? (titles.get(l.lawId) ?? '') : (l.newTitle ?? ''));
 
@@ -302,7 +307,7 @@ export async function billView(db: Db, bill: NonNullable<Bill>) {
 		summary: bill.summary ? bill.summary.split('\n') : [],
 		affected: bill.affected,
 		sideEffects: bill.sideEffects,
-		author: author?.name ?? '',
+		author: author ? personOf(author) : { name: '', verified: null },
 		solutions: bill.solutionIds.map((id) => {
 			const c = byId.get(id);
 			// 解決策か課題が非表示なら本文も課題も出さない（非表示の課題の解決策は本人と運営にしか渡さない。docs/spec/28.md 決めたこと4）

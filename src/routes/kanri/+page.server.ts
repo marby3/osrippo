@@ -15,6 +15,8 @@ import { issueMeta } from '#lib/server/issues.ts';
 import { changePostStatus, checkMerge as checkQuestionMerge, mergeCandidates, mergeQuestion, mergeWindowOpen, postStaffAccess, reportedPosts } from '#lib/server/post-moderation.ts';
 import { changeStatus, mergeIssue, mergePreview, reportedIssues, staffRows } from '#lib/server/reports.ts';
 import { changeSolutionStatus, reportedSolutions, solutionMeta } from '#lib/server/solutions.ts';
+import { canVerify, parseVerification, verificationLastDay } from '#lib/domain/verification.ts';
+import { activeVerificationList, changeVerification, grantVerification } from '#lib/server/verifications.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 /** 役職を最初に確かめる（権限のない人に /kanri があることを漏らさない） */
@@ -95,8 +97,45 @@ export const load: PageServerLoad = async (event) => {
 		justMerged: params.get('matome') === '1',
 		focusPost,
 		amendments: await reportedAmendments(db, staff, focusAmendment),
-		reviews: await pendingReviews(db, staff.userId, staff.role)
+		reviews: await pendingReviews(db, staff.userId, staff.role),
+		// 議員・有識者の認証（設計書 docs/spec/157.md の 3）。運営でなければ一覧も返さない
+		verifications: canVerify(staff.role)
+			? (await activeVerificationList(db, now)).map(({ expiresAt, ...v }) => ({ ...v, lastDay: verificationLastDay(expiresAt) }))
+			: null
 	};
+};
+
+/** 認証の操作の前に、運営かを確かめる。ほかの人には 404（欄があることを漏らさない） */
+async function verifierOf(event: RequestEvent) {
+	const { db, staff } = await staffOf(event);
+	if (!canVerify(staff.role)) error(404);
+	return { db, staff };
+}
+
+const verifyFail = (status: number, message: string) => fail(status, { message, verification: true as const });
+
+/** 認証を付ける（設計書 docs/spec/157.md の 3） */
+async function verifyGrant(event: RequestEvent) {
+	const { db, staff } = await verifierOf(event);
+	if (!allowedCountry(clientOf(event).country)) return verifyFail(403, ja.guard.outsideJapan);
+	const form = await event.request.formData();
+	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
+	const parsed = parseVerification({ kind: field('kind'), name: field('name'), field: field('field') });
+	if (!parsed.ok) return verifyFail(400, ja.verification.errors[parsed.error]);
+	const target = (field('target') ?? '').trim();
+	const result = await grantVerification(db as BatchDb, { ...parsed.value, target }, staff.userId, nowOf(event));
+	if (!result.ok) return verifyFail(400, ja.verification.errors[result.error]);
+	return { verification: true as const, done: true };
+}
+
+/** 1年延ばす・取り消す */
+const verifyChange = (action: 'renew' | 'revoke') => async (event: RequestEvent) => {
+	const { db, staff } = await verifierOf(event);
+	if (!allowedCountry(clientOf(event).country)) return verifyFail(403, ja.guard.outsideJapan);
+	const form = await event.request.formData();
+	const userId = String(form.get('user') ?? '');
+	if (!userId || !(await changeVerification(db as BatchDb, action, userId, staff.userId, nowOf(event)))) return verifyFail(400, ja.verification.errors.inactive);
+	return { verification: true as const, done: true };
 };
 
 const act = (action: 'hide' | 'restore' | 'merge') => async (event: RequestEvent) => {
@@ -247,5 +286,8 @@ export const actions: Actions = {
 	restorePost: actOnPost('restore'),
 	mergeQuestion: mergePost,
 	hideAmendment: actOnAmendment('hide'),
-	restoreAmendment: actOnAmendment('restore')
+	restoreAmendment: actOnAmendment('restore'),
+	verifyGrant,
+	verifyRenew: verifyChange('renew'),
+	verifyRevoke: verifyChange('revoke')
 };

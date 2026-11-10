@@ -209,7 +209,7 @@ test('基準3：投票の期間、候補だけ、資格、運営、回線の上�
 	// 締切まで変えられ、最後の票を数える
 	expect(await cast(v, idA, s.voteAt)).toEqual({ ok: true });
 	expect(await cast(v, idB, s.voteAt + 1)).toEqual({ ok: true });
-	const mine = await electionPage(w.db, COMMITTEE, s, v, first);
+	const mine = await electionPage(w.db, COMMITTEE, s, v, first, 0);
 	expect(mine.myVote).toBe(idB);
 	expect((w.sqlite.prepare('SELECT count(*) AS n FROM chair_votes WHERE user_id = ?').get(v) as { n: number }).n).toBe(1);
 
@@ -223,7 +223,7 @@ test('基準3：投票の期間、候補だけ、資格、運営、回線の上�
 	expect((w.sqlite.prepare("SELECT count(*) AS n FROM actions WHERE kind = 'violation' AND user_id = ?").get(over) as { n: number }).n).toBe(0);
 
 	// ページのデータに、入れた人、得票、回線、内部IDを出さない
-	const seen = JSON.stringify(await electionPage(w.db, COMMITTEE, s, null, first));
+	const seen = JSON.stringify(await electionPage(w.db, COMMITTEE, s, null, first, 0));
 	expect(seen).not.toContain('投票した人の名前');
 	expect(seen).not.toContain(v);
 	expect(seen).not.toContain('same-line');

@@ -165,8 +165,8 @@ test('基準3：非表示の質疑はカードごと出ず数に入らない。�
 	const question = w.addPost(bill, writer);
 	const answer = w.addPost(bill, 'author', 'answer', question);
 	const supplement = w.addPost(bill, w.addUser(), 'supplement', question);
-	const read = async () => (await listQuestions(db, bill, null, false, 1, [], SESSION.key)).rows;
-	const waiting = async () => (await listQuestions(db, bill, null, true, 1, [], SESSION.key)).rows.map((q) => q.id);
+	const read = async () => (await listQuestions(db, bill, null, false, 1, [], SESSION.key, 0)).rows;
+	const waiting = async () => (await listQuestions(db, bill, null, true, 1, [], SESSION.key, 0)).rows.map((q) => q.id);
 
 	expect(await questionTotal(db, bill)).toBe(2);
 	expect(await waitingQuestions(db, bill, SESSION.key)).toBe(1);

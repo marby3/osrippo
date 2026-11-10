@@ -13,6 +13,8 @@ import { notificationPage } from '../server/notification-page';
 import { billModerationLogPage } from '../server/post-moderation';
 import { castVote } from '../server/votes';
 import { openMemoryDb, type MemoryDb } from './memory';
+/** 名前だけを比べる（認証のバッジは docs/spec/157.md） */
+const names = (ps: { name: string }[]) => ps.map((p) => p.name);
 
 const VOTE_NOW = Date.parse('2046-05-25T00:00:00+09:00');
 const session = sessionAt(VOTE_NOW, null);
@@ -316,7 +318,7 @@ test('基準4：非表示は数に入らず、賛同、取り消し、投票、�
 	expect((await w.loaded(racedBill)).rev).toBe(1);
 	expect(await w.bodyOf(racedBill, '1')).toBe('第1条のもとの本文');
 	expect(w.statusOf(raced)).toBe('open');
-	expect(await coDrafters(db, racedBill)).toEqual([]);
+	expect(names(await coDrafters(db, racedBill, 0))).toEqual([]);
 });
 
 test('基準5：会期の処理で、非表示で open の修正案は票によらず採決されず本文に入らない。取り込み済みは変わらない。結果のあとに戻しても変わらない', async () => {
@@ -349,8 +351,8 @@ test('基準5：会期の処理で、非表示で open の修正案は票によ�
 	expect(await w.bodyOf(bill, '2')).toBe('可決する本文');
 	expect(await w.bodyOf(bill, '3')).toBe('取り込まれた本文');
 	// 書き手の名前は共同起草者に残る
-	const names = await coDrafters(db, bill);
-	expect(names).toHaveLength(2);
+	const drafters = names(await coDrafters(db, bill, 0));
+	expect(drafters).toHaveLength(2);
 
 	// 結果のあとに表示に戻しても、採決はやり直さない
 	expect(await w.restore(hidden)).toBe(true);
@@ -361,7 +363,7 @@ test('基準5：会期の処理で、非表示で open の修正案は票によ�
 	// 可決のあとに隠しても、本文と共同起草者は変わらない
 	expect(await w.hide(shown)).toBe(true);
 	expect(await w.bodyOf(bill, '2')).toBe('可決する本文');
-	expect(await coDrafters(db, bill)).toEqual(names);
+	expect(names(await coDrafters(db, bill, 0))).toEqual(drafters);
 });
 
 test('基準6：運営の画面に通報された修正案が出て、非表示と表示に戻すができる。更新が分かる。扱えない人は枠の外で除かれ、扱えない', async () => {

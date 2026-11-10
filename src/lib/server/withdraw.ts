@@ -7,6 +7,7 @@ import { cosponsorStatus } from './cosponsors';
 import type { Actor } from './issues';
 import type { BatchDb, Db } from './law';
 import { billMembers, notify } from './notifications';
+import { personOf, verifiedColumns, verifiedJoin, verifiedTable } from './verifications';
 
 type BillLike = NonNullable<Bill>;
 
@@ -57,15 +58,16 @@ export async function cancelWithdraw(db: Db, actor: Actor, bill: BillLike) {
 }
 
 /** 同意の状況 */
-export async function withdrawStateOf(db: Db, bill: BillLike, userId: string | null = null) {
+export async function withdrawStateOf(db: Db, bill: BillLike, userId: string | null, now: number) {
 	const rev = supportRev(bill);
 	const accepted = await db.select({ userId: billCosponsors.userId }).from(billCosponsors).where(and(eq(billCosponsors.billId, bill.id), eq(billCosponsors.status, 'accepted')));
 	const members = new Set([bill.userId, ...accepted.map((r) => r.userId)]);
 	const rows = await db
-		.select({ userId: billWithdrawConsents.userId, name: user.name })
+		.select({ userId: billWithdrawConsents.userId, name: user.name, ...verifiedColumns })
 		.from(billWithdrawConsents)
 		.innerJoin(user, eq(user.id, billWithdrawConsents.userId))
+		.leftJoin(verifiedTable, verifiedJoin(now))
 		.where(and(eq(billWithdrawConsents.billId, bill.id), eq(billWithdrawConsents.proposedRev, rev)));
 	const counted = rows.filter((r) => members.has(r.userId));
-	return { total: members.size, consented: counted.length, names: counted.map((r) => r.name), member: userId !== null && members.has(userId), mine: counted.some((r) => r.userId === userId) };
+	return { total: members.size, consented: counted.length, names: counted.map(personOf), member: userId !== null && members.has(userId), mine: counted.some((r) => r.userId === userId) };
 }

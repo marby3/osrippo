@@ -3,18 +3,20 @@
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	/** 3つの表は別々にページを送る。1つを送っても、ほかの位置を保つ */
-	const hrefOf = (page: number, kakunin: number, shitsugi: number) => {
+	/** 4つの記録は別々にページを送る。1つを送っても、ほかの位置を保つ */
+	const hrefOf = (page: number, kakunin: number, shitsugi: number, ninsho = data.verifyPage) => {
 		const params = new URLSearchParams();
 		if (page > 1) params.set('page', String(page));
 		if (kakunin > 1) params.set('kakunin', String(kakunin));
 		if (shitsugi > 1) params.set('shitsugi', String(shitsugi));
+		if (ninsho > 1) params.set('ninsho', String(ninsho));
 		const query = params.toString();
 		return query ? `/unei?${query}` : '/unei';
 	};
 	const pageHref = (page: number) => hrefOf(page, data.reviewPage, data.postPage);
 	const reviewHref = (kakunin: number) => hrefOf(data.page, kakunin, data.postPage);
 	const postHref = (shitsugi: number) => hrefOf(data.page, data.reviewPage, shitsugi);
+	const verifyHref = (ninsho: number) => hrefOf(data.page, data.reviewPage, data.postPage, ninsho);
 </script>
 
 <svelte:head>
@@ -131,6 +133,26 @@
 			<nav class="pages" aria-label={ja.unei.postLogPages}>
 				{#if data.postPage > 1}<a href={postHref(data.postPage - 1)}>{ja.unei.prevPage}</a>{/if}
 				{#if data.postLogsHasNext}<a href={postHref(data.postPage + 1)}>{ja.unei.nextPage}</a>{/if}
+			</nav>
+		{/if}
+	</section>
+
+	<!-- 議員・有識者の認証の記録（設計書 docs/spec/157.md の 4）。だれが操作したかは出さない -->
+	<section aria-labelledby="verify-log-heading">
+		<h2 id="verify-log-heading">{ja.verification.logHeading}</h2>
+		{#if data.verifyLogs.length === 0}
+			<p>{ja.verification.logEmpty}</p>
+		{:else}
+			<ul class="verify-log">
+				{#each data.verifyLogs as row (row.id)}
+					<li>{ja.verification.logLine(row.kind, row.action, row.name, row.field, row.date)}</li>
+				{/each}
+			</ul>
+		{/if}
+		{#if data.verifyPage > 1 || data.verifyLogsHasNext}
+			<nav class="pages" aria-label={ja.verification.logHeading}>
+				{#if data.verifyPage > 1}<a href={verifyHref(data.verifyPage - 1)}>{ja.verification.logPrev}</a>{/if}
+				{#if data.verifyLogsHasNext}<a href={verifyHref(data.verifyPage + 1)}>{ja.verification.logNext}</a>{/if}
 			</nav>
 		{/if}
 	</section>

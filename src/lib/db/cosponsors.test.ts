@@ -16,6 +16,8 @@ import { resubmitBill } from '../server/resubmit';
 import { assignedBills, billsInVote, castVote } from '../server/votes';
 import { cancelWithdraw, consentWithdraw, withdrawStateOf } from '../server/withdraw';
 import { openMemoryDb, type MemoryDb } from './memory';
+/** 名前だけを比べる（認証のバッジは docs/spec/157.md） */
+const names = (ps: { name: string }[]) => ps.map((p) => p.name);
 
 const jst = (s: string) => Date.parse(`${s}+09:00`);
 const monthOf = (key: string) => sessionAt(jst(`${key}-10T00:00:00`), null);
@@ -117,7 +119,7 @@ test('基準2：申し出から抜けるまでの操作、上限、権限', asyn
 	expect(await billRoleOf(w.db, await load(), x)).toBeNull();
 	expect(await isBillSide(w.db, await load(), x)).toBe(false);
 	expect(await saveDraft(w.db, bill.id, x, 1, draftInputOf(await load()), now)).toBe(false);
-	expect(await cosponsorsOf(w.db, bill.id)).toEqual([]);
+	expect(names(await cosponsorsOf(w.db, bill.id, 0))).toEqual([]);
 	expect(await cancelCosponsorRequest(w.db, w.actorOf(x), await load())).toBe(true);
 	expect(w.rowOf(bill.id, x)).toBeUndefined();
 	expect(await cancelCosponsorRequest(w.db, w.actorOf(x), await load())).toBe(false);
@@ -132,7 +134,7 @@ test('基準2：申し出から抜けるまでの操作、上限、権限', asyn
 	// 承認すると名前が出る
 	expect(await decideCosponsor(w.db, w.actorOf(bill.author), await load(), rowId, 'accept', now)).toEqual({ ok: true });
 	expect(w.rowOf(bill.id, x)).toMatchObject({ status: 'accepted', acceptedAt: now });
-	expect(await cosponsorsOf(w.db, bill.id)).toEqual([`名前${x}`]);
+	expect(names(await cosponsorsOf(w.db, bill.id, 0))).toEqual([`名前${x}`]);
 
 	// 断られると再度できない
 	const y = w.addUser();
@@ -147,7 +149,7 @@ test('基準2：申し出から抜けるまでの操作、上限、権限', asyn
 	expect(await leaveCosponsor(w.db, w.actorOf(x), await load(), null, 1000)).toEqual({ ok: true });
 	expect(w.rowOf(bill.id, x)).toMatchObject({ status: 'left' });
 	expect(await requestCosponsor(w.db, w.actorOf(x), await load(), now)).toEqual({ ok: false, reason: 'left' });
-	expect(await cosponsorsOf(w.db, bill.id)).toEqual([]);
+	expect(names(await cosponsorsOf(w.db, bill.id, 0))).toEqual([]);
 	const z = await w.makeCosponsor(bill);
 	expect(await leaveCosponsor(w.db, w.actorOf(other), await load(), (w.rowOf(bill.id, z) as { id: number }).id, 1000)).toEqual({ ok: false, reason: 'forbidden' });
 	expect(await leaveCosponsor(w.db, w.actorOf(bill.author), await load(), (w.rowOf(bill.id, z) as { id: number }).id, 1000)).toEqual({ ok: true });
@@ -160,14 +162,14 @@ test('基準2：申し出から抜けるまでの操作、上限、権限', asyn
 	await requestCosponsor(w.db, w.actorOf(sixth), await load(), now);
 	expect(await decideCosponsor(w.db, w.actorOf(bill.author), await load(), (w.rowOf(bill.id, sixth) as { id: number }).id, 'accept', now)).toEqual({ ok: false, reason: 'full' });
 	expect(w.rowOf(bill.id, sixth)).toMatchObject({ status: 'requested' });
-	expect(await cosponsorsOf(w.db, bill.id)).toHaveLength(5);
+	expect(names(await cosponsorsOf(w.db, bill.id, 0))).toHaveLength(5);
 
 	// 別の法案の行は指せない
 	const elsewhere = w.addBill(w.addLaw());
 	expect(await decideCosponsor(w.db, w.actorOf(elsewhere.author), await w.load(elsewhere.id), (w.rowOf(bill.id, sixth) as { id: number }).id, 'accept', now)).toEqual({ ok: false, reason: 'closed' });
 
 	// 発議のあとは何も変えられない
-	const accepted = (await cosponsorsOf(w.db, bill.id)).length;
+	const accepted = (names(await cosponsorsOf(w.db, bill.id, 0))).length;
 	w.sqlite.prepare("UPDATE bills SET status = 'proposed', proposed_at = 1, proposed_rev = rev WHERE id = ?").run(bill.id);
 	const late = w.addUser();
 	expect(await requestCosponsor(w.db, w.actorOf(late), await load(), now)).toEqual({ ok: false, reason: 'closed' });
@@ -175,7 +177,7 @@ test('基準2：申し出から抜けるまでの操作、上限、権限', asyn
 	expect(await cancelCosponsorRequest(w.db, w.actorOf(sixth), await load())).toBe(false);
 	const member = w.sqlite.prepare("SELECT id, user_id AS userId FROM bill_cosponsors WHERE bill_id = ? AND status = 'accepted' LIMIT 1").get(bill.id) as { id: number; userId: string };
 	expect(await leaveCosponsor(w.db, w.actorOf(member.userId), await load(), null, 1000)).toEqual({ ok: false, reason: 'closed' });
-	expect(await cosponsorsOf(w.db, bill.id)).toHaveLength(accepted);
+	expect(names(await cosponsorsOf(w.db, bill.id, 0))).toHaveLength(accepted);
 
 	// 上限を超えると作らず、違反に数える
 	const busy = w.addUser();
@@ -244,7 +246,7 @@ test('基準3：共同提出者は下書きを編集できる。提出者だけ�
 	expect(await canEditDraft(w.db, await w.load(other.id), gone)).toBe(false);
 	expect(await saveDraft(w.db, other.id, gone, 1, draftInputOf(await w.load(other.id)), now)).toBe(false);
 	const copy = await resubmitBill(w.db, w.actorOf(bill.author), adjusted, now);
-	expect(await cosponsorsOf(w.db, (copy as { id: number }).id)).toEqual([]);
+	expect(names(await cosponsorsOf(w.db, (copy as { id: number }).id, 0))).toEqual([]);
 }, 30_000);
 
 test('基準4：共同提出者は賛同できず、承認で賛同が外れる。通らなかった承認では消えない', async () => {
@@ -320,7 +322,7 @@ test('基準5：答弁と評価の役割、票の割り当て、結果の確認�
 	// 抜けた人は修正案も出せない
 	expect(await isBillSide(w.db, await load(), gone)).toBe(true);
 	// 名前は出ない
-	expect(await cosponsorsOf(w.db, bill.id)).toEqual([`名前${co}`]);
+	expect(names(await cosponsorsOf(w.db, bill.id, 0))).toEqual([`名前${co}`]);
 
 	// 発議して採決の期間へ。票の割り当てから除く
 	w.sqlite.prepare('UPDATE bills SET status = ?, proposed_at = ?, proposed_rev = rev WHERE id = ?').run('proposed', s.startsAt + 1, bill.id);
@@ -382,7 +384,7 @@ test('基準7：撤回は全員の同意で、採決の前まで。撤回され�
 	expect(await consentWithdraw(w.db, w.actorOf(gone), await load(), inSession, null)).toEqual({ ok: false, reason: 'forbidden' });
 	expect(await consentWithdraw(w.db, w.actorOf(bill.author), await load(), inSession, null)).toEqual({ ok: true, withdrawn: false });
 	expect(w.statusOf(bill.id).status).toBe('proposed');
-	expect(await withdrawStateOf(w.db, await load())).toMatchObject({ total: 2, consented: 1, names: [expect.any(String)] });
+	expect(await withdrawStateOf(w.db, await load(), null, 0)).toMatchObject({ total: 2, consented: 1, names: [{ name: expect.any(String), verified: null }] });
 	// 全員の前なら取り消せる
 	expect(await cancelWithdraw(w.db, w.actorOf(bill.author), await load())).toBe(true);
 	expect(await consentWithdraw(w.db, w.actorOf(co), await load(), inSession, null)).toEqual({ ok: true, withdrawn: false });

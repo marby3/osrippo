@@ -7,6 +7,10 @@ export const jaDate = (iso: string) => {
 	return `${y}年${m}月${d}日`;
 };
 
+/** 認証の種類と記録の操作（Issue #157） */
+const VERIFICATION_KIND_LABELS = { legislator: '議員', expert: '有識者' } as const;
+const VERIFICATION_LOG_ACTIONS = { grant: '付けた', renew: '1年延ばした', revoke: '取り消した' } as const;
+
 const jaMonth = (iso: string) => {
 	const [y, m] = iso.split('-').map(Number);
 	return `${y}年${m}月`;
@@ -478,6 +482,8 @@ export const ja = {
 	},
 	/** 法案の下書きの誤り（設計書 docs/spec/45.md 決めたこと9。画面は #46・#47） */
 	bill: {
+		/** 名前を並べるときの区切り */
+		nameSeparator: '、',
 		errors: {
 			required: 'ここを書いてください。',
 			tooLong: '長すぎます。字数を減らしてください。',
@@ -700,7 +706,7 @@ export const ja = {
 		/** 共同提出者（設計書 docs/spec/76.md） */
 		cosponsor: {
 			heading: '共同提出者',
-			names: (names: string[]) => `共同提出者 ${names.join('、')}`,
+			names: '共同提出者',
 			request: '共同提出者になりたいと申し出る',
 			requestNote: '提出者が承認すると、この法案を一緒に編集し、答弁できます。承認されると賛同は外れます（賛同していたことが分かる場合があります）。承認のあとで抜けても、この法案には賛同も修正案もできません。',
 			cancel: '申し出を取り下げる',
@@ -732,7 +738,6 @@ export const ja = {
 		withdraw: {
 			heading: '撤回',
 			progress: (total: number, n: number) => `${total}人中${n}人が同意`,
-			names: (names: string[]) => `（${names.join('、')}）`,
 			consent: '撤回に同意する',
 			confirm: '撤回は元に戻せません。提出者と共同提出者の全員が同意すると撤回になります',
 			cancel: '同意を取り消す',
@@ -801,8 +806,9 @@ export const ja = {
 			sideEffects: '副作用',
 			solutions: '元になった解決策',
 			hiddenSolution: 'この解決策は非表示になっています',
-			author: (name: string) => `提出者 ${name}`,
-			coDrafters: (names: string[]) => `共同起草者 ${names.join('、')}`,
+			/** 名前は PersonName で後ろに並べる（認証のバッジを付けるため。Issue #157） */
+			author: '提出者',
+			coDrafters: '共同起草者',
 			edit: '編集する',
 			legendDel: '−消す',
 			legendIns: '＋足す',
@@ -1181,6 +1187,44 @@ export const ja = {
 		alreadyShown: '表示されています',
 		ownIssue: '自分の課題には対応できません',
 		invalid: '入力を確かめてください'
+	},
+	/** 議員・有識者の認証（Issue #157、設計書 docs/spec/157.md） */
+	verification: {
+		heading: '議員・有識者の認証',
+		target: '表示名',
+		kind: '種類',
+		kinds: VERIFICATION_KIND_LABELS,
+		name: '表示する名前（議員は氏名、有識者は実名か肩書）',
+		field: '専門分野（有識者だけ）',
+		grant: '認証を付ける',
+		renew: '1年延ばす',
+		revoke: '取り消す',
+		listHeading: 'いま認証のある人',
+		empty: '認証のある人はいません',
+		/** 一覧の行の表示名（運営が誰か分かるように） */
+		account: (name: string) => `表示名 ${name}`,
+		until: (date: string) => `${jaDate(date)}まで`,
+		errors: {
+			noUser: 'その表示名の利用者はいません',
+			staff: '運営・運営協力者のアカウントには付けられません',
+			active: 'すでに認証があります',
+			inactive: 'この認証はもう有効ではありません',
+			kind: '種類を選んでください',
+			nameRequired: '表示する名前を入れてください',
+			nameTooLong: '表示する名前は40字以内で書いてください',
+			nameInvalid: '表示する名前に使えない文字が入っています',
+			fieldRequired: '有識者は専門分野を入れてください',
+			fieldTooLong: '専門分野は40字以内で書いてください',
+			fieldInvalid: '専門分野に使えない文字が入っています'
+		},
+		logHeading: '認証の記録',
+		/** 「議員の認証を付けた・試験 太郎・2036年4月3日」。日付は操作した日 */
+		logLine: (kind: 'legislator' | 'expert', action: 'grant' | 'renew' | 'revoke', name: string, field: string | null, date: string) =>
+			`${VERIFICATION_KIND_LABELS[kind]}の認証を${VERIFICATION_LOG_ACTIONS[action]}・${name}${field ? `（${field}）` : ''}・${jaDate(date)}`,
+		logEmpty: 'まだ記録はありません',
+		logPrev: '新しい記録',
+		logNext: '前の記録',
+		badges: { legislator: '認証済み議員', expert: (field: string | null) => (field ? `有識者（${field}）` : '有識者') }
 	},
 	unei: {
 		pageTitle: '運営の記録｜オープンソース立法府',

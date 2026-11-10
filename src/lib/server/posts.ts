@@ -11,6 +11,7 @@ import { pressedOnBill, stanceNow } from './evaluations';
 import { POST_SHOWN_SQL } from './post-status';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
+import { verifiedAuthors } from './verifications';
 
 const POST_ACTION = { question: 'question_post', answer: 'answer_post', supplement: 'supplement_post' } as const;
 const POST_ACTIONS = Object.values(POST_ACTION);
@@ -98,9 +99,10 @@ export async function waitingQuestions(db: Db, billId: number, sessionKey: strin
 /**
  * 質疑のタブのカード。新しい順で、答弁と補足は古い順。返す値に user_id と立場を入れない（自分のものかは mine、押したかは pressed で返す）。
  * 答弁と補足は parent_id IN (…) でまとめて引く（1ページ20件なので、D1 の値の数の上限に収まる）。
- * related を渡すと関連法案の質疑も一緒に返す（Issue #69。どの法案の質疑かは billId で分かる）
+ * related を渡すと関連法案の質疑も一緒に返す（Issue #69。どの法案の質疑かは billId で分かる）。
+ * 書いた人に有効な認証があるときだけ author に表示する名前とバッジを入れる（設計書 docs/spec/157.md の 5）。ない人は null で、名前を出さない
  */
-export async function listQuestions(db: Db, billId: number, userId: string | null, onlyWaiting: boolean, page: number, related: number[] = [], sessionKey?: string) {
+export async function listQuestions(db: Db, billId: number, userId: string | null, onlyWaiting: boolean, page: number, related: number[], sessionKey: string | undefined, now: number) {
 	const rows = await db
 		.select({ id: posts.id, billId: posts.billId, sessionKey: posts.sessionKey, body: posts.body, userId: posts.userId, mergedCount: sql<number>`(SELECT count(*) FROM posts m WHERE m.merged_into = ${posts}.id AND m.status = 'merged')` })
 		.from(posts)
@@ -118,6 +120,8 @@ export async function listQuestions(db: Db, billId: number, userId: string | nul
 		: [];
 	const of = (id: number, kind: PostKind) => children.filter((c) => c.parentId === id && c.kind === kind);
 	const pressedRows = userId !== null && shown.length ? await pressedOnBill(db, userId, billId) : [];
+	const verified = await verifiedAuthors(db, [...shown.map((q) => q.userId), ...children.map((c) => c.userId)], now);
+	const author = (id: string) => verified.get(id) ?? null;
 	const pressedOf = (id: number) =>
 		Object.fromEntries(EVALUATION_KINDS.map((kind) => [kind, pressedRows.some((r) => r.postId === id && r.kind === kind)])) as Record<EvaluationKind, boolean>;
 	return {
@@ -128,9 +132,10 @@ export async function listQuestions(db: Db, billId: number, userId: string | nul
 			body: q.body,
 			mergedCount: q.mergedCount,
 			mine: q.userId === userId,
+			author: author(q.userId),
 			pressed: pressedOf(q.id),
-			answers: of(q.id, 'answer').map((a) => ({ id: a.id, role: a.role as PostRole, body: a.body, mine: a.userId === userId, pressed: pressedOf(a.id) })),
-			supplements: of(q.id, 'supplement').map((s) => ({ id: s.id, body: s.body, mine: s.userId === userId }))
+			answers: of(q.id, 'answer').map((a) => ({ id: a.id, role: a.role as PostRole, body: a.body, mine: a.userId === userId, author: author(a.userId), pressed: pressedOf(a.id) })),
+			supplements: of(q.id, 'supplement').map((s) => ({ id: s.id, body: s.body, mine: s.userId === userId, author: author(s.userId) }))
 		})),
 		hasNext: rows.length > QUESTION_PAGE_SIZE
 	};

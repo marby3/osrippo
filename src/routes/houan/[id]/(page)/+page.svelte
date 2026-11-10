@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PersonName from '#lib/components/PersonName.svelte';
 	// 法案のページの概要（SpBillSummary・PcBillSummary）
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
@@ -82,9 +83,15 @@
 		</section>
 		{/if}
 		<div class="people">
-			<p class="author">{ja.bill.page.author(bill.author)}</p>
-			{#if data.cosponsors.length}<span class="sep" aria-hidden="true">{ja.bill.support.separator}</span><p class="author">{ja.bill.cosponsor.names(data.cosponsors)}</p>{/if}
-			{#if data.coDrafters.length}<p class="author">{ja.bill.page.coDrafters(data.coDrafters)}</p>{/if}
+			<p class="author">{ja.bill.page.author} <PersonName person={bill.author} /></p>
+			{#if data.cosponsors.length}<span class="sep" aria-hidden="true">{ja.bill.support.separator}</span><p class="author">
+					{ja.bill.cosponsor.names}
+					{#each data.cosponsors as person, i (i)}{#if i}{ja.bill.nameSeparator}{/if}<PersonName {person} />{/each}
+				</p>{/if}
+			{#if data.coDrafters.length}<p class="author">
+					{ja.bill.page.coDrafters}
+					{#each data.coDrafters as person, i (i)}{#if i}{ja.bill.nameSeparator}{/if}<PersonName {person} />{/each}
+				</p>{/if}
 			<span class="sep" aria-hidden="true">{ja.bill.support.separator}</span>
 			<p class="supports">{ja.bill.support.count(support.count)}</p>
 		</div>
@@ -108,7 +115,7 @@
 					<ul>
 						{#each data.cosponsor.panel.requests as row (row.id)}
 							<li>
-								<span>{row.name}</span>
+								<span><PersonName person={row.person} /></span>
 								{#if data.cosponsor.panel.full}
 									<p class="note">{ja.bill.cosponsor.fullNote}</p>
 								{:else}
@@ -133,7 +140,7 @@
 					<ul>
 						{#each data.cosponsor.panel.members as row (row.id)}
 							<li>
-								<span>{row.name}</span>
+								<span><PersonName person={row.person} /></span>
 								<form method="post" action="?/cosponsor" use:enhance>
 									<input type="hidden" name="op" value="remove" />
 									<input type="hidden" name="id" value={row.id} />
@@ -214,7 +221,7 @@
 		{#if data.withdraw?.member}
 			<section class="box" aria-labelledby="withdraw-heading">
 				<h2 id="withdraw-heading">{ja.bill.withdraw.heading}</h2>
-				<p class="note">{ja.bill.withdraw.progress(data.withdraw.total, data.withdraw.consented)}{#if data.withdraw.names.length}{ja.bill.withdraw.names(data.withdraw.names)}{/if}</p>
+				<p class="note">{ja.bill.withdraw.progress(data.withdraw.total, data.withdraw.consented)}{#if data.withdraw.names.length}（{#each data.withdraw.names as person, i (i)}{#if i}{ja.bill.nameSeparator}{/if}<PersonName {person} />{/each}）{/if}</p>
 				{#if data.withdraw.mine}
 					<form method="post" action="?/withdraw" use:enhance>
 						<input type="hidden" name="op" value="cancel" />

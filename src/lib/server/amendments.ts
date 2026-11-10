@@ -13,6 +13,7 @@ import { refuse, type Actor } from './issues';
 import { baseArticlesOf } from './if-world';
 import type { BatchDb, Db } from './law';
 import { assignedBills, countedVote, emptyCounts } from './votes';
+import { personOf, verifiedColumns, verifiedJoin, verifiedTable } from './verifications';
 
 type LoadedBill = NonNullable<Bill>;
 
@@ -345,14 +346,16 @@ export async function settleAmendments(db: BatchDb, session: Session, billId: nu
 }
 
 /** 共同起草者（取り込まれたか可決した修正案の提案者）の名前。重複なし、先に採用された順 */
-export async function coDrafters(db: Db, billId: number) {
+export async function coDrafters(db: Db, billId: number, now: number) {
 	const rows = await db
-		.select({ name: user.name })
+		.select({ userId: user.id, name: user.name, ...verifiedColumns })
 		.from(amendments)
 		.innerJoin(user, eq(user.id, amendments.userId))
+		.leftJoin(verifiedTable, verifiedJoin(now))
 		.where(and(eq(amendments.billId, billId), inArray(amendments.status, ['accepted', 'passed'])))
 		.orderBy(asc(amendments.id));
-	return [...new Set(rows.map((r) => r.name))];
+	const seen = new Set<string>();
+	return rows.filter((r) => !seen.has(r.userId) && seen.add(r.userId)).map(personOf);
 }
 
 export type AmendmentView = {
