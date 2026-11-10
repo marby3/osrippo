@@ -4,9 +4,12 @@ import { error } from '@sveltejs/kit';
 import { sessionDays } from '#lib/domain/session.ts';
 import type { PageLoad } from './$types';
 
+/** URL の段 → 何番目か（画面の href の逆。/asobikata・/asobikata/2・/asobikata/3） */
+const STEP_OF: Record<string, 1 | 2 | 3> = { '': 1, '2': 2, '3': 3 };
+
 export const load: PageLoad = ({ params }) => {
 	// 1つめの画面の URL は /asobikata だけ（/asobikata/1 は 404）
-	const step = params.step === undefined ? 1 : params.step === '2' ? 2 : params.step === '3' ? 3 : null;
-	if (step === null) error(404);
+	const step = STEP_OF[params.step ?? ''];
+	if (step === undefined) error(404);
 	return { step, ...sessionDays() };
 };

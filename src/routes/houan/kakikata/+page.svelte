@@ -140,6 +140,7 @@
 		font-weight: bold;
 	}
 
+	.asobikata a,
 	.to-issues {
 		display: inline-flex;
 		align-items: center;

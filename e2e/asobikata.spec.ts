@@ -1,10 +1,11 @@
 // Issue #131：はじめての方へ：遊び方（3画面）と、ホームの入口
 import { expect, test, type Page } from '@playwright/test';
 import { ORIGIN } from './helpers';
+import { sessionDays } from '../src/lib/domain/session';
 
 const ENTRY = 'はじめての方へ：遊び方（3分）';
 const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
-const box = async (page: Page, l: ReturnType<Page['locator']>) => {
+const box = async (l: ReturnType<Page['locator']>) => {
 	await expect(l).toBeVisible();
 	return (await l.boundingBox())!;
 };
@@ -14,19 +15,30 @@ test('基準1：ホームに入口の行があり、スマホはいちばん上�
 	await hydrated(page);
 	const entry = page.getByRole('link', { name: ENTRY });
 	await expect(entry).toHaveAttribute('href', '/asobikata');
-	const e = await box(page, entry);
-	const session = await box(page, page.getByRole('region', { name: /^いまは/ }));
+	const e = await box(entry);
+	const session = await box(page.getByRole('region', { name: /^いまは/ }));
 	if (info.project.name === 'sp') {
 		expect(e.y + e.height).toBeLessThanOrEqual(session.y);
 	} else {
-		const today = await box(page, page.getByRole('region', { name: /^今日の条文/ }));
+		const today = await box(page.getByRole('region', { name: /^今日の条文/ }));
 		expect(e.y).toBeGreaterThanOrEqual(today.y + today.height);
 		expect(Math.abs(e.x - today.x)).toBeLessThan(2);
 	}
-	expect(e.height).toBeGreaterThanOrEqual(44);
-	const surface = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--color-surface').trim());
-	expect(surface).toBe('#f5f5f7');
-	expect(await entry.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(245, 245, 247)');
+	// 押しやすい大きさ（いちばん押しやすい大きさの決まり）と、うすい灰色（地の色の決まり）
+	const token = (name: string) =>
+		page.evaluate((n) => {
+			const probe = document.createElement('div');
+			probe.style.cssText = `position:absolute;height:var(${n});background:var(${n})`;
+			document.body.appendChild(probe);
+			const s = getComputedStyle(probe);
+			const v = { height: s.height, background: s.backgroundColor };
+			probe.remove();
+			return v;
+		}, name);
+	expect(e.height).toBeGreaterThanOrEqual(parseFloat((await token('--tap-primary')).height));
+	expect(await entry.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe((await token('--color-surface')).background);
+	// 右の「›」
+	await expect(entry.locator('svg')).toHaveCount(1);
 });
 
 test('基準2：3つの画面を「前へ」「次へ」で行き来でき、最後は「ホームへ」。スクリプトがなくても動く', async ({ browser }) => {
@@ -40,6 +52,7 @@ test('基準2：3つの画面を「前へ」「次へ」で行き来でき、最
 			// 進み具合の棒は3つで、いまの段までが済み
 			await expect(page.getByRole('list', { name: '遊び方の段' }).getByRole('listitem')).toHaveCount(3);
 			await expect(page.getByRole('list', { name: '遊び方の段' }).locator('[aria-current="step"]')).toHaveCount(1);
+			await expect(page.getByRole('list', { name: '遊び方の段' }).getByRole('listitem').nth(n - 1)).toHaveAttribute('aria-current', 'step');
 			if (n > 1) await expect(page.getByRole('link', { name: '前へ', exact: true })).toHaveAttribute('href', n === 2 ? '/asobikata' : '/asobikata/2');
 			if (n < 3) await page.getByRole('link', { name: '次へ', exact: true }).click();
 		}
@@ -69,11 +82,16 @@ test('基準3：「いちばん大事な流れ」を3つにまとめ、日付は
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('法案にして話し合う');
 	await expect(page.locator('main')).toContainText(`毎月${until}日まで`);
 	await expect(page.locator('main')).toContainText(`${deliberation}日からは質疑`);
+	await expect(page.locator('main')).toContainText(`毎月1日〜${Number(vote) - 1}日`);
 	await expect(page.getByRole('link', { name: '法案を見る' })).toHaveAttribute('href', '/houan');
 
 	await page.goto('/asobikata/3');
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('投票して決める');
 	await expect(page.locator('main')).toContainText(`${vote}日から採決`);
+	// 会期の決まりの値そのもの（2つのページが同じ間違いをしていても気づけるように）
+	const d = sessionDays();
+	expect([Number(until), Number(deliberation), Number(vote)]).toEqual([d.proposeUntil, d.deliberation, d.vote]);
+	expect([d.proposeUntil, d.deliberation, d.discussUntil, d.vote]).toEqual([14, 15, 21, 22]);
 	await expect(page.locator('main')).toContainText('IF世界の法律になります');
 	await expect(page.getByRole('link', { name: '採決を見る' })).toHaveAttribute('href', '/saiketsu');
 });
@@ -94,7 +112,7 @@ test('基準5：2つめの画面から法案の書き方へ、法案の書き方
 	const back = page.getByRole('link', { name: /はじめての方へ：遊び方/ });
 	await expect(back).toHaveAttribute('href', '/asobikata');
 	// 冒頭（最初の節より前）
-	const b = await box(page, back);
-	const first = await box(page, page.locator('#nagare'));
+	const b = await box(back);
+	const first = await box(page.locator('#nagare'));
 	expect(b.y).toBeLessThan(first.y);
 });

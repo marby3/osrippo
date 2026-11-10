@@ -131,7 +131,7 @@ export const ja = {
 		prev: '前へ',
 		next: '次へ',
 		home: 'ホームへ',
-		steps: (d: { proposeUntil: number; deliberation: number; vote: number }) => [
+		steps: (d: { proposeUntil: number; deliberation: number; discussUntil: number; vote: number }) => [
 			{
 				title: '困りごとを出す',
 				when: 'いつでも',
@@ -144,7 +144,7 @@ export const ja = {
 			},
 			{
 				title: '法案にして話し合う',
-				when: `毎月1日〜${d.vote - 1}日`,
+				when: `毎月1日〜${d.discussUntil}日`,
 				body: [
 					'課題と解決策をもとに、法律をどう変えるかを法案に書きます。',
 					`賛同を集めて発議します（毎月${d.proposeUntil}日まで）。`,
