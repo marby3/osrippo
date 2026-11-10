@@ -177,8 +177,12 @@ test('基準6：法案のタブに、審議中の法案と、いまの段と元�
 	}
 	expect((await proposeRequest(a.page, bill)).status()).toBe(200);
 	const { p } = await legislator(browser, w, at(month, 16));
-	await p.page.goto('/giin?tab=houan');
+	// 全体で流すと、ほかのテストの審議中の法案が20件を超えることがあるので、ページをたどって探す
 	const r = row(p.page, billTitle);
+	for (let n = 1; n <= 20; n++) {
+		await p.page.goto(n === 1 ? '/giin?tab=houan' : `/giin?tab=houan&page=${n}`);
+		if ((await r.count()) > 0 || (await p.page.getByRole('link', { name: 'もっと見る' }).count()) === 0) break;
+	}
 	await expect(r.getByRole('link', { name: billTitle, exact: true })).toHaveAttribute('href', bill);
 	await expect(r).toContainText('質疑');
 	await expect(r).toContainText(issueTitle);
