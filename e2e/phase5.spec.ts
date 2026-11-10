@@ -41,16 +41,14 @@ async function posted(u: Page, act: () => Promise<void>) {
 	if (res.status() < 300) expect(await res.text()).not.toContain('"type":"failure"');
 }
 
-/** ダッシュボードの課題の行（スマホはカード、PC は表の行） */
-const row = (page: Page, title: string) =>
-	page
-		.getByRole('main')
-		.locator('li, tr, article')
-		.filter({ has: page.getByRole('link', { name: title, exact: true }) })
-		.last();
+/** ダッシュボードの課題の行（スマホはカード、PC は表の行）。目印は data-giin-row（Issue #147 テストの作り方） */
+const row = (page: Page, title: string) => page.locator('[data-giin-row]').filter({ has: page.getByRole('link', { name: title, exact: true }) });
 
 /** 課題のページの「議員の反応」の欄 */
 const reactions = (page: Page) => page.getByRole('region', { name: '議員の反応' });
+
+/** 正規表現に入れる文字を、そのままの文字として扱う */
+const literal = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const STOPPED = '選挙期間中は、議員の機能が止まっています';
 const HIDDEN = '議員（選挙期間中のため名前を出していません）';
@@ -66,12 +64,15 @@ test('議員アカウントで課題に「検討中」を付け、選挙期間�
 
 	// 1. 議員にする：運営が運営の画面で P を議員にし、運営の記録に出る
 	const op = await user(browser, ip(1), at(month, 3), name('OP'), 'operator');
+	// P のアカウントを作ってからログアウトし、認証のあとでログインし直す（筋書き1→3の順）
 	const p = await user(browser, ip(2), at(month, 3), name('P'));
-	expect((await op.page.goto('/kanri'))!.status()).toBe(200);
+	await p.page.context().clearCookies();
+	const kanri = await op.page.goto('/kanri');
+	expect(kanri?.status()).toBe(200);
 	await hydrated(op.page);
 	const grant = op.page.getByRole('region', { name: '議員・有識者の認証' });
 	await grant.getByLabel('表示名').fill(name('P'));
-	await grant.getByRole('radio', { name: '議員', exact: true }).check();
+	await grant.getByRole('group', { name: '種類' }).getByRole('radio', { name: '議員', exact: true }).check();
 	await grant.getByLabel('氏名').fill(legislator);
 	await posted(op.page, () => grant.getByRole('button', { name: '認証を付ける' }).click());
 	await op.page.goto('/unei');
@@ -100,17 +101,31 @@ test('議員アカウントで課題に「検討中」を付け、選挙期間�
 
 	// 3. 議員の画面：ヘッダーに「議員用」と「認証済み・氏名」、ダッシュボードの「課題」のタブに A の課題
 	await p.setNow(at(month, 5));
+	await loginAs(p.page, name('P'), 8);
 	await p.page.goto('/');
 	await hydrated(p.page);
-	await expect(p.page.getByRole('link', { name: /議員用/ }).first()).toHaveAttribute('href', '/giin');
+	const header = p.page.getByRole('banner');
+	await expect(header.getByRole('link', { name: /議員用/ })).toHaveAttribute('href', '/giin');
+	if (w === 'pc') await expect(header.getByRole('link', { name: /議員用/ })).toBeVisible();
 	await p.page.goto('/giin');
 	await hydrated(p.page);
-	await expect(p.page.getByText(new RegExp(`認証済み(議員)?\\s*・\\s*${legislator}`)).first()).toBeVisible();
-	await expect(p.page.getByRole('main')).toContainText('立場を超えた支持');
+	// 認証の表示：PC はヘッダーの右（PcMember）、スマホはヘッダーの下の帯（SpMember）
+	const verified = new RegExp(`認証済み(議員)?\\s*・\\s*${literal(legislator)}`);
+	await expect((w === 'pc' ? header : p.page).getByText(verified).first()).toBeVisible();
+	await expect(p.page.getByRole('main').getByRole('link', { name: /^課題\s*\d+$/ })).toHaveAttribute('aria-current', 'page');
 	const issueRow = row(p.page, title);
 	await expect(issueRow).toBeVisible();
-	await expect(issueRow).toContainText(/(わかる\s*)?11(?!\d)/);
-	await expect(issueRow).toContainText(solution);
+	if (w === 'sp') {
+		// SpMember：カードに「わかる N ・ 立場を超えた支持 …」と「いちばんの解決策：…」
+		await expect(issueRow).toContainText(/わかる 11(?!\d)/);
+		await expect(issueRow).toContainText('立場を超えた支持');
+		await expect(issueRow).toContainText(`いちばんの解決策：${solution}`);
+	} else {
+		// PcMember：表の見出しの列に値を出す
+		for (const h of ['わかる', '立場を超えた支持', 'いちばんの解決策']) await expect(p.page.getByRole('columnheader', { name: h, exact: true })).toBeVisible();
+		await expect(issueRow.getByRole('cell', { name: '11', exact: true })).toBeVisible();
+		await expect(issueRow.getByRole('cell', { name: solution, exact: true })).toBeVisible();
+	}
 
 	// 4. 検討中にする：行が「検討中」になり、課題のページに出て、A に通知が届く
 	await posted(p.page, () => issueRow.getByRole('button', { name: '検討中にする' }).click());
@@ -119,11 +134,11 @@ test('議員アカウントで課題に「検討中」を付け、選挙期間�
 	await expect(row(p.page, title).getByRole('button', { name: '検討中にする' })).toHaveCount(0);
 
 	await v.goto(issuePath);
-	await expect(reactions(v)).toContainText(new RegExp(`検討中[：:]\\s*${legislator}（認証済み議員）`));
+	await expect(reactions(v)).toContainText(new RegExp(`検討中[：:]\\s*${literal(legislator)}（認証済み議員）`));
 
 	await a.setNow(at(month, 5));
 	await a.page.goto('/tsuchi');
-	await expect(a.page.getByRole('main')).toContainText('議員が「検討中」を付けました');
+	await expect(a.page.getByRole('main').getByText(new RegExp(`${literal(title)}.*議員が「検討中」を付けました`))).toBeVisible();
 
 	// 5. 議員にできないこと：課題のページに「わかる」のボタンがない（一般の利用者にはある）
 	const support = (u: Page) => u.getByRole('main').getByRole('button', { name: /^わかる/ });
@@ -162,7 +177,7 @@ test('議員アカウントで課題に「検討中」を付け、選挙期間�
 	await expect(row(p.page, otherTitle).getByRole('button', { name: '検討中にする' })).toBeVisible();
 	await viewer.setNow(at(month, 21));
 	await v.goto(issuePath);
-	await expect(reactions(v)).toContainText(new RegExp(`検討中[：:]\\s*${legislator}（認証済み議員）`));
+	await expect(reactions(v)).toContainText(new RegExp(`検討中[：:]\\s*${literal(legislator)}（認証済み議員）`));
 	await expect(reactions(v)).not.toContainText(HIDDEN);
 
 	// 5（続き）. 採決の期間：議員には割り当てがない
