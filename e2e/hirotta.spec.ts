@@ -61,9 +61,11 @@ async function setup(browser: Browser, w: Width, day = 3) {
 
 const reactions = (page: Page) => page.getByRole('region', { name: '議員の反応' });
 
-/** 書き込みの応答が返るまで待つ */
+/** 書き込みの応答が返り、そのあとの読み直しが終わるまで待つ（次の移動が中断されないように） */
 async function posted(u: Page, act: () => Promise<void>) {
-	await Promise.all([u.waitForResponse((r) => r.request().method() === 'POST'), act()]);
+	const [res] = await Promise.all([u.waitForResponse((r) => r.request().method() === 'POST'), act()]);
+	expect(res.status()).toBeLessThan(500);
+	await u.waitForLoadState('networkidle');
 }
 
 test('基準1：議員はダッシュボードと課題のページで「検討中にする」を押せ、「検討中を外す」で外せる', async ({ browser }, info) => {
