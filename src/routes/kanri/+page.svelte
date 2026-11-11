@@ -32,7 +32,7 @@
 <main>
 	<h1>{ja.kanri.heading}</h1>
 	<!-- 断った文言は、その課題・解決策のところに出す（どれか分からないときだけ上に） -->
-	{#if form && 'message' in form && !('verification' in form) && !('election' in form) && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('amendmentId' in form && form.amendmentId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
+	{#if form && 'message' in form && !('verification' in form) && !('election' in form) && !('commentaryId' in form && form.commentaryId) && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('amendmentId' in form && form.amendmentId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
 		<p role="alert">{form.message}</p>
 	{/if}
 	{#if data.rows.length === 0}
@@ -321,6 +321,54 @@
 			</article>
 		{/each}
 	</section>
+
+	<!-- 通報を受けた専門家の解説（Issue #152）。扱えないもの（自分のもの、関わった法案）は出さない -->
+	{#if data.commentaries.length}
+		<section aria-labelledby="commentary-heading">
+			<h2 id="commentary-heading" class="section">{ja.commentary.kanriHeading}</h2>
+			{#each data.commentaries as row (row.id)}
+				<article>
+					<h3><a href="/houan/{row.billId}">{row.billTitle}</a></h3>
+					<p class="status">{ja.kanri.statuses[row.status]}</p>
+					<p class="body">{row.body}</p>
+					{#if form && 'commentaryId' in form && form.commentaryId === row.id && 'message' in form}<p role="alert">{form.message}</p>{/if}
+					<p>{ja.kanri.reportCount(row.total, row.counted)}</p>
+					<ul class="reasons">
+						{#each solutionReasons as reason (reason)}
+							{#if row[reason] > 0}<li>{ja.report.reasons[reason]} {row[reason]}</li>{/if}
+						{/each}
+					</ul>
+					{#if row.notes.length}
+						<ul class="notes">
+							{#each row.notes as note, i (i)}<li>{note}</li>{/each}
+						</ul>
+					{/if}
+					{#if HIDEABLE.includes(row.status)}
+						<form method="post" action="?/hideCommentary" use:enhance>
+							<input type="hidden" name="commentary" value={row.id} />
+							<label for="commentary-hide-reason-{row.id}">{ja.kanri.hideReason}</label>
+							<select id="commentary-hide-reason-{row.id}" name="reason" required>
+								{#each HIDE_REASONS as reason (reason)}
+									<option value={reason}>{ja.hideReasons[reason]}</option>
+								{/each}
+							</select>
+							<label for="commentary-hide-note-{row.id}">{ja.kanri.hideNote}</label>
+							<textarea id="commentary-hide-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
+							<button>{ja.kanri.hide}</button>
+						</form>
+					{/if}
+					{#if RESTORABLE.includes(row.status)}
+						<form method="post" action="?/restoreCommentary" use:enhance>
+							<input type="hidden" name="commentary" value={row.id} />
+							<label for="commentary-restore-note-{row.id}">{ja.kanri.restoreNote}</label>
+							<textarea id="commentary-restore-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
+							<button>{ja.kanri.restore}</button>
+						</form>
+					{/if}
+				</article>
+			{/each}
+		</section>
+	{/if}
 
 	<!-- 議員・有識者の認証（設計書 docs/spec/157.md の 3）。運営にだけ出す -->
 	{#if data.verifications}

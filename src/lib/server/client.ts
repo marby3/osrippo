@@ -8,7 +8,7 @@ import { sessionAt, sessionMinutes } from '../domain/session';
 import { activeBan, type Actor } from './issues';
 import type { Db } from './law';
 import { verifyTurnstile } from './turnstile';
-import { legislatorAt } from './verifications';
+import { expertStateAt, legislatorAt } from './verifications';
 import { electionActive } from './elections';
 
 const isLocalHost = (url: URL) => ['localhost', '127.0.0.1'].includes(url.hostname);
@@ -99,9 +99,10 @@ export function refusalMessage(refusal: Refusal): string {
  * speak は法案の質疑・答弁・補足、read は「読んだ」の記録、report は通報、settle は前にした参加の取り消しと、
  * 提出者・共同提出者としての同意や後始末で、議員もできる（議員になる前の約束を果たせるように）。
  * legislator は議員だけの書き込み（「拾った」ステータス。Issue #150）で、議員でなければ断る。
+ * expert は有識者だけの書き込み（専門家の解説。Issue #152）で、有識者でなければ断り、立候補した選挙の期間中も断る。
  * 選挙期間中の議員は、legislator と speak（質疑・答弁・補足）を断る（Issue #151）。read（「読んだ」の記録）はだれでも通す
  */
-export type WriteUse = 'participate' | 'speak' | 'read' | 'report' | 'settle' | 'legislator';
+export type WriteUse = 'participate' | 'speak' | 'read' | 'report' | 'settle' | 'legislator' | 'expert';
 
 /**
  * 書き込みの前の確かめ：国 → 締め出し（設計書 決めたこと12）→ 議員（docs/spec/158.md）。
@@ -119,6 +120,11 @@ export async function writeGuard(
 	const until = await activeBan(db, user.id, now);
 	if (until !== null) return { ok: false, failure: fail(429, { message: ja.guard.banned(until) }) };
 	if (use === 'participate' && (await legislatorAt(db, user.id, now))) return { ok: false, failure: fail(403, { message: ja.guard.legislator }) };
+	if (use === 'expert') {
+		const state = await expertStateAt(db, user.id, now);
+		if (state === null) return { ok: false, failure: fail(403, { message: ja.commentary.onlyExpert }) };
+		if (state === 'stopped') return { ok: false, failure: fail(403, { message: ja.commentary.electionStopped }) };
+	}
 	if (use === 'legislator' || use === 'speak') {
 		const legislator = await legislatorAt(db, user.id, now);
 		if (use === 'legislator' && !legislator) return { ok: false, failure: fail(403, { message: ja.guard.onlyLegislator }) };

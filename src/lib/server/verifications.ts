@@ -61,6 +61,16 @@ export function legislatorIds(now: number) {
 	return sql`SELECT ${userVerifications.userId} FROM ${userVerifications} WHERE ${userVerifications.kind} = 'legislator' AND ${activeVerification(now)}`;
 }
 
+/** いま有識者か（有効な認証の種類が有識者）。立候補した選挙の期間中は 'stopped'（解説を書けない。Issue #151・#152） */
+export async function expertStateAt(db: Db, userId: string, now: number): Promise<'expert' | 'stopped' | null> {
+	const [row] = await db
+		.select({ kind: userVerifications.kind, hidden: hiddenDuringElection(now) })
+		.from(userVerifications)
+		.where(and(eq(userVerifications.userId, userId), activeVerification(now)));
+	if (!row || row.kind !== 'expert') return null;
+	return row.hidden ? 'stopped' : 'expert';
+}
+
 /** 投稿を書いた人のうち、有効な認証のある人だけ（user_id → 表示する名前とバッジ）。投稿の user_id は画面に渡さない */
 export async function verifiedAuthors(db: Db, userIds: string[], now: number): Promise<Map<string, Verified>> {
 	const ids = [...new Set(userIds)];

@@ -830,7 +830,9 @@ export const billModerationLogs = sqliteTable(
 		/** 修正案への対応のとき（設計書 docs/spec/103.md）。外部キーは付けない（付けると drizzle-kit が表を作り直すおそれがある） */
 		amendmentId: integer('amendment_id'),
 		/** 統合したときの統合先（当時のまま。設計書 docs/spec/104.md）。公開しない */
-		mergedInto: integer('merged_into')
+		mergedInto: integer('merged_into'),
+		/** 専門家の解説への対応のとき（Issue #152）。外部キーは付けない（付けると drizzle-kit が表を作り直すおそれがある） */
+		commentaryId: integer('commentary_id')
 	},
 	(t) => [index('bill_moderation_logs_actor_user').on(t.actorUserId, t.createdAt)]
 );
@@ -1469,4 +1471,48 @@ export const electionCandidates = sqliteTable(
 		createdAt: integer('created_at').notNull()
 	},
 	(t) => [primaryKey({ columns: [t.electionId, t.userId] })]
+);
+
+// 専門家の解説（Issue #152）。法案ごとに有識者1人1件。通報で見えなくなる条件は質疑・修正案と同じ
+
+export const expertCommentaries = sqliteTable(
+	'expert_commentaries',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		body: text('body').notNull(),
+		createdAt: integer('created_at').notNull(),
+		/** 直した時刻（直していなければ NULL） */
+		editedAt: integer('edited_at'),
+		moderationStatus: text('moderation_status', { enum: ['visible', 'auto_hidden', 'hidden', 'restored'] }).notNull().default('visible'),
+		moderationChangedAt: integer('moderation_changed_at')
+	},
+	(t) => [unique('expert_commentaries_once').on(t.billId, t.userId), check('expert_commentaries_status', sql`${t.moderationStatus} IN ('visible', 'auto_hidden', 'hidden', 'restored')`)]
+);
+
+export const commentaryReports = sqliteTable(
+	'commentary_reports',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		commentaryId: integer('commentary_id')
+			.notNull()
+			.references(() => expertCommentaries.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		reason: text('reason', { enum: SOLUTION_REPORT_REASONS_DB }).notNull(),
+		note: text('note'),
+		counted: integer('counted', { mode: 'boolean' }).notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		unique('commentary_reports_once').on(t.commentaryId, t.userId),
+		index('commentary_reports_user').on(t.userId, t.createdAt),
+		check('commentary_reports_reason', sql`${t.reason} IN (${inList(SOLUTION_REPORT_REASONS_DB)})`)
+	]
 );

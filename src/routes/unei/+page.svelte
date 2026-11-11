@@ -120,7 +120,7 @@
 					{#each data.postLogs as row (row.id)}
 						<tr>
 							<td data-label={ja.unei.postColumns.at}>{jaDateTimeFull(row.createdAt)}</td>
-							<td data-label={ja.unei.postColumns.bill}><a href="/houan/{row.billId}/{row.kind === 'amendment' ? 'shusei' : 'shitsugi'}">{row.title}</a></td>
+							<td data-label={ja.unei.postColumns.bill}><a href={row.kind === 'commentary' ? `/houan/${row.billId}` : `/houan/${row.billId}/${row.kind === 'amendment' ? 'shusei' : 'shitsugi'}`}>{row.title}</a></td>
 							<td data-label={ja.unei.postColumns.kind}>{ja.unei.logKinds[row.kind]}</td>
 							<td data-label={ja.unei.postColumns.action}>{ja.unei.actions[row.action]}</td>
 							<td data-label={ja.unei.postColumns.actor}>{ja.unei.actors[row.actor]}</td>

@@ -200,7 +200,7 @@ test('基準5：3人の通報で一時的に見えなくなり、運営が表示
 	await op.page.goto('/kanri');
 	await hydrated(op.page);
 	const reported = op.page.getByRole('region', { name: '通報を受けた専門家の解説' }).getByRole('article').filter({ hasText: body });
-	await reported.getByLabel('表示に戻す理由').fill('問題のない解説');
+	await reported.getByLabel('表示に戻すメモ').fill('問題のない解説');
 	await posted(op.page, () => reported.getByRole('button', { name: '表示に戻す' }).click());
 	await viewer.page.goto(bill);
 	await expect(section(viewer.page)).toContainText(body);

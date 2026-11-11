@@ -40,7 +40,10 @@ export const NOTIFICATION_KINDS = [
 	'chair_vote_removed',
 	// 議員の「拾った」ステータス（Issue #150）
 	'issue_considered',
-	'issue_questioned'
+	'issue_questioned',
+	// 専門家の解説（Issue #152）。target は法案
+	'commentary_hidden',
+	'commentary_restored'
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

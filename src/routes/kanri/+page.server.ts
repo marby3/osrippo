@@ -19,6 +19,7 @@ import { canVerify, parseVerification, verificationLastDay } from '#lib/domain/v
 import { activeVerificationList, changeVerification, grantVerification } from '#lib/server/verifications.ts';
 import { parseElection } from '#lib/domain/election.ts';
 import { addElection, electionList, markCandidate, removeElection } from '#lib/server/elections.ts';
+import { changeCommentaryModeration, commentaryStaffAccess, reportedCommentaries } from '#lib/server/commentaries.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 /** 役職を最初に確かめる（権限のない人に /kanri があることを漏らさない） */
@@ -99,6 +100,8 @@ export const load: PageServerLoad = async (event) => {
 		justMerged: params.get('matome') === '1',
 		focusPost,
 		amendments: await reportedAmendments(db, staff, focusAmendment),
+		// 通報を受けた専門家の解説（Issue #152）
+		commentaries: await reportedCommentaries(db, staff),
 		reviews: await pendingReviews(db, staff.userId, staff.role),
 		// 議員・有識者の認証（設計書 docs/spec/157.md の 3）。運営でなければ一覧も返さない
 		verifications: canVerify(staff.role)
@@ -295,6 +298,28 @@ const actOnAmendment = (action: 'hide' | 'restore') => async (event: RequestEven
 	return { doneAmendment: amendmentId };
 };
 
+/** 専門家の解説を非表示にする・表示に戻す（Issue #152）。確かめる順は修正案と同じ */
+const actOnCommentary = (action: 'hide' | 'restore') => async (event: RequestEvent) => {
+	const { db, staff } = await staffOf(event);
+	if (!allowedCountry(clientOf(event).country)) return fail(403, { message: ja.guard.outsideJapan, commentaryId: null });
+	const form = await event.request.formData();
+	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
+	const checked = validateAmendmentAction({ amendment: field('commentary'), reason: field('reason'), note: field('note') }, action);
+	if (!checked.ok) return fail(400, { message: ja.kanri.invalid, commentaryId: null });
+	const { amendmentId: commentaryId, reason, note } = checked.value;
+	const access = await commentaryStaffAccess(db, commentaryId, staff);
+	if (access === 'missing') return fail(404, { message: ja.kanri.invalid, commentaryId: null });
+	if (access === 'own') return fail(403, { message: ja.kanri.ownAmendment, commentaryId });
+	if (access === 'involved') return fail(403, { message: ja.kanri.involvedAmendment, commentaryId });
+	const now = nowOf(event);
+	const changed =
+		action === 'hide'
+			? await changeCommentaryModeration(db, commentaryId, HIDEABLE, 'hidden', staff, reason, note, now)
+			: await changeCommentaryModeration(db, commentaryId, RESTORABLE, 'restored', staff, null, note, now);
+	if (!changed) return fail(400, { message: action === 'hide' ? ja.kanri.alreadyHidden : ja.kanri.alreadyShown, commentaryId });
+	return { doneCommentary: commentaryId };
+};
+
 /** 結果の確認（docs/spec/73.md 決めたこと7）。確かめの順：役職 → 国 → 入力 → 自分の関わり → 状態 */
 const decide = (decision: 'confirm' | 'void') => async (event: RequestEvent) => {
 	const { db, staff } = await staffOf(event);
@@ -328,6 +353,8 @@ export const actions: Actions = {
 	verifyRenew: verifyChange('renew'),
 	verifyRevoke: verifyChange('revoke'),
 	electionAdd,
+	hideCommentary: actOnCommentary('hide'),
+	restoreCommentary: actOnCommentary('restore'),
 	electionRemove,
 	electionCandidate
 };

@@ -17,7 +17,7 @@ test('別々の3人の通報で一時的に見えなくなる。法案の賛同�
 		).lastInsertRowid
 	);
 	run("INSERT INTO bill_supports (bill_id, user_id, rev, created_at) VALUES (?, 'supporter', 1, 0)", bill);
-	const id = await writeCommentary(db, { billId: bill, userId: 'expert', body: '解説の本文' }, now);
+	const id = (await writeCommentary(db, { billId: bill, userId: 'expert', body: '解説の本文' }, now))!;
 	const status = () => (sqlite.prepare('SELECT moderation_status AS s FROM expert_commentaries WHERE id = ?').get(id) as { s: string }).s;
 	const report = (userId: string, registeredAt = 0) => reportCommentary(db, { userId, registeredAt, ipHash: `ip-${userId}` }, { id, billId: bill }, { reason: 'spam', note: null }, now);
 
