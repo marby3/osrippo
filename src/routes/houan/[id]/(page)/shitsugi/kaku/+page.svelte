@@ -23,7 +23,9 @@
 
 <div class="write">
 	<h2>{ja.post.writeQuestion}</h2>
-	{#if data.waitUntil !== null}
+	{#if data.electionStopped}
+		<p class="note">{ja.election.stopped}</p>
+	{:else if data.waitUntil !== null}
 		<p class="note">{ja.post.tooNew(data.waitUntil)}</p>
 	{:else if !data.open}
 		<p class="note">{ja.post.closed}</p>

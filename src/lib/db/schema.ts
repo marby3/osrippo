@@ -1437,3 +1437,36 @@ export const issueHirottaLogs = sqliteTable(
 		index('issue_hirotta_logs_created').on(t.createdAt, t.id)
 	]
 );
+
+// 選挙期間（Issue #151）。期間のあいだは議員の機能を止め、議員と立候補した有識者の名前を出さない
+
+/** 運営が登録した選挙。starts_at・ends_at は公示日の 0時と投票日の翌日の 0時（日本時間、ミリ秒） */
+export const elections = sqliteTable(
+	'elections',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		name: text('name').notNull(),
+		noticeDate: text('notice_date').notNull(),
+		voteDate: text('vote_date').notNull(),
+		startsAt: integer('starts_at').notNull(),
+		endsAt: integer('ends_at').notNull(),
+		createdBy: text('created_by').notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [index('elections_period').on(t.startsAt, t.endsAt), check('elections_order', sql`${t.startsAt} < ${t.endsAt}`)]
+);
+
+/** 選挙に立候補した有識者（運営が印を付ける） */
+export const electionCandidates = sqliteTable(
+	'election_candidates',
+	{
+		electionId: integer('election_id')
+			.notNull()
+			.references(() => elections.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.electionId, t.userId] })]
+);

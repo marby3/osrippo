@@ -7,7 +7,8 @@ export type VerificationKind = (typeof VERIFICATION_KINDS)[number];
 export const VERIFICATION_ACTIONS = ['grant', 'renew', 'revoke'] as const;
 export type VerificationAction = (typeof VERIFICATION_ACTIONS)[number];
 /** 画面に出す認証（表示する名前と種類と専門分野）。user_id は入れない */
-export type Verified = { kind: VerificationKind; name: string; field: string | null };
+/** hidden は選挙期間中の議員（名前の代わりに「議員（選挙期間中のため名前を出していません）」。Issue #151） */
+export type Verified = { kind: VerificationKind; name: string; field: string | null; hidden?: true };
 /** 名前を出すところに渡すもの。認証があれば表示する名前とバッジ、なければ表示名 */
 export type Person = { name: string; verified: Verified | null };
 

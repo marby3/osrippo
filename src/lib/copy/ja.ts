@@ -1194,6 +1194,34 @@ export const ja = {
 		ownIssue: '自分の課題には対応できません',
 		invalid: '入力を確かめてください'
 	},
+	/** 選挙期間（Issue #151） */
+	election: {
+		heading: '選挙期間',
+		name: '選挙の名前',
+		notice: '公示日',
+		vote: '投票日',
+		add: '選挙を登録する',
+		remove: '取り消す',
+		empty: '登録した選挙はありません',
+		period: (notice: string, vote: string) => `${jaDate(notice)}〜${jaDate(vote)}`,
+		candidateLabel: '立候補した有識者の表示名',
+		candidateAdd: '印を付ける',
+		candidates: (names: string[]) => `立候補した有識者：${names.join('、')}`,
+		errors: {
+			nameRequired: '選挙の名前を入れてください',
+			nameTooLong: '選挙の名前は40字以内で書いてください',
+			nameInvalid: '選挙の名前に使えない文字が入っています',
+			date: '公示日と投票日を正しく入れてください',
+			order: '投票日は公示日と同じか、あとの日にしてください',
+			started: '始まった選挙は取り消せません',
+			noElection: 'その選挙は登録されていません',
+			noExpert: 'その表示名の有識者はいません'
+		},
+		stopped: '選挙期間中は、議員の機能が止まっています',
+		hiddenName: '議員（選挙期間中のため名前を出していません）',
+		/** 立候補した有識者（表示名も出さない） */
+		hiddenPerson: '（選挙期間中のため名前を出していません）'
+	},
 	/** 「拾った」ステータス（Issue #150） */
 	hirotta: {
 		heading: '議員の反応',
@@ -1207,7 +1235,7 @@ export const ja = {
 		urlHint: '国会会議録検索システムの会議録の URL（https://kokkai.ndl.go.jp/txt/ で始まるもの）を入れます。',
 		record: '会議録',
 		/** 「検討中：氏名（認証済み議員）」 */
-		line: (kind: 'considering' | 'questioned', name: string) => `${kind === 'considering' ? '検討中' : '質問で取り上げた'}：${name}（認証済み議員）`,
+		line: (kind: 'considering' | 'questioned', name: string, hidden = false) => `${kind === 'considering' ? '検討中' : '質問で取り上げた'}：${name}${hidden ? '' : '（認証済み議員）'}`,
 		urlInvalid: '国会会議録検索システムの会議録の URL を入れてください',
 		urlNotFound: '会議録が見つかりませんでした',
 		urlUnreachable: '会議録を確かめられませんでした。しばらくしてからお試しください',

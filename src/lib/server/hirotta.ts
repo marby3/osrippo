@@ -11,15 +11,18 @@ import { isTestServer, nowOf, writeGuard } from './client';
 import { notify } from './notifications';
 import type { Db } from './law';
 import { activeVerification, legislatorNameAt } from './verifications';
+import { hiddenDuringElection } from './elections';
 
 /** 課題のページの「議員の反応」：いま付いている反応のうち、いまも議員の人のもの（付けた順） */
 export async function hirottaOf(db: Db, issueId: number, now: number) {
-	return db
-		.select({ kind: issueHirotta.kind, name: userVerifications.displayName, url: issueHirotta.url, createdAt: issueHirotta.createdAt })
+	const rows = await db
+		.select({ kind: issueHirotta.kind, name: userVerifications.displayName, hidden: hiddenDuringElection(now), url: issueHirotta.url, createdAt: issueHirotta.createdAt })
 		.from(issueHirotta)
 		.innerJoin(userVerifications, and(eq(userVerifications.userId, issueHirotta.userId), eq(userVerifications.kind, 'legislator'), activeVerification(now)))
 		.where(eq(issueHirotta.issueId, issueId))
 		.orderBy(asc(issueHirotta.createdAt), asc(issueHirotta.kind));
+	// 選挙期間中は名前を出さない（反応そのものは残す。Issue #151）
+	return rows.map(({ hidden, name, ...r }) => ({ ...r, hidden: Boolean(hidden), name: hidden ? ja.election.hiddenName : name }));
 }
 
 /** 議員自身が付けている反応（課題ごとに、種類 → 付けているか） */
@@ -115,17 +118,19 @@ export async function hirottaAction(event: RequestEvent, issueId: number | null)
 const LOG_PAGE_SIZE = 20;
 
 /** 運営の記録の「議員の反応の記録」（新しい順） */
-export async function hirottaLogPage(db: Db, page: number) {
+export async function hirottaLogPage(db: Db, page: number, now: number) {
 	const rows = await db
-		.select({ id: issueHirottaLogs.id, kind: issueHirottaLogs.kind, action: issueHirottaLogs.action, name: issueHirottaLogs.displayName, issueId: issueHirottaLogs.issueId, title: issues.title, status: issues.status, createdAt: issueHirottaLogs.createdAt })
+		.select({ id: issueHirottaLogs.id, kind: issueHirottaLogs.kind, action: issueHirottaLogs.action, name: issueHirottaLogs.displayName, issueId: issueHirottaLogs.issueId, title: issues.title, status: issues.status, createdAt: issueHirottaLogs.createdAt, hidden: hiddenDuringElection(now) })
 		.from(issueHirottaLogs)
 		.innerJoin(issues, eq(issues.id, issueHirottaLogs.issueId))
+		.leftJoin(userVerifications, eq(userVerifications.userId, issueHirottaLogs.userId))
 		.orderBy(desc(issueHirottaLogs.createdAt), desc(issueHirottaLogs.id))
 		.limit(LOG_PAGE_SIZE + 1)
 		.offset((page - 1) * LOG_PAGE_SIZE);
 	// 非表示の課題の題名は出さない（本人と運営にしか見せない。docs/spec/28.md 決めたこと4）
 	return {
-		rows: rows.slice(0, LOG_PAGE_SIZE).map(({ status, title, ...r }) => ({ ...r, title: LISTED.includes(status) ? title : null })),
+		// 選挙期間中の議員の名前も出さない（Issue #151）
+		rows: rows.slice(0, LOG_PAGE_SIZE).map(({ status, title, hidden, name, ...r }) => ({ ...r, name: hidden ? ja.election.hiddenName : name, title: LISTED.includes(status) ? title : null })),
 		hasNext: rows.length > LOG_PAGE_SIZE
 	};
 }

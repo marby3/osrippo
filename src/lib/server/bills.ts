@@ -279,7 +279,7 @@ export async function lawTitlesOf(db: Db, bill: { laws: { lawId: string | null }
 /** 法案のページの上の部分と概要のタブに出すもの。文字の比べは変更点のタブだけで行う（billChangeViews） */
 export async function billView(db: Db, bill: NonNullable<Bill>, now: number) {
 	const [author] = await db
-		.select({ name: user.name, ...verifiedColumns })
+		.select({ name: user.name, ...verifiedColumns(now) })
 		.from(user)
 		.leftJoin(verifiedTable, verifiedJoin(now))
 		.where(eq(user.id, bill.userId));

@@ -176,13 +176,15 @@
 							<ul>
 								{#each data.hirotta as r, i (i)}
 									<li>
-										{ja.hirotta.line(r.kind, r.name)}{#if r.url}・<a href={r.url} rel="noopener noreferrer">{ja.hirotta.record}</a>{/if}
+										{ja.hirotta.line(r.kind, r.name, r.hidden)}{#if r.url}・<a href={r.url} rel="noopener noreferrer">{ja.hirotta.record}</a>{/if}
 										・<span class="date">{jaDate(tokyoDate(r.createdAt))}</span>
 									</li>
 								{/each}
 							</ul>
 						{/if}
-						{#if data.legislator && data.myHirotta}
+						{#if data.legislator && data.electionStopped}
+							<p>{ja.election.stopped}</p>
+						{:else if data.legislator && data.myHirotta}
 							{#if form && 'hirottaIssue' in form && 'message' in form}<p role="alert">{form.message}</p>{/if}
 							<form method="post" action="?/hirotta" use:enhance>
 								<input type="hidden" name="kind" value="considering" />

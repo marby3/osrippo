@@ -11,6 +11,7 @@
 		SOLUTION_REPORT_REASONS
 	} from '#lib/domain/reports.ts';
 	import { VERIFICATION_NAME_MAX } from '#lib/domain/verification.ts';
+	import { ELECTION_NAME_MAX } from '#lib/domain/election.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -31,7 +32,7 @@
 <main>
 	<h1>{ja.kanri.heading}</h1>
 	<!-- 断った文言は、その課題・解決策のところに出す（どれか分からないときだけ上に） -->
-	{#if form && 'message' in form && !('verification' in form) && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('amendmentId' in form && form.amendmentId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
+	{#if form && 'message' in form && !('verification' in form) && !('election' in form) && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('amendmentId' in form && form.amendmentId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
 		<p role="alert">{form.message}</p>
 	{/if}
 	{#if data.rows.length === 0}
@@ -362,6 +363,48 @@
 									<button>{ja.verification.revoke}</button>
 								</form>
 							</div>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+	{/if}
+
+	<!-- 選挙期間（Issue #151）。運営にだけ出す -->
+	{#if data.elections}
+		<section class="verify" aria-labelledby="election-heading">
+			<h2 id="election-heading" class="section">{ja.election.heading}</h2>
+			{#if form && 'election' in form && 'message' in form && !form.electionId}<p role="alert">{form.message}</p>{/if}
+			<form method="post" action="?/electionAdd" use:enhance>
+				<label for="election-name">{ja.election.name}</label>
+				<input id="election-name" name="name" maxlength={ELECTION_NAME_MAX} autocomplete="off" />
+				<label for="election-notice">{ja.election.notice}</label>
+				<input id="election-notice" name="notice" type="date" required />
+				<label for="election-vote">{ja.election.vote}</label>
+				<input id="election-vote" name="vote" type="date" required />
+				<button>{ja.election.add}</button>
+			</form>
+			{#if data.elections.length === 0}
+				<p>{ja.election.empty}</p>
+			{:else}
+				<ul class="verified">
+					{#each data.elections as e (e.id)}
+						<li>
+							<p><strong>{e.name}</strong> {ja.election.period(e.notice, e.vote)}</p>
+							{#if e.candidates.length}<p class="account">{ja.election.candidates(e.candidates)}</p>{/if}
+							{#if form && 'election' in form && 'message' in form && form.electionId === e.id}<p role="alert">{form.message}</p>{/if}
+							<form method="post" action="?/electionCandidate" use:enhance class="candidate-form">
+								<input type="hidden" name="election" value={e.id} />
+								<label for="candidate-{e.id}">{ja.election.candidateLabel}</label>
+								<input id="candidate-{e.id}" name="target" required autocomplete="off" />
+								<button>{ja.election.candidateAdd}</button>
+							</form>
+							{#if !e.started}
+								<form method="post" action="?/electionRemove" use:enhance>
+									<input type="hidden" name="election" value={e.id} />
+									<button>{ja.election.remove}</button>
+								</form>
+							{/if}
 						</li>
 					{/each}
 				</ul>

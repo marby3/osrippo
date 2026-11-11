@@ -17,6 +17,8 @@ import { changeStatus, mergeIssue, mergePreview, reportedIssues, staffRows } fro
 import { changeSolutionStatus, reportedSolutions, solutionMeta } from '#lib/server/solutions.ts';
 import { canVerify, parseVerification, verificationLastDay } from '#lib/domain/verification.ts';
 import { activeVerificationList, changeVerification, grantVerification } from '#lib/server/verifications.ts';
+import { parseElection } from '#lib/domain/election.ts';
+import { addElection, electionList, markCandidate, removeElection } from '#lib/server/elections.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 /** 役職を最初に確かめる（権限のない人に /kanri があることを漏らさない） */
@@ -101,7 +103,9 @@ export const load: PageServerLoad = async (event) => {
 		// 議員・有識者の認証（設計書 docs/spec/157.md の 3）。運営でなければ一覧も返さない
 		verifications: canVerify(staff.role)
 			? (await activeVerificationList(db, now)).map(({ expiresAt, ...v }) => ({ ...v, lastDay: verificationLastDay(expiresAt) }))
-			: null
+			: null,
+		// 選挙期間（Issue #151）。運営だけ
+		elections: canVerify(staff.role) ? (await electionList(db, now)).map((e) => ({ ...e, started: e.startsAt <= now })) : null
 	};
 };
 
@@ -113,6 +117,39 @@ async function verifierOf(event: RequestEvent) {
 }
 
 const verifyFail = (status: number, message: string) => fail(status, { message, verification: true as const });
+const electionFail = (status: number, message: string, electionId: number | null = null) => fail(status, { message, election: true as const, electionId });
+
+/** 選挙を登録する（Issue #151）。運営だけ */
+async function electionAdd(event: RequestEvent) {
+	const { db, staff } = await verifierOf(event);
+	const form = await event.request.formData();
+	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
+	const parsed = parseElection({ name: field('name'), notice: field('notice'), vote: field('vote') });
+	if (!parsed.ok) return electionFail(400, ja.election.errors[parsed.error]);
+	await addElection(db, parsed.value, staff.userId, nowOf(event));
+	return { election: true as const, done: true };
+}
+
+/** 始まる前の選挙を取り消す */
+async function electionRemove(event: RequestEvent) {
+	const { db } = await verifierOf(event);
+	const id = parseIssueId(String((await event.request.formData()).get('election') ?? ''));
+	if (id === null) return electionFail(400, ja.kanri.invalid);
+	const refused = await removeElection(db as BatchDb, id, nowOf(event));
+	if (refused) return electionFail(refused === 'started' ? 409 : 400, ja.election.errors[refused], id);
+	return { election: true as const, done: true };
+}
+
+/** 立候補した有識者に印を付ける */
+async function electionCandidate(event: RequestEvent) {
+	const { db } = await verifierOf(event);
+	const form = await event.request.formData();
+	const id = parseIssueId(String(form.get('election') ?? ''));
+	if (id === null) return electionFail(400, ja.kanri.invalid);
+	const result = await markCandidate(db, id, String(form.get('target') ?? '').trim(), nowOf(event));
+	if (!result.ok) return electionFail(400, ja.election.errors[result.error], id);
+	return { election: true as const, done: true };
+}
 
 /** 認証を付ける（設計書 docs/spec/157.md の 3） */
 async function verifyGrant(event: RequestEvent) {
@@ -289,5 +326,8 @@ export const actions: Actions = {
 	restoreAmendment: actOnAmendment('restore'),
 	verifyGrant,
 	verifyRenew: verifyChange('renew'),
-	verifyRevoke: verifyChange('revoke')
+	verifyRevoke: verifyChange('revoke'),
+	electionAdd,
+	electionRemove,
+	electionCandidate
 };
