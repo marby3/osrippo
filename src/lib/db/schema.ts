@@ -1516,3 +1516,29 @@ export const commentaryReports = sqliteTable(
 		check('commentary_reports_reason', sql`${t.reason} IN (${inList(SOLUTION_REPORT_REASONS_DB)})`)
 	]
 );
+
+// 答弁イベント（Issue #153）。議員が課題か法案について答弁する回を告知する
+
+export const tobenEvents = sqliteTable(
+	'toben_events',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		targetKind: text('target_kind', { enum: ['issue', 'bill'] }).notNull(),
+		targetId: integer('target_id').notNull(),
+		title: text('title').notNull(),
+		startsAt: integer('starts_at').notNull(),
+		endsAt: integer('ends_at').notNull(),
+		createdAt: integer('created_at').notNull(),
+		/** 取り消した時刻（取り消していなければ NULL） */
+		cancelledAt: integer('cancelled_at')
+	},
+	(t) => [
+		index('toben_events_target').on(t.targetKind, t.targetId, t.startsAt),
+		index('toben_events_starts').on(t.startsAt),
+		check('toben_events_kind', sql`${t.targetKind} IN ('issue', 'bill')`),
+		check('toben_events_time', sql`${t.startsAt} < ${t.endsAt}`)
+	]
+);

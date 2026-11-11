@@ -6,6 +6,7 @@ import { nowOf } from '#lib/server/client.ts';
 import { commentariesOf, myCommentary, reportedCommentaryIds } from '#lib/server/commentaries.ts';
 import { COMMENTARY_MAX, commentaryAction, commentaryOpen, reportCommentaryAction } from '#lib/server/commentary-actions.ts';
 import { expertStateAt } from '#lib/server/verifications.ts';
+import { tobenFor } from '#lib/server/toben.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 /** 概要のタブの「専門家の解説」（Issue #152）。法案は上の階層が読む */
@@ -16,6 +17,8 @@ export const load: PageServerLoad = async (event) => {
 	const userId = event.locals.user?.id ?? null;
 	const expert = userId === null ? null : await expertStateAt(db, userId, now);
 	return {
+		// これからと開催中の答弁イベント（Issue #153）
+		toben: await tobenFor(db, 'bill', bill.id, now),
 		commentary: {
 			list: await commentariesOf(db, bill.id, userId, now),
 			open: commentaryOpen(progress),

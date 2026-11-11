@@ -80,7 +80,7 @@ async function announce(p: Page, f: { kind: '課題' | '法案'; id: number | st
 	await hydrated(p);
 	await p.getByRole('group', { name: '対象' }).getByRole('radio', { name: f.kind, exact: true }).check();
 	await p.getByLabel('対象の番号').fill(String(f.id));
-	await p.getByLabel('題').fill(f.title);
+	await p.getByLabel('題', { exact: true }).fill(f.title);
 	await p.getByLabel('開始').fill(f.starts);
 	await p.getByLabel('終了').fill(f.ends);
 	await posted(p, () => p.getByRole('button', { name: '告知する' }).click());
@@ -253,7 +253,11 @@ test('基準7：告知と取り消しは議員だけ。ほかの人には出さ�
 	const q = await user(browser, w, 'q', at(month, 4));
 	await grant(op.page, q.name);
 	expect((await g.page.goto('/toben/kaku'))?.status()).toBe(404);
-	expect((await post(g.page, '/toben/kaku', { kind: 'issue', target: String(issueId), title: `一般の人の告知 ${tag}`, starts: local(month, 10, '14:00'), ends: local(month, 10, '15:00') })).status()).toBe(403);
+	// 告知の画面は議員でない人には存在しない扱い（操作が断ったあと、画面の読み込みが 404 を返す）。告知はできていない
+	const refused = `一般の人の告知 ${tag}`;
+	expect((await post(g.page, '/toben/kaku', { kind: 'issue', target: String(issueId), title: refused, starts: local(month, 10, '14:00'), ends: local(month, 10, '15:00') })).status()).toBe(404);
+	await g.page.goto('/toben');
+	await expect(g.page.getByRole('main')).not.toContainText(refused);
 	// ほかの議員は取り消せない
 	for (const u of [g, q]) {
 		await u.page.goto(path);
