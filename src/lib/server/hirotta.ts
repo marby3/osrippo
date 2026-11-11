@@ -11,15 +11,18 @@ import { isTestServer, nowOf, writeGuard } from './client';
 import { notify } from './notifications';
 import type { Db } from './law';
 import { activeVerification, legislatorNameAt } from './verifications';
+import { hiddenDuringElection } from './elections';
 
 /** 課題のページの「議員の反応」：いま付いている反応のうち、いまも議員の人のもの（付けた順） */
 export async function hirottaOf(db: Db, issueId: number, now: number) {
-	return db
-		.select({ kind: issueHirotta.kind, name: userVerifications.displayName, url: issueHirotta.url, createdAt: issueHirotta.createdAt })
+	const rows = await db
+		.select({ kind: issueHirotta.kind, name: userVerifications.displayName, hidden: hiddenDuringElection(now), url: issueHirotta.url, createdAt: issueHirotta.createdAt })
 		.from(issueHirotta)
 		.innerJoin(userVerifications, and(eq(userVerifications.userId, issueHirotta.userId), eq(userVerifications.kind, 'legislator'), activeVerification(now)))
 		.where(eq(issueHirotta.issueId, issueId))
 		.orderBy(asc(issueHirotta.createdAt), asc(issueHirotta.kind));
+	// 選挙期間中は名前を出さない（反応そのものは残す。Issue #151）
+	return rows.map(({ hidden, name, ...r }) => ({ ...r, hidden: Boolean(hidden), name: hidden ? ja.election.hiddenName : name }));
 }
 
 /** 議員自身が付けている反応（課題ごとに、種類 → 付けているか） */

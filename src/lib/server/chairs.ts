@@ -111,7 +111,7 @@ async function myChairVote(db: Db, committeeId: number, session: Session, userId
 /** 選挙の区画のデータ。名前と候補の行の番号だけで、得票、user_id、回線は渡さない。候補の順は読むたびに混ぜる */
 export async function electionPage(db: Db, committeeId: number, session: Session, userId: string | null, random: () => number, now: number) {
 	const rows = await db
-		.select({ id: chairCandidates.id, name: user.name, userId: chairCandidates.userId, ...verifiedColumns })
+		.select({ id: chairCandidates.id, name: user.name, userId: chairCandidates.userId, ...verifiedColumns(now) })
 		.from(chairCandidates)
 		.innerJoin(user, eq(user.id, chairCandidates.userId))
 		.leftJoin(verifiedTable, verifiedJoin(now))
@@ -221,7 +221,7 @@ export async function staffRoleOf(db: Db, userId: string, now: number, minutes: 
 /** 委員長と理事の区画。名前だけで、順位と得票は渡さない。締め出しのあいだの代行は出さない（締め出しを推測させないため） */
 export async function chairPanelOf(db: Db, committeeId: number, session: Session, now: number) {
 	const rows = await db
-		.select({ name: user.name, userId: chairTerms.userId, role: chairTerms.role, recalledAt: chairTerms.recalledAt, ...verifiedColumns })
+		.select({ name: user.name, userId: chairTerms.userId, role: chairTerms.role, recalledAt: chairTerms.recalledAt, ...verifiedColumns(now) })
 		.from(chairTerms)
 		.innerJoin(user, eq(user.id, chairTerms.userId))
 		.leftJoin(verifiedTable, verifiedJoin(now))

@@ -203,7 +203,7 @@ test('基準4：選挙期間中は議員の名前をだれの画面にも出さ�
 	// 本人のヘッダー（PC）・帯（スマホ）には出す
 	await p.setNow(at(month, 17));
 	await p.page.goto('/giin');
-	await expect(p.page.getByText(new RegExp(`認証済み(議員)?・${name}`)).first()).toBeVisible();
+	await expect(p.page.getByText(new RegExp(`認証済み(議員)?・${name}`)).filter({ visible: true }).first()).toBeVisible();
 });
 
 test('基準5：立候補した有識者に印を付けると、その選挙の期間中は名前とバッジを出さない', async ({ browser }, info) => {

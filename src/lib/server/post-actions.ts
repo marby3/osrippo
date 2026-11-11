@@ -182,7 +182,7 @@ export async function readAction(event: RequestEvent) {
 	if (!user) return fail(401);
 	const now = nowOf(event);
 	const form = await event.request.formData();
-	const guard = await writeGuard(event, db, user, now, 'speak');
+	const guard = await writeGuard(event, db, user, now, 'read');
 	if (!guard.ok) return fail(guard.failure.status);
 	if (billWaitUntil(guard.actor.registeredAt, now) !== null) return fail(403);
 	const raw = form.getAll('post');

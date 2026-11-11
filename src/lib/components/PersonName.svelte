@@ -6,7 +6,10 @@
 	let { person }: { person: Person } = $props();
 </script>
 
-{#if person.verified}
+{#if person.verified?.hidden}
+	<!-- 選挙期間中の議員（Issue #151）。名前もバッジも出さない -->
+	{person.verified.name}
+{:else if person.verified}
 	<span class="person"
 		>{person.verified.name}<span class="badge"
 			>{#if person.verified.kind === 'legislator'}<svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"

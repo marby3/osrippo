@@ -158,7 +158,9 @@
 	{#if data.canQuestion || data.evaluationShown}
 		<div class="write">
 			{#if data.canQuestion}
-				{#if data.waitUntil !== null}
+				{#if data.electionStopped}
+					<p class="note">{ja.election.stopped}</p>
+				{:else if data.waitUntil !== null}
 					<p class="note">{ja.post.tooNew(data.waitUntil)}</p>
 				{:else}
 					<a href="{base}/kaku">{ja.post.writeQuestion}</a>

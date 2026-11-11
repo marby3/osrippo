@@ -67,6 +67,8 @@
 		{/each}
 	</nav>
 
+	{#if data.electionStopped}<p class="stopped" role="status">{ja.election.stopped}</p>{/if}
+
 	{#if q.tab === 'kadai'}
 		<nav class="filters" aria-label={ja.giin.filtersLabel}>
 			{#each FILTERS as f (f)}
@@ -106,6 +108,7 @@
 								{#if row.mine.considering}
 									<span class="badge">{ja.hirotta.considering}</span>
 								{/if}
+								{#if !data.electionStopped}
 								<form method="post" action="?/hirotta" use:enhance>
 									<input type="hidden" name="issue" value={row.id} />
 									<input type="hidden" name="kind" value="considering" />
@@ -113,6 +116,7 @@
 									<button class:link={row.mine.considering}>{row.mine.considering ? ja.hirotta.unconsider : ja.hirotta.consider}</button>
 								</form>
 								<a href="/kadai/{row.id}#hirotta">{row.mine.questioned ? ja.hirotta.questioned + '（' + ja.hirotta.record + '）' : ja.hirotta.questioned}</a>
+								{/if}
 							</td>
 						</tr>
 					{/each}
@@ -317,6 +321,14 @@
 
 	.more {
 		margin-top: 1rem;
+	}
+
+	.stopped {
+		padding: 0.5rem 0.75rem;
+		border-radius: var(--radius-m);
+		background: var(--color-caution-bg);
+		color: var(--color-caution);
+		font-weight: 700;
 	}
 
 	/* あなたの反応（Issue #150） */

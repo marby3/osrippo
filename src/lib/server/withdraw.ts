@@ -63,7 +63,7 @@ export async function withdrawStateOf(db: Db, bill: BillLike, userId: string | n
 	const accepted = await db.select({ userId: billCosponsors.userId }).from(billCosponsors).where(and(eq(billCosponsors.billId, bill.id), eq(billCosponsors.status, 'accepted')));
 	const members = new Set([bill.userId, ...accepted.map((r) => r.userId)]);
 	const rows = await db
-		.select({ userId: billWithdrawConsents.userId, name: user.name, ...verifiedColumns })
+		.select({ userId: billWithdrawConsents.userId, name: user.name, ...verifiedColumns(now) })
 		.from(billWithdrawConsents)
 		.innerJoin(user, eq(user.id, billWithdrawConsents.userId))
 		.leftJoin(verifiedTable, verifiedJoin(now))

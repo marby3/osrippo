@@ -49,7 +49,7 @@ export async function billRoleOf(db: Db, bill: Pick<NonNullable<Bill>, 'id' | 'u
 /** 名前を出す共同提出者（承認の順） */
 export async function cosponsorsOf(db: Db, billId: number, now: number) {
 	const rows = await db
-		.select({ name: user.name, ...verifiedColumns })
+		.select({ name: user.name, ...verifiedColumns(now) })
 		.from(billCosponsors)
 		.innerJoin(user, eq(user.id, billCosponsors.userId))
 		.leftJoin(verifiedTable, verifiedJoin(now))
@@ -61,7 +61,7 @@ export async function cosponsorsOf(db: Db, billId: number, now: number) {
 /** 提出者に出す一覧。内部IDは渡さず、行の番号で指す */
 export async function cosponsorPanel(db: Db, billId: number, now: number) {
 	const rows = await db
-		.select({ id: billCosponsors.id, name: user.name, status: billCosponsors.status, ...verifiedColumns })
+		.select({ id: billCosponsors.id, name: user.name, status: billCosponsors.status, ...verifiedColumns(now) })
 		.from(billCosponsors)
 		.innerJoin(user, eq(user.id, billCosponsors.userId))
 		.leftJoin(verifiedTable, verifiedJoin(now))

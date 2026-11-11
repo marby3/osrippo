@@ -348,7 +348,7 @@ export async function settleAmendments(db: BatchDb, session: Session, billId: nu
 /** 共同起草者（取り込まれたか可決した修正案の提案者）の名前。重複なし、先に採用された順 */
 export async function coDrafters(db: Db, billId: number, now: number) {
 	const rows = await db
-		.select({ userId: user.id, name: user.name, ...verifiedColumns })
+		.select({ userId: user.id, name: user.name, ...verifiedColumns(now) })
 		.from(amendments)
 		.innerJoin(user, eq(user.id, amendments.userId))
 		.leftJoin(verifiedTable, verifiedJoin(now))

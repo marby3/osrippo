@@ -111,7 +111,8 @@ test('議員アカウントで課題に「検討中」を付け、選挙期間�
 	await hydrated(p.page);
 	// 認証の表示：PC はヘッダーの右（PcMember）、スマホはヘッダーの下の帯（SpMember）
 	const verified = new RegExp(`認証済み(議員)?\\s*・\\s*${literal(legislator)}`);
-	await expect((w === 'pc' ? header : p.page).getByText(verified).first()).toBeVisible();
+	// PC のヘッダーとスマホの帯の両方にあり、幅に合わないほうは隠れているので、見えているものを選ぶ
+	await expect((w === 'pc' ? header : p.page).getByText(verified).filter({ visible: true }).first()).toBeVisible();
 	await expect(p.page.getByRole('main').getByRole('link', { name: /^課題\s*\d+$/ })).toHaveAttribute('aria-current', 'page');
 	const issueRow = row(p.page, title);
 	await expect(issueRow).toBeVisible();
