@@ -309,8 +309,8 @@ const actOnCommentary = (action: 'hide' | 'restore') => async (event: RequestEve
 	const { amendmentId: commentaryId, reason, note } = checked.value;
 	const access = await commentaryStaffAccess(db, commentaryId, staff);
 	if (access === 'missing') return fail(404, { message: ja.kanri.invalid, commentaryId: null });
-	if (access === 'own') return fail(403, { message: ja.kanri.ownAmendment, commentaryId });
-	if (access === 'involved') return fail(403, { message: ja.kanri.involvedAmendment, commentaryId });
+	if (access === 'own') return fail(403, { message: ja.commentary.ownCommentary, commentaryId });
+	if (access === 'involved') return fail(403, { message: ja.commentary.involvedCommentary, commentaryId });
 	const now = nowOf(event);
 	const changed =
 		action === 'hide'

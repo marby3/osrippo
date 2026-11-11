@@ -60,7 +60,7 @@ export async function reportCommentaryAction(event: RequestEvent) {
 	if (!result.ok) {
 		if (result.reason === 'missing') error(404);
 		if (result.reason === 'limit' && 'refusal' in result) return fail(429, { message: refusalMessage(result.refusal), reportCommentary: id });
-		return fail(403, { message: ja.commentary.reportAlready, reportCommentary: id });
+		return fail(403, { message: result.reason === 'own' ? ja.commentary.reportOwn : ja.commentary.reportHidden, reportCommentary: id });
 	}
 	return { reportCommentary: id, reportDone: true };
 }

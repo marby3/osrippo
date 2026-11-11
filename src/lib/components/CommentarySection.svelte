@@ -21,6 +21,7 @@
 	const REASONS = ['attack', 'spam', 'other'] as const;
 	let editing = $state(false);
 	let reporting = $state<number | null>(null);
+	let reason = $state('');
 	let token = $state('');
 	let turnstile: ReturnType<typeof Turnstile> | undefined = $state();
 	const day = (ms: number) => jaDate(tokyoDate(ms));
@@ -52,9 +53,13 @@
 						<fieldset>
 							<legend>{ja.commentary.reportLegend}</legend>
 							{#each REASONS as r (r)}
-								<label><input type="radio" name="reason" value={r} />{ja.report.reasons[r]}</label>
+								<label><input type="radio" name="reason" value={r} bind:group={reason} />{ja.report.reasons[r]}</label>
 							{/each}
 						</fieldset>
+						{#if reason === 'other'}
+							<label for="commentary-report-note-{c.id}">{ja.commentary.reportNote}</label>
+							<textarea id="commentary-report-note-{c.id}" name="note" maxlength="200" rows="2"></textarea>
+						{/if}
 						{#if form && form.reportCommentary === c.id && typeof form.message === 'string'}<p role="alert">{form.message}</p>{/if}
 						<button>{ja.commentary.reportSend}</button>
 					</form>
@@ -67,6 +72,8 @@
 
 	{#if data.expert === 'stopped'}
 		<p class="note">{ja.commentary.electionStopped}</p>
+	{:else if data.expert === 'expert' && !data.open}
+		<p class="note">{ja.commentary.closed}</p>
 	{:else if canEdit}
 		<button type="button" onclick={() => (editing = true)}>{ja.commentary.edit}</button>
 	{:else if canWrite}
@@ -81,7 +88,8 @@
 				}}
 		>
 			<label for="commentary-body">{ja.commentary.bodyLabel}</label>
-			<textarea id="commentary-body" name="body" required maxlength={data.max} rows="8">{data.mine?.body ?? ''}</textarea>
+			<!-- 送れなかったときは、書いた本文を残す -->
+			<textarea id="commentary-body" name="body" required maxlength={data.max} rows="8">{form && typeof form.commentaryBody === 'string' ? form.commentaryBody : (data.mine?.body ?? '')}</textarea>
 			<Turnstile siteKey={data.siteKey} bind:token bind:this={turnstile} />
 			{#if failure}<p role="alert">{failure}</p>{/if}
 			<button class="primary" disabled={!token}>{ja.commentary.send}</button>

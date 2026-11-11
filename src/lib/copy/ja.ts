@@ -1215,6 +1215,11 @@ export const ja = {
 		reportDone: '通報を受け付けました',
 		reportAlready: '通報済みです',
 		reportLegend: '通報の理由',
+		reportNote: '説明（任意。200字まで）',
+		reportOwn: '自分の解説は通報できません',
+		reportHidden: 'この解説は、いま見えなくなっています',
+		ownCommentary: '自分の解説は扱えません',
+		involvedCommentary: '関わった法案の解説は扱えません',
 		kanriHeading: '通報を受けた専門家の解説'
 	},
 	/** 選挙期間（Issue #151） */
@@ -1347,8 +1352,8 @@ export const ja = {
 			'通報した人や書いた人の名前は、ここには出しません。'
 		],
 		logHeading: '対応の記録',
-		postLogHeading: '法案の質疑と修正案への対応',
-		postLogPages: '法案の質疑と修正案への対応のページ',
+		postLogHeading: '法案の質疑・修正案・専門家の解説への対応',
+		postLogPages: '法案の質疑・修正案・専門家の解説への対応のページ',
 		logKinds: { ...POST_KINDS, amendment: '修正案', commentary: '専門家の解説' },
 		postColumns: { at: '日時', bill: '法案', kind: '何か', action: '何をしたか', actor: 'だれが', reason: '理由', note: 'メモ' },
 		columns: { at: '日時', issue: '課題', action: '何をしたか', actor: 'だれが', reason: '理由', note: 'メモ' },

@@ -4,7 +4,7 @@ import { billModerationLogs, bills, commentaryReports, expertCommentaries, user 
 import { LIMITS } from '../domain/limits';
 import { countsTowardHide, HIDE_THRESHOLD, isHidden, type HideReason, type IssueStatus, type SolutionReportReason } from '../domain/reports';
 import { refuse, type Actor } from './issues';
-import type { Db } from './law';
+import type { BatchDb, Db } from './law';
 import { notify } from './notifications';
 import { reportsInDay, type Role } from './reports';
 import { involvedSql } from './results';
@@ -19,6 +19,18 @@ const countedReports = (commentaryId: number | SQL) =>
 		WHERE r.commentary_id = ${commentaryId} AND r.counted = 1 AND NOT ${involvedSql(sql`r.user_id`, 'operator')})`;
 
 const commentaryAuthor = (id: number) => sql`SELECT user_id FROM expert_commentaries WHERE id = ${id}`;
+
+/**
+ * 運営の記録の行を、いま書いた状態の解説から作る（insert … select。D1 の batch に db.run を入れない）。
+ * 状態と時刻が今回のものでなければ（書けなかったら）行は入らない
+ */
+function logFrom(db: Db, id: number, action: SQL, actor: SQL, actorUserId: string | null, reason: SQL | null, note: string | null, now: number, status: Status) {
+	return db
+		.insert(billModerationLogs)
+		.select(
+			sql`SELECT NULL, bill_id, NULL, ${action}, ${actor}, ${actorUserId}, ${reason ?? sql`NULL`}, ${note}, ${now}, NULL, NULL, id FROM expert_commentaries WHERE id = ${id} AND moderation_status = ${status} AND moderation_changed_at = ${now}`
+		);
+}
 
 /**
  * 書く・直す。1つの法案に1人1件。見えなくなっている解説は直せない（書いた人にも直させず、運営の判断を待つ）。
@@ -96,29 +108,32 @@ export async function reportCommentary(db: Db, actor: Actor, target: { id: numbe
 		.onConflictDoNothing()
 		.returning({ id: commentaryReports.id });
 	if (!inserted.length) return { ok: true as const, already: true };
-	const hidden = await db
-		.update(expertCommentaries)
-		.set({ moderationStatus: 'auto_hidden', moderationChangedAt: now })
-		.where(and(eq(expertCommentaries.id, target.id), eq(expertCommentaries.moderationStatus, 'visible'), sql`${countedReports(target.id)} >= ${HIDE_THRESHOLD}`))
-		.returning({ id: expertCommentaries.id });
-	if (hidden.length) {
-		await db.insert(billModerationLogs).values({ billId: target.billId, commentaryId: target.id, action: 'auto_hide', actor: 'auto', reason: 'reports', createdAt: now });
-		await notify(db, commentaryAuthor(target.id), 'commentary_hidden', target.billId, now, now);
-	}
+	// 非表示にする文と記録を1つの batch に（片方だけ書かれないように）。記録は今回の非表示が書いた行（状態と時刻）からだけ作る
+	const results = (await (db as BatchDb).batch([
+		db
+			.update(expertCommentaries)
+			.set({ moderationStatus: 'auto_hidden', moderationChangedAt: now })
+			.where(and(eq(expertCommentaries.id, target.id), eq(expertCommentaries.moderationStatus, 'visible'), sql`${countedReports(target.id)} >= ${HIDE_THRESHOLD}`))
+			.returning({ id: expertCommentaries.id }),
+		logFrom(db, target.id, sql`'auto_hide'`, sql`'auto'`, null, sql`'reports'`, null, now, 'auto_hidden')
+	] as never)) as unknown[][];
+	if ((results[0] ?? []).length) await notify(db, commentaryAuthor(target.id), 'commentary_hidden', target.billId, now, now);
 	return { ok: true as const, already: false };
 }
 
 /** 運営の操作。from のどれかの状態のときだけ to に変え、記録を書く。変わったら true */
 export async function changeCommentaryModeration(db: Db, id: number, from: IssueStatus[], to: 'hidden' | 'restored', staff: Staff, reason: HideReason | null, note: string, now: number) {
-	const changed = await db
-		.update(expertCommentaries)
-		.set({ moderationStatus: to, moderationChangedAt: now })
-		.where(and(eq(expertCommentaries.id, id), inArray(expertCommentaries.moderationStatus, from as Status[])))
-		.returning({ billId: expertCommentaries.billId });
+	const results = (await (db as BatchDb).batch([
+		db
+			.update(expertCommentaries)
+			.set({ moderationStatus: to, moderationChangedAt: now })
+			.where(and(eq(expertCommentaries.id, id), inArray(expertCommentaries.moderationStatus, from as Status[])))
+			.returning({ billId: expertCommentaries.billId }),
+		logFrom(db, id, sql`${to === 'hidden' ? 'hide' : 'restore'}`, sql`${staff.role}`, staff.userId, reason === null ? null : sql`${reason}`, note, now, to)
+	] as never)) as { billId: number }[][];
+	const changed = results[0] ?? [];
 	if (!changed.length) return false;
-	const billId = changed[0].billId;
-	await db.insert(billModerationLogs).values({ billId, commentaryId: id, action: to === 'hidden' ? 'hide' : 'restore', actor: staff.role, actorUserId: staff.userId, reason, note, createdAt: now });
-	await notify(db, commentaryAuthor(id), to === 'hidden' ? 'commentary_hidden' : 'commentary_restored', billId, now, now);
+	await notify(db, commentaryAuthor(id), to === 'hidden' ? 'commentary_hidden' : 'commentary_restored', changed[0].billId, now, now);
 	return true;
 }
 

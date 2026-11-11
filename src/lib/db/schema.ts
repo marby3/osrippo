@@ -810,7 +810,7 @@ export const postReports = sqliteTable(
 );
 
 /**
- * 法案の投稿への対応の記録（設計書 docs/spec/80.md）。行を書くのはトリガーだけ。moderation_logs は issue_id が NOT NULL なので別の表にする。
+ * 法案の投稿への対応の記録（設計書 docs/spec/80.md）。投稿と修正案の行はトリガーが書く。専門家の解説の行は、状態を変える文と同じ batch で書く（Issue #152）。moderation_logs は issue_id が NOT NULL なので別の表にする。
  * post_id が NULL 可なのは、#103 で修正案の行を入れるため。action と actor に CHECK を付けないのは、#104 で値を足すときに作り直さないため
  */
 export const billModerationLogs = sqliteTable(

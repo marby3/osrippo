@@ -163,7 +163,7 @@ test('基準8：質疑のタブから通報でき3人で消える。/kanri で�
 	await expect(card(viewer.page, questionText)).toBeVisible();
 	await expect(card(viewer.page, supplementText)).toBeVisible();
 	await viewer.page.goto('/unei');
-	const log = viewer.page.getByRole('region', { name: '法案の質疑と修正案への対応' });
+	const log = viewer.page.getByRole('region', { name: '法案の質疑・修正案・専門家の解説への対応' });
 	await expect(log.getByRole('link', { name: `通報の法案 ${s.label}` }).first()).toBeVisible();
 	await expect(log.getByText(`問題がなかった ${s.label}`)).toBeVisible();
 	await expect(log.getByText(questionText)).toHaveCount(0);
