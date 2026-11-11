@@ -13,6 +13,7 @@ import { staffRoleOf } from '#lib/server/chairs.ts';
 import { reactAction, reportSolutionAction } from '#lib/server/solution-actions.ts';
 import { hasHiddenSolutions, listSolutions, reportedSolutionIds, solutionCount } from '#lib/server/solutions.ts';
 import type { Db } from '#lib/server/law.ts';
+import { hirottaAction, hirottaOf, myHirotta } from '#lib/server/hirotta.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
 /** 課題のページに出す解決策の数（設計書 docs/spec/34.md 決めたこと3） */
@@ -53,7 +54,10 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 		billCount: await issueBillCount(db, id),
 		...(await solutionsFor(db, id, userId, staff)),
 		// 似た課題から「わかる」で来た人だけに、解決策を書く案内を出す（URL を共有された人には出さない）
-		fromSimilar: url.searchParams.get('from') === 'nita' && userId !== null && !hidden && issue.supported
+		fromSimilar: url.searchParams.get('from') === 'nita' && userId !== null && !hidden && issue.supported,
+		// 議員の反応（Issue #150）。だれでも見られる。議員には自分が付けているかも渡す
+		hirotta: hidden ? [] : await hirottaOf(db, id, now),
+		myHirotta: userId !== null && !hidden ? ((await myHirotta(db, userId, [id])).get(id) ?? null) : null
 	};
 };
 
@@ -87,6 +91,8 @@ async function prepare(event: RequestEvent, use: WriteUse) {
 }
 
 export const actions: Actions = {
+	// 議員の「拾った」ステータス（Issue #150）
+	hirotta: (event) => hirottaAction(event, parseIssueId(event.params.id)),
 	react: (event) => reactAction(event, (id) => `/kadai/${id}`),
 	reportSolution: (event) => reportSolutionAction(event, (id) => `/kadai/${id}`),
 	support: async (event) => {

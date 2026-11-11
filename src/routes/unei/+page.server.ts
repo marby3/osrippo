@@ -8,6 +8,7 @@ import { moderationLogPage } from '#lib/server/reports.ts';
 import { reviewLogPage } from '#lib/server/results.ts';
 import { tokyoDate } from '#lib/domain/law/display.ts';
 import { verificationLogPage } from '#lib/server/verifications.ts';
+import { hirottaLogPage } from '#lib/server/hirotta.ts';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ url }) => {
@@ -15,7 +16,8 @@ export const load: PageServerLoad = async ({ url }) => {
 	const reviewPage = parsePage(url.searchParams.get('kakunin'));
 	const postPage = parsePage(url.searchParams.get('shitsugi'));
 	const verifyPage = parsePage(url.searchParams.get('ninsho'));
-	if (page === null || reviewPage === null || postPage === null || verifyPage === null) error(404);
+	const hirottaPage = parsePage(url.searchParams.get('hirotta'));
+	if (page === null || reviewPage === null || postPage === null || verifyPage === null || hirottaPage === null) error(404);
 	const db = drizzle(env.DB);
 	const { rows, hasNext } = await moderationLogPage(db, page);
 	if (page > 1 && rows.length === 0) error(404);
@@ -26,6 +28,9 @@ export const load: PageServerLoad = async ({ url }) => {
 	// 認証の記録（設計書 docs/spec/157.md の 4）。日付は操作した日（日本時間）
 	const verifyLogs = await verificationLogPage(db, verifyPage);
 	if (verifyPage > 1 && verifyLogs.rows.length === 0) error(404);
+	// 議員の反応の記録（Issue #150）。日付は操作した日（日本時間）
+	const hirottaLogs = await hirottaLogPage(db, hirottaPage);
+	if (hirottaPage > 1 && hirottaLogs.rows.length === 0) error(404);
 	return {
 		page,
 		rows,
@@ -38,6 +43,9 @@ export const load: PageServerLoad = async ({ url }) => {
 		postLogsHasNext: postLogs.hasNext,
 		verifyPage,
 		verifyLogs: verifyLogs.rows.map(({ createdAt, ...r }) => ({ ...r, date: tokyoDate(createdAt) })),
-		verifyLogsHasNext: verifyLogs.hasNext
+		verifyLogsHasNext: verifyLogs.hasNext,
+		hirottaPage,
+		hirottaLogs: hirottaLogs.rows.map(({ createdAt, ...r }) => ({ ...r, date: tokyoDate(createdAt) })),
+		hirottaLogsHasNext: hirottaLogs.hasNext
 	};
 };

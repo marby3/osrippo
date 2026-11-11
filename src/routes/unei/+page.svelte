@@ -1,15 +1,16 @@
 <script lang="ts">
-	import { ja, jaDateTimeFull } from '#lib/copy/ja.ts';
+	import { ja, jaDate, jaDateTimeFull } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 	/** 4つの記録は別々にページを送る。1つを送っても、ほかの位置を保つ */
-	const hrefOf = (page: number, kakunin: number, shitsugi: number, ninsho = data.verifyPage) => {
+	const hrefOf = (page: number, kakunin: number, shitsugi: number, ninsho = data.verifyPage, hirotta = data.hirottaPage) => {
 		const params = new URLSearchParams();
 		if (page > 1) params.set('page', String(page));
 		if (kakunin > 1) params.set('kakunin', String(kakunin));
 		if (shitsugi > 1) params.set('shitsugi', String(shitsugi));
 		if (ninsho > 1) params.set('ninsho', String(ninsho));
+		if (hirotta > 1) params.set('hirotta', String(hirotta));
 		const query = params.toString();
 		return query ? `/unei?${query}` : '/unei';
 	};
@@ -17,6 +18,7 @@
 	const reviewHref = (kakunin: number) => hrefOf(data.page, kakunin, data.postPage);
 	const postHref = (shitsugi: number) => hrefOf(data.page, data.reviewPage, shitsugi);
 	const verifyHref = (ninsho: number) => hrefOf(data.page, data.reviewPage, data.postPage, ninsho);
+	const hirottaHref = (hirotta: number) => hrefOf(data.page, data.reviewPage, data.postPage, data.verifyPage, hirotta);
 </script>
 
 <svelte:head>
@@ -153,6 +155,26 @@
 			<nav class="pages" aria-label={ja.verification.logHeading}>
 				{#if data.verifyPage > 1}<a href={verifyHref(data.verifyPage - 1)}>{ja.verification.logPrev}</a>{/if}
 				{#if data.verifyLogsHasNext}<a href={verifyHref(data.verifyPage + 1)}>{ja.verification.logNext}</a>{/if}
+			</nav>
+		{/if}
+	</section>
+
+	<!-- 議員の反応の記録（Issue #150）。課題が非表示なら題名を出さない -->
+	<section aria-labelledby="hirotta-log-heading">
+		<h2 id="hirotta-log-heading">{ja.hirotta.logHeading}</h2>
+		{#if data.hirottaLogs.length === 0}
+			<p>{ja.hirotta.logEmpty}</p>
+		{:else}
+			<ul class="verify-log">
+				{#each data.hirottaLogs as row (row.id)}
+					<li>{ja.hirotta.logActions[`${row.kind}:${row.action}`]}・{row.name}・{#if row.title !== null}<a href="/kadai/{row.issueId}">{row.title}</a>{:else}{ja.hirotta.hiddenTitle}{/if}・{jaDate(row.date)}</li>
+				{/each}
+			</ul>
+		{/if}
+		{#if data.hirottaPage > 1 || data.hirottaLogsHasNext}
+			<nav class="pages" aria-label={ja.hirotta.logHeading}>
+				{#if data.hirottaPage > 1}<a href={hirottaHref(data.hirottaPage - 1)}>{ja.hirotta.logPrev}</a>{/if}
+				{#if data.hirottaLogsHasNext}<a href={hirottaHref(data.hirottaPage + 1)}>{ja.hirotta.logNext}</a>{/if}
 			</nav>
 		{/if}
 	</section>

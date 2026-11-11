@@ -11,6 +11,7 @@ import type { NotificationKind } from '../domain/notifications';
 import type { AmendmentStatus } from '../domain/amendments';
 import { ADJUSTMENT_REASONS, BILL_OUTCOMES, REVIEW_STATUSES, VOTE_CHOICES } from '../domain/votes';
 import { VERIFICATION_ACTIONS, VERIFICATION_KINDS } from '../domain/verification';
+import { HIROTTA_ACTIONS, HIROTTA_KINDS } from '../domain/hirotta';
 
 export const laws = sqliteTable('laws', {
 	/** e-Gov の law_id */
@@ -1387,5 +1388,52 @@ export const userVerificationLogs = sqliteTable(
 	(t) => [
 		check('user_verification_logs_action', sql`${t.action} IN ('grant', 'renew', 'revoke')`),
 		index('user_verification_logs_created').on(t.createdAt, t.id)
+	]
+);
+
+// 「拾った」ステータス（Issue #150）
+
+/** いま付いている議員の反応。議員ごと・課題ごと・種類ごとに1行。外すと行を消す（記録は issue_hirotta_logs） */
+export const issueHirotta = sqliteTable(
+	'issue_hirotta',
+	{
+		issueId: integer('issue_id')
+			.notNull()
+			.references(() => issues.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		kind: text('kind', { enum: HIROTTA_KINDS }).notNull(),
+		/** 質問で取り上げたときの会議録の URL（検討中は NULL） */
+		url: text('url'),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.issueId, t.userId, t.kind] }),
+		check('issue_hirotta_kind', sql`${t.kind} IN ('considering', 'questioned')`),
+		check('issue_hirotta_url', sql`(${t.kind} = 'questioned') = (${t.url} IS NOT NULL)`)
+	]
+);
+
+/** 付けた・外したの記録（公開する）。名前はその時点の表示する名前の写し */
+export const issueHirottaLogs = sqliteTable(
+	'issue_hirotta_logs',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		issueId: integer('issue_id')
+			.notNull()
+			.references(() => issues.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		kind: text('kind', { enum: HIROTTA_KINDS }).notNull(),
+		action: text('action', { enum: HIROTTA_ACTIONS }).notNull(),
+		displayName: text('display_name').notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		check('issue_hirotta_logs_kind', sql`${t.kind} IN ('considering', 'questioned')`),
+		check('issue_hirotta_logs_action', sql`${t.action} IN ('add', 'remove')`),
+		index('issue_hirotta_logs_created').on(t.createdAt, t.id)
 	]
 );

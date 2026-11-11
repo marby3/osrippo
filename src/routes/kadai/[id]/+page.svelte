@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tokyoDate } from '#lib/domain/law/display.ts';
+	import { KOKKAI_URL_MAX } from '#lib/domain/hirotta.ts';
 	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import Crumbs from '#lib/components/Crumbs.svelte';
 	import { enhance } from '$app/forms';
@@ -6,7 +8,7 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import SolutionCard from '#lib/components/SolutionCard.svelte';
-	import { ja } from '#lib/copy/ja.ts';
+	import { ja, jaDate } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -164,8 +166,48 @@
 			</div>
 
 			<!-- 右の列の下の段（PC）。スマホは解決策のあと。「この課題から生まれた法案」は通報より上（SpIssue・PcIssue、Issue #125） -->
-			{#if !data.hidden && (data.billCount > 0 || !data.mine)}
+			{#if !data.hidden && (data.billCount > 0 || !data.mine || data.hirotta.length > 0 || data.legislator)}
 				<div class="side-bottom">
+				<!-- 議員の反応（Issue #150）。だれでも見られる。反応がなければ、議員にだけ出す（押すため） -->
+				{#if !data.hidden && (data.hirotta.length > 0 || data.legislator)}
+					<section class="hirotta" id="hirotta" aria-labelledby="hirotta-heading">
+						<h2 id="hirotta-heading">{ja.hirotta.heading}</h2>
+						{#if data.hirotta.length}
+							<ul>
+								{#each data.hirotta as r, i (i)}
+									<li>
+										{ja.hirotta.line(r.kind, r.name)}{#if r.url}・<a href={r.url} rel="noopener noreferrer">{ja.hirotta.record}</a>{/if}
+										・<span class="date">{jaDate(tokyoDate(r.createdAt))}</span>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+						{#if data.legislator && data.myHirotta}
+							{#if form && 'hirottaIssue' in form && 'message' in form}<p role="alert">{form.message}</p>{/if}
+							<form method="post" action="?/hirotta" use:enhance>
+								<input type="hidden" name="kind" value="considering" />
+								<input type="hidden" name="op" value={data.myHirotta.considering ? 'remove' : 'add'} />
+								<button>{data.myHirotta.considering ? ja.hirotta.unconsider : ja.hirotta.consider}</button>
+							</form>
+							{#if data.myHirotta.questioned}
+								<form method="post" action="?/hirotta" use:enhance>
+									<input type="hidden" name="kind" value="questioned" />
+									<input type="hidden" name="op" value="remove" />
+									<button>{ja.hirotta.unquestion}</button>
+								</form>
+							{:else}
+								<form method="post" action="?/hirotta" use:enhance={() => async ({ update }) => update({ reset: false })} class="question">
+									<input type="hidden" name="kind" value="questioned" />
+									<input type="hidden" name="op" value="add" />
+									<label for="hirotta-url">{ja.hirotta.urlLabel}</label>
+									<input id="hirotta-url" name="url" type="url" inputmode="url" maxlength={KOKKAI_URL_MAX} aria-describedby="hirotta-url-hint" />
+									<p id="hirotta-url-hint" class="hint">{ja.hirotta.urlHint}</p>
+									<button>{ja.hirotta.questioned}</button>
+								</form>
+							{/if}
+						{/if}
+					</section>
+				{/if}
 					{#if data.billCount > 0}
 						<a class="bills" href="/kadai/{issue.id}/houan"
 							>{ja.issue.billsRow(data.billCount)}<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
@@ -293,6 +335,57 @@
 
 	form {
 		margin-top: 1.5rem;
+	}
+
+	/* 議員の反応（Issue #150） */
+	.hirotta {
+		margin-top: 1rem;
+		padding: 0.75rem 1rem;
+		border: 1px solid var(--color-divider);
+		border-radius: var(--radius-m);
+	}
+
+	.hirotta h2 {
+		margin: 0 0 0.5rem;
+		font-size: var(--font-size-sub);
+	}
+
+	.hirotta ul {
+		margin: 0 0 0.5rem;
+		padding-left: 1.25rem;
+	}
+
+	.hirotta .date,
+	.hirotta .hint {
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+
+	.hirotta form {
+		margin-top: 0.5rem;
+	}
+
+	.hirotta .question {
+		display: grid;
+		gap: 0.25rem;
+	}
+
+	.hirotta input[type='url'] {
+		min-height: var(--tap-min);
+		padding: 0 0.5rem;
+		border: 1px solid var(--color-input-border);
+		border-radius: var(--radius-s);
+		font: inherit;
+	}
+
+	.hirotta button {
+		min-height: var(--tap-min);
+		padding: 0 1rem;
+		border: 1px solid var(--color-input-border);
+		border-radius: var(--radius-m);
+		background: var(--color-bg);
+		font: inherit;
+		justify-self: start;
 	}
 
 	.support {

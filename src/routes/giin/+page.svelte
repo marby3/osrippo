@@ -1,11 +1,12 @@
 <!-- 議員ダッシュボード（Issue #149、SpMember・PcMember、設計書 docs/spec/149.md）。
      PC は表、スマホは同じ表をカードの形に崩して出す（行は1つだけにして、読み上げと順番をそろえる） -->
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 	const q = $derived(data.query);
 	type Sort = 'bridge' | 'support' | 'new';
 	const SORTS: Sort[] = ['bridge', 'support', 'new'];
@@ -83,6 +84,7 @@
 						<th scope="col" class="num">{ja.giin.columns.supports}</th>
 						<th scope="col">{ja.giin.columns.bridge}</th>
 						<th scope="col">{ja.giin.columns.solution}</th>
+						<th scope="col">{ja.hirotta.yourReaction}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -98,6 +100,20 @@
 								<strong title={row.ratio === null ? ja.giin.ratioNone : undefined}>{ja.giin.ratio(row.ratio)}</strong>
 							</td>
 							<td class="solution"><span class="sp-label">{ja.giin.columns.solution}：</span>{row.solution ?? ja.giin.none}</td>
+							<!-- あなたの反応（Issue #150）。質問で取り上げたは会議録の URL を入れるので、課題のページの欄へ -->
+							<td class="reaction">
+								{#if form && 'hirottaIssue' in form && form.hirottaIssue === row.id && 'message' in form}<p role="alert">{form.message}</p>{/if}
+								{#if row.mine.considering}
+									<span class="badge">{ja.hirotta.considering}</span>
+								{/if}
+								<form method="post" action="?/hirotta" use:enhance>
+									<input type="hidden" name="issue" value={row.id} />
+									<input type="hidden" name="kind" value="considering" />
+									<input type="hidden" name="op" value={row.mine.considering ? 'remove' : 'add'} />
+									<button class:link={row.mine.considering}>{row.mine.considering ? ja.hirotta.unconsider : ja.hirotta.consider}</button>
+								</form>
+								<a href="/kadai/{row.id}#hirotta">{row.mine.questioned ? ja.hirotta.questioned + '（' + ja.hirotta.record + '）' : ja.hirotta.questioned}</a>
+							</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -303,6 +319,43 @@
 		margin-top: 1rem;
 	}
 
+	/* あなたの反応（Issue #150） */
+	td.reaction {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
+		margin-top: 0.5rem;
+		color: var(--color-text);
+	}
+
+	.reaction button {
+		min-height: var(--tap-primary);
+		padding: 0 1rem;
+		border: 1px solid var(--color-base);
+		border-radius: var(--radius-m);
+		background: var(--color-bg);
+		font: inherit;
+		font-weight: 700;
+	}
+
+	.reaction button.link {
+		min-height: var(--tap-min);
+		border: none;
+		color: var(--color-link);
+		font-weight: 400;
+		text-decoration: underline;
+	}
+
+	.badge {
+		padding: 0.125rem 0.5rem;
+		border-radius: var(--radius-s);
+		background: var(--color-base);
+		color: var(--color-bg);
+		font-size: var(--font-size-sub);
+		font-weight: 700;
+	}
+
 	@media (min-width: 64rem) {
 		/* PC はヘッダーの右に出すので帯はない（PcMember） */
 		.band {
@@ -325,8 +378,17 @@
 		}
 
 		td.num,
-		td.ratio {
+		td.ratio,
+		td.reaction {
 			display: table-cell;
+		}
+
+		td.reaction > :global(*) {
+			margin: 0.125rem 0.25rem 0.125rem 0;
+		}
+
+		.reaction form {
+			display: inline;
 		}
 
 		.tabs {

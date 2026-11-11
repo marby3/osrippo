@@ -9,7 +9,9 @@ import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import { GIIN_PAGE_SIZE, listedIssueCount, originIssues, passedBills, passedCount, topSolutions } from '#lib/server/giin.ts';
 import { listIssues } from '#lib/server/issues.ts';
 import { legislatorNameAt } from '#lib/server/verifications.ts';
-import type { PageServerLoad } from './$types';
+import { hirottaAction, myHirotta } from '#lib/server/hirotta.ts';
+import { parseIssueId } from '#lib/domain/issues.ts';
+import type { Actions, PageServerLoad } from './$types';
 
 export type GiinTab = 'kadai' | 'houan' | 'kaketsu';
 
@@ -50,9 +52,10 @@ export const load: PageServerLoad = async (event) => {
 		const { rows, hasNext, bridgeFallback } = await listIssues(db, q, null, now, [], previous, GIIN_PAGE_SIZE, true);
 		if (query.page > 1 && rows.length === 0) error(404);
 		const top = await topSolutions(db, rows.map((r) => r.id));
+		const mine = await myHirotta(db, user.id, rows.map((r) => r.id));
 		return {
 			...base,
-			issues: rows.map((r) => ({ id: r.id, title: r.title, supports: r.supports, ratio: r.ratio ?? null, solution: top.get(r.id) ?? null })),
+			issues: rows.map((r) => ({ id: r.id, title: r.title, supports: r.supports, ratio: r.ratio ?? null, solution: top.get(r.id) ?? null, mine: mine.get(r.id) ?? { considering: false, questioned: false } })),
 			bills: [],
 			passed: [],
 			hasNext,
@@ -75,4 +78,12 @@ export const load: PageServerLoad = async (event) => {
 	const { rows, hasNext } = await passedBills(db, query.page);
 	if (query.page > 1 && rows.length === 0) error(404);
 	return { ...base, issues: [], bills: [], passed: rows, hasNext, bridgeFallback: false };
+};
+
+export const actions: Actions = {
+	// あなたの反応の列（Issue #150）。課題の番号は form の issue
+	hirotta: async (event) => {
+		const form = await event.request.clone().formData();
+		return hirottaAction(event, parseIssueId(String(form.get('issue') ?? '')));
+	}
 };
