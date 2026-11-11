@@ -1,6 +1,7 @@
 <script lang="ts">
 	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import PersonName from '#lib/components/PersonName.svelte';
+	import CommentarySection from '#lib/components/CommentarySection.svelte';
 	// 法案のページの概要（SpBillSummary・PcBillSummary）
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
@@ -65,6 +66,7 @@
 				{/each}
 			</ul>
 		</section>
+		<CommentarySection data={data.commentary} {form} loggedIn={data.support.loggedIn} />
 	</div>
 
 	<aside>

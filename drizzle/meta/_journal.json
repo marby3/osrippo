@@ -204,6 +204,13 @@
       "when": 1794393473911,
       "tag": "0028_elections",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1794413732038,
+      "tag": "0029_expert_commentaries",
+      "breakpoints": true
     }
   ]
 }

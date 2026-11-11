@@ -298,6 +298,7 @@ export async function billModerationLogPage(db: Db, page: number) {
 			title: bills.title,
 			kind: posts.kind,
 			amendmentId: billModerationLogs.amendmentId,
+			commentaryId: billModerationLogs.commentaryId,
 			action: billModerationLogs.action,
 			actor: billModerationLogs.actor,
 			reason: billModerationLogs.reason,
@@ -311,7 +312,11 @@ export async function billModerationLogPage(db: Db, page: number) {
 		.limit(PAGE_SIZE + 1)
 		.offset((page - 1) * PAGE_SIZE);
 	return {
-		rows: rows.slice(0, PAGE_SIZE).map(({ amendmentId, kind, ...r }) => ({ ...r, kind: amendmentId !== null || kind === null ? ('amendment' as const) : kind })),
+		rows: rows.slice(0, PAGE_SIZE).map(({ amendmentId, commentaryId, kind, ...r }) => ({
+			...r,
+			// 専門家の解説への対応（Issue #152）
+			kind: commentaryId !== null ? ('commentary' as const) : amendmentId !== null || kind === null ? ('amendment' as const) : kind
+		})),
 		hasNext: rows.length > PAGE_SIZE
 	};
 }

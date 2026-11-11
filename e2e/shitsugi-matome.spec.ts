@@ -116,7 +116,7 @@ test('基準7：運営が候補を選んでまとめると答弁が移り、ま�
 
 	// /unei：統合の記録が出て、元の本文は出ない
 	await viewer.page.goto('/unei');
-	const log = viewer.page.getByRole('region', { name: '法案の質疑と修正案への対応' });
+	const log = viewer.page.getByRole('region', { name: '法案の質疑・修正案・専門家の解説への対応' });
 	const row = log.locator('tr').filter({ hasText: `同じ内容だった ${s.label}` });
 	await expect(row.getByText('統合', { exact: true })).toBeVisible();
 	await expect(log.getByText(sourceText)).toHaveCount(0);
