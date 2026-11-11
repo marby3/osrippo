@@ -173,7 +173,8 @@ test('基準4：付けた・延ばした・取り消したを、運営の記録�
 		if ((await region.getByRole('link', { name: '前の記録' }).count()) === 0) break;
 	}
 	const day = (d: number) => `${Number(month.slice(0, 4))}年${Number(month.slice(5))}月${d}日`;
-	expect(lines).toEqual([
+	// たどっているあいだにほかのテストが記録を足すと、行が次のページへずれて同じ行を2回読むので、重ねない
+	expect([...new Set(lines)]).toEqual([
 		`有識者の認証を取り消した・${name}（消費者法）・${day(6)}`,
 		`有識者の認証を1年延ばした・${name}（消費者法）・${day(5)}`,
 		`有識者の認証を付けた・${name}（消費者法）・${day(4)}`

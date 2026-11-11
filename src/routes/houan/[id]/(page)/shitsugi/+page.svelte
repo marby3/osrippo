@@ -107,8 +107,8 @@
 				role={relatedBill ? null : data.role}
 				loggedIn={data.loggedIn}
 				waiting={data.waitUntil !== null}
-				canAnswer={!relatedBill && !past && data.canAnswer}
-				canSupplement={!relatedBill && !past && data.canSupplement}
+				canAnswer={!relatedBill && !past && data.canAnswer && !data.electionStopped}
+				canSupplement={!relatedBill && !past && data.canSupplement && !data.electionStopped}
 				{past}
 				siteKey={data.siteKey}
 				{failure}

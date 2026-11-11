@@ -118,17 +118,19 @@ export async function hirottaAction(event: RequestEvent, issueId: number | null)
 const LOG_PAGE_SIZE = 20;
 
 /** 運営の記録の「議員の反応の記録」（新しい順） */
-export async function hirottaLogPage(db: Db, page: number) {
+export async function hirottaLogPage(db: Db, page: number, now: number) {
 	const rows = await db
-		.select({ id: issueHirottaLogs.id, kind: issueHirottaLogs.kind, action: issueHirottaLogs.action, name: issueHirottaLogs.displayName, issueId: issueHirottaLogs.issueId, title: issues.title, status: issues.status, createdAt: issueHirottaLogs.createdAt })
+		.select({ id: issueHirottaLogs.id, kind: issueHirottaLogs.kind, action: issueHirottaLogs.action, name: issueHirottaLogs.displayName, issueId: issueHirottaLogs.issueId, title: issues.title, status: issues.status, createdAt: issueHirottaLogs.createdAt, hidden: hiddenDuringElection(now) })
 		.from(issueHirottaLogs)
 		.innerJoin(issues, eq(issues.id, issueHirottaLogs.issueId))
+		.leftJoin(userVerifications, eq(userVerifications.userId, issueHirottaLogs.userId))
 		.orderBy(desc(issueHirottaLogs.createdAt), desc(issueHirottaLogs.id))
 		.limit(LOG_PAGE_SIZE + 1)
 		.offset((page - 1) * LOG_PAGE_SIZE);
 	// 非表示の課題の題名は出さない（本人と運営にしか見せない。docs/spec/28.md 決めたこと4）
 	return {
-		rows: rows.slice(0, LOG_PAGE_SIZE).map(({ status, title, ...r }) => ({ ...r, title: LISTED.includes(status) ? title : null })),
+		// 選挙期間中の議員の名前も出さない（Issue #151）
+		rows: rows.slice(0, LOG_PAGE_SIZE).map(({ status, title, hidden, name, ...r }) => ({ ...r, name: hidden ? ja.election.hiddenName : name, title: LISTED.includes(status) ? title : null })),
 		hasNext: rows.length > LOG_PAGE_SIZE
 	};
 }

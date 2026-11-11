@@ -200,6 +200,9 @@ test('基準4：選挙期間中は議員の名前をだれの画面にも出さ�
 	const card = viewer.page.locator('article').filter({ hasText: question });
 	await expect(card).toContainText(HIDDEN);
 	await expect(card).not.toContainText(name);
+	// 運営の記録（だれでも見られる）にも出さない
+	await viewer.page.goto('/unei');
+	await expect(viewer.page.getByRole('main')).not.toContainText(name);
 	// 本人のヘッダー（PC）・帯（スマホ）には出す
 	await p.setNow(at(month, 17));
 	await p.page.goto('/giin');
@@ -229,6 +232,11 @@ test('基準5：立候補した有識者に印を付けると、その選挙の�
 	await e.page.goto(bill);
 	await expect(e.page.getByRole('main')).not.toContainText(expert);
 	await expect(e.page.getByRole('main')).not.toContainText('有識者（消費者法）');
+	// アカウントの表示名も出さない（表示名から本人が分かることがある）
+	await expect(e.page.getByRole('main')).not.toContainText(e.name);
+	const viewer = await user(browser, w, 'anon', at(month, 15));
+	await viewer.page.goto('/unei');
+	await expect(viewer.page.getByRole('main')).not.toContainText(expert);
 	await e.setNow(at(month, 21));
 	await e.page.goto(bill);
 	await expect(e.page.getByRole('main')).toContainText(expert);

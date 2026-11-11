@@ -96,7 +96,7 @@ export function refusalMessage(refusal: Refusal): string {
 
 /**
  * 何のための書き込みか（設計書 docs/spec/158.md の 2）。participate はゲームに参加する書き込みで、議員は断る。
- * speak は法案の質疑・答弁・補足と「読んだ」の記録、report は通報、settle は前にした参加の取り消しと、
+ * speak は法案の質疑・答弁・補足、read は「読んだ」の記録、report は通報、settle は前にした参加の取り消しと、
  * 提出者・共同提出者としての同意や後始末で、議員もできる（議員になる前の約束を果たせるように）。
  * legislator は議員だけの書き込み（「拾った」ステータス。Issue #150）で、議員でなければ断る。
  * 選挙期間中の議員は、legislator と speak（質疑・答弁・補足）を断る（Issue #151）。read（「読んだ」の記録）はだれでも通す

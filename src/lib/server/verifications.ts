@@ -34,11 +34,11 @@ export function verifiedColumns(now: number) {
 
 /**
  * 列から Person を作る。選挙期間中の議員は、表示名も表示する名前も出さず「議員（…）」にする。
- * 立候補した有識者は、認証のない人と同じく表示名だけにする（バッジを出さない。Issue #151）
+ * 立候補した有識者は、表示名も表示する名前もバッジも出さない（表示名から本人が分かることがある。Issue #151）
  */
 export function personOf(row: { name: string; vKind: VerificationKind | null; vName: string | null; vField: string | null; vHidden: number | boolean | null }): Person {
 	if (!row.vKind || !row.vName) return { name: row.name, verified: null };
-	if (row.vHidden) return row.vKind === 'legislator' ? { name: ja.election.hiddenName, verified: { kind: 'legislator', name: ja.election.hiddenName, field: null, hidden: true } } : { name: row.name, verified: null };
+	if (row.vHidden) return row.vKind === 'legislator' ? { name: ja.election.hiddenName, verified: { kind: 'legislator', name: ja.election.hiddenName, field: null, hidden: true } } : { name: ja.election.hiddenPerson, verified: null };
 	return { name: row.name, verified: { kind: row.vKind, name: row.vName, field: row.vField } };
 }
 
@@ -171,7 +171,7 @@ export async function activeVerificationList(db: Db, now: number) {
 const LOG_PAGE_SIZE = 20;
 
 /** 運営の記録の「認証の記録」（新しい順）。だれが操作したかは返さない */
-export async function verificationLogPage(db: Db, page: number) {
+export async function verificationLogPage(db: Db, page: number, now: number) {
 	const rows = await db
 		.select({
 			id: userVerificationLogs.id,
@@ -179,11 +179,19 @@ export async function verificationLogPage(db: Db, page: number) {
 			kind: userVerificationLogs.kind,
 			name: userVerificationLogs.displayName,
 			field: userVerificationLogs.field,
-			createdAt: userVerificationLogs.createdAt
+			createdAt: userVerificationLogs.createdAt,
+			// 選挙期間中の議員と立候補した有識者は、記録でも名前を出さない（Issue #151）
+			hidden: hiddenDuringElection(now)
 		})
 		.from(userVerificationLogs)
+		.leftJoin(userVerifications, eq(userVerifications.userId, userVerificationLogs.userId))
 		.orderBy(desc(userVerificationLogs.createdAt), desc(userVerificationLogs.id))
 		.limit(LOG_PAGE_SIZE + 1)
 		.offset((page - 1) * LOG_PAGE_SIZE);
-	return { rows: rows.slice(0, LOG_PAGE_SIZE), hasNext: rows.length > LOG_PAGE_SIZE };
+	return {
+		rows: rows
+			.slice(0, LOG_PAGE_SIZE)
+			.map(({ hidden, ...r }) => (hidden ? { ...r, name: r.kind === 'legislator' ? ja.election.hiddenName : ja.election.hiddenPerson, field: null } : r)),
+		hasNext: rows.length > LOG_PAGE_SIZE
+	};
 }

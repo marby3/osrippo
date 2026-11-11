@@ -11,6 +11,7 @@
 		SOLUTION_REPORT_REASONS
 	} from '#lib/domain/reports.ts';
 	import { VERIFICATION_NAME_MAX } from '#lib/domain/verification.ts';
+	import { ELECTION_NAME_MAX } from '#lib/domain/election.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -376,7 +377,7 @@
 			{#if form && 'election' in form && 'message' in form && !form.electionId}<p role="alert">{form.message}</p>{/if}
 			<form method="post" action="?/electionAdd" use:enhance>
 				<label for="election-name">{ja.election.name}</label>
-				<input id="election-name" name="name" maxlength="40" autocomplete="off" />
+				<input id="election-name" name="name" maxlength={ELECTION_NAME_MAX} autocomplete="off" />
 				<label for="election-notice">{ja.election.notice}</label>
 				<input id="election-notice" name="notice" type="date" required />
 				<label for="election-vote">{ja.election.vote}</label>

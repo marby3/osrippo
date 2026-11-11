@@ -115,8 +115,8 @@
 									<input type="hidden" name="op" value={row.mine.considering ? 'remove' : 'add'} />
 									<button class:link={row.mine.considering}>{row.mine.considering ? ja.hirotta.unconsider : ja.hirotta.consider}</button>
 								</form>
-								<a href="/kadai/{row.id}#hirotta">{row.mine.questioned ? ja.hirotta.questioned + '（' + ja.hirotta.record + '）' : ja.hirotta.questioned}</a>
 								{/if}
+								<a href="/kadai/{row.id}#hirotta">{row.mine.questioned ? ja.hirotta.questioned + '（' + ja.hirotta.record + '）' : ja.hirotta.questioned}</a>
 							</td>
 						</tr>
 					{/each}

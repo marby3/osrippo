@@ -105,7 +105,7 @@ export const load: PageServerLoad = async (event) => {
 			? (await activeVerificationList(db, now)).map(({ expiresAt, ...v }) => ({ ...v, lastDay: verificationLastDay(expiresAt) }))
 			: null,
 		// 選挙期間（Issue #151）。運営だけ
-		elections: canVerify(staff.role) ? (await electionList(db)).map((e) => ({ ...e, started: e.startsAt <= now })) : null
+		elections: canVerify(staff.role) ? (await electionList(db, now)).map((e) => ({ ...e, started: e.startsAt <= now })) : null
 	};
 };
 
@@ -135,7 +135,8 @@ async function electionRemove(event: RequestEvent) {
 	const { db } = await verifierOf(event);
 	const id = parseIssueId(String((await event.request.formData()).get('election') ?? ''));
 	if (id === null) return electionFail(400, ja.kanri.invalid);
-	if (!(await removeElection(db as BatchDb, id, nowOf(event)))) return electionFail(409, ja.election.errors.started, id);
+	const refused = await removeElection(db as BatchDb, id, nowOf(event));
+	if (refused) return electionFail(refused === 'started' ? 409 : 400, ja.election.errors[refused], id);
 	return { election: true as const, done: true };
 }
 

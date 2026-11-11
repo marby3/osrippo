@@ -22,15 +22,15 @@ export function hiddenDuringElection(now: number): SQL<number> {
 	return sql<number>`EXISTS (SELECT 1 FROM ${elections} e WHERE e.starts_at <= ${now} AND e.ends_at > ${now} AND (${userVerifications.kind} = 'legislator' OR EXISTS (SELECT 1 FROM ${electionCandidates} c WHERE c.election_id = e.id AND c.user_id = ${userVerifications.userId})))`;
 }
 
-/** 運営の画面の一覧：新しい公示日の順。立候補した有識者の表示する名前も */
-export async function electionList(db: Db) {
+/** 運営の画面の一覧：公示日の早い順。立候補した有識者の表示する名前も */
+export async function electionList(db: Db, now: number) {
 	const rows = await db.select().from(elections).orderBy(asc(elections.startsAt), asc(elections.id));
 	const candidates = rows.length
 		? await db
 				.select({ electionId: electionCandidates.electionId, name: userVerifications.displayName, userName: user.name })
 				.from(electionCandidates)
 				.innerJoin(user, eq(user.id, electionCandidates.userId))
-				.leftJoin(userVerifications, eq(userVerifications.userId, electionCandidates.userId))
+				.leftJoin(userVerifications, and(eq(userVerifications.userId, electionCandidates.userId), activeVerification(now)))
 		: [];
 	return rows.map((e) => ({
 		id: e.id,
@@ -48,12 +48,17 @@ export async function addElection(db: Db, input: { name: string; notice: string;
 	await db.insert(elections).values({ name: input.name, noticeDate: input.notice, voteDate: input.vote, startsAt, endsAt, createdBy: actorId, createdAt: now });
 }
 
-/** 始まる前の選挙だけ取り消せる。消せたかを返す */
-export async function removeElection(db: BatchDb, id: number, now: number): Promise<boolean> {
+/** 始まる前の選挙だけ取り消せる。消せなかった理由を返す（消せたら null） */
+export async function removeElection(db: BatchDb, id: number, now: number): Promise<'noElection' | 'started' | null> {
 	const [row] = await db.select({ startsAt: elections.startsAt }).from(elections).where(eq(elections.id, id));
-	if (!row || row.startsAt <= now) return false;
-	await db.batch([db.delete(electionCandidates).where(eq(electionCandidates.electionId, id)), db.delete(elections).where(and(eq(elections.id, id), gt(elections.startsAt, now)))] as never);
-	return true;
+	if (!row) return 'noElection';
+	if (row.startsAt <= now) return 'started';
+	const results = (await db.batch([
+		db.delete(elections).where(and(eq(elections.id, id), gt(elections.startsAt, now))).returning({ id: elections.id }),
+		db.delete(electionCandidates).where(and(eq(electionCandidates.electionId, id), sql`NOT EXISTS (SELECT 1 FROM ${elections} WHERE ${elections.id} = ${id})`))
+	] as never)) as unknown[][];
+	// 確かめたあとに始まっていたら消えない
+	return (results[0] ?? []).length > 0 ? null : 'started';
 }
 
 export type CandidateError = 'noElection' | 'noExpert';
