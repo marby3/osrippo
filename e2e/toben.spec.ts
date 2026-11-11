@@ -142,6 +142,7 @@ test('基準3：イベントのページに題・議員・対象へのリンク�
 	const { p, name, issueId, issueTitle, tag } = await setup(browser, w, month);
 	const title = `ページの回 ${tag}`;
 	await announce(p.page, { kind: '課題', id: issueId, title, starts: local(month, 10, '14:00'), ends: local(month, 10, '15:00') });
+	await expect(p.page).toHaveURL(/\/toben\/\d+$/);
 	const path = new URL(p.page.url()).pathname;
 	const viewer = await user(browser, w, 'anon', at(month, 4));
 	const main = viewer.page.getByRole('main');
@@ -193,6 +194,7 @@ test('基準5：告知した議員は開始の前なら取り消せ、「取り�
 	const { p, issueId, tag } = await setup(browser, w, month);
 	const title = `取り消す回 ${tag}`;
 	await announce(p.page, { kind: '課題', id: issueId, title, starts: local(month, 10, '14:00'), ends: local(month, 10, '15:00') });
+	await expect(p.page).toHaveURL(/\/toben\/\d+$/);
 	const path = new URL(p.page.url()).pathname;
 	await posted(p.page, () => p.page.getByRole('button', { name: '取り消す' }).click());
 	await p.page.goto(path);
@@ -202,6 +204,7 @@ test('基準5：告知した議員は開始の前なら取り消せ、「取り�
 	// 開始のあとは取り消せない
 	const other = `取り消せない回 ${tag}`;
 	await announce(p.page, { kind: '課題', id: issueId, title: other, starts: local(month, 10, '16:00'), ends: local(month, 10, '17:00') });
+	await expect(p.page).toHaveURL(/\/toben\/\d+$/);
 	const otherPath = new URL(p.page.url()).pathname;
 	await p.setNow(at(month, 10, '16:30'));
 	await p.page.goto(otherPath);
@@ -217,6 +220,7 @@ test('基準6：選挙期間にかかるイベントは告知できず、告知�
 	// 先に告知した回（20日）
 	const before = `選挙の前に告知した回 ${tag}`;
 	await announce(p.page, { kind: '課題', id: issueId, title: before, starts: local(month, 20, '14:00'), ends: local(month, 20, '15:00') });
+	await expect(p.page).toHaveURL(/\/toben\/\d+$/);
 	const path = new URL(p.page.url()).pathname;
 	// 選挙を登録する（15日〜25日）
 	await op.page.goto('/kanri');
@@ -248,6 +252,7 @@ test('基準7：告知と取り消しは議員だけ。ほかの人には出さ�
 	const { op, p, issueId, tag } = await setup(browser, w, month);
 	const title = `議員だけの回 ${tag}`;
 	await announce(p.page, { kind: '課題', id: issueId, title, starts: local(month, 10, '14:00'), ends: local(month, 10, '15:00') });
+	await expect(p.page).toHaveURL(/\/toben\/\d+$/);
 	const path = new URL(p.page.url()).pathname;
 	const g = await user(browser, w, 'g', at(month, 4));
 	const q = await user(browser, w, 'q', at(month, 4));
