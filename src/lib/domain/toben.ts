@@ -14,9 +14,14 @@ export type TobenError = 'kind' | 'target' | 'titleRequired' | 'titleTooLong' | 
 /** 画面の日時（datetime-local の "YYYY-MM-DDTHH:MM"）を日本時間として読む。形が違えば null */
 export function parseLocalTime(raw: string | null | undefined): number | null {
 	const v = (raw ?? '').trim();
-	if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return null;
-	const ms = Date.parse(`${v}:00+09:00`);
-	return Number.isNaN(ms) ? null : ms;
+	const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(v);
+	if (!m) return null;
+	const [y, mo, d, h, mi] = m.slice(1).map(Number);
+	// 実在しない日時（2月30日、24時など）を別の日に読み替えない
+	const utc = Date.UTC(y, mo - 1, d, h, mi);
+	const back = new Date(utc);
+	if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d || back.getUTCHours() !== h || back.getUTCMinutes() !== mi) return null;
+	return utc - 9 * 60 * 60 * 1000;
 }
 
 /** 告知のフォームの値を確かめる。now は告知する時刻 */

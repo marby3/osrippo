@@ -28,6 +28,7 @@
 				<ul>
 					{#each part.rows as e (e.id)}<TobenItem {e} showState />{/each}
 				</ul>
+				{#if part.key === 'ended' && part.rows.length >= 50}<p class="empty">{ja.toben.endedCap}</p>{/if}
 			{/if}
 		</section>
 	{/each}

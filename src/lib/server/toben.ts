@@ -1,5 +1,5 @@
 // 答弁イベントの告知と一覧（Issue #153。#147 の決めること13・15）
-import { and, asc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
 import { bills, elections, issues, tobenEvents, user } from '../db/schema';
 import { LISTED } from '../domain/reports';
 import { tobenState, type TobenState, type TobenTargetKind } from '../domain/toben';
@@ -26,6 +26,8 @@ export type TobenView = {
 	state: TobenState;
 	person: Person;
 	mine: boolean;
+	/** 告知した本人が、いま取り消せるか（開始の前で、取り消していない。選挙で中止になったものも開始の前なら取り消せる） */
+	cancellable: boolean;
 };
 
 function select(db: Db, now: number) {
@@ -63,7 +65,8 @@ function view(r: Row, now: number, viewerId: string | null): TobenView {
 		endsAt: r.endsAt,
 		state: tobenState({ startsAt: r.startsAt, endsAt: r.endsAt, cancelledAt: r.cancelledAt, stopped: Boolean(r.stopped) }, now),
 		person: personOf(r),
-		mine: r.userId === viewerId
+		mine: r.userId === viewerId,
+		cancellable: r.userId === viewerId && r.cancelledAt === null && now < r.startsAt
 	};
 }
 
@@ -89,11 +92,12 @@ export async function createToben(db: Db, input: { userId: string; kind: TobenTa
 }
 
 /** 取り消す。告知した本人が、開始の前に、まだ取り消していないときだけ。断る理由を返す（取り消せたら null） */
-export async function cancelToben(db: Db, id: number, userId: string, now: number): Promise<'missing' | 'forbidden' | 'started' | null> {
+export async function cancelToben(db: Db, id: number, userId: string, now: number): Promise<'missing' | 'forbidden' | 'cancelled' | 'started' | null> {
 	const [row] = await db.select({ userId: tobenEvents.userId, startsAt: tobenEvents.startsAt, cancelledAt: tobenEvents.cancelledAt }).from(tobenEvents).where(eq(tobenEvents.id, id));
 	if (!row) return 'missing';
 	if (row.userId !== userId) return 'forbidden';
-	if (row.cancelledAt !== null || row.startsAt <= now) return 'started';
+	if (row.cancelledAt !== null) return 'cancelled';
+	if (row.startsAt <= now) return 'started';
 	const done = await db
 		.update(tobenEvents)
 		.set({ cancelledAt: now })
@@ -108,12 +112,20 @@ export async function tobenOf(db: Db, id: number, now: number, viewerId: string 
 	return row ? view(row, now, viewerId) : null;
 }
 
-/** 一覧：これから（開始が近い順）・開催中・終わった（新しい順。取り消しと中止を含む）。終わったは新しい50件 */
+/** 「終わった」に出す件数（新しいもの。docs/spec/153.md） */
+export const TOBEN_ENDED_MAX = 50;
+
+/**
+ * 一覧：これから（開始が近い順）・開催中・終わった（新しい順。取り消しと中止を含む）。
+ * 終わっていないもの（終了が今より後）は全部、終わったものは新しい50件だけを SQL で読む
+ */
 export async function tobenList(db: Db, now: number) {
-	const rows = await select(db, now).orderBy(asc(tobenEvents.startsAt), asc(tobenEvents.id));
-	const all = rows.map((r) => view(r, now, null));
-	const ended = all.filter((e) => e.state === 'ended' || e.state === 'cancelled' || e.state === 'stopped').sort((a, b) => b.startsAt - a.startsAt || b.id - a.id);
-	return { upcoming: all.filter((e) => e.state === 'upcoming'), live: all.filter((e) => e.state === 'live'), ended: ended.slice(0, 50) };
+	const open = (await select(db, now).where(gt(tobenEvents.endsAt, now)).orderBy(asc(tobenEvents.startsAt), asc(tobenEvents.id))).map((r) => view(r, now, null));
+	const past = (await select(db, now).where(lte(tobenEvents.endsAt, now)).orderBy(desc(tobenEvents.startsAt), desc(tobenEvents.id)).limit(TOBEN_ENDED_MAX)).map((r) => view(r, now, null));
+	// 終わっていなくても、取り消しと選挙で中止になったものは「終わった」に入れる
+	const closed = open.filter((e) => e.state === 'cancelled' || e.state === 'stopped');
+	const ended = [...closed, ...past].sort((a, b) => b.startsAt - a.startsAt || b.id - a.id).slice(0, TOBEN_ENDED_MAX);
+	return { upcoming: open.filter((e) => e.state === 'upcoming'), live: open.filter((e) => e.state === 'live'), ended };
 }
 
 /** 課題・法案のページの告知：これからと開催中のもの（取り消しと中止は出さない） */
@@ -123,5 +135,3 @@ export async function tobenFor(db: Db, kind: TobenTargetKind, targetId: number, 
 		.orderBy(asc(tobenEvents.startsAt));
 	return rows.map((r) => view(r, now, null)).filter((e) => e.state === 'upcoming' || e.state === 'live');
 }
-
-

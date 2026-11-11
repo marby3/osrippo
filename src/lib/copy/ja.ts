@@ -1207,7 +1207,9 @@ export const ja = {
 		ended: '終わった',
 		empty: 'ありません',
 		states: { upcoming: '告知中', live: '開催中', ended: '終わりました', cancelled: '取り消しました', stopped: '選挙期間のため中止' },
-		when: (startsAt: number, endsAt: number) => `${jaDateTimeFull(startsAt)}〜${jaDateTime(endsAt).replace(/^.*日 /, '')}`,
+		/** 同じ日なら終了は時刻だけ、日をまたぐなら日付も出す */
+		when: (startsAt: number, endsAt: number) =>
+			`${jaDateTimeFull(startsAt)}〜${jaDateTime(startsAt).replace(/ .*$/, '') === jaDateTime(endsAt).replace(/ .*$/, '') ? jaDateTime(endsAt).replace(/^.*日 /, '') : jaDateTime(endsAt)}`,
 		target: { issue: '課題', bill: '法案' },
 		targetMissing: '（対象は表示していません）',
 		announceLink: '答弁イベントを告知する',
@@ -1221,6 +1223,10 @@ export const ja = {
 		announce: '告知する',
 		cancel: '取り消す',
 		forTarget: '答弁イベント',
+		toList: '答弁イベントの一覧',
+		legislator: '議員',
+		dateLabel: '日時',
+		endedCap: '終わったイベントは、新しい50件を出しています。',
 		errors: {
 			kind: '対象を選んでください',
 			target: '対象の番号を入れてください',
@@ -1233,6 +1239,7 @@ export const ja = {
 			missing: '対象の課題・法案が見つかりません',
 			election: '選挙期間にかかるので告知できません',
 			started: '始まったイベントは取り消せません',
+			cancelled: 'このイベントは取り消してあります',
 			forbidden: '告知した議員だけが取り消せます'
 		}
 	},

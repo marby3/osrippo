@@ -74,6 +74,7 @@
 				<ul>
 					{#each data.toben as e (e.id)}<TobenItem {e} />{/each}
 				</ul>
+				<p><a href="/toben">{ja.toben.toList}</a></p>
 			</section>
 		{/if}
 		<CommentarySection data={data.commentary} {form} loggedIn={data.support.loggedIn} />

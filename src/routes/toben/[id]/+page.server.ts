@@ -30,7 +30,7 @@ export const actions: Actions = {
 		const refused = await cancelToben(db, id, user.id, now);
 		if (refused === 'missing') error(404);
 		if (refused === 'forbidden') return fail(403, { message: ja.toben.errors.forbidden });
-		if (refused === 'started') return fail(409, { message: ja.toben.errors.started });
+		if (refused === 'started' || refused === 'cancelled') return fail(409, { message: ja.toben.errors[refused] });
 		return { cancelled: true };
 	}
 };

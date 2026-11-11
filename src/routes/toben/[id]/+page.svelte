@@ -18,14 +18,14 @@
 	<h1>{e.title}</h1>
 	<p class="state" data-state={e.state}>{ja.toben.states[e.state]}</p>
 	<dl>
-		<dt>{ja.giin.headerLink}</dt>
+		<dt>{ja.toben.legislator}</dt>
 		<dd><PersonName person={e.person} /></dd>
 		<dt>{ja.toben.target[e.targetKind]}</dt>
 		<dd>{#if e.targetTitle}<a href={e.targetKind === 'issue' ? `/kadai/${e.targetId}` : `/houan/${e.targetId}`}>{e.targetTitle}</a>{:else}{ja.toben.targetMissing}{/if}</dd>
-		<dt>{ja.toben.startsLabel}</dt>
+		<dt>{ja.toben.dateLabel}</dt>
 		<dd>{ja.toben.when(e.startsAt, e.endsAt)}</dd>
 	</dl>
-	{#if e.mine && e.state === 'upcoming' && !data.electionStopped}
+	{#if e.cancellable && !data.electionStopped}
 		<form method="post" action="?/cancel" use:enhance>
 			{#if form && 'message' in form}<p role="alert">{form.message}</p>{/if}
 			<button>{ja.toben.cancel}</button>
