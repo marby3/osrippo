@@ -2,6 +2,7 @@
 	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
 	import PersonName from '#lib/components/PersonName.svelte';
 	import CommentarySection from '#lib/components/CommentarySection.svelte';
+	import TobenItem from '#lib/components/TobenItem.svelte';
 	// 法案のページの概要（SpBillSummary・PcBillSummary）
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
@@ -66,6 +67,16 @@
 				{/each}
 			</ul>
 		</section>
+		{#if data.toben.length}
+			<!-- これからと開催中の答弁イベント（Issue #153） -->
+			<section class="toben" aria-labelledby="toben-heading">
+				<h2 id="toben-heading" class="label">{ja.toben.forTarget}</h2>
+				<ul>
+					{#each data.toben as e (e.id)}<TobenItem {e} />{/each}
+				</ul>
+				<p><a href="/toben">{ja.toben.toList}</a></p>
+			</section>
+		{/if}
 		<CommentarySection data={data.commentary} {form} loggedIn={data.support.loggedIn} />
 	</div>
 
@@ -285,6 +296,12 @@
 </div>
 
 <style>
+	.toben ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
 	.box {
 		margin-top: 1rem;
 		padding: 0.75rem 1rem;

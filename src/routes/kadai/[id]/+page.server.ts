@@ -14,6 +14,7 @@ import { reactAction, reportSolutionAction } from '#lib/server/solution-actions.
 import { hasHiddenSolutions, listSolutions, reportedSolutionIds, solutionCount } from '#lib/server/solutions.ts';
 import type { Db } from '#lib/server/law.ts';
 import { hirottaAction, hirottaOf, myHirotta } from '#lib/server/hirotta.ts';
+import { tobenFor } from '#lib/server/toben.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
 /** 課題のページに出す解決策の数（設計書 docs/spec/34.md 決めたこと3） */
@@ -57,7 +58,9 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 		fromSimilar: url.searchParams.get('from') === 'nita' && userId !== null && !hidden && issue.supported,
 		// 議員の反応（Issue #150）。だれでも見られる。議員には自分が付けているかも渡す
 		hirotta: hidden ? [] : await hirottaOf(db, id, now),
-		myHirotta: userId !== null && !hidden ? ((await myHirotta(db, userId, [id])).get(id) ?? null) : null
+		myHirotta: userId !== null && !hidden ? ((await myHirotta(db, userId, [id])).get(id) ?? null) : null,
+		// これからと開催中の答弁イベント（Issue #153）
+		toben: hidden ? [] : await tobenFor(db, 'issue', id, now)
 	};
 };
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TobenItem from '#lib/components/TobenItem.svelte';
 	import { tokyoDate } from '#lib/domain/law/display.ts';
 	import { KOKKAI_URL_MAX } from '#lib/domain/hirotta.ts';
 	import LegislatorNote from '#lib/components/LegislatorNote.svelte';
@@ -166,8 +167,18 @@
 			</div>
 
 			<!-- 右の列の下の段（PC）。スマホは解決策のあと。「この課題から生まれた法案」は通報より上（SpIssue・PcIssue、Issue #125） -->
-			{#if !data.hidden && (data.billCount > 0 || !data.mine || data.hirotta.length > 0 || data.legislator)}
+			{#if !data.hidden && (data.billCount > 0 || !data.mine || data.hirotta.length > 0 || data.legislator || data.toben.length > 0)}
 				<div class="side-bottom">
+					{#if data.toben.length}
+						<!-- これからと開催中の答弁イベント（Issue #153） -->
+						<section class="toben" aria-labelledby="toben-heading">
+							<h2 id="toben-heading">{ja.toben.forTarget}</h2>
+							<ul>
+								{#each data.toben as e (e.id)}<TobenItem {e} />{/each}
+							</ul>
+							<p class="to-list"><a href="/toben">{ja.toben.toList}</a></p>
+						</section>
+					{/if}
 				<!-- 議員の反応（Issue #150）。だれでも見られる。反応がなければ、議員にだけ出す（押すため） -->
 				{#if !data.hidden && (data.hirotta.length > 0 || data.legislator)}
 					<section class="hirotta" id="hirotta" aria-labelledby="hirotta-heading">
@@ -349,6 +360,30 @@
 
 	.hirotta h2 {
 		margin: 0 0 0.5rem;
+		font-size: var(--font-size-sub);
+	}
+
+	/* 答弁イベント（Issue #153） */
+	.toben {
+		margin-top: 1rem;
+		padding: 0.75rem 1rem;
+		border: 1px solid var(--color-divider);
+		border-radius: var(--radius-m);
+	}
+
+	.toben h2 {
+		margin: 0;
+		font-size: var(--font-size-sub);
+	}
+
+	.toben ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.toben .to-list {
+		margin: 0.5rem 0 0;
 		font-size: var(--font-size-sub);
 	}
 

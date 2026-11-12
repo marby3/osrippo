@@ -47,6 +47,8 @@
 		<div>
 			<h1>{ja.giin.heading}</h1>
 			<p class="lead">{ja.giin.lead}</p>
+			<!-- 答弁イベント（Issue #153） -->
+			<p class="toben"><a href="/toben/kaku">{ja.toben.announceLink}</a> ・ <a href="/toben">{ja.toben.heading}</a></p>
 		</div>
 		{#if q.tab === 'kadai'}
 			<label class="sort">

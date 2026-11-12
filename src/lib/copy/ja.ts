@@ -1196,6 +1196,53 @@ export const ja = {
 		ownIssue: '自分の課題には対応できません',
 		invalid: '入力を確かめてください'
 	},
+	/** 答弁イベント（Issue #153） */
+	toben: {
+		listTitle: '答弁イベント｜オープンソース立法府',
+		pageTitle: (title: string) => `${title}｜答弁イベント｜オープンソース立法府`,
+		heading: '答弁イベント',
+		lead: '議員が、課題や法案について答弁する回です。',
+		upcoming: 'これから',
+		live: '開催中',
+		ended: '終わった',
+		empty: 'ありません',
+		states: { upcoming: '告知中', live: '開催中', ended: '終わりました', cancelled: '取り消しました', stopped: '選挙期間のため中止' },
+		/** 同じ日なら終了は時刻だけ、日をまたぐなら日付も出す */
+		when: (startsAt: number, endsAt: number) =>
+			`${jaDateTimeFull(startsAt)}〜${jaDateTime(startsAt).replace(/ .*$/, '') === jaDateTime(endsAt).replace(/ .*$/, '') ? jaDateTime(endsAt).replace(/^.*日 /, '') : jaDateTime(endsAt)}`,
+		target: { issue: '課題', bill: '法案' },
+		targetMissing: '（対象は表示していません）',
+		announceLink: '答弁イベントを告知する',
+		announceTitle: '答弁イベントを告知する｜オープンソース立法府',
+		announceLead: '開始は告知の3日あと以降、長さは2時間までです。開始の前なら取り消せます。',
+		kindLegend: '対象',
+		targetLabel: '対象の番号',
+		titleLabel: '題',
+		startsLabel: '開始',
+		endsLabel: '終了',
+		announce: '告知する',
+		cancel: '取り消す',
+		forTarget: '答弁イベント',
+		toList: '答弁イベントの一覧',
+		legislator: '議員',
+		dateLabel: '日時',
+		endedCap: '終わったイベントは、新しい50件を出しています。',
+		errors: {
+			kind: '対象を選んでください',
+			target: '対象の番号を入れてください',
+			titleRequired: '題を入れてください',
+			titleTooLong: '題は60字以内で書いてください',
+			titleInvalid: '題に使えない文字が入っています',
+			time: '開始と終了の日時を正しく入れてください',
+			length: '終了は開始から2時間までにしてください',
+			notice: '開始は告知の3日あと以降にしてください',
+			missing: '対象の課題・法案が見つかりません',
+			election: '選挙期間にかかるので告知できません',
+			started: '始まったイベントは取り消せません',
+			cancelled: 'このイベントは取り消してあります',
+			forbidden: '告知した議員だけが取り消せます'
+		}
+	},
 	/** 専門家の解説（Issue #152） */
 	commentary: {
 		heading: '専門家の解説',
