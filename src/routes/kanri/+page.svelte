@@ -32,7 +32,7 @@
 <main>
 	<h1>{ja.kanri.heading}</h1>
 	<!-- 断った文言は、その課題・解決策のところに出す（どれか分からないときだけ上に） -->
-	{#if form && 'message' in form && !('verification' in form) && !('election' in form) && !('commentaryId' in form && form.commentaryId) && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('amendmentId' in form && form.amendmentId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
+	{#if form && 'message' in form && !('verification' in form) && !('election' in form) && !('commentaryId' in form && form.commentaryId) && !('tobenId' in form && form.tobenId) && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('amendmentId' in form && form.amendmentId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
 		<p role="alert">{form.message}</p>
 	{/if}
 	{#if data.rows.length === 0}
@@ -362,6 +362,57 @@
 							<input type="hidden" name="commentary" value={row.id} />
 							<label for="commentary-restore-note-{row.id}">{ja.kanri.restoreNote}</label>
 							<textarea id="commentary-restore-note-{row.id}" name="note" required maxlength="200" rows="2"></textarea>
+							<button>{ja.kanri.restore}</button>
+						</form>
+					{/if}
+				</article>
+			{/each}
+		</section>
+	{/if}
+
+	<!-- 通報を受けた答弁イベントの質問と答弁（Issue #181）。自分のものは出さない -->
+	{#if data.toben.length}
+		<section aria-labelledby="toben-reported-heading">
+			<h2 id="toben-reported-heading" class="section">{ja.toben.questions.kanriHeading}</h2>
+			{#each data.toben as row (`${row.kind}-${row.id}`)}
+				{@const key = `${row.kind}-${row.id}`}
+				<article>
+					<h3><a href="/toben/{row.eventId}">{row.eventTitle}</a></h3>
+					<p class="status">{ja.toben.questions.kinds[row.kind]}・{ja.kanri.statuses[row.status]}</p>
+					<p class="body">{row.body}</p>
+					{#if form && 'tobenId' in form && form.tobenId === key && 'message' in form}<p role="alert">{form.message}</p>{/if}
+					<p>{ja.kanri.reportCount(row.total, row.counted)}</p>
+					<ul class="reasons">
+						{#each solutionReasons as reason (reason)}
+							{#if row[reason] > 0}<li>{ja.report.reasons[reason]} {row[reason]}</li>{/if}
+						{/each}
+					</ul>
+					{#if row.notes.length}
+						<ul class="notes">
+							{#each row.notes as note, i (i)}<li>{note}</li>{/each}
+						</ul>
+					{/if}
+					{#if HIDEABLE.includes(row.status)}
+						<form method="post" action="?/hideToben" use:enhance>
+							<input type="hidden" name="kind" value={row.kind} />
+							<input type="hidden" name="target" value={row.id} />
+							<label for="toben-hide-reason-{key}">{ja.kanri.hideReason}</label>
+							<select id="toben-hide-reason-{key}" name="reason" required>
+								{#each HIDE_REASONS as reason (reason)}
+									<option value={reason}>{ja.hideReasons[reason]}</option>
+								{/each}
+							</select>
+							<label for="toben-hide-note-{key}">{ja.kanri.hideNote}</label>
+							<textarea id="toben-hide-note-{key}" name="note" required maxlength="200" rows="2"></textarea>
+							<button>{ja.kanri.hide}</button>
+						</form>
+					{/if}
+					{#if RESTORABLE.includes(row.status)}
+						<form method="post" action="?/restoreToben" use:enhance>
+							<input type="hidden" name="kind" value={row.kind} />
+							<input type="hidden" name="target" value={row.id} />
+							<label for="toben-restore-note-{key}">{ja.kanri.restoreNote}</label>
+							<textarea id="toben-restore-note-{key}" name="note" required maxlength="200" rows="2"></textarea>
 							<button>{ja.kanri.restore}</button>
 						</form>
 					{/if}

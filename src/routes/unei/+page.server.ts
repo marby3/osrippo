@@ -10,6 +10,7 @@ import { tokyoDate } from '#lib/domain/law/display.ts';
 import { nowOf } from '#lib/server/client.ts';
 import { verificationLogPage } from '#lib/server/verifications.ts';
 import { hirottaLogPage } from '#lib/server/hirotta.ts';
+import { tobenModerationLogPage } from '#lib/server/toben-questions.ts';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -19,7 +20,8 @@ export const load: PageServerLoad = async (event) => {
 	const postPage = parsePage(url.searchParams.get('shitsugi'));
 	const verifyPage = parsePage(url.searchParams.get('ninsho'));
 	const hirottaPage = parsePage(url.searchParams.get('hirotta'));
-	if (page === null || reviewPage === null || postPage === null || verifyPage === null || hirottaPage === null) error(404);
+	const tobenPage = parsePage(url.searchParams.get('toben'));
+	if (page === null || reviewPage === null || postPage === null || verifyPage === null || hirottaPage === null || tobenPage === null) error(404);
 	const db = drizzle(env.DB);
 	const { rows, hasNext } = await moderationLogPage(db, page);
 	if (page > 1 && rows.length === 0) error(404);
@@ -34,6 +36,9 @@ export const load: PageServerLoad = async (event) => {
 	// 議員の反応の記録（Issue #150）。日付は操作した日（日本時間）
 	const hirottaLogs = await hirottaLogPage(db, hirottaPage, now);
 	if (hirottaPage > 1 && hirottaLogs.rows.length === 0) error(404);
+	// 答弁イベントへの対応（Issue #181）
+	const tobenLogs = await tobenModerationLogPage(db, tobenPage);
+	if (tobenPage > 1 && tobenLogs.rows.length === 0) error(404);
 	return {
 		page,
 		rows,
@@ -49,6 +54,9 @@ export const load: PageServerLoad = async (event) => {
 		verifyLogsHasNext: verifyLogs.hasNext,
 		hirottaPage,
 		hirottaLogs: hirottaLogs.rows.map(({ createdAt, ...r }) => ({ ...r, date: tokyoDate(createdAt) })),
-		hirottaLogsHasNext: hirottaLogs.hasNext
+		hirottaLogsHasNext: hirottaLogs.hasNext,
+		tobenPage,
+		tobenLogs: tobenLogs.rows,
+		tobenLogsHasNext: tobenLogs.hasNext
 	};
 };

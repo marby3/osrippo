@@ -20,6 +20,7 @@ import { activeVerificationList, changeVerification, grantVerification } from '#
 import { parseElection } from '#lib/domain/election.ts';
 import { addElection, electionList, markCandidate, removeElection } from '#lib/server/elections.ts';
 import { changeCommentaryModeration, commentaryStaffAccess, reportedCommentaries } from '#lib/server/commentaries.ts';
+import { changeTobenModeration, reportedToben, tobenStaffAccess } from '#lib/server/toben-questions.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 /** 役職を最初に確かめる（権限のない人に /kanri があることを漏らさない） */
@@ -102,6 +103,8 @@ export const load: PageServerLoad = async (event) => {
 		amendments: await reportedAmendments(db, staff, focusAmendment),
 		// 通報を受けた専門家の解説（Issue #152）
 		commentaries: await reportedCommentaries(db, staff),
+		// 通報を受けた答弁イベントの質問と答弁（Issue #181）
+		toben: await reportedToben(db, staff),
 		reviews: await pendingReviews(db, staff.userId, staff.role),
 		// 議員・有識者の認証（設計書 docs/spec/157.md の 3）。運営でなければ一覧も返さない
 		verifications: canVerify(staff.role)
@@ -320,6 +323,29 @@ const actOnCommentary = (action: 'hide' | 'restore') => async (event: RequestEve
 	return { doneCommentary: commentaryId };
 };
 
+/** 答弁イベントの質問・答弁を非表示にする・表示に戻す（Issue #181）。確かめる順は専門家の解説と同じ */
+const actOnToben = (action: 'hide' | 'restore') => async (event: RequestEvent) => {
+	const { db, staff } = await staffOf(event);
+	if (!allowedCountry(clientOf(event).country)) return fail(403, { message: ja.guard.outsideJapan, tobenId: null });
+	const form = await event.request.formData();
+	const field = (name: string) => (form.has(name) ? String(form.get(name)) : null);
+	const kind = field('kind') === 'question' ? 'question' : field('kind') === 'answer' ? 'answer' : null;
+	const checked = validateAmendmentAction({ amendment: field('target'), reason: field('reason'), note: field('note') }, action);
+	if (kind === null || !checked.ok) return fail(400, { message: ja.kanri.invalid, tobenId: null });
+	const { amendmentId: id, reason, note } = checked.value;
+	const access = await tobenStaffAccess(db, kind, id, staff);
+	if (access === 'missing') return fail(404, { message: ja.kanri.invalid, tobenId: null });
+	const tobenId = `${kind}-${id}`;
+	if (access === 'own') return fail(403, { message: ja.toben.questions.own, tobenId });
+	const now = nowOf(event);
+	const changed =
+		action === 'hide'
+			? await changeTobenModeration(db, kind, id, HIDEABLE, 'hidden', staff, reason, note, now)
+			: await changeTobenModeration(db, kind, id, RESTORABLE, 'restored', staff, null, note, now);
+	if (!changed) return fail(400, { message: action === 'hide' ? ja.kanri.alreadyHidden : ja.kanri.alreadyShown, tobenId });
+	return { doneToben: tobenId };
+};
+
 /** 結果の確認（docs/spec/73.md 決めたこと7）。確かめの順：役職 → 国 → 入力 → 自分の関わり → 状態 */
 const decide = (decision: 'confirm' | 'void') => async (event: RequestEvent) => {
 	const { db, staff } = await staffOf(event);
@@ -355,6 +381,8 @@ export const actions: Actions = {
 	electionAdd,
 	hideCommentary: actOnCommentary('hide'),
 	restoreCommentary: actOnCommentary('restore'),
+	hideToben: actOnToben('hide'),
+	restoreToben: actOnToben('restore'),
 	electionRemove,
 	electionCandidate
 };

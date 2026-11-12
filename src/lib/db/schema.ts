@@ -1542,3 +1542,119 @@ export const tobenEvents = sqliteTable(
 		check('toben_events_time', sql`${t.startsAt} < ${t.endsAt}`)
 	]
 );
+
+// 答弁イベントの質問と答弁（Issue #181）。質問は1つの回に1人1件、答弁は質問ごとに1件（告知した議員）。通報で見えなくなる条件は質疑と同じ
+
+const TOBEN_MODERATION = ['visible', 'auto_hidden', 'hidden', 'restored'] as const;
+
+export const tobenQuestions = sqliteTable(
+	'toben_questions',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		eventId: integer('event_id')
+			.notNull()
+			.references(() => tobenEvents.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		body: text('body').notNull(),
+		createdAt: integer('created_at').notNull(),
+		moderationStatus: text('moderation_status', { enum: TOBEN_MODERATION }).notNull().default('visible'),
+		moderationChangedAt: integer('moderation_changed_at')
+	},
+	(t) => [unique('toben_questions_once').on(t.eventId, t.userId), check('toben_questions_status', sql`${t.moderationStatus} IN (${inList(TOBEN_MODERATION)})`)]
+);
+
+export const tobenAnswers = sqliteTable(
+	'toben_answers',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		questionId: integer('question_id')
+			.notNull()
+			.unique('toben_answers_once')
+			.references(() => tobenQuestions.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		body: text('body').notNull(),
+		createdAt: integer('created_at').notNull(),
+		/** 直した時刻（直していなければ NULL） */
+		editedAt: integer('edited_at'),
+		moderationStatus: text('moderation_status', { enum: TOBEN_MODERATION }).notNull().default('visible'),
+		moderationChangedAt: integer('moderation_changed_at')
+	},
+	(t) => [check('toben_answers_status', sql`${t.moderationStatus} IN (${inList(TOBEN_MODERATION)})`)]
+);
+
+/** 「わたしも聞きたい」。いま付いているもの */
+export const tobenWants = sqliteTable(
+	'toben_wants',
+	{
+		questionId: integer('question_id')
+			.notNull()
+			.references(() => tobenQuestions.id),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.questionId, t.userId] })]
+);
+
+/** 「わたしも聞きたい」を付けた・外した記録（回数の上限を数える。「わかる」と同じ上限） */
+export const tobenWantLogs = sqliteTable(
+	'toben_want_logs',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		questionId: integer('question_id').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		ipHash: text('ip_hash').notNull(),
+		op: text('op', { enum: ['add', 'remove'] }).notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [index('toben_want_logs_user').on(t.userId, t.createdAt), index('toben_want_logs_question').on(t.questionId, t.ipHash, t.createdAt), check('toben_want_logs_op', sql`${t.op} IN ('add', 'remove')`)]
+);
+
+export const tobenReports = sqliteTable(
+	'toben_reports',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		targetKind: text('target_kind', { enum: ['question', 'answer'] }).notNull(),
+		targetId: integer('target_id').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		reason: text('reason', { enum: SOLUTION_REPORT_REASONS_DB }).notNull(),
+		note: text('note'),
+		counted: integer('counted', { mode: 'boolean' }).notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [
+		unique('toben_reports_once').on(t.targetKind, t.targetId, t.userId),
+		index('toben_reports_user').on(t.userId, t.createdAt),
+		check('toben_reports_kind', sql`${t.targetKind} IN ('question', 'answer')`),
+		check('toben_reports_reason', sql`${t.reason} IN (${inList(SOLUTION_REPORT_REASONS_DB)})`)
+	]
+);
+
+/** 運営の記録の「答弁イベントへの対応」 */
+export const tobenModerationLogs = sqliteTable(
+	'toben_moderation_logs',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		eventId: integer('event_id')
+			.notNull()
+			.references(() => tobenEvents.id),
+		targetKind: text('target_kind', { enum: ['question', 'answer'] }).notNull(),
+		targetId: integer('target_id').notNull(),
+		action: text('action', { enum: ['auto_hide', 'hide', 'restore'] }).notNull(),
+		actor: text('actor', { enum: MODERATION_ACTORS }).notNull(),
+		actorUserId: text('actor_user_id'),
+		reason: text('reason'),
+		note: text('note'),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [index('toben_moderation_logs_created').on(t.createdAt), check('toben_moderation_logs_kind', sql`${t.targetKind} IN ('question', 'answer')`)]
+);

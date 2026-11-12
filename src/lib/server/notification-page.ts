@@ -1,6 +1,6 @@
 // 通知の一覧と未読の数（Issue #78。設計書 docs/spec/78.md 決めたこと7〜9）
 import { and, count, desc, eq, gt, gte, inArray, isNull, lte, max, ne, sql } from 'drizzle-orm';
-import { amendments, billAdjustments, bills, chairTerms, issues, notificationReads, notifications, posts, solutions } from '../db/schema';
+import { amendments, billAdjustments, bills, chairTerms, issues, notificationReads, notifications, posts, solutions, tobenEvents } from '../db/schema';
 import { ACTING_AFTER } from '../domain/chairs';
 import { PAGE_SIZE } from '../domain/issues';
 import { hrefOf, targetOf, type NoticeKind, type NotificationKind, type TimedKind } from '../domain/notifications';
@@ -98,16 +98,19 @@ async function resolveTargets(db: Db, rows: Row[]) {
 	const solutionIds = idsOf('solution');
 	const postIds = idsOf('post');
 	const amendmentIds = idsOf('amendment');
-	const [billRows, issueRows, solutionRows, postRows, amendmentRows] = await Promise.all([
+	const tobenIds = idsOf('toben');
+	const [billRows, issueRows, solutionRows, postRows, amendmentRows, tobenRows] = await Promise.all([
 		billIds.length ? db.select({ id: bills.id, title: bills.title }).from(bills).where(inArray(bills.id, billIds)) : [],
 		issueIds.length ? db.select({ id: issues.id, title: issues.title }).from(issues).where(inArray(issues.id, issueIds)) : [],
 		solutionIds.length
 			? db.select({ id: solutions.id, issueId: solutions.issueId, title: issues.title }).from(solutions).innerJoin(issues, eq(issues.id, solutions.issueId)).where(inArray(solutions.id, solutionIds))
 			: [],
 		postIds.length ? db.select({ id: posts.id, billId: posts.billId, title: bills.title }).from(posts).innerJoin(bills, eq(bills.id, posts.billId)).where(inArray(posts.id, postIds)) : [],
-		amendmentIds.length ? db.select({ id: amendments.id, billId: amendments.billId, title: bills.title }).from(amendments).innerJoin(bills, eq(bills.id, amendments.billId)).where(inArray(amendments.id, amendmentIds)) : []
+		amendmentIds.length ? db.select({ id: amendments.id, billId: amendments.billId, title: bills.title }).from(amendments).innerJoin(bills, eq(bills.id, amendments.billId)).where(inArray(amendments.id, amendmentIds)) : [],
+		// 答弁イベント（Issue #181）
+		tobenIds.length ? db.select({ id: tobenEvents.id, title: tobenEvents.title }).from(tobenEvents).where(inArray(tobenEvents.id, tobenIds)) : []
 	]);
-	return (row: Row): { title: string | null; ids: { billId?: number; issueId?: number } } | null => {
+	return (row: Row): { title: string | null; ids: { billId?: number; issueId?: number; tobenId?: number } } | null => {
 		const target = targetOf(row.kind);
 		if (target === 'committee') return { title: null, ids: {} };
 		if (target === 'bill') {
@@ -121,6 +124,10 @@ async function resolveTargets(db: Db, rows: Row[]) {
 		if (target === 'solution') {
 			const solution = solutionRows.find((s) => s.id === row.targetId);
 			return solution ? { title: solution.title, ids: { issueId: solution.issueId } } : null;
+		}
+		if (target === 'toben') {
+			const event = tobenRows.find((e) => e.id === row.targetId);
+			return event ? { title: event.title, ids: { tobenId: event.id } } : null;
 		}
 		if (target === 'amendment') {
 			const amendment = amendmentRows.find((a) => a.id === row.targetId);

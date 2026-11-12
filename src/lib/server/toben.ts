@@ -7,8 +7,11 @@ import type { Person } from '../domain/verification';
 import type { Db } from './law';
 import { personOf, verifiedColumns, verifiedJoin, verifiedTable } from './verifications';
 
-/** 開催の時間が選挙の期間にかかっているか（告知のあとで登録された選挙で中止になる。#151） */
-const stoppedSql = sql<number>`EXISTS (SELECT 1 FROM ${elections} e WHERE e.starts_at < ${tobenEvents.endsAt} AND e.ends_at > ${tobenEvents.startsAt})`;
+/**
+ * 開催の時間が選挙の期間にかかっているか（告知のあとで登録された選挙で中止になる。#151）。
+ * 外の表の列は表の名前を付けて書く（結合のない select では列に表の名前が付かず、選挙の表の同じ名前の列と読まれる。#181）
+ */
+const stoppedSql = sql<number>`EXISTS (SELECT 1 FROM ${elections} e WHERE e.starts_at < toben_events.ends_at AND e.ends_at > toben_events.starts_at)`;
 
 /** 対象の題名（課題は表示中のもの、法案は発議されたもの）。なければ null */
 const targetTitleSql = sql<string | null>`CASE ${tobenEvents.targetKind}

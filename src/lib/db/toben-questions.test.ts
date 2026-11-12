@@ -1,7 +1,7 @@
 // Issue #181：答弁イベントの質問と答弁のルール（通報で見えなくなる条件、「わたしも聞きたい」の回数の上限）。画面は e2e/toben-shitsumon.spec.ts
 import { expect, test } from 'vitest';
 import { openMemoryDb } from './memory';
-import { askQuestion, reportToben, wantQuestion } from '../server/toben-questions';
+import { askQuestion, reportToben, tobenEventFor, wantQuestion } from '../server/toben-questions';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -47,4 +47,13 @@ test('「わたしも聞きたい」は「わかる」と同じ上限：同じ�
 	const want = (userId: string) => wantQuestion(db, { userId, registeredAt: 0, ipHash: 'same-ip' }, { eventId: event, questionId: id }, 'add', now);
 	for (const v of ['v1', 'v2', 'v3']) expect(await want(v)).toEqual({ ok: true });
 	expect(await want('v4')).toMatchObject({ ok: false, refusal: { kind: 'want-ip' } });
+});
+
+test('関係のない時期の選挙があっても、回は中止にならない（選挙の期間にかかる回だけが中止）', async () => {
+	const { sqlite, db, now, event } = setup();
+	const run = (q: string, ...p: (string | number | null)[]) => sqlite.prepare(q).run(...p);
+	run("INSERT INTO elections (name, notice_date, vote_date, starts_at, ends_at, created_by, created_at) VALUES ('遠い選挙', 'x', 'x', ?, ?, 'legislator', 0)", now + 60 * DAY, now + 70 * DAY);
+	expect((await tobenEventFor(db, event, now))?.state).toBe('upcoming');
+	run("INSERT INTO elections (name, notice_date, vote_date, starts_at, ends_at, created_by, created_at) VALUES ('かかる選挙', 'x', 'x', ?, ?, 'legislator', 0)", now + 5 * DAY, now + 7 * DAY);
+	expect((await tobenEventFor(db, event, now))?.state).toBe('stopped');
 });

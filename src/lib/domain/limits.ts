@@ -97,7 +97,10 @@ export type RefusalKind =
 	| 'vote-burst'
 	| 'vote-ip'
 	| 'chair-vote-ip'
-	| 'recall-ip';
+	| 'recall-ip'
+	| 'want-day'
+	| 'want-burst'
+	| 'want-ip';
 export type Refusal = { kind: RefusalKind; retryAt?: number };
 
 /** 違反に数えるか。回線ごとの上限は同じ回線の別の人のせいで当たることがあり、登録したばかりの上限は試しているうちに締め出されないよう、数えない */
@@ -113,6 +116,9 @@ export const COUNTS_AS_VIOLATION: Record<RefusalKind, boolean> = {
 	'solution-new': false,
 	'solution-ip': false,
 	'reaction-ip': false,
+	'want-day': true,
+	'want-burst': true,
+	'want-ip': false,
 	'bill-draft-account': true,
 	'bill-draft-ip': false,
 	'bill-save-account': true,
@@ -201,6 +207,13 @@ export function checkSupport(
 /** 直近24時間の違反（いまの1回を含む）から、締め出しの期限を決める。締め出さないなら null */
 export function banUntil(violationsInDay: number, now: number): number | null {
 	return violationsInDay >= LIMITS.violationsToBan ? now + LIMITS.banLength : null;
+}
+
+/** 答弁イベントの「わたしも聞きたい」（Issue #181）。上限の数は「わかる」と同じ。数えるのは「わたしも聞きたい」の付け外しだけ */
+export function checkWant(c: { op: 'add' | 'remove'; accountDay: number; accountBurst: number; otherAccountsOnIp: number; selfAddedRecently: boolean }): Refusal | null {
+	const refusal = checkSupport(c);
+	if (!refusal) return null;
+	return { kind: refusal.kind === 'support-day' ? 'want-day' : refusal.kind === 'support-burst' ? 'want-burst' : 'want-ip' };
 }
 
 /** 法案の下書きを作る（Issue #46 決めたこと2）。accountDrafts・ipDrafts は直近24時間に作った数 */
