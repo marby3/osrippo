@@ -58,6 +58,9 @@ function world() {
 	type Law = ReturnType<typeof addLaw>;
 	type Change = { num: string; op: 'amend' | 'add' | 'delete'; provisionId?: number; text?: string };
 
+	/** いまの IF世界の版の番号（法案はいまの IF世界を基にする） */
+	const headSeq = (lawId: string) =>
+		(sqlite.prepare('SELECT COALESCE(MAX(s), 0) AS n FROM (SELECT seq AS s FROM if_revisions WHERE law_id = ? UNION ALL SELECT seq AS s FROM if_imports WHERE law_id = ?)').get(lawId, lawId) as { n: number }).n;
 	/** 発議して10人が賛成した法案（可決する）。enact は新法の題名 */
 	const passBill = (s: Session, law: Law | null, changes: Change[], opts: { action?: 'amend' | 'repeal' | 'enact'; newTitle?: string } = {}) => {
 		const action = opts.action ?? 'amend';
@@ -69,8 +72,8 @@ function world() {
 				.run(author, action, title, s.startsAt + unique()).lastInsertRowid
 		);
 		sqlite
-			.prepare('INSERT INTO bill_laws (bill_id, rev, seq, action, law_id, base_revision_id, new_title, base_if_seq) VALUES (?, 1, 0, ?, ?, ?, ?, 0)')
-			.run(id, action, law?.lawId ?? null, law?.revisionId ?? null, action === 'enact' ? (opts.newTitle ?? `新法${unique()}`) : null);
+			.prepare('INSERT INTO bill_laws (bill_id, rev, seq, action, law_id, base_revision_id, new_title, base_if_seq) VALUES (?, 1, 0, ?, ?, ?, ?, ?)')
+			.run(id, action, law?.lawId ?? null, law?.revisionId ?? null, action === 'enact' ? (opts.newTitle ?? `新法${unique()}`) : null, law ? headSeq(law.lawId) : 0);
 		sqlite.prepare('INSERT INTO bill_solutions (bill_id, rev, seq, solution_id) VALUES (?, 1, 0, 1)').run(id);
 		for (const c of changes) {
 			sqlite
@@ -110,7 +113,7 @@ const serve = (db: MemoryDb, now: () => number) => async (path: string) => {
 	return snapshot;
 };
 
-const git = (dir: string, ...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+const git = (dir: string, ...args: string[]) => execFileSync('git', ['-c', 'core.quotePath=false', ...args], { cwd: dir, encoding: 'utf8' });
 /** ミラーのリポジトリ（押す先は空の bare リポジトリ） */
 function mirrorRepo() {
 	const root = mkdtempSync(join(tmpdir(), 'osrippo-mirror-'));
