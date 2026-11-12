@@ -1,14 +1,19 @@
 // 全体のメニューのタブと、ページがどのタブに属するか（Issue #85）
 
-export type Tab = 'home' | 'kadai' | 'houan' | 'saiketsu' | 'hourei';
+export type Tab = 'home' | 'kadai' | 'houan' | 'saiketsu' | 'hourei' | 'toukei';
 
 export const TABS: { key: Tab; href: string }[] = [
 	{ key: 'home', href: '/' },
 	{ key: 'kadai', href: '/kadai' },
 	{ key: 'houan', href: '/houan' },
 	{ key: 'saiketsu', href: '/saiketsu' },
-	{ key: 'hourei', href: '/hourei' }
+	{ key: 'hourei', href: '/hourei' },
+	// PC のヘッダーにだけ出す。スマホの下のタブは5つのまま（Issue #154、設計書 docs/spec/154.md の J）
+	{ key: 'toukei', href: '/toukei' }
 ];
+
+/** スマホの下のタブに出さないタブ */
+export const PC_ONLY_TABS: readonly Tab[] = ['toukei'];
 
 const under = (pathname: string, base: string) => pathname === base || pathname.startsWith(`${base}/`);
 

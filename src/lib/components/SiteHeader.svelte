@@ -2,7 +2,7 @@
 	// 全体のメニュー（案 PcHeader・SpNav、Issue #85）。PC は上の帯にタブを並べ、スマホはタブを画面の下に固定する
 	import { page } from '$app/state';
 	import { ja } from '../copy/ja';
-	import { TABS, tabOf, type Tab } from '../menu';
+	import { PC_ONLY_TABS, TABS, tabOf, type Tab } from '../menu';
 
 	/**
 	 * unread：未読の数。ログインしていなければ null（ベルを出さない）。
@@ -27,6 +27,8 @@
 			<path d="M7 3h7l4 4v14H7z" /><path d="M10 11h5M10 15h5" />
 		{:else if key === 'saiketsu'}
 			<path d="M5 5h14v14H5z" /><path d="m9 12 2 2 4-4" />
+		{:else if key === 'toukei'}
+			<path d="M5 20V10M12 20V4M19 20v-7" /><path d="M3 20h18" />
 		{:else}
 			<path d="M5 5a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2z" /><path d="M5 20a2 2 0 0 0 2 1h12v-3" />
 		{/if}
@@ -44,7 +46,7 @@
 
 		<nav class:input={hideTabsOnSp} aria-label={ja.menu.label}>
 			{#each TABS as tab (tab.key)}
-				<a href={tab.href} aria-current={current === tab.key ? 'page' : undefined}>
+				<a href={tab.href} class:pc-only={PC_ONLY_TABS.includes(tab.key)} aria-current={current === tab.key ? 'page' : undefined}>
 					{@render icon(tab.key)}
 					<span>{ja.menu.tabs[tab.key]}</span>
 				</a>
@@ -232,6 +234,11 @@
 		font-weight: 700;
 	}
 
+	/* 「データ」は PC だけ。スマホの下のタブは5つのまま（Issue #154） */
+	nav a.pc-only {
+		display: none;
+	}
+
 	@media (min-width: 64rem) {
 		.verified {
 			display: inline-flex;
@@ -270,7 +277,9 @@
 			border-top: 0;
 		}
 
-		nav a {
+		nav a,
+		nav a.pc-only {
+			display: flex;
 			flex-direction: row;
 			padding: 0 0.875rem;
 			border-top: 0;
