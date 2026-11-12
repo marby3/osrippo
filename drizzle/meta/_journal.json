@@ -225,6 +225,13 @@
       "when": 1794462406569,
       "tag": "0031_toben_questions",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1794484677409,
+      "tag": "0032_stance_stats",
+      "breakpoints": true
     }
   ]
 }

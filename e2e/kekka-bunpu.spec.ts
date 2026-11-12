@@ -23,8 +23,8 @@ const at = (month: string, day: number) => `${month}-${String(day).padStart(2, '
 
 type User = { page: Page; setNow: (now: string) => Promise<void> };
 
-async function user(browser: Browser, address: string, now: string, name?: string): Promise<User> {
-	const u = await newUser(browser, { name, ip: address, days: 8 });
+async function user(browser: Browser, address: string, now: string, name?: string, role?: 'operator'): Promise<User> {
+	const u = await newUser(browser, { name, ip: address, days: 8, role });
 	contexts.push(u.context);
 	const setNow = (t: string) => u.context.setExtraHTTPHeaders({ 'x-test-ip': address, 'x-test-now': t });
 	await setNow(now);
@@ -35,12 +35,14 @@ async function user(browser: Browser, address: string, now: string, name?: strin
  * 1本の法案を5日に発議し、voters の人が数えた票を入れる。stance があれば、その人は10日（2週目）にその立場を選ぶ。
  * 返す viewer は締切のあと（次の月の2日）のログインしていない人
  */
-async function settled(browser: Browser, w: Width, group: number, voters: { stance?: 'for' | 'against'; choice: 'yes' | 'no' | 'abstain' }[]) {
+/** line なら、ほかの line の人と同じ回線から投票する（票の偏りの確認になる） */
+type Voter = { stance?: 'for' | 'against'; choice: 'yes' | 'no' | 'abstain'; line?: boolean };
+async function settled(browser: Browser, w: Width, group: number, voters: Voter[]) {
 	const month = monthOf(w, group);
 	const label = `b${group}-${w}-${stamp()}`;
 	let seq = 0;
 	const nextIp = () => `10.${w === 'sp' ? 87 : 88}.${(test.info().workerIndex * 3 + group) % 250}.${++seq}`;
-	const person = (now: string) => user(browser, nextIp(), now, `u${seq + 1}-${label}`);
+	const person = (now: string, role?: 'operator') => user(browser, nextIp(), now, `u${seq + 1}-${label}`, role);
 	const title = `分布の法案 ${label}`;
 	const a = await person(at(month, 5));
 	const { ids } = await issueWithSolutions(a.page, title, [`解決策 ${title}`]);
@@ -55,7 +57,7 @@ async function settled(browser: Browser, w: Width, group: number, voters: { stan
 	const id = path.replace('/houan/', '');
 	for (const v of voters) {
 		// 前の月に課題を書いた人は、数えた票になる
-		const u = await person(at(prev(month), 10));
+		const u = v.line ? await user(browser, `10.86.${(test.info().workerIndex * 3 + group) % 250}.1`, at(prev(month), 10), `l${++seq}-${label}`) : await person(at(prev(month), 10));
 		await postIssue(u.page, { title: `前の月の課題 ${label} ${seq}` });
 		if (v.stance) {
 			await u.setNow(at(month, 10));
@@ -67,22 +69,22 @@ async function settled(browser: Browser, w: Width, group: number, voters: { stan
 		expect(res.status(), await res.text()).toBe(200);
 	}
 	const viewer = await user(browser, nextIp(), at(next(month), 2));
-	return { id, title, month, viewer, nextIp };
+	return { id, title, month, viewer, person };
 }
 
 // 賛成寄りを選んだ10人（賛成2・反対7・棄権1）と、立場を選ばなかった2人（反対）。否決になる
-const BIG = [
+const BIG: Voter[] = [
 	...Array.from({ length: 2 }, () => ({ stance: 'for' as const, choice: 'yes' as const })),
 	...Array.from({ length: 7 }, () => ({ stance: 'for' as const, choice: 'no' as const })),
 	{ stance: 'for' as const, choice: 'abstain' as const },
 	...Array.from({ length: 2 }, () => ({ choice: 'no' as const }))
 ];
 // 立場を選ばなかった3人。定足数に届かず廃案
-const SMALL = Array.from({ length: 3 }, () => ({ choice: 'yes' as const }));
+const SMALL: Voter[] = Array.from({ length: 3 }, () => ({ choice: 'yes' as const }));
 
 const built = new Map<string, Promise<{ id: string; title: string; month: string }>>();
 /** 同じワーカーの中で一度だけ作る */
-function shared(browser: Browser, w: Width, group: number, voters: typeof BIG) {
+function shared(browser: Browser, w: Width, group: number, voters: Voter[]) {
 	const key = `${w}-${group}`;
 	if (!built.has(key)) built.set(key, settled(browser, w, group, voters).then(({ id, title, month }) => ({ id, title, month })));
 	return built.get(key)!;
@@ -110,9 +112,8 @@ test('基準1：結果のページの票の下に、立場ごとの賛成・反�
 	await expect(s.getByRole('columnheader', { name: '棄権' })).toBeVisible();
 	// 列の並びは賛成・反対・棄権（行の見出しのあと）
 	expect(await cells(v.page, '立場別の分布', '賛成寄りだった人')).toEqual(['20%', '70%', '10%']);
-	// 人数は出さない
-	await expect(s).not.toContainText(/\d+人/);
-	await expect(s).not.toContainText('10');
+	// 人数は出さない：表の値は割合だけ
+	for (const cell of await s.getByRole('cell').allInnerTexts()) expect(cell.trim()).toMatch(/^\d+%$/);
 	// 票の欄より下にある
 	const votes = await v.page.getByRole('heading', { name: /数えた票/ }).boundingBox();
 	const heading = await s.getByRole('heading', { name: '立場別の分布' }).boundingBox();
@@ -176,31 +177,49 @@ test('基準4：考えの動きを数える人が10人未満なら、図を出�
 	expect(await dataOf(v.page, ugokiOf(small.id))).not.toMatch(/undecided|against|"for"/);
 });
 
-test('基準5：締切の前は分布もリンクも出さず、動きのページは結果を待つ表示。締切のあとはログインなしで見られる', async ({ browser }, info) => {
+test('基準5：分布と動きは結果が出てからだけ出す。締切の前・確認中・無効では出さない。番号が正しくなければ 404', async ({ browser }, info) => {
 	const w = info.project.name as Width;
-	const s = await settled(browser, w, 2, SMALL);
-	// 締切の前（採決の期間の25日）
-	await s.viewer.setNow(at(s.month, 25));
-	await s.viewer.page.goto(kekkaOf(s.id));
-	await expect(s.viewer.page.getByText('結果は締切のあとに出ます')).toBeVisible();
-	await expect(section(s.viewer.page, '立場別の分布')).toHaveCount(0);
-	await expect(s.viewer.page.getByRole('link', { name: '会期中の考えの動きを見る' })).toHaveCount(0);
-	expect(await dataOf(s.viewer.page, kekkaOf(s.id))).not.toMatch(/stance|undecided/i);
-	const before = await s.viewer.page.goto(ugokiOf(s.id));
-	expect(before?.status()).toBe(200);
-	await expect(s.viewer.page.getByText('結果は締切のあとに出ます')).toBeVisible();
-	await expect(section(s.viewer.page, '会期中の考えの動き')).toHaveCount(0);
-	expect(await dataOf(s.viewer.page, ugokiOf(s.id))).not.toMatch(/undecided|against|"for"/);
-	// IF世界の帯と noindex
-	await expect(s.viewer.page.locator('[data-if-band]')).toBeVisible();
-	await expect(s.viewer.page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+	// 賛成寄りの10人のうち5人が同じ回線から賛成する。締切のあとは確認中になる
+	const voters: Voter[] = Array.from({ length: 10 }, (_, i) => ({ stance: 'for', choice: 'yes', line: i < 5 }));
+	const s = await settled(browser, w, 2, voters);
+	const v = s.viewer;
+	const hidden = async (waiting: string) => {
+		await v.page.goto(kekkaOf(s.id));
+		await expect(v.page.getByText(waiting)).toBeVisible();
+		await expect(section(v.page, '立場別の分布')).toHaveCount(0);
+		await expect(v.page.getByRole('link', { name: '会期中の考えの動きを見る' })).toHaveCount(0);
+		expect(await dataOf(v.page, kekkaOf(s.id))).not.toMatch(/undecided|against|"for"/);
+	};
+	const motionHidden = async (waiting: string) => {
+		const res = await v.page.goto(ugokiOf(s.id));
+		expect(res?.status()).toBe(200);
+		await expect(v.page.getByText(waiting)).toBeVisible();
+		await expect(section(v.page, '会期中の考えの動き')).toHaveCount(0);
+		expect(await dataOf(v.page, ugokiOf(s.id))).not.toMatch(/undecided|against|"for"/);
+	};
 
-	// 締切のあとは、ログインしていなくても見られる
-	await s.viewer.setNow(at(next(s.month), 2));
-	await s.viewer.page.goto(kekkaOf(s.id));
-	await expect(section(s.viewer.page, '立場別の分布')).toBeVisible();
-	await s.viewer.page.goto(ugokiOf(s.id));
-	await expect(section(s.viewer.page, '会期中の考えの動き')).toBeVisible();
+	// 締切の前（採決の期間の25日）
+	await v.setNow(at(s.month, 25));
+	await hidden('結果は締切のあとに出ます');
+	await motionHidden('結果は締切のあとに出ます');
+	// IF世界の帯と noindex
+	await expect(v.page.locator('[data-if-band]')).toBeVisible();
+	await expect(v.page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+
+	// 締切のあと：確認中。動きのページを先に開いても結果を確定する
+	await v.setNow(at(next(s.month), 2));
+	await motionHidden('結果を確認しています');
+	await hidden('結果を確認しています');
+
+	// 運営が無効にする
+	const operator = await s.person(at(next(s.month), 2), 'operator');
+	const res = await billRequest(operator.page, '/kanri?/voidReview', { bill: s.id, session: s.month, note: `同じ回線の票 ${s.title}` });
+	expect(res.status(), await res.text()).toBe(200);
+	await hidden('確認の結果、この採決は無効になりました');
+	await motionHidden('この結果は無効になったため、考えの動きは出していません');
+
+	// 番号が正しくなければ 404
+	for (const bad of ['abc', '0', '99999999']) expect((await v.page.goto(ugokiOf(bad)))?.status(), bad).toBe(404);
 });
 
 test('基準6：図の各部分に立場と割合の文字を付け、同じ値の表も出す。2つの幅で見える', async ({ browser }, info) => {

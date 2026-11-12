@@ -6,6 +6,8 @@ import type { BatchDb } from '#lib/server/law.ts';
 import { postableBill, progressOf } from '#lib/server/post-actions.ts';
 import { billStageNow, priorAmendmentResults, resultOnRead } from '#lib/server/results.ts';
 import { resubmitStateOf } from '#lib/server/resubmit.ts';
+import { stanceStatsOf } from '#lib/server/stance-stats.ts';
+import { distributionView } from '#lib/domain/stance-stats.ts';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -28,6 +30,8 @@ export const load: PageServerLoad = async (event) => {
 		resubmittable = state.can && state.next === null;
 	}
 	const reference = { yes: result.refYes, no: result.refNo, abstain: result.refAbstain };
+	// 立場別の分布は丸めた割合だけを渡す。人数と出さない区分は渡さない（設計書 docs/spec/87.md）
+	const stats = voided ? null : await stanceStatsOf(db, bill, sessionsAt(now).minutes, now);
 	return {
 		...shell,
 		phase: 'done' as const,
@@ -39,6 +43,7 @@ export const load: PageServerLoad = async (event) => {
 		counted: { yes: result.yes, no: result.no, abstain: result.abstain },
 		reference,
 		comparison: voided ? null : referenceComparison(result.outcome, reference, result.quorum),
+		stance: stats ? distributionView(stats.votes) : null,
 		places: !voided && result.outcome === 'passed' ? await ifPlacesOf(db, bill.id, result.rev) : [],
 		adjustment: !voided && result.outcome === 'passed' ? await adjustmentOf(db, result.sessionKey, bill.id) : null,
 		now,
