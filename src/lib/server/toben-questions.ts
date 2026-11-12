@@ -154,14 +154,13 @@ export async function questionsOf(db: Db, eventId: number, viewerId: string | nu
 					...verifiedColumns(now)
 				})
 				.from(tobenAnswers)
+				// 質問の番号を並べると D1 の値の数の上限（100）にかかるので、回で絞る
+				.innerJoin(tobenQuestions, eq(tobenQuestions.id, tobenAnswers.questionId))
 				.innerJoin(user, eq(user.id, tobenAnswers.userId))
 				.leftJoin(verifiedTable, verifiedJoin(now))
 				.where(
 					and(
-						inArray(
-							tobenAnswers.questionId,
-							questions.map((q) => q.id)
-						),
+						eq(tobenQuestions.eventId, eventId),
 						viewerId === null ? inArray(tobenAnswers.moderationStatus, SHOWN) : or(inArray(tobenAnswers.moderationStatus, SHOWN), eq(tobenAnswers.userId, viewerId))
 					)
 				)
@@ -333,7 +332,7 @@ export async function reportedToben(db: Db, staff: Staff) {
 		? await db
 				.select({ kind: tobenReports.targetKind, targetId: tobenReports.targetId, note: tobenReports.note })
 				.from(tobenReports)
-				.where(and(inArray(tobenReports.targetId, [...new Set(rows.map((r) => r.id))]), isNotNull(tobenReports.note)))
+				.where(and(sql`${tobenReports.targetId} IN (SELECT value FROM json_each(${JSON.stringify([...new Set(rows.map((r) => r.id))])}))`, isNotNull(tobenReports.note)))
 				.orderBy(desc(tobenReports.createdAt))
 		: [];
 	return rows.map((r) => ({ ...r, notes: notes.filter((n) => n.kind === r.kind && n.targetId === r.id).map((n) => n.note as string) }));

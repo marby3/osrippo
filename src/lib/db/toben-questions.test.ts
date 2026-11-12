@@ -1,7 +1,7 @@
 // Issue #181：答弁イベントの質問と答弁のルール（通報で見えなくなる条件、「わたしも聞きたい」の回数の上限）。画面は e2e/toben-shitsumon.spec.ts
 import { expect, test } from 'vitest';
 import { openMemoryDb } from './memory';
-import { askQuestion, reportToben, tobenEventFor, wantQuestion } from '../server/toben-questions';
+import { askQuestion, questionsOf, reportToben, tobenEventFor, wantQuestion } from '../server/toben-questions';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -56,4 +56,14 @@ test('関係のない時期の選挙があっても、回は中止にならな�
 	expect((await tobenEventFor(db, event, now))?.state).toBe('upcoming');
 	run("INSERT INTO elections (name, notice_date, vote_date, starts_at, ends_at, created_by, created_at) VALUES ('かかる選挙', 'x', 'x', ?, ?, 'legislator', 0)", now + 5 * DAY, now + 7 * DAY);
 	expect((await tobenEventFor(db, event, now))?.state).toBe('stopped');
+});
+
+test('質問がたくさんある回でも読み込める（D1 の値の数の上限にかからない）', async () => {
+	const { sqlite, db, now, event } = setup();
+	const insert = sqlite.prepare('INSERT INTO user (id, name, email, created_at, updated_at) VALUES (?, ?, ?, 0, 0)');
+	for (let i = 0; i < 120; i++) {
+		insert.run(`many${i}`, `many${i}`, `many${i}@test.invalid`);
+		await askQuestion(db, { eventId: event, userId: `many${i}`, body: `質問${i}` }, now);
+	}
+	expect(await questionsOf(db, event, null, now)).toHaveLength(120);
 });

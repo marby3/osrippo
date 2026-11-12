@@ -179,7 +179,7 @@ test('基準2：開始までは「わたしも聞きたい」を付け外しで�
 	test.setTimeout(180_000);
 	const w = info.project.name as Width;
 	const month = MONTHS.c2[w];
-	const { a, p, path, tag } = await setup(browser, w, month);
+	const { a, op, p, path, tag } = await setup(browser, w, month);
 	const b = await user(browser, w, 'b', at(month, 4));
 	const c = await user(browser, w, 'c', at(month, 4));
 	const d = await user(browser, w, 'd', at(month, 4));
@@ -219,6 +219,14 @@ test('基準2：開始までは「わたしも聞きたい」を付け外しで�
 	await p.page.goto(path);
 	await expect(questions(p.page).getByRole('button', { name: 'わたしも聞きたい' })).toHaveCount(0);
 	expect((await post(p.page, `${path}?/want`, { question: id2, op: 'add' })).status()).toBe(403);
+	// 付けたあとで議員になった人は、外すことだけできる
+	await op.setNow(at(month, 4));
+	await grant(op.page, c.name);
+	await press(c.page, q1);
+	await expect(card(c.page, q1)).toContainText('わたしも聞きたい 0');
+	await expect(card(c.page, q1).getByRole('button', { name: 'わたしも聞きたい' })).toHaveCount(0);
+	const id1 = await questionId(c.page, path, q1);
+	expect((await post(c.page, `${path}?/want`, { question: id1, op: 'add' })).status()).toBe(403);
 	// 開始のあとは付け外しできない
 	await d.setNow(at(month, 10, '14:00'));
 	await d.page.goto(path);

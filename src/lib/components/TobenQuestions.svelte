@@ -45,8 +45,8 @@
 	const upcoming = $derived(phase === 'upcoming');
 	/** 質問を書く欄を出すか */
 	const canAsk = $derived(me !== null && !me.legislator && upcoming && !me.asked && me.waitUntil === null);
-	/** 「わたしも聞きたい」を押せるか（自分の質問は別に除く） */
-	const canWant = $derived(me !== null && !me.legislator && upcoming);
+	/** 「わたしも聞きたい」を押せるか（自分の質問は別に除く）。付けたあとで議員になった人は、外すことだけできる */
+	const canWant = (wanted: boolean) => me !== null && upcoming && (!me.legislator || wanted);
 	/** 答弁を書けるか：告知した議員が、開催中に（選挙期間中は書けない） */
 	const canAnswer = $derived(mine && phase === 'live' && me !== null && me.legislator && !electionStopped);
 	const askFailure = $derived(form && form.ask && typeof form.message === 'string' ? form.message : null);
@@ -130,7 +130,7 @@
 			<p class="body">{q.body}</p>
 			<div class="want">
 				<p>{t.wantCount(q.wants)}</p>
-				{#if canWant && !q.mine && !q.hidden}
+				{#if canWant(q.wanted) && !q.mine && !q.hidden}
 					<form method="post" action="?/want" use:enhance={keep}>
 						<input type="hidden" name="question" value={q.id} />
 						<input type="hidden" name="op" value={q.wanted ? 'remove' : 'add'} />
