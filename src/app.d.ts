@@ -35,6 +35,11 @@ declare global {
 			SESSION_MINUTES?: string;
 			/** ステージングだけで "1"。Worker の入口で、すべての応答に X-Robots-Tag: noindex, nofollow を付ける（Issue #156。src/worker/fetch.ts） */
 			NOINDEX?: string;
+			/**
+			 * 公開ミラーの書き出しの入口（/mirror）のトークン（Issue #155。docs/mirror.md）。wrangler secret put で入れる。
+			 * 書き出しを使わない環境では入れなくてよいので、secrets.required に入れない（ないときは入口が 401 だけを返す）
+			 */
+			MIRROR_TOKEN?: string;
 		}
 	}
 }

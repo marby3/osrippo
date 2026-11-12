@@ -34,8 +34,8 @@ export async function ifBranchOf(db: Db, lawId: string): Promise<string | undefi
 	return read();
 }
 
-/** IF世界の版に重ねる行（古い順）。seq を省くと最新まで */
-async function overlayRows(db: Db, lawId: string, seq?: number) {
+/** IF世界の版に重ねる行（古い順）。seq を省くと最新まで。upTo を渡すとその会期までに入った行だけ（公開ミラー。Issue #155） */
+async function overlayRows(db: Db, lawId: string, seq?: number, upTo?: string) {
 	return db
 		.select({
 			seq: ifRevisions.seq,
@@ -54,7 +54,7 @@ async function overlayRows(db: Db, lawId: string, seq?: number) {
 		.innerJoin(bills, eq(bills.id, ifRevisions.billId))
 		.leftJoin(billChanges, and(eq(billChanges.billId, ifRevisions.billId), eq(billChanges.rev, ifRevisions.billRev), eq(billChanges.lawSeq, ifRevisions.lawSeq)))
 		.leftJoin(ifAddedArticles, and(eq(ifAddedArticles.lawId, ifRevisions.lawId), eq(ifAddedArticles.num, billChanges.num), eq(billChanges.op, 'add')))
-		.where(and(eq(ifRevisions.lawId, lawId), seq === undefined ? undefined : lte(ifRevisions.seq, seq)))
+		.where(and(eq(ifRevisions.lawId, lawId), seq === undefined ? undefined : lte(ifRevisions.seq, seq), upTo === undefined ? undefined : lte(ifRevisions.sessionKey, upTo)))
 		.orderBy(asc(ifRevisions.seq));
 }
 
@@ -96,14 +96,16 @@ const articleId = (r: { provisionId: number | null; addedId: number | null }) =>
 
 /**
  * IF世界の条。seq 以下の最後の取り込みの版（なければ分岐した版）の条に、seq までの版を順に重ねる。形は articlesOfRevision と同じで、最後に変えた法案（changedBy）を足す。
- * 法案が変えた条は基の版になくても法案の番号で残す。同じ番号の条が2つになったら IF世界で変えた条を残す（docs/spec/95.md 決めたこと2）
+ * 法案が変えた条は基の版になくても法案の番号で残す。同じ番号の条が2つになったら IF世界で変えた条を残す（docs/spec/95.md 決めたこと2）。
+ * upTo（会期）を渡すと、その会期までに入った反映と取り込みだけを重ねる。確認中のあとで確定した法案は、あとの会期の行より seq が大きくなるので、seq だけでは時点を決められない（Issue #155）
  */
-export async function ifArticles(db: Db, lawId: string, branchRevisionId: string, seq: number) {
-	const [imported] = seq > 0 ? await db.select({ revisionId: ifImports.revisionId }).from(ifImports).where(and(eq(ifImports.lawId, lawId), lte(ifImports.seq, seq))).orderBy(desc(ifImports.seq)).limit(1) : [];
+export async function ifArticles(db: Db, lawId: string, branchRevisionId: string, seq: number, upTo?: string) {
+	const inSession = upTo === undefined ? undefined : lte(ifImports.sessionKey, upTo);
+	const [imported] = seq > 0 ? await db.select({ revisionId: ifImports.revisionId }).from(ifImports).where(and(eq(ifImports.lawId, lawId), lte(ifImports.seq, seq), inSession)).orderBy(desc(ifImports.seq)).limit(1) : [];
 	const base = await articlesOfRevision(db, imported?.revisionId ?? branchRevisionId);
 	const byId = new Map<number, (typeof base)[number] & { changedBy: { id: number; title: string } | null }>(base.map((a) => [a.id, { ...a, changedBy: null }]));
 	if (seq > 0) {
-		for (const r of await overlayRows(db, lawId, seq)) {
+		for (const r of await overlayRows(db, lawId, seq, upTo)) {
 			const id = articleId(r);
 			if (r.num === null || r.op === null || id === null) continue;
 			const changedBy = { id: r.billId, title: r.title };
@@ -117,7 +119,7 @@ export async function ifArticles(db: Db, lawId: string, branchRevisionId: string
 	// IF世界で変えた条が現実で内部IDを変えたら、現実の新しい条は同じ条なので出さない（番号が変わったときも）
 	if (imported) {
 		const replaced = new Set([...byId.values()].filter((a) => a.changedBy).map((a) => a.id));
-		for (const r of (await importedRows(db, lawId)).filter((r) => r.seq <= seq && r.closedProvisionId !== null)) {
+		for (const r of (await importedRows(db, lawId)).filter((r) => r.seq <= seq && (upTo === undefined || r.sessionKey <= upTo) && r.closedProvisionId !== null)) {
 			if (!replaced.has(r.closedProvisionId as number) || byId.get(r.provisionId)?.changedBy) continue;
 			byId.delete(r.provisionId);
 			replaced.add(r.provisionId);
@@ -143,7 +145,7 @@ type LawContent = { action: BillKind; lawId: string | null; baseRevisionId: stri
 /** 取り込みで変わった条（古い順） */
 async function importedRows(db: Db, lawId: string) {
 	return db
-		.select({ seq: ifImports.seq, provisionId: ifImportArticles.provisionId, closedProvisionId: ifImportArticles.closedProvisionId, num: ifImportArticles.num, change: ifImportArticles.change })
+		.select({ seq: ifImports.seq, sessionKey: ifImports.sessionKey, provisionId: ifImportArticles.provisionId, closedProvisionId: ifImportArticles.closedProvisionId, num: ifImportArticles.num, change: ifImportArticles.change })
 		.from(ifImportArticles)
 		.innerJoin(ifImports, and(eq(ifImports.lawId, ifImportArticles.lawId), eq(ifImports.revisionId, ifImportArticles.revisionId)))
 		.where(eq(ifImportArticles.lawId, lawId))
@@ -515,7 +517,7 @@ export async function importPage(db: Db, lawId: string, page: number) {
 /** IF世界の法令ページの印：ぶつかった条のうち、その取り込みより後に IF世界の法案が変えていない条の番号（docs/spec/95.md 決めたこと5） */
 async function conflictNums(db: Db, lawId: string) {
 	const rows = await db
-		.select({ seq: ifImports.seq, provisionId: ifImportArticles.provisionId, closedProvisionId: ifImportArticles.closedProvisionId, ifNum: ifImportArticles.ifNum })
+		.select({ seq: ifImports.seq, sessionKey: ifImports.sessionKey, provisionId: ifImportArticles.provisionId, closedProvisionId: ifImportArticles.closedProvisionId, ifNum: ifImportArticles.ifNum })
 		.from(ifImportArticles)
 		.innerJoin(ifImports, and(eq(ifImports.lawId, ifImportArticles.lawId), eq(ifImports.revisionId, ifImportArticles.revisionId)))
 		.where(and(eq(ifImportArticles.lawId, lawId), eq(ifImportArticles.conflict, 1)));
