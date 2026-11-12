@@ -9,7 +9,12 @@ const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ s
 const article17 = (page: Page) => page.locator('[id="jo-17"]');
 /** 説明のある言葉（ボタン）。読み仮名は CSS で描くので、名前の頭が言葉になる */
 const term = (scope: Page | ReturnType<Page['locator']>, word: string) => scope.getByRole('button', { name: new RegExp(`^${word}`) });
-const decoration = (el: ReturnType<Page['locator']>) => el.evaluate((e) => getComputedStyle(e).textDecorationStyle);
+/** 点線の下線（下線の線か、下の枠線のどちらで描いてもよい） */
+const dottedUnderline = (el: ReturnType<Page['locator']>) =>
+	el.evaluate((e) => {
+		const c = getComputedStyle(e);
+		return (c.textDecorationLine.includes('underline') && c.textDecorationStyle === 'dotted') || c.borderBottomStyle === 'dotted';
+	});
 const popoverOf = async (page: Page, button: ReturnType<Page['locator']>) => page.locator(`[id="${await button.getAttribute('popovertarget')}"]`);
 
 /** 特定商取引法 第17条の「当該売買契約又は当該役務提供契約の締結について」を消す法案（変更点のページ） */
@@ -35,7 +40,7 @@ test('基準2：読み仮名と同じ場所で、説明のある言葉に点線�
 		await page.goto(path);
 		const word = term(article17(page), '役務').first();
 		await expect(word, path).toBeVisible();
-		expect(await decoration(word), path).toBe('dotted');
+		expect(await dottedUnderline(word), path).toBe(true);
 		// 説明のない言葉（読み仮名だけ）はボタンにしない
 		await expect(term(article17(page), '勧誘'), path).toHaveCount(0);
 	}
