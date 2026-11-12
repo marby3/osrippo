@@ -6,7 +6,8 @@ const NEWCOMER = 'はじめての方も、このボタンから始められま�
 const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
 const google = (page: Page) => page.getByRole('button', { name: 'Googleでログイン', exact: true });
 const line = (page: Page) => page.getByRole('button', { name: 'LINEでログイン', exact: true });
-const widget = (page: Page) => page.locator('[data-turnstile]');
+/** 確認の枠を置く場所（フォームの中の最後の div。ボタンのあと） */
+const widget = (page: Page) => page.locator('main form > div').last();
 
 async function open(page: Page) {
 	await page.goto('/login');
@@ -87,7 +88,8 @@ test('基準5：確認の枠は flexible で描き、枠とボタンの左右の
 	);
 	await open(page);
 	expect(await page.evaluate(() => (window as unknown as { __turnstileOptions?: { size?: string } }).__turnstileOptions)).toEqual({ size: 'flexible' });
-	const frame = await widget(page).boundingBox();
+	// 置き場所ではなく、描いた枠そのものを測る
+	const frame = await widget(page).locator('div').first().boundingBox();
 	for (const button of [google(page), line(page)]) {
 		const box = await button.boundingBox();
 		expect(frame && box).toBeTruthy();
