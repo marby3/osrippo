@@ -30,7 +30,7 @@ export const load: PageServerLoad = async (event) => {
 		ifBand,
 		session: session.key,
 		results: rows.map(resultView),
-		bridges: await bridgeRanking(db, rows, minutes, now),
+		bridges: await bridgeRanking(db, session, rows, now),
 		rethink: await changedRanking(db, session)
 	};
 };

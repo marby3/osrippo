@@ -12,7 +12,7 @@ describe('sessionFromKey', () => {
 		expect(s?.key).toBe('2050-05');
 	});
 	test('形が違う・月が範囲の外なら null', () => {
-		for (const bad of ['abc', '2050-5', '2050-13', '2050-00', '2050-05-01', '', 'm8-1']) expect(sessionFromKey(bad, null), bad).toBeNull();
+		for (const bad of ['abc', '2050-5', '2050-13', '2050-00', '2050-05-01', '', 'm8-1', '0099-05']) expect(sessionFromKey(bad, null), bad).toBeNull();
 	});
 	test('短い会期は、いまの設定の分数と同じときだけ', () => {
 		expect(sessionFromKey('m8-3', 8)?.key).toBe('m8-3');

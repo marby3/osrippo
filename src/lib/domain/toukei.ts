@@ -13,7 +13,8 @@ const JST = 9 * 60 * 60 * 1000;
 /** URL の会期（"2050-05"、開発用の短い会期は "m8-123"）から会期を求める。形が違うか、短い会期の分がいまの設定と違えば null */
 export function sessionFromKey(key: string, minutes: number | null): Session | null {
 	if (minutes === null) {
-		const m = /^(\d{4})-(\d{2})$/.exec(key);
+		// 年は1000年から（Date.UTC が0〜99年を1900年代に読みかえないように）
+		const m = /^([1-9]\d{3})-(\d{2})$/.exec(key);
 		if (!m) return null;
 		const month = Number(m[2]);
 		if (month < 1 || month > 12) return null;

@@ -1590,7 +1590,7 @@ export const ja = {
 		changedNote: '10人以上が「考えが変わった」を付けた質疑と答弁を、多い順に出しています。',
 		changedKinds: { question: '質疑', answer: '答弁' },
 		changedNone: 'まだありません',
-		fromSaiketsu: 'データを見る'
+		dataLink: 'データを見る'
 	},
 	compare: {
 		pageTitle: (title: string) => `${title}の2つの版を比べる｜オープンソース立法府`,

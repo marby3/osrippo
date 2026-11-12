@@ -122,7 +122,7 @@
 	<!-- スマホは探す欄の下（SpHome）。見た目の順と読み上げの順をそろえるため、PC とスマホで別の場所に置き、片方は出さない -->
 	{#if t}<div class="sp">{@render today(t, 'sp')}</div>{/if}
 	<!-- 統計ページへ。スマホの下のタブに「データ」がないので、ログインしていない人もここから行ける（Issue #154） -->
-	<p class="sp data-link"><a href="/toukei">{ja.toukei.fromSaiketsu}</a></p>
+	<p class="sp data-link"><a href="/toukei">{ja.toukei.dataLink}</a></p>
 </main>
 
 <style>

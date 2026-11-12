@@ -3,10 +3,11 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { billResults, bills, posts, voteReviews } from '../db/schema';
 import { POST_SHOWN } from '../domain/reports';
 import type { Session } from '../domain/session';
+import { STATS_MIN } from '../domain/stance-stats';
 import { billBridge, excerpt, rankBridges, rankChanged, sessionFromKey } from '../domain/toukei';
 import { sessionPostScores } from './evaluations';
 import type { Db } from './law';
-import { stanceStatsOf } from './stance-stats';
+import { stanceStatsIn } from './stance-stats';
 
 /** 結果の行がある、終わった会期を、始まりの新しい順に（B） */
 export async function finishedSessions(db: Db, now: number, minutes: number | null): Promise<Session[]> {
@@ -48,11 +49,12 @@ export const resultView = (r: Awaited<ReturnType<typeof sessionResults>>[number]
 		: { billId: r.billId, title: r.title, state: r.review === 'voided' ? 'lapsed' : r.outcome, yes: r.yes, no: r.no, abstain: r.abstain };
 
 /** 立場を超えた支持が多い法案（F）。確認中・無効の法案は stanceStatsOf が null を返すので入らない */
-export async function bridgeRanking(db: Db, rows: Awaited<ReturnType<typeof sessionResults>>, minutes: number | null, now: number) {
+export async function bridgeRanking(db: Db, session: Session, rows: Awaited<ReturnType<typeof sessionResults>>, now: number) {
 	const scored = [];
 	for (const r of rows) {
 		if (r.review === 'open' || r.review === 'voided') continue;
-		const stats = await stanceStatsOf(db, { id: r.billId, proposedAt: r.proposedAt }, minutes, now);
+		// 選んだ会期の分を読む（発議の日付から会期を求めない）
+		const stats = await stanceStatsIn(db, { id: r.billId }, session, now);
 		scored.push({ billId: r.billId, title: r.title, bridge: stats ? billBridge(stats.votes) : null });
 	}
 	return rankBridges(scored);
@@ -60,40 +62,40 @@ export async function bridgeRanking(db: Db, rows: Awaited<ReturnType<typeof sess
 
 export type ChangedItem = { postId: number; kind: 'question' | 'answer'; excerpt: string; billId: number; billTitle: string; questionId: number };
 
-/** 「考えが変わった」が多く付いた質疑と答弁（G・H）。数は並びに使うだけで返さない */
+/** 「考えが変わった」が多く付いた質疑と答弁（G・H）。数は並びに使うだけで返さない。見えている投稿だけで並べてから、10件の本文を読む */
 export async function changedRanking(db: Db, session: Session): Promise<ChangedItem[]> {
 	const scores = await sessionPostScores(db, session.key);
-	const candidates = [...scores].map(([postId, s]) => ({ postId, changed: s.changed }));
-	// 見えている投稿だけにしてから選ぶ（まとめた投稿などを除いたあとで10件にする）
-	const ids = candidates.filter((c) => c.changed > 0).map((c) => c.postId);
+	const ids = [...scores].filter(([, s]) => s.changed >= STATS_MIN).map(([id]) => id);
 	if (ids.length === 0) return [];
+	const inIds = (list: number[]) => sql`${posts.id} IN (SELECT value FROM json_each(${JSON.stringify(list)}))`;
 	const shown = await db
+		.select({ id: posts.id, kind: posts.kind, parentId: posts.parentId })
+		.from(posts)
+		.where(and(inIds(ids), inArray(posts.status, POST_SHOWN), inArray(posts.kind, ['question', 'answer'])));
+	// 答弁は親の質疑も見えているものだけ（見えない質疑へのリンクにしない）
+	const parents = shown.filter((p) => p.kind === 'answer' && p.parentId !== null).map((p) => p.parentId as number);
+	const shownParents = new Set(parents.length ? (await db.select({ id: posts.id }).from(posts).where(and(inIds(parents), inArray(posts.status, POST_SHOWN)))).map((r) => r.id) : []);
+	const eligible = shown.filter((p) => p.kind !== 'answer' || (p.parentId !== null && shownParents.has(p.parentId)));
+	const ranked = rankChanged(eligible.map((p) => ({ postId: p.id, changed: scores.get(p.id)?.changed ?? 0 })));
+	if (ranked.length === 0) return [];
+	const details = await db
 		.select({ id: posts.id, kind: posts.kind, body: posts.body, parentId: posts.parentId, billId: posts.billId, billTitle: bills.title })
 		.from(posts)
 		.innerJoin(bills, eq(bills.id, posts.billId))
-		.where(and(sql`${posts.id} IN (SELECT value FROM json_each(${JSON.stringify(ids)}))`, inArray(posts.status, POST_SHOWN), inArray(posts.kind, ['question', 'answer'])));
-	// 答弁は親の質疑も見えているものだけ（見えない質疑へのリンクにしない）
-	const parents = shown.filter((p) => p.kind === 'answer' && p.parentId !== null).map((p) => p.parentId as number);
-	const shownParents = parents.length
-		? new Set(
-				(
-					await db
-						.select({ id: posts.id })
-						.from(posts)
-						.where(and(sql`${posts.id} IN (SELECT value FROM json_each(${JSON.stringify(parents)}))`, inArray(posts.status, POST_SHOWN)))
-				).map((r) => r.id)
-			)
-		: new Set<number>();
-	const byId = new Map(shown.filter((p) => p.kind !== 'answer' || (p.parentId !== null && shownParents.has(p.parentId))).map((p) => [p.id, p]));
-	return rankChanged(candidates.filter((c) => byId.has(c.postId))).map((id) => {
-		const p = byId.get(id)!;
-		return {
-			postId: p.id,
-			kind: p.kind as 'question' | 'answer',
-			excerpt: excerpt(p.body),
-			billId: p.billId,
-			billTitle: p.billTitle,
-			questionId: p.kind === 'answer' && p.parentId !== null ? p.parentId : p.id
-		};
+		.where(inIds(ranked));
+	const byId = new Map(details.map((p) => [p.id, p]));
+	return ranked.flatMap((id) => {
+		const p = byId.get(id);
+		if (!p) return [];
+		return [
+			{
+				postId: p.id,
+				kind: p.kind as 'question' | 'answer',
+				excerpt: excerpt(p.body),
+				billId: p.billId,
+				billTitle: p.billTitle,
+				questionId: p.kind === 'answer' && p.parentId !== null ? p.parentId : p.id
+			}
+		];
 	});
 }

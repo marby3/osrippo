@@ -3,6 +3,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { stanceLog, stanceStats, user, votes } from '../db/schema';
 import { referralSession } from '../domain/bills';
 import { tallyStanceStats, type StanceStatsData } from '../domain/stance-stats';
+import type { Session } from '../domain/session';
 import type { Db } from './law';
 import { resultOf, reviewOf } from './results';
 import { countedCondition } from './votes';
@@ -13,7 +14,13 @@ import { countedCondition } from './votes';
  */
 export async function stanceStatsOf(db: Db, bill: { id: number; proposedAt: number | null }, minutes: number | null, now: number): Promise<StanceStatsData | null> {
 	if (bill.proposedAt === null) return null;
-	const session = referralSession(bill.proposedAt, minutes);
+	return stanceStatsIn(db, bill, referralSession(bill.proposedAt, minutes), now);
+}
+
+/**
+ * 会期を決めて読む。要調整で発議の日付が次の会期に動いた法案でも、前の会期の結果の行の分を読める（統計ページ。docs/spec/154.md の F）
+ */
+export async function stanceStatsIn(db: Db, bill: { id: number }, session: Session, now: number): Promise<StanceStatsData | null> {
 	if (!(await resultOf(db, session.key, bill.id))) return null;
 	const review = await reviewOf(db, session.key, bill.id);
 	if (review?.status === 'open' || review?.status === 'voided') return null;

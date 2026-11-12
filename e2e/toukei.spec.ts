@@ -1,6 +1,6 @@
 // Issue #154 統計ページ（/toukei）。順位のルールは src/lib/domain/toukei.test.ts
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { billRequest, billSupportRequest, createAmendBill, issueWithSolutions, newUser, postIssue, proposeRequest } from './helpers';
+import { billRequest, billSupportRequest, createAmendBill, issueWithSolutions, newUser, ORIGIN, postIssue, proposeRequest } from './helpers';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -164,7 +164,7 @@ const dataOf = async (u: Page, path: string) => (await u.request.get(path.replac
 
 test('基準1：PC はヘッダーの「データ」、スマホは下のタブを5つのまま、わたしの記録・採決の一覧・ホームから行ける。ログインなしで見られる', async ({ browser }, info) => {
 	const w = info.project.name as Width;
-	const anon = await browser.newContext();
+	const anon = await browser.newContext({ baseURL: ORIGIN });
 	contexts.push(anon);
 	const p = await anon.newPage();
 	const res = await p.goto('/toukei');

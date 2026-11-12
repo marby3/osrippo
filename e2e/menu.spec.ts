@@ -31,17 +31,16 @@ async function person(browser: Parameters<typeof newUser>[0], w: string, n: numb
 	return u.page;
 }
 
-test('基準1：PC はどのページにも上のメニュー（ロゴ・5つのタブ・ベル・わたしの記録）を出す', async ({ browser }, info) => {
+test('基準1：PC はどのページにも上のメニュー（ロゴ・5つのタブと「データ」・ベル・わたしの記録）を出す', async ({ browser }, info) => {
 	test.skip(info.project.name !== 'pc', 'PC の案（PcHeader）');
 	const page = await person(browser, 'pc', 1, at('pc', 1, 10));
 	for (const path of ['/', '/kadai', '/houan', '/saiketsu', '/hourei', `/hourei/${LAW}`, '/kensaku', '/watashi']) {
 		await page.goto(path);
 		const banner = page.getByRole('banner');
 		await expect(banner.getByRole('link', { name: SITE, exact: true }), path).toHaveAttribute('href', '/');
-		await expect(menu(page).getByRole('link')).toHaveCount(TABS.length);
-		for (const [name, href] of TABS) await expect(menu(page).getByRole('link', { name, exact: true }), path).toHaveAttribute('href', href);
-		// 「データ」は統計のページの Issue で足す（決めたこと B）
-		await expect(page.getByRole('link', { name: 'データ', exact: true })).toHaveCount(0);
+		// PC は5つのタブの右に「データ」（統計ページ。Issue #154）
+		await expect(menu(page).getByRole('link')).toHaveCount(TABS.length + 1);
+		for (const [name, href] of [...TABS, ['データ', '/toukei']]) await expect(menu(page).getByRole('link', { name, exact: true }), path).toHaveAttribute('href', href);
 		await expect(bell(page)).toHaveAttribute('href', '/tsuchi');
 		await expect(banner.getByRole('link', { name: 'わたしの記録', exact: true })).toHaveAttribute('href', '/watashi');
 		await expect(banner.getByRole('link', { name: 'わたしの記録', exact: true })).toHaveText('わたしの記録');
