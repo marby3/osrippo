@@ -43,7 +43,13 @@ export const NOTIFICATION_KINDS = [
 	'issue_questioned',
 	// 専門家の解説（Issue #152）。target は法案
 	'commentary_hidden',
-	'commentary_restored'
+	'commentary_restored',
+	// 答弁イベントの質問と答弁（Issue #181）。target は答弁イベント
+	'toben_answered',
+	'toben_question_hidden',
+	'toben_question_restored',
+	'toben_answer_hidden',
+	'toben_answer_restored'
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
@@ -51,10 +57,11 @@ export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 export type TimedKind = 'vote_open' | 'election_open' | 'my_bill_deliberation' | 'my_bill_vote' | 'my_bill_expired' | 'acting';
 
 export type NoticeKind = NotificationKind | TimedKind;
-export type NoticeTarget = 'bill' | 'issue' | 'solution' | 'post' | 'amendment' | 'committee';
+export type NoticeTarget = 'bill' | 'issue' | 'solution' | 'post' | 'amendment' | 'committee' | 'toben';
 
 /** target_id が指すもの。投稿と解決策は番号の並びが別なので、種類で分ける */
 export function targetOf(kind: NotificationKind): NoticeTarget {
+	if (kind.startsWith('toben_')) return 'toben';
 	if (kind === 'mind_changed_post' || kind === 'post_hidden' || kind === 'post_restored' || kind === 'question_merged') return 'post';
 	if (kind === 'amendment_hidden' || kind === 'amendment_restored') return 'amendment';
 	if (kind.startsWith('issue_')) return 'issue';
@@ -67,7 +74,8 @@ export function targetOf(kind: NotificationKind): NoticeTarget {
 const RESULT_KINDS: readonly NoticeKind[] = ['bill_passed', 'bill_reviewing', 'bill_voided'];
 
 /** リンク先。billId は法案か投稿の法案、issueId は課題か解決策の課題 */
-export function hrefOf(kind: NoticeKind, ids: { billId?: number; issueId?: number }): string {
+export function hrefOf(kind: NoticeKind, ids: { billId?: number; issueId?: number; tobenId?: number }): string {
+	if (kind.startsWith('toben_')) return `/toben/${ids.tobenId}`;
 	if (kind === 'vote_open') return '/saiketsu';
 	if (kind === 'election_open' || kind === 'acting' || kind === 'chair_elected' || kind === 'director_elected' || kind === 'chair_recalled' || kind === 'chair_vote_removed') return '/iinkai';
 	if (kind === 'mind_changed_post' || kind === 'post_hidden' || kind === 'post_restored' || kind === 'question_merged') return `/houan/${ids.billId}/shitsugi`;

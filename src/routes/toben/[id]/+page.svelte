@@ -1,7 +1,8 @@
-<!-- 答弁イベントのページ（Issue #153）。質問と答弁は #181 で足す -->
+<!-- 答弁イベントのページ（Issue #153）。質問と答弁は #181 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import PersonName from '#lib/components/PersonName.svelte';
+	import TobenQuestions from '#lib/components/TobenQuestions.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -16,7 +17,7 @@
 <main class="frame">
 	<p class="crumb"><a href="/toben">{ja.toben.heading}</a></p>
 	<h1>{e.title}</h1>
-	<p class="state" data-state={e.state}>{ja.toben.states[e.state]}</p>
+	<p class="state" data-phase={e.state}>{ja.toben.states[e.state]}</p>
 	<dl>
 		<dt>{ja.toben.legislator}</dt>
 		<dd><PersonName person={e.person} /></dd>
@@ -27,10 +28,22 @@
 	</dl>
 	{#if e.cancellable && !data.electionStopped}
 		<form method="post" action="?/cancel" use:enhance>
-			{#if form && 'message' in form}<p role="alert">{form.message}</p>{/if}
+			{#if form && 'message' in form && !('ask' in form) && !('wantQuestion' in form) && !('answerQuestion' in form) && !('reportKind' in form)}<p role="alert">{form.message}</p>{/if}
 			<button>{ja.toben.cancel}</button>
 		</form>
 	{/if}
+	<TobenQuestions
+		eventId={e.id}
+		phase={e.state}
+		mine={e.mine}
+		electionStopped={data.electionStopped}
+		questions={data.questions}
+		me={data.me}
+		{form}
+		questionMax={data.questionMax}
+		answerMax={data.answerMax}
+		siteKey={data.siteKey}
+	/>
 </main>
 
 <style>

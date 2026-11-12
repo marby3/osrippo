@@ -3,14 +3,15 @@
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	/** 4つの記録は別々にページを送る。1つを送っても、ほかの位置を保つ */
-	const hrefOf = (page: number, kakunin: number, shitsugi: number, ninsho = data.verifyPage, hirotta = data.hirottaPage) => {
+	/** 記録は別々にページを送る。1つを送っても、ほかの位置を保つ */
+	const hrefOf = (page: number, kakunin: number, shitsugi: number, ninsho = data.verifyPage, hirotta = data.hirottaPage, toben = data.tobenPage) => {
 		const params = new URLSearchParams();
 		if (page > 1) params.set('page', String(page));
 		if (kakunin > 1) params.set('kakunin', String(kakunin));
 		if (shitsugi > 1) params.set('shitsugi', String(shitsugi));
 		if (ninsho > 1) params.set('ninsho', String(ninsho));
 		if (hirotta > 1) params.set('hirotta', String(hirotta));
+		if (toben > 1) params.set('toben', String(toben));
 		const query = params.toString();
 		return query ? `/unei?${query}` : '/unei';
 	};
@@ -19,6 +20,7 @@
 	const postHref = (shitsugi: number) => hrefOf(data.page, data.reviewPage, shitsugi);
 	const verifyHref = (ninsho: number) => hrefOf(data.page, data.reviewPage, data.postPage, ninsho);
 	const hirottaHref = (hirotta: number) => hrefOf(data.page, data.reviewPage, data.postPage, data.verifyPage, hirotta);
+	const tobenHref = (toben: number) => hrefOf(data.page, data.reviewPage, data.postPage, data.verifyPage, data.hirottaPage, toben);
 </script>
 
 <svelte:head>
@@ -175,6 +177,41 @@
 			<nav class="pages" aria-label={ja.hirotta.logHeading}>
 				{#if data.hirottaPage > 1}<a href={hirottaHref(data.hirottaPage - 1)}>{ja.hirotta.logPrev}</a>{/if}
 				{#if data.hirottaLogsHasNext}<a href={hirottaHref(data.hirottaPage + 1)}>{ja.hirotta.logNext}</a>{/if}
+			</nav>
+		{/if}
+	</section>
+
+	<!-- 答弁イベントへの対応（Issue #181）。通報した人や書いた人の名前は出さない -->
+	<section aria-labelledby="toben-log-heading">
+		<h2 id="toben-log-heading">{ja.toben.questions.logHeading}</h2>
+		{#if data.tobenLogs.length === 0}
+			<p>{ja.unei.empty}</p>
+		{:else}
+			<table>
+				<thead>
+					<tr>
+						{#each Object.values(ja.toben.questions.logColumns) as column (column)}<th scope="col">{column}</th>{/each}
+					</tr>
+				</thead>
+				<tbody>
+					{#each data.tobenLogs as row (row.id)}
+						<tr>
+							<td data-label={ja.toben.questions.logColumns.at}>{jaDateTimeFull(row.createdAt)}</td>
+							<td data-label={ja.toben.questions.logColumns.event}><a href="/toben/{row.eventId}">{row.title}</a></td>
+							<td data-label={ja.toben.questions.logColumns.kind}>{ja.toben.questions.kinds[row.kind]}</td>
+							<td data-label={ja.toben.questions.logColumns.action}>{ja.unei.actions[row.action]}</td>
+							<td data-label={ja.toben.questions.logColumns.actor}>{ja.unei.actors[row.actor]}</td>
+							<td data-label={ja.toben.questions.logColumns.reason}>{#if row.reason}{ja.hideReasons[row.reason as keyof typeof ja.hideReasons]}{/if}</td>
+							<td data-label={ja.toben.questions.logColumns.note} class="note">{row.note ?? ''}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{/if}
+		{#if data.tobenPage > 1 || data.tobenLogsHasNext}
+			<nav class="pages" aria-label={ja.toben.questions.logPages}>
+				{#if data.tobenPage > 1}<a href={tobenHref(data.tobenPage - 1)}>{ja.unei.prevPage}</a>{/if}
+				{#if data.tobenLogsHasNext}<a href={tobenHref(data.tobenPage + 1)}>{ja.unei.nextPage}</a>{/if}
 			</nav>
 		{/if}
 	</section>

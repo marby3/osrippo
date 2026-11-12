@@ -1,6 +1,6 @@
 // 通報と非表示、運営の画面と記録の DB（設計書 docs/spec/28.md）
 import { and, count, countDistinct, desc, eq, gt, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
-import { amendmentReports, commentaryReports, issueSupports, issues, moderationLogs, postReports, reports, solutionReports, user, type ROLES, type STAFF_ROLES } from '../db/schema';
+import { amendmentReports, commentaryReports, issueSupports, tobenReports, issues, moderationLogs, postReports, reports, solutionReports, user, type ROLES, type STAFF_ROLES } from '../db/schema';
 import { PAGE_SIZE } from '../domain/issues';
 import { preselectSimilar, rankSimilar } from '../domain/similar';
 import { DAY, LIMITS } from '../domain/limits';
@@ -58,7 +58,12 @@ export async function reportsInDay(db: Db, userId: string, now: number) {
 		.select({ n: count() })
 		.from(commentaryReports)
 		.where(and(eq(commentaryReports.userId, userId), gt(commentaryReports.createdAt, now - DAY)));
-	return issueReports.n + solutionReportCount.n + postReportCount.n + amendmentReportCount.n + commentaryReportCount.n;
+	// 答弁イベントの質問と答弁の通報も同じ上限に数える（Issue #181）
+	const [tobenReportCount] = await db
+		.select({ n: count() })
+		.from(tobenReports)
+		.where(and(eq(tobenReports.userId, userId), gt(tobenReports.createdAt, now - DAY)));
+	return issueReports.n + solutionReportCount.n + postReportCount.n + amendmentReportCount.n + commentaryReportCount.n + tobenReportCount.n;
 }
 
 /** 通報する。2回目は何もせず already。保存したら自動非表示を確かめる */

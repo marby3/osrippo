@@ -6,6 +6,8 @@ import type { BatchDb } from '../server/law';
 
 export type MemoryDb = BatchDb;
 
+const D1_MAX_PARAMS = 100;
+
 export function openMemoryDb() {
 	const root = new URL('../../../', import.meta.url);
 	const sqlite = new DatabaseSync(':memory:');
@@ -15,6 +17,8 @@ export function openMemoryDb() {
 		sqlite.exec(readFileSync(new URL(f, migrations), 'utf8'));
 	}
 	const run = (sql: string, params: unknown[], method: string) => {
+		// D1 と同じく、1つの文に入れられる値は100まで
+		if (params.length > D1_MAX_PARAMS) throw new Error(`D1 の値の数の上限（${D1_MAX_PARAMS}）を超えています: ${params.length}`);
 		const stmt = sqlite.prepare(sql);
 		stmt.setReturnArrays(true);
 		if (method === 'run') return stmt.run(...(params as [])), { rows: [] };
