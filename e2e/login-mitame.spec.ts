@@ -50,8 +50,9 @@ test('基準2：ボタンの文字の左に、そのサービスのロゴ。ロ�
 		const textBox = await button.locator('span').boundingBox();
 		expect(logoBox && textBox && logoBox.x + logoBox.width <= textBox.x).toBe(true);
 	}
-	await expect(google(page).locator('img')).toHaveAttribute('src', /google/);
-	await expect(line(page).locator('img')).toHaveAttribute('src', /line/);
+	// どちらのロゴか（画像は小さいので data URI に埋め込まれる。公式の色で見分ける）
+	await expect(google(page).locator('img')).toHaveAttribute('src', /4285F4/i);
+	await expect(line(page).locator('img')).toHaveAttribute('src', /06C755/i);
 });
 
 test('基準3：ボタンの上に、はじめての方への説明が出る', async ({ page }) => {
