@@ -15,7 +15,7 @@ test('基準1：トークンがない・違えば 401 で中身を返さない�
 		}
 	}
 
-	const { context, page } = await newUser(browser, { name: `ミラー ${info.project.name} ${Date.now()}`, ip: `10.155.${info.project.name === 'sp' ? 1 : 2}.1` });
+	const { context, page } = await newUser(browser, { name: `mirror-${info.project.name}-${Date.now()}`, ip: `10.155.${info.project.name === 'sp' ? 1 : 2}.1` });
 	try {
 		for (const path of ['/mirror', '/mirror/2035-04']) expect((await page.request.get(path)).status(), path).toBe(401);
 	} finally {
