@@ -68,5 +68,5 @@
 	}
 </script>
 
-<div bind:this={container} data-turnstile></div>
+<div bind:this={container}></div>
 {#if loadFailed}<p role="alert">{ja.guard.turnstileUnavailable}</p>{/if}

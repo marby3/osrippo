@@ -19,11 +19,11 @@
 	{#if data.failed}<p role="alert">{ja.login.failed}</p>{/if}
 	{#if form?.message}<p role="alert">{form.message}</p>{/if}
 	<p>{ja.login.newcomer}</p>
-	<!-- 並びは上から ボタン → 確認の枠（Issue #159）。見た目と読み上げの順をそろえる -->
+	<!-- 並びは上から 説明文 → はじめての方への説明 → ボタン → 確認の枠（Issue #159）。見た目と読み上げの順をそろえる -->
 	<form method="post">
 		<input type="hidden" name="next" value={data.next} />
-		<button formaction="?/google" disabled={!token}><img src={googleLogo} alt="" aria-hidden="true" /><span>{ja.login.google}</span></button>
-		<button formaction="?/line" disabled={!token}><img src={lineLogo} alt="" aria-hidden="true" /><span>{ja.login.line}</span></button>
+		<button formaction="?/google" disabled={!token}><img class="logo" src={googleLogo} alt="" aria-hidden="true" /><span>{ja.login.google}</span></button>
+		<button formaction="?/line" disabled={!token}><img class="logo" src={lineLogo} alt="" aria-hidden="true" /><span>{ja.login.line}</span></button>
 		<Turnstile siteKey={data.siteKey} size="flexible" bind:token />
 	</form>
 </main>
@@ -63,7 +63,7 @@
 	}
 
 	/* ロゴは文字の大きさに合わせる（表示の設定で文字を大きくしたときも） */
-	img {
+	.logo {
 		width: 1.25em;
 		height: 1.25em;
 		flex: none;
