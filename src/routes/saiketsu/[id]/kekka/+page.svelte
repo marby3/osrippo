@@ -74,6 +74,37 @@
 					</dl>
 				</section>
 
+				{#if data.stance}
+					<!-- 立場別の分布（Issue #87）。割合だけを表で出し、人数は出さない -->
+					<section class="stance" aria-labelledby="stance-heading">
+						<h2 id="stance-heading">{ja.result.stance.heading}</h2>
+						<p class="lead">{ja.result.stance.lead}</p>
+						{#if data.stance.rows.length}
+							<div class="scroll">
+								<table>
+									<thead>
+										<tr>
+											<th scope="col">{ja.result.stance.corner}</th>
+											{#each VOTE_CHOICES as choice (choice)}<th scope="col">{ja.result.choices[choice]}</th>{/each}
+										</tr>
+									</thead>
+									<tbody>
+										{#each data.stance.rows as row (row.stance)}
+											<tr>
+												<th scope="row">{ja.result.stance.rows[row.stance]}</th>
+												{#each VOTE_CHOICES as choice (choice)}<td>{ja.result.percent(row[choice])}</td>{/each}
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+							{#if data.stance.omitted}<p class="lead">{ja.result.stance.omitted}</p>{/if}
+						{:else}
+							<p>{ja.result.stance.none}</p>
+						{/if}
+					</section>
+				{/if}
+
 				{#if data.amendments.length}
 					<section class="amendments">
 						<h2>{ja.result.amendmentsHeading}</h2>
@@ -103,6 +134,7 @@
 						href: `/if/hourei/${place.lawId}`,
 						label: data.places.length > 1 ? ja.ifLaw.toLawNamed(place.title) : ja.ifLaw.toLaw
 					})),
+					...(data.stance ? [{ href: `/saiketsu/${data.bill.id}/kekka/ugoki`, label: ja.result.motion.link }] : []),
 					{ href: `/houan/${data.bill.id}`, label: ja.result.billLink },
 					...(data.resubmittable ? [{ href: `/houan/${data.bill.id}`, label: ja.bill.resubmit.fromResult }] : []),
 					{ href: '/iinkai', label: ja.chair.link }
@@ -201,8 +233,45 @@
 	}
 
 	.counts,
+	.stance,
 	.amendments {
 		margin-top: 1.5rem;
+	}
+
+	.stance h2 {
+		font-size: var(--font-size-body);
+	}
+
+	.stance .lead {
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+
+	.scroll {
+		overflow-x: auto;
+	}
+
+	.stance table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--font-size-sub);
+	}
+
+	.stance th,
+	.stance td {
+		padding: 0.5rem 0.25rem;
+		border-bottom: 1px solid var(--color-divider);
+		text-align: right;
+	}
+
+	.stance th[scope='row'],
+	.stance thead th:first-child {
+		text-align: left;
+	}
+
+	.stance td {
+		font-size: var(--font-size-body);
+		font-weight: bold;
 	}
 
 	.bar {

@@ -1658,3 +1658,21 @@ export const tobenModerationLogs = sqliteTable(
 	},
 	(t) => [index('toben_moderation_logs_created').on(t.createdAt), check('toben_moderation_logs_kind', sql`${t.targetKind} IN ('question', 'answer')`)]
 );
+
+/**
+ * 採決の結果の立場別の分布と考えの動きの、丸める前の人数（Issue #87、設計書 docs/spec/87.md の A・C）。
+ * 結果が出て確認中でも無効でもないときに、最初に読まれたとき一度だけ作る。画面には丸めて渡し、人数は出さない
+ */
+export const stanceStats = sqliteTable(
+	'stance_stats',
+	{
+		sessionKey: text('session_key').notNull(),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		/** StanceStatsData の JSON */
+		data: text('data').notNull(),
+		createdAt: integer('created_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.sessionKey, t.billId] }), check('stance_stats_data', sql`json_valid(${t.data})`)]
+);

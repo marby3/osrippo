@@ -327,7 +327,32 @@ export const ja = {
 		amendmentsHeading: '本案より先に採決した修正案',
 		amendmentRow: (location: string, status: string) => `${location} ・ ${status}`,
 		amendmentsLink: '修正案を見る',
-		billLink: '法案のページへ'
+		billLink: '法案のページへ',
+		/** 立場別の分布（Issue #87）。人数は出さない */
+		stance: {
+			heading: '立場別の分布',
+			lead: '締切の時点の考え（賛成寄り・未定・反対寄り）ごとの、数えた票の割合です。人数が10人に満たない区分は出しません。',
+			rows: { for: '賛成寄りだった人', undecided: '未定だった人', against: '反対寄りだった人' },
+			corner: '締切の時点の考え',
+			omitted: '人数が少ない区分は出していません',
+			none: '人数が少ないため、立場別の分布は出していません'
+		},
+		/** 会期中の考えの動き（Issue #87） */
+		motion: {
+			link: '会期中の考えの動きを見る',
+			pageTitle: (title: string) => `${title}の会期中の考えの動き｜オープンソース立法府`,
+			crumb: '考えの動き',
+			heading: '会期中の考えの動き',
+			lead: 'この法案に考えを選んだ人が、会期の各週の終わりにどの考えだったかの割合です。まだ選んでいない人は未定に数えます。',
+			stances: { for: '賛成寄り', undecided: '未定', against: '反対寄り' },
+			part: (stance: string, ratio: number) => `${stance} ${ratio}%`,
+			week: (n: number) => `${n}週目`,
+			corner: '週',
+			none: '人数が少ないため、考えの動きは出していません',
+			voided: 'この結果は無効になったため、考えの動きは出していません',
+			resultLink: '採決の結果へ'
+		},
+		percent: (n: number) => `${n}%`
 	},
 	/** 票の偏りの確認（Issue #73。設計書 docs/spec/73.md）。「異常」「検知」「確認中」は画面に出さない */
 	review: {
