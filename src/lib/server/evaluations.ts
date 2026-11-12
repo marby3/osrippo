@@ -106,7 +106,7 @@ export async function pressedOnBill(db: Db, userId: string, billId: number) {
 
 /**
  * 会期の投稿ごとのスコアと「考えが変わった」の数。上限が法案をまたぐので、会期の分をまとめて読む。誰が押したかは返さない。
- * 画面から呼ばない（フェーズ5の実績が呼ぶ）
+ * 統計ページ（/toukei、Issue #154）が「考えが変わった」の数に使う。スコアは画面に出さない
  */
 export async function sessionPostScores(db: Db, sessionKey: string): Promise<Map<number, PostScore>> {
 	const inSession = and(eq(posts.sessionKey, sessionKey), scored);

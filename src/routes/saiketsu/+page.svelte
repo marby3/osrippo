@@ -48,6 +48,8 @@
 		<p>{ja.vote.before(data.session)}</p>
 	{/if}
 	<p class="other"><a href="/iinkai">{ja.chair.link}</a></p>
+	<!-- 統計ページへ。スマホでログインしていない人の入り口（Issue #154、設計書 docs/spec/154.md の I） -->
+	<p class="other"><a href="/toukei">{ja.toukei.fromSaiketsu}</a></p>
 </main>
 
 <style>

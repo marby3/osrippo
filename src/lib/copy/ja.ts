@@ -60,7 +60,7 @@ export const ja = {
 	/** 全体のメニュー（PcHeader・SpNav、Issue #85） */
 	menu: {
 		label: 'メニュー',
-		tabs: { home: 'ホーム', kadai: '課題', houan: '法案', saiketsu: '採決', hourei: '法律' },
+		tabs: { home: 'ホーム', kadai: '課題', houan: '法案', saiketsu: '採決', hourei: '法律', toukei: 'データ' },
 		mine: 'わたしの記録',
 		crumbs: 'いまいる場所',
 		crumbSeparator: '／',
@@ -1566,6 +1566,31 @@ export const ja = {
 		heading: 'わたしの記録',
 		name: '表示名',
 		logout: 'ログアウト'
+	},
+	/** 統計ページ（/toukei、Issue #154、設計書 docs/spec/154.md）。人数と「考えが変わった」の数は出さない */
+	toukei: {
+		pageTitle: 'データ｜オープンソース立法府',
+		heading: 'データ',
+		lead: '終わった会期の結果と、立場を超えて支持された法案、考えが変わったと言われた質疑です。人数が10人に満たない区分は出しません。',
+		noSessions: 'まだ終わった会期がありません',
+		sessionLabel: '会期',
+		show: '表示する',
+		/** "2050-05" → "2050年5月の会期" */
+		session: (key: string) => (/^\d{4}-\d{2}$/.test(key) ? `${Number(key.slice(0, 4))}年${Number(key.slice(5))}月の会期` : key),
+		resultsHeading: (session: string) => `${session}の法案の結果`,
+		columns: { title: '法案', outcome: '結果', yes: '賛成', no: '反対', abstain: '棄権' },
+		outcomes: { passed: '可決', rejected: '否決', lapsed: '廃案' },
+		reviewing: '結果を確認しています',
+		noBills: 'この会期に採決した法案はありません',
+		bridgeHeading: '立場を超えた支持が多い法案',
+		bridgeNote: 'その法案に賛成寄りだった人と反対寄りだった人の、それぞれの賛成の割合のうち、低いほうです。どちらかが10人に満たない法案は入れません。',
+		bridgeRatio: (n: number) => `立場を超えた支持 ${n}%`,
+		bridgeNone: '人数が足りる法案がまだありません',
+		changedHeading: '考えが変わったと言われた質疑',
+		changedNote: '10人以上が「考えが変わった」を付けた質疑と答弁を、多い順に出しています。',
+		changedKinds: { question: '質疑', answer: '答弁' },
+		changedNone: 'まだありません',
+		fromSaiketsu: 'データを見る'
 	},
 	compare: {
 		pageTitle: (title: string) => `${title}の2つの版を比べる｜オープンソース立法府`,
