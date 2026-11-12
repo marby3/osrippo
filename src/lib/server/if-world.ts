@@ -517,7 +517,7 @@ export async function importPage(db: Db, lawId: string, page: number) {
 /** IF世界の法令ページの印：ぶつかった条のうち、その取り込みより後に IF世界の法案が変えていない条の番号（docs/spec/95.md 決めたこと5） */
 async function conflictNums(db: Db, lawId: string) {
 	const rows = await db
-		.select({ seq: ifImports.seq, sessionKey: ifImports.sessionKey, provisionId: ifImportArticles.provisionId, closedProvisionId: ifImportArticles.closedProvisionId, ifNum: ifImportArticles.ifNum })
+		.select({ seq: ifImports.seq, provisionId: ifImportArticles.provisionId, closedProvisionId: ifImportArticles.closedProvisionId, ifNum: ifImportArticles.ifNum })
 		.from(ifImportArticles)
 		.innerJoin(ifImports, and(eq(ifImports.lawId, ifImportArticles.lawId), eq(ifImports.revisionId, ifImportArticles.revisionId)))
 		.where(and(eq(ifImportArticles.lawId, lawId), eq(ifImportArticles.conflict, 1)));

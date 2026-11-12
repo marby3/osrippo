@@ -3,11 +3,11 @@ import { error, json } from '@sveltejs/kit';
 import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { nowOf } from '#lib/server/client.ts';
-import { mirrorSession, tokenMatches } from '#lib/server/mirror.ts';
+import { mirrorSession, tokenMatches, unauthorized } from '#lib/server/mirror.ts';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async (event) => {
-	if (!tokenMatches(event.request.headers.get('authorization'), env.MIRROR_TOKEN)) error(401);
+	if (!tokenMatches(event.request.headers.get('authorization'), env.MIRROR_TOKEN)) return unauthorized();
 	const snapshot = await mirrorSession(drizzle(env.DB), event.params.session, nowOf(event));
 	if (!snapshot) error(404);
 	return json(snapshot, { headers: { 'cache-control': 'no-store' } });

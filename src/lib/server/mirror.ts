@@ -21,6 +21,9 @@ export function tokenMatches(authorization: string | null, secret: string | unde
 	return diff === 0;
 }
 
+/** トークンがないか違うときの応答（中身を返さない） */
+export const unauthorized = () => new Response('Unauthorized', { status: 401, headers: { 'www-authenticate': 'Bearer', 'cache-control': 'no-store' } });
+
 /**
  * 会期が確定したか（#155 の D）。現実の改正の取り込みは、結果と反映を終えたあとにだけ走るので、取り込みが済んだことで結果と反映が済んだとみる。
  * - 取り込み：その会期より前に取り込んだことのある法令は、すべてその会期も取り込み済み（あとから足した法令は、足す前の会期を待たない）
@@ -56,12 +59,13 @@ async function settled(db: Db, key: string) {
 
 /**
  * 書き出せる会期（古い順）。取り込みの記録のある会期を古い順に見て、確定していない会期で止める（あとの会期を先に書き出すと、
- * 前の会期のコミットを後から足せない）。after を渡すとそれより後だけ
+ * 前の会期のコミットを後から足せない）。after を渡すとそれより後だけ。through を渡すとその会期まで見る
  */
-export async function mirrorSessions(db: Db, now: number, after: string | null): Promise<string[]> {
+export async function mirrorSessions(db: Db, now: number, after: string | null, through?: string): Promise<string[]> {
 	const keys = (await db.selectDistinct({ key: ifImportRuns.sessionKey }).from(ifImportRuns).orderBy(asc(ifImportRuns.sessionKey))).map((r) => r.key).filter(isSessionKey);
 	const out: string[] = [];
 	for (const key of keys) {
+		if (through !== undefined && key > through) break;
 		if (now < sessionAt(Date.parse(`${key}-01T00:00:00+09:00`), null).endsAt) break;
 		if (!(await settled(db, key))) break;
 		if (after === null || key > after) out.push(key);
@@ -71,7 +75,7 @@ export async function mirrorSessions(db: Db, now: number, after: string | null):
 
 /** 確定した会期の、その会期の処理を終えた時点の IF世界の法令（#155 の A・E）。確定していなければ undefined */
 export async function mirrorSession(db: Db, key: string, now: number): Promise<MirrorSnapshot | undefined> {
-	if (!isSessionKey(key) || !(await mirrorSessions(db, now, null)).includes(key)) return undefined;
+	if (!isSessionKey(key) || !(await mirrorSessions(db, now, null, key)).includes(key)) return undefined;
 	const out: MirrorLaw[] = [];
 	for (const law of await committeeLawList(db)) {
 		const repealed = await db

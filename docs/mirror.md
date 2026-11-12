@@ -58,11 +58,11 @@
    npx wrangler secret put MIRROR_TOKEN --env staging
    ```
 
-3. 自宅サーバーでは、本人だけが読めるファイルに置く
+3. 自宅サーバーでは、本人だけが読めるファイルに置く。値はシェルの履歴に残らないよう、画面に出さずに入力する（`read` のあとで値を貼り、Enter を押す）
 
    ```sh
    install -m 600 /dev/null ~/.osrippo-mirror.env
-   echo 'MIRROR_TOKEN=<1で作った値>' > ~/.osrippo-mirror.env
+   read -rs token && printf 'MIRROR_TOKEN=%s\n' "$token" > ~/.osrippo-mirror.env && unset token
    ```
 
 `MIRROR_TOKEN` を入れていない Worker では、入口はいつも 401 を返します（書き出しを使わない環境では入れなくて構いません）。
@@ -82,9 +82,10 @@ git -C ~/osrippo-if-laws log --oneline
 
 ## 5. 毎日流す
 
-会期の処理（Cron）は日本時間の 0時1分に走ります。そのあと、たとえば 3時に流します。`crontab -e` に次の1行を足します（パスは自宅サーバーの置き場所に合わせる）。
+会期の処理（Cron）は日本時間の 0時1分に走ります。そのあと、たとえば 3時に流します。`crontab -e` に次の2行を足します（パスは自宅サーバーの置き場所に合わせる）。cron の PATH にはふつう `node` と `pnpm` がないので、1行目で足します（`which node pnpm` で出たフォルダを書く）。
 
 ```
+PATH=/home/<ユーザー>/.local/share/pnpm:/usr/local/bin:/usr/bin:/bin
 0 3 * * * cd ~/osrippo && set -a && . ~/.osrippo-mirror.env && set +a && pnpm mirror --repo ~/osrippo-if-laws --url https://<Worker の URL> >> ~/osrippo-mirror.log 2>&1
 ```
 

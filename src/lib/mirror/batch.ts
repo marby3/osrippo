@@ -1,7 +1,7 @@
 // 公開ミラーのバッチ（Issue #155。#147 決めること23）。自宅サーバーで動かす（入口は scripts/mirror.ts）。
 // ミラーのリポジトリの .osrippo-mirror の次の会期から古い順に、会期ごとに1コミットする。Worker の中では読まない（node:fs と git を使う）
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { CREDIT, isSessionKey, mirrorFiles, PROGRESS_FILE, sessionName, type MirrorSnapshot } from '../domain/mirror';
 
@@ -13,12 +13,11 @@ const AUTHOR = { GIT_AUTHOR_NAME: CREDIT, GIT_AUTHOR_EMAIL: 'mirror@osrippo.inva
 
 /**
  * 続きの会期を書き出す。push が false なら押さない（--no-push）。コミットした会期を返す。
- * 途中で失敗しても、コミットした会期は .osrippo-mirror に残るので、次はその続きから進む（押すのは次に流したとき）
+ * 進みはコミットした .osrippo-mirror から読む。途中で失敗しても、コミットした会期の続きから進む（押すのは次に流したとき）
  */
 export async function runMirror({ dir, fetchJson, push }: { dir: string; fetchJson: MirrorFetch; push: boolean }): Promise<string[]> {
-	const git = (...args: string[]) => execFileSync('git', ['-c', 'commit.gpgsign=false', ...args], { cwd: dir, env: { ...process.env, ...AUTHOR }, stdio: ['ignore', 'pipe', 'inherit'] });
-	const progress = join(dir, PROGRESS_FILE);
-	const last = existsSync(progress) ? readFileSync(progress, 'utf8').trim() : null;
+	const git = (...args: string[]) => execFileSync('git', ['-c', 'commit.gpgsign=false', ...args], { cwd: dir, env: { ...process.env, ...AUTHOR }, stdio: ['ignore', 'pipe', 'pipe'] });
+	const last = committedProgress(git, dir);
 	if (last !== null && !isSessionKey(last)) throw new Error(`${PROGRESS_FILE} の会期の形が違います：${last}`);
 
 	const list = (await fetchJson(last === null ? '/mirror' : `/mirror?after=${last}`)) as { sessions?: unknown };
@@ -55,4 +54,31 @@ function unpushed(git: (...args: string[]) => Buffer): boolean {
 			return false;
 		}
 	}
+}
+
+/**
+ * 最後にコミットした会期。ミラーのリポジトリでなければ投げる（--repo を間違えて、ほかのリポジトリの中身を消さないように）。
+ * ミラーのリポジトリとみるのは、.osrippo-mirror をコミットしてあるか、まだコミットがなく .git のほかに何もないとき。
+ * コミットしてあれば、前に流したときに残った書きかけ（コミットの前に落ちた中身）を捨てる
+ */
+function committedProgress(git: (...args: string[]) => Buffer, dir: string): string | null {
+	let hasHead = true;
+	try {
+		git('rev-parse', '--verify', '--quiet', 'HEAD');
+	} catch {
+		hasHead = false;
+	}
+	if (!hasHead) {
+		if (readdirSync(dir).some((entry) => entry !== '.git')) throw new Error(`${dir} はミラーのリポジトリではありません（コミットがなく、中身があります）`);
+		return null;
+	}
+	let progress: string;
+	try {
+		progress = git('show', `HEAD:${PROGRESS_FILE}`).toString().trim();
+	} catch {
+		throw new Error(`${dir} はミラーのリポジトリではありません（${PROGRESS_FILE} がコミットされていません）`);
+	}
+	git('reset', '--quiet', '--hard', 'HEAD');
+	git('clean', '--quiet', '-d', '--force');
+	return progress;
 }
