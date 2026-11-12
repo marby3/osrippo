@@ -21,7 +21,8 @@
 		"gen": "wrangler types",
 		"db:generate": "drizzle-kit generate",
 		"db:reset": "tsx scripts/db-reset.ts",
-		"sync:laws": "tsx scripts/sync-laws.ts"
+		"sync:laws": "tsx scripts/sync-laws.ts",
+		"mirror": "tsx scripts/mirror.ts"
 	},
 	"imports": {
 		"#lib": "./src/lib/index.js",

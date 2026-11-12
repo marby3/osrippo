@@ -27,6 +27,8 @@ const vars: Record<string, string> = {
 	// 画面のテストのサーバーでは siteverify を呼ばない（設計書 docs/spec/25.md 決めたこと8）
 	TURNSTILE_SECRET_KEY: 'test-turnstile-secret',
 	IP_HASH_SECRET: 'test-ip-hash-secret',
+	// 公開ミラーの書き出しの入口（Issue #155）
+	MIRROR_TOKEN: 'test-mirror-token',
 	...(values['test-login'] ? { TEST_LOGIN: '1' } : {})
 };
 
