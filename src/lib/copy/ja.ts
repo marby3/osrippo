@@ -186,11 +186,11 @@ export const ja = {
 		rubyOff: '付けない',
 		save: '保存する'
 	},
-	/** ホームの「今日の条文」（Issue #128。SpHome・PcHome）。どれだけ変わっていないかは law の文を使う */
 	/** 法令用語のかんたんな説明（Issue #143） */
 	glossary: {
 		disclaimer: '運営が書いたかんたんな説明です。正確な意味は条文で確かめてください。'
 	},
+	/** ホームの「今日の条文」（Issue #128。SpHome・PcHome）。どれだけ変わっていないかは law の文を使う */
 	today: {
 		heading: '今日の条文',
 		join: ' ・ '

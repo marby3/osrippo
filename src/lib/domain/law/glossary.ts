@@ -54,10 +54,10 @@ const GLOSSARY = [
 
 /**
  * 法令用語のかんたんな説明（Issue #143 決めたことA・B）。forms は条文に出てくる形（同じ説明を付ける）。説明は1〜2文・60字まで、中学生でも読める言葉で書く。
- * 読み仮名の一覧の言葉は、その読みも出す。読めても法律では意味が違う言葉（善意・悪意など）は、読み仮名なしで説明だけ付ける。
+ * 読み仮名の一覧の言葉は、その読みも出す。読めても法律では意味が違う言葉（善意・悪意など）は、条文には読み仮名を付けず、説明の枠にだけ読み（readings。forms と同じ順）を出す。
  * 説明は運営が書いたもの。専門家からの直しの受け付けは Issue #188
  */
-const NOTES: { forms: string[]; note: string }[] = [
+const NOTES: { forms: string[]; note: string; readings?: string[] }[] = [
 	// 読み仮名の一覧のうち、意味の分かりにくい言葉
 	{ forms: ['役務'], note: '人のためにする仕事やサービスのこと。たとえば、エステや塾、修理など。' },
 	{ forms: ['誘引'], note: '人をさそって、引きよせること。景品表示法では、お客を集めることをいう。' },
@@ -85,15 +85,15 @@ const NOTES: { forms: string[]; note: string }[] = [
 	{ forms: ['差止'], note: '悪いことをやめさせたり、始めないようにさせたりすること。' },
 	{ forms: ['故意'], note: 'わざとすること。結果が起きるとわかっていて、そうすること。' },
 	// 読めても、法律では意味が違う言葉
-	{ forms: ['善意'], note: '法律では、ある事実を知らないこと。「よい心」という意味ではない。' },
-	{ forms: ['悪意'], note: '法律では、ある事実を知っていること。「悪い心」という意味ではない。' },
+	{ forms: ['善意'], readings: ['ぜんい'], note: '法律では、ある事実を知らないこと。「よい心」という意味ではない。' },
+	{ forms: ['悪意'], readings: ['あくい'], note: '法律では、ある事実を知っていること。「悪い心」という意味ではない。' },
 	{ forms: ['みなす', 'みなされる', 'みなし'], note: '本当はちがっても、法律の上では同じものとして扱うこと。反対の証明をしても変わらない。' },
-	{ forms: ['推定'], note: '反対の証明がなければ、そうだとして扱うこと。証明すれば、くつがえせる。' },
-	{ forms: ['取消し', '取り消し', '取り消す'], note: '一度は効力のあるものを、あとからさかのぼって、なかったことにすること。' },
-	{ forms: ['無効'], note: 'はじめから効力がないこと。取り消さなくても、効力は生じない。' },
-	{ forms: ['政令'], note: '法律を実際に動かすために、内閣が定める決まり。' },
-	{ forms: ['内閣府令'], note: '法律や政令を実際に動かすために、内閣総理大臣が定める決まり。' },
-	{ forms: ['経過措置'], note: '決まりが変わるときに、前の決まりから新しい決まりへ移るあいだの扱いを定めたもの。' }
+	{ forms: ['推定'], readings: ['すいてい'], note: '反対の証明がなければ、そうだとして扱うこと。証明すれば、くつがえせる。' },
+	{ forms: ['取消し', '取り消し', '取り消す'], readings: ['とりけし', 'とりけし', 'とりけす'], note: '一度は効力のあるものを、あとからさかのぼって、なかったことにすること。' },
+	{ forms: ['無効'], readings: ['むこう'], note: 'はじめから効力がないこと。取り消さなくても、効力は生じない。' },
+	{ forms: ['政令'], readings: ['せいれい'], note: '法律を実際に動かすために、内閣が定める決まり。' },
+	{ forms: ['内閣府令'], readings: ['ないかくふれい'], note: '法律や政令を実際に動かすために、内閣総理大臣が定める決まり。' },
+	{ forms: ['経過措置'], readings: ['けいかそち'], note: '決まりが変わるときに、前の決まりから新しい決まりへ移るあいだの扱いを定めたもの。' }
 ];
 
 /** 読み仮名を付けた部分（rt あり）と、そのままの部分 */
@@ -113,6 +113,8 @@ function parseEntry(source: string): Entry {
 
 const ENTRIES = GLOSSARY.map(parseEntry);
 const NOTE_OF = new Map(NOTES.flatMap((n) => n.forms.map((f) => [f, n.note] as const)));
+/** 説明の枠に出す読み。読み仮名の一覧の言葉はその読み、ほかは readings（かなだけの言葉はなし） */
+const READING_OF = new Map(NOTES.flatMap((n) => n.forms.map((f, i) => [f, n.readings?.[i] ?? null] as const)));
 /** 当てる言葉：読み仮名の一覧の言葉と、説明だけの言葉（読み仮名なし） */
 const BY_WORD = new Map<string, Entry>([...NOTE_OF.keys()].map((w) => [w, { word: w, parts: [{ text: w }] }]));
 for (const e of ENTRIES) BY_WORD.set(e.word, e);
@@ -125,16 +127,18 @@ const PATTERN = new RegExp(
 	'g'
 );
 
-/** 説明の一覧（Issue #143）。読みは読み仮名の一覧の言葉だけ（ほかは null） */
+/** 説明の一覧（Issue #143）。読みのない言葉（かなだけの言葉）は null */
 export function glossaryNotes(): { word: string; reading: string | null; note: string }[] {
-	return [...NOTE_OF].map(([word, note]) => {
-		const parts = BY_WORD.get(word)!.parts;
-		return { word, reading: parts.some((p) => p.rt !== undefined) ? parts.map((p) => p.rt ?? p.text).join('') : null, note };
-	});
+	return [...NOTE_OF].map(([word, note]) => ({ word, reading: readingOf(word), note }));
+}
+
+function readingOf(word: string): string | null {
+	const parts = BY_WORD.get(word)!.parts;
+	return parts.some((p) => p.rt !== undefined) ? parts.map((p) => p.rt ?? p.text).join('') : (READING_OF.get(word) ?? null);
 }
 
 /** 文の切れ。言葉（読み仮名の部分と説明）か、そのままの文 */
-export type GlossSegment = { text: string } | { word: string; parts: RubySegment[]; note: string | null };
+export type GlossSegment = { text: string } | { word: string; parts: RubySegment[]; reading: string | null; note: string | null };
 
 /** 文を、一覧の言葉とそのままの部分に分ける。そのままの部分は隣どうしをつなげる */
 export function glossSegments(text: string): GlossSegment[] {
@@ -151,7 +155,7 @@ export function glossSegments(text: string): GlossSegment[] {
 		const entry = BY_WORD.get(m[0])!;
 		const note = NOTE_OF.get(m[0]) ?? null;
 		// 読み仮名も説明もない言葉はない（BY_WORD はどちらかを持つ言葉だけ）
-		out.push({ word: entry.word, parts: entry.parts.map((p) => ({ ...p })), note });
+		out.push({ word: entry.word, parts: entry.parts.map((p) => ({ ...p })), reading: note === null ? null : readingOf(entry.word), note });
 		at = m.index + m[0].length;
 	}
 	plain(text.slice(at));

@@ -11,7 +11,6 @@
 	let { text = '', segments }: { text?: string; segments?: GlossSegment[] } = $props();
 	const list = $derived(segments ?? glossSegments(text));
 	const uid = $props.id();
-	const reading = (parts: RubySegment[]) => (parts.some((p) => p.rt !== undefined) ? parts.map((p) => p.rt ?? p.text).join('') : null);
 
 	/** 開いたら言葉のすぐ下に置く（画面の端からはみ出さない）。押した言葉に開いた・閉じたを付ける */
 	function place(note: HTMLElement) {
@@ -31,10 +30,10 @@
 	}
 </script>
 
-{#snippet rubies(parts: RubySegment[])}{#each parts as p}{#if p.rt !== undefined}<ruby>{p.text}<rt data-rt={p.rt}></rt></ruby>{:else}{p.text}{/if}{/each}{/snippet}
-
 <!-- 文の中に置くので、要素のあいだに空白や改行を入れない（white-space: pre-line の文がある） -->
-{#each list as s, i}{#if 'text' in s}{s.text}{:else if s.note === null}{@render rubies(s.parts)}{:else}<button type="button" class="term" popovertarget="{uid}-{i}" aria-expanded="false">{@render rubies(s.parts)}</button><span id="{uid}-{i}" class="note" popover {@attach place}><span class="word">{s.word}{#if reading(s.parts)}（{reading(s.parts)}）{/if}</span><span>{s.note}</span><span class="by">{ja.glossary.disclaimer}</span></span>{/if}{/each}
+{#snippet rubies(parts: RubySegment[])}{#each parts as p}{#if p.rt !== undefined}<ruby>{p.text}<rt data-rt={p.rt}></rt></ruby>{:else}{p.text}{/if}{/each}{/snippet}
+{#snippet note(word: string, reading: string | null, body: string)}<span class="word">{word}{#if reading}（{reading}）{/if}</span><span>{body}</span><span class="by">{ja.glossary.disclaimer}</span>{/snippet}
+{#each list as s, i}{#if 'text' in s}{s.text}{:else if s.note === null}{@render rubies(s.parts)}{:else}<button type="button" class="term" popovertarget="{uid}-{i}" aria-controls="{uid}-{i}" aria-expanded="false">{@render rubies(s.parts)}</button><span id="{uid}-{i}" class="note" popover {@attach place}>{@render note(s.word, s.reading, s.note)}</span>{/if}{/each}
 
 <style>
 	/* 説明のある言葉：点線の下線。消した・足した部分の中では、その取り消し線と下線もそのまま付ける（ボタンには親の線が届かないので受け継ぐ） */
