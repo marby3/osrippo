@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { DiffPart } from '#lib/domain/law/compare.ts';
-	import { rubyParts } from '#lib/domain/law/glossary.ts';
+	import { glossParts } from '#lib/domain/law/glossary.ts';
 	import LawText from './LawText.svelte';
 
 	/** show：削除だけ（改正前）、追加だけ（改正後）、両方（1つの文の中で示す） */
@@ -9,7 +9,7 @@
 
 <!-- 変更点は色だけで示さない：削除は取り消し線と「−」、追加は下線と「＋」。読み仮名は部分ごとに付ける（切れ目が言葉の途中なら付かない。Issue #129 基準6） -->
 <p class="text">
-	{#each rubyParts(parts) as part}
+	{#each glossParts(parts) as part}
 		{#if part.removed}
 			{#if show !== 'added'}<del>−<LawText segments={part.segments} /></del>{/if}
 		{:else if part.added}
