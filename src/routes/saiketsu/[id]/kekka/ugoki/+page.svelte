@@ -38,10 +38,18 @@
 					{#each data.motion as row (row.week)}
 						<div class="week">
 							<span class="label">{m.week(row.week)}</span>
-							<div class="bar" data-motion-week>
-								{#each STANCES as stance (stance)}
-									{#if row[stance]}<span class={stance} style:flex-grow={row[stance]}>{m.part(m.stances[stance], row[stance])}</span>{/if}
-								{/each}
+							<!-- 部分の文字は帯の下に並べる（狭い部分でも切れないように）。印は帯の部分と同じ塗り -->
+							<div data-motion-week>
+								<div class="bar">
+									{#each STANCES as stance (stance)}
+										{#if row[stance]}<span class={stance} style:flex-grow={row[stance]}></span>{/if}
+									{/each}
+								</div>
+								<p class="parts">
+									{#each STANCES as stance (stance)}
+										{#if row[stance]}<span class="part"><span class="mark {stance}"></span>{m.part(m.stances[stance], row[stance])}</span>{/if}
+									{/each}
+								</p>
 							</div>
 						</div>
 					{/each}
@@ -110,7 +118,7 @@
 		display: grid;
 		grid-template-columns: 4em 1fr;
 		gap: 0.5rem;
-		align-items: center;
+		align-items: start;
 	}
 
 	.label {
@@ -119,47 +127,55 @@
 
 	.bar {
 		display: flex;
-		min-height: var(--tap-min);
+		height: 1.5rem;
 		overflow: hidden;
 		border: 1px solid var(--color-text);
 		border-radius: var(--radius-s);
 	}
 
 	.bar span {
-		display: flex;
 		flex-basis: 0;
-		align-items: center;
-		min-width: 0;
-		padding: 0 0.25rem;
-		overflow: hidden;
-		font-size: var(--font-size-sub);
-		font-weight: bold;
-		white-space: nowrap;
 	}
 
-	.bar .for {
+	/* 部分のあいだに線を引き、未定の面（地に近い色）も区切りが分かるようにする */
+	.bar span + span {
+		border-left: 1px solid var(--color-text);
+	}
+
+	.for {
 		background: var(--color-support);
-		color: var(--color-bg);
 	}
 
-	/* 反対寄りは結果のページの反対と同じ斜線。文字は地の上に白い面を敷いて読めるようにする */
-	.bar .against {
+	/* 反対寄りは結果のページの反対と同じ斜線 */
+	.against {
 		background-image: repeating-linear-gradient(135deg, var(--color-oppose) 0 6px, var(--color-del-text) 6px 12px);
 	}
 
-	.bar .against,
-	.bar .undecided {
-		color: var(--color-text);
-	}
-
-	.bar .undecided {
+	.undecided {
 		background: var(--color-surface);
 	}
 
-	.bar .against {
-		text-shadow:
-			0 0 2px var(--color-bg),
-			0 0 2px var(--color-bg);
+	.parts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 1rem;
+		margin: 0.25rem 0 0;
+		font-size: var(--font-size-sub);
+		font-weight: bold;
+	}
+
+	.part {
+		display: inline-flex;
+		gap: 0.25rem;
+		align-items: center;
+		white-space: nowrap;
+	}
+
+	.mark {
+		display: inline-block;
+		width: 0.75rem;
+		height: 0.75rem;
+		border: 1px solid var(--color-text);
 	}
 
 	.scroll {

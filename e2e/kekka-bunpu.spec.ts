@@ -36,7 +36,7 @@ async function user(browser: Browser, address: string, now: string, name?: strin
  * 返す viewer は締切のあと（次の月の2日）のログインしていない人
  */
 /** line なら、ほかの line の人と同じ回線から投票する（票の偏りの確認になる） */
-type Voter = { stance?: 'for' | 'against'; choice: 'yes' | 'no' | 'abstain'; line?: boolean };
+type Voter = { stance?: 'for' | 'against'; choice?: 'yes' | 'no' | 'abstain'; line?: boolean };
 async function settled(browser: Browser, w: Width, group: number, voters: Voter[]) {
 	const month = monthOf(w, group);
 	const label = `b${group}-${w}-${stamp()}`;
@@ -64,6 +64,8 @@ async function settled(browser: Browser, w: Width, group: number, voters: Voter[
 			const res = await billRequest(u.page, `${path}/shitsugi?/stance`, { stance: v.stance });
 			expect(res.status(), await res.text()).toBe(200);
 		}
+		// choice がなければ、立場だけを選んで投票しない人
+		if (!v.choice) continue;
 		await u.setNow(at(month, 22));
 		const res = await billRequest(u.page, `/saiketsu/${id}?/vote`, { choice: v.choice, 'cf-turnstile-response': 'test-pass' });
 		expect(res.status(), await res.text()).toBe(200);
@@ -72,12 +74,14 @@ async function settled(browser: Browser, w: Width, group: number, voters: Voter[
 	return { id, title, month, viewer, person };
 }
 
-// 賛成寄りを選んだ10人（賛成2・反対7・棄権1）と、立場を選ばなかった2人（反対）。否決になる
+// 賛成寄りを選んだ10人（賛成2・反対7・棄権1）と、立場を選ばなかった2人（反対）。否決になる。
+// ほかに反対寄りを選んで投票しなかった2人（考えの動きにだけ数え、図に狭い部分ができる）
 const BIG: Voter[] = [
 	...Array.from({ length: 2 }, () => ({ stance: 'for' as const, choice: 'yes' as const })),
 	...Array.from({ length: 7 }, () => ({ stance: 'for' as const, choice: 'no' as const })),
 	{ stance: 'for' as const, choice: 'abstain' as const },
-	...Array.from({ length: 2 }, () => ({ choice: 'no' as const }))
+	...Array.from({ length: 2 }, () => ({ choice: 'no' as const })),
+	...Array.from({ length: 2 }, () => ({ stance: 'against' as const }))
 ];
 // 立場を選ばなかった3人。定足数に届かず廃案
 const SMALL: Voter[] = Array.from({ length: 3 }, () => ({ choice: 'yes' as const }));
@@ -99,7 +103,7 @@ const section = (u: Page, name: string) => u.getByRole('region', { name });
 const cells = async (u: Page, region: string, row: string) => (await section(u, region).getByRole('row').filter({ hasText: row }).getByRole('cell').allInnerTexts()).map((t) => t.trim());
 const dataOf = async (u: Page, path: string) => (await u.request.get(`${path}/__data.json`)).text();
 
-test('基準1：結果のページの票の下に、立場ごとの賛成・反対・棄権の割合を5%刻みで出す。人数と参考の票は出さない', async ({ browser }, info) => {
+test('基準1：結果のページの票の下に、立場ごとの賛成・反対・棄権の割合を5%刻みで出す。人数は出さない（参考の票を入れないことは src/lib/db/stance-stats.test.ts）', async ({ browser }, info) => {
 	const w = info.project.name as Width;
 	const big = await shared(browser, w, 0, BIG);
 	const v = await anonymous(browser, w, at(next(big.month), 2));
@@ -157,7 +161,8 @@ test('基準3：結果のページの「会期中の考えの動きを見る」�
 	const s = section(v.page, '会期中の考えの動き');
 	// 列の並びは賛成寄り・未定・反対寄り。10日（2週目）に選んだので、1週目の終わりはまだ未定
 	expect(await cells(v.page, '会期中の考えの動き', '1週目')).toEqual(['0%', '100%', '0%']);
-	for (const week of ['2週目', '3週目', '4週目']) expect(await cells(v.page, '会期中の考えの動き', week)).toEqual(['100%', '0%', '0%']);
+	// 2週目からは賛成寄り10人・反対寄り2人（83.3% と 16.7% を5%刻みに）
+	for (const week of ['2週目', '3週目', '4週目']) expect(await cells(v.page, '会期中の考えの動き', week)).toEqual(['85%', '0%', '15%']);
 	// 人数は出さない
 	await expect(s).not.toContainText(/\d+人/);
 });
@@ -179,7 +184,7 @@ test('基準4：考えの動きを数える人が10人未満なら、図を出�
 
 test('基準5：分布と動きは結果が出てからだけ出す。締切の前・確認中・無効では出さない。番号が正しくなければ 404', async ({ browser }, info) => {
 	const w = info.project.name as Width;
-	// 賛成寄りの10人のうち5人が同じ回線から賛成する。締切のあとは確認中になる
+	// 賛成寄りの10人のうち5人が同じ回線から賛成する。票の偏りの確認（kakunin.spec.ts と同じ形）で、締切のあとは確認中になる
 	const voters: Voter[] = Array.from({ length: 10 }, (_, i) => ({ stance: 'for', choice: 'yes', line: i < 5 }));
 	const s = await settled(browser, w, 2, voters);
 	const v = s.viewer;
@@ -233,7 +238,13 @@ test('基準6：図の各部分に立場と割合の文字を付け、同じ値�
 	await expect(bars).toHaveCount(4);
 	await expect(bars.nth(0)).toHaveText(/未定 100%/);
 	await expect(bars.nth(0)).not.toContainText('賛成寄り');
-	await expect(bars.nth(1)).toHaveText(/賛成寄り 100%/);
+	await expect(bars.nth(1)).toContainText('賛成寄り 85%');
+	await expect(bars.nth(1)).toContainText('反対寄り 15%');
+	await expect(bars.nth(1)).not.toContainText('未定');
+	// 狭い部分の文字も切れずに見える
+	const narrow = bars.nth(1).getByText('反対寄り 15%');
+	await expect(narrow).toBeVisible();
+	expect(await narrow.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
 	// 図は読み上げず、表で読む
 	await expect(s.locator('[data-motion-chart]')).toHaveAttribute('aria-hidden', 'true');
 	for (const name of ['賛成寄り', '未定', '反対寄り']) await expect(s.getByRole('columnheader', { name })).toBeVisible();

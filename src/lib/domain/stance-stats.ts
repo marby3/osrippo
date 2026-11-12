@@ -21,7 +21,10 @@ export function weekEnds(session: Session): [number, number, number, number] {
 	return [first, session.deliberationAt, session.voteAt, session.endsAt];
 }
 
-/** その人の、at より前の最後の立場。行がなければ未定（設計書 D） */
+/**
+ * その人の、at より前の最後の立場。行がなければ未定（設計書 D）。
+ * logs は id の順（同じ時刻なら後の行を採る）。tallyStanceStats は人ごとにまとめた行を渡す
+ */
 export function stanceAt(logs: readonly StanceLog[], userId: string, at: number): Stance {
 	let found: StanceLog | null = null;
 	for (const log of logs) {
@@ -40,12 +43,19 @@ const emptyStances = (): StanceCounts => ({ for: 0, undecided: 0, against: 0 });
  */
 export function tallyStanceStats(votes: readonly { userId: string; choice: VoteChoice }[], logs: readonly StanceLog[], session: Session): StanceStatsData {
 	const ends = weekEnds(session);
+	// 人ごとにまとめておき、1人を数えるたびに全部の行を見ないようにする（行の順は保つ）
+	const byUser = new Map<string, StanceLog[]>();
+	for (const log of logs) {
+		const list = byUser.get(log.userId);
+		if (list) list.push(log);
+		else byUser.set(log.userId, [log]);
+	}
+	const of = (userId: string, at: number) => stanceAt(byUser.get(userId) ?? [], userId, at);
 	const byVote = { for: emptyChoices(), undecided: emptyChoices(), against: emptyChoices() };
-	for (const v of votes) byVote[stanceAt(logs, v.userId, session.endsAt)][v.choice] += 1;
-	const holders = [...new Set(logs.map((l) => l.userId))];
+	for (const v of votes) byVote[of(v.userId, session.endsAt)][v.choice] += 1;
 	const weeks = ends.map((end) => {
 		const counts = emptyStances();
-		for (const id of holders) counts[stanceAt(logs, id, end)] += 1;
+		for (const id of byUser.keys()) counts[of(id, end)] += 1;
 		return counts;
 	}) as StanceStatsData['weeks'];
 	return { votes: byVote, weeks };
@@ -69,7 +79,7 @@ export function distributionView(votes: StanceStatsData['votes']): { rows: Distr
 
 export type MotionRow = { week: 1 | 2 | 3 | 4 } & StanceCounts;
 
-/** 考えの動き：数える人が STATS_MIN 人に満たなければ null。どの週も同じ人を数えるので、人数は1つ */
+/** 考えの動き：数える人が STATS_MIN 人に満たなければ null。tallyStanceStats はどの週も同じ人（一度でも選んだ人）を数えるので、1週目の合計が人数 */
 export function motionView(weeks: StanceStatsData['weeks']): MotionRow[] | null {
 	const total = weeks[0].for + weeks[0].undecided + weeks[0].against;
 	if (total < STATS_MIN) return null;
