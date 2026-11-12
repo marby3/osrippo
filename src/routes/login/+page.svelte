@@ -1,5 +1,7 @@
 <script lang="ts">
 	import Turnstile from '#lib/components/Turnstile.svelte';
+	import googleLogo from '#lib/assets/google.svg';
+	import lineLogo from '#lib/assets/line.svg';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -16,11 +18,13 @@
 	<p>{ja.login.lead}</p>
 	{#if data.failed}<p role="alert">{ja.login.failed}</p>{/if}
 	{#if form?.message}<p role="alert">{form.message}</p>{/if}
+	<p>{ja.login.newcomer}</p>
+	<!-- 並びは上から ボタン → 確認の枠（Issue #159）。見た目と読み上げの順をそろえる -->
 	<form method="post">
 		<input type="hidden" name="next" value={data.next} />
-		<Turnstile siteKey={data.siteKey} bind:token />
-		<button formaction="?/google" disabled={!token}>{ja.login.google}</button>
-		<button formaction="?/line" disabled={!token}>{ja.login.line}</button>
+		<button formaction="?/google" disabled={!token}><img src={googleLogo} alt="" aria-hidden="true" /><span>{ja.login.google}</span></button>
+		<button formaction="?/line" disabled={!token}><img src={lineLogo} alt="" aria-hidden="true" /><span>{ja.login.line}</span></button>
+		<Turnstile siteKey={data.siteKey} size="flexible" bind:token />
 	</form>
 </main>
 
@@ -45,6 +49,10 @@
 	}
 
 	button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.75rem;
 		min-height: var(--tap-primary);
 		border: 1px solid var(--color-input-border);
 		border-radius: var(--radius-l);
@@ -52,5 +60,12 @@
 		color: var(--color-text);
 		font: inherit;
 		font-weight: bold;
+	}
+
+	/* ロゴは文字の大きさに合わせる（表示の設定で文字を大きくしたときも） */
+	img {
+		width: 1.25em;
+		height: 1.25em;
+		flex: none;
 	}
 </style>

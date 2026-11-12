@@ -29,8 +29,11 @@
 	import { onMount } from 'svelte';
 	import { ja } from '../copy/ja';
 
-	/** token は確認が済むと入り、期限切れや作り直しで空に戻る */
-	let { siteKey, token = $bindable('') }: { siteKey: string; token?: string } = $props();
+	/**
+	 * token は確認が済むと入り、期限切れや作り直しで空に戻る。
+	 * size は枠の大きさ（Cloudflare の指定）。'flexible' は置いた場所の幅いっぱいに広がる（Issue #159）。省くと Cloudflare の標準
+	 */
+	let { siteKey, token = $bindable(''), size }: { siteKey: string; token?: string; size?: 'normal' | 'flexible' | 'compact' } = $props();
 	let container: HTMLDivElement;
 	let widgetId: string | undefined;
 	let loadFailed = $state(false);
@@ -42,6 +45,7 @@
 				if (destroyed) return;
 				widgetId = api()?.render(container, {
 					sitekey: siteKey,
+					...(size ? { size } : {}),
 					callback: (t: string) => (token = t),
 					'expired-callback': () => (token = ''),
 					'error-callback': () => (token = '')
@@ -64,5 +68,5 @@
 	}
 </script>
 
-<div bind:this={container}></div>
+<div bind:this={container} data-turnstile></div>
 {#if loadFailed}<p role="alert">{ja.guard.turnstileUnavailable}</p>{/if}
