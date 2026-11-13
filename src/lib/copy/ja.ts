@@ -1724,6 +1724,7 @@ export const ja = {
 		amendments: {
 			heading: '採用された修正案',
 			empty: '採用された修正案はまだありません',
+			more: (n: number) => `新しい${n}件を出しています。`,
 			/** "消費者契約法 第2条 ・ 取り込まれました" */
 			meta: (lawTitle: string, location: string, status: string) => `${lawTitle ? `${lawTitle} ${location}` : location} ・ ${status}`
 		},
@@ -1734,8 +1735,9 @@ export const ja = {
 			done: '済み',
 			notYet: 'まだ',
 			steps: {
-				registered: '登録から7日たった',
-				post: 'この会期に、委員会の法案へ質疑か答弁を書いた',
+				// 要件の形で書く（前に「済み」「まだ」の札が付く）
+				registered: '登録から7日たつ',
+				post: 'この会期に、委員会の法案へ質疑か答弁を書く',
 				consecutive: '委員長を2会期続けて務めていない',
 				period: (s: Session) => `立候補の期間になる（${sessionPoint(s, s.voteAt, false)}から）`
 			},

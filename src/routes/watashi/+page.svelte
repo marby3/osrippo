@@ -73,15 +73,16 @@
 
 		<section aria-labelledby="watashi-amendments">
 			<h2 id="watashi-amendments">{ja.watashi.amendments.heading}</h2>
-			{#if data.amendments.length}
+			{#if data.amendments.rows.length}
 				<ul class="amendments">
-					{#each data.amendments as a (a.id)}
+					{#each data.amendments.rows as a (a.id)}
 						<li>
 							<a href="/houan/{a.billId}/shusei">{a.billTitle}</a>
 							<span class="meta">{ja.watashi.amendments.meta(a.lawTitle, a.location, ja.amendment.statuses[a.status])}</span>
 						</li>
 					{/each}
 				</ul>
+				{#if data.amendments.more}<p class="sub">{ja.watashi.amendments.more(data.amendments.rows.length)}</p>{/if}
 			{:else}
 				<p class="empty">{ja.watashi.amendments.empty}</p>
 			{/if}

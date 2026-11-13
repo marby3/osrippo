@@ -3,6 +3,7 @@
 import { and, desc, eq, gt, gte, inArray, lt } from 'drizzle-orm';
 import { actions, amendments, billCosponsors, billLaws, bills, chairTerms, laws } from '../db/schema';
 import { billProgress, PARTICIPANT_KINDS, referralSession } from '../domain/bills';
+import { AMENDMENT_SHOWN } from '../domain/amendments';
 import { articleLabel } from '../domain/law/parse';
 import type { Session } from '../domain/session';
 import { billStage, type BillStage } from '../domain/votes';
@@ -11,7 +12,8 @@ import type { Db } from './law';
 import { resultsFor, reviewsFor } from './results';
 
 /**
- * その会期に委員会に所属しているか（その会期の委員長・理事の役がある人も所属に数える。画面の読み込みで合わせる）：その会期に、今月の参加者に数える行動（課題・解決策・法案・賛同・質疑・答弁・投票など）をしたこと。
+ * その会期に委員会に所属しているか：その会期に、今月の参加者に数える行動（課題・解決策・法案・賛同・質疑・答弁・投票など）をしたこと。
+ * その会期の委員長・理事の役（解任されたものも）がある人も所属に数える（画面の読み込みで合わせる）。
  * 委員会は1つなので、行動の表から求める（行動に委員会の列はない）
  */
 export async function isMember(db: Db, userId: string, session: Session): Promise<boolean> {
@@ -87,17 +89,21 @@ export async function draftedBills(db: Db, userId: string, now: number, minutes:
 
 export type AdoptedAmendment = { id: number; billId: number; billTitle: string; lawTitle: string; location: string; status: 'accepted' | 'passed' };
 
-/** 採用された修正案：取り込まれたか可決した自分の修正案（共同起草者と同じ決まり。coDrafters）。新しい順 */
-export async function adoptedAmendments(db: Db, userId: string): Promise<AdoptedAmendment[]> {
+/** 採用された修正案を出す数 */
+export const ADOPTED_LIMIT = 50;
+
+/** 採用された修正案：取り込まれたか可決した自分の修正案（共同起草者と同じ決まり。coDrafters）のうち、表示中のもの。新しい順に ADOPTED_LIMIT 件まで */
+export async function adoptedAmendments(db: Db, userId: string): Promise<{ rows: AdoptedAmendment[]; more: boolean }> {
 	const rows = await db
 		.select({ id: amendments.id, billId: amendments.billId, billTitle: bills.title, num: amendments.num, status: amendments.status, lawTitle: laws.title, newTitle: billLaws.newTitle })
 		.from(amendments)
 		.innerJoin(bills, eq(bills.id, amendments.billId))
 		.leftJoin(billLaws, and(eq(billLaws.billId, amendments.billId), eq(billLaws.rev, amendments.baseRev), eq(billLaws.seq, amendments.lawSeq)))
 		.leftJoin(laws, eq(laws.id, billLaws.lawId))
-		.where(and(eq(amendments.userId, userId), inArray(amendments.status, ['accepted', 'passed'])))
-		.orderBy(desc(amendments.id));
-	return rows.map((r) => ({
+		.where(and(eq(amendments.userId, userId), inArray(amendments.status, ['accepted', 'passed']), inArray(amendments.moderationStatus, AMENDMENT_SHOWN)))
+		.orderBy(desc(amendments.id))
+		.limit(ADOPTED_LIMIT + 1);
+	const views = rows.slice(0, ADOPTED_LIMIT).map((r) => ({
 		id: r.id,
 		billId: r.billId,
 		billTitle: r.billTitle,
@@ -105,4 +111,5 @@ export async function adoptedAmendments(db: Db, userId: string): Promise<Adopted
 		location: articleLabel(r.num),
 		status: r.status as 'accepted' | 'passed'
 	}));
+	return { rows: views, more: rows.length > ADOPTED_LIMIT };
 }

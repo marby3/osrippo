@@ -18,19 +18,25 @@ export const load: PageServerLoad = async (event) => {
 	const db = drizzle(env.DB);
 	const now = nowOf(event);
 	const { session, previous, minutes } = sessionsAt(now);
-	// 前の会期の法案の結果と委員長選挙を確定する（法案の一覧と委員会のページと同じ）。失敗してもページは出し、次に読まれたときか次の Cron でやり直す
-	await settleOnRead(db as unknown as BatchDb, previous, sessionAt(previous.startsAt - 1, minutes), now, minutes);
+	// 前の会期の委員長選挙を確定する（委員会のページと同じ。確定の印があれば1回読むだけ）。失敗してもページは出し、次に読まれたときか次の Cron でやり直す
 	try {
 		await settleElection(db as unknown as BatchDb, FIRST_COMMITTEE, previous, now, Math.random, minutes);
 	} catch (e) {
 		console.error(e);
 	}
+	// 自分の法案に、前の会期が終わって結果の行がない法案（集計中）があるときだけ、前の会期の結果を確定して読み直す
+	const myBills = async () => {
+		const first = await draftedBills(db, user.id, now, minutes);
+		if (!first.rows.some((b) => b.stage === 'counting' && b.session === previous.key)) return first;
+		await settleOnRead(db as unknown as BatchDb, previous, sessionAt(previous.startsAt - 1, minutes), now, minutes);
+		return draftedBills(db, user.id, now, minutes);
+	};
 	const [unread, member, committee, role, bills, amendments, checks] = await Promise.all([
 		unreadCount(db, user.id, now, minutes),
 		isMember(db, user.id, session),
 		committeeNameOf(db, FIRST_COMMITTEE),
 		chairRoleOf(db, user.id, FIRST_COMMITTEE, session),
-		draftedBills(db, user.id, now, minutes),
+		myBills(),
 		adoptedAmendments(db, user.id),
 		candidacyChecks(db, user.id, FIRST_COMMITTEE, session, previous)
 	]);
@@ -39,8 +45,8 @@ export const load: PageServerLoad = async (event) => {
 		name: user.name,
 		registeredAt: user.createdAt.getTime(),
 		unread,
-		// その会期の役（解任されていない）がある人も所属に数える
-		committee: member || (role !== null && !role.recalled) ? committee : null,
+		// その会期の役（解任されたものも）がある人も所属に数える
+		committee: member || role !== null ? committee : null,
 		role: role ? { ...role, sessionKey: session.key } : null,
 		bills,
 		amendments,
