@@ -17,6 +17,9 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	return {
 		law: page.law,
 		real: page.real,
+		// 法令のページと同じく、IF世界で廃止・制定した法律にはそのことを出す
+		repealedBy: page.repealedBy,
+		enactedBy: page.enactedBy,
 		...around,
 		article,
 		shareUrl: `${url.origin}/if/hourei/${aliasOfLaw(params.lawId) ?? params.lawId}/${params.num}`,

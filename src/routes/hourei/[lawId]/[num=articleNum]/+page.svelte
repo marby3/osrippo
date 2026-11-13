@@ -53,7 +53,8 @@
 			<ul class="links">
 				<li><a href="{lawHref}#jo-{data.article.num}">{ja.lawArticle.wholeLaw}</a></li>
 				<!-- IF世界があるのは遊べる法律だけ -->
-				{#if data.kind === 'playable'}<li><a href="/if/hourei/{data.law.id}/{data.article.num}">{ja.lawArticle.toIf}</a></li>{/if}
+				<!-- 条の番号は世界のあいだで同じとは限らないので、法令全体の同じ番号の位置へ送る -->
+				{#if data.kind === 'playable'}<li><a href="/if/hourei/{data.law.id}#jo-{data.article.num}">{ja.lawArticle.toIf}</a></li>{/if}
 			</ul>
 		</aside>
 	</div>

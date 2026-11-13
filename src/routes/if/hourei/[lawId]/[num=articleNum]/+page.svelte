@@ -28,6 +28,8 @@
 				<DisplaySettings />
 			</div>
 			<p class="sub">{ja.lawArticle.meta([data.law.title, ja.ifLaw.ifWorld])}</p>
+			{#if data.repealedBy}<p class="notice">{ja.ifLaw.repealedBy}<a href="/houan/{data.repealedBy.id}">{data.repealedBy.title}</a></p>{/if}
+			{#if data.enactedBy}<p class="notice">{ja.ifLaw.enactedBy}<a href="/houan/{data.enactedBy.id}">{data.enactedBy.title}</a></p>{/if}
 			{#if data.article.conflict}<p class="conflict-mark">{ja.torikomi.mark}</p>{/if}
 			<article aria-label={data.article.label} class:changed={data.article.changedBy}>
 				<LawParagraphs paragraphs={data.article.paragraphs} />
@@ -42,13 +44,22 @@
 			<ul class="links">
 				<li><a href="{lawHref}#jo-{data.article.num}">{ja.lawArticle.ifWholeLaw}</a></li>
 				<!-- 制定の新法には現実の法律がない -->
-				{#if data.real}<li><a href="/hourei/{data.law.id}/{data.article.num}">{ja.lawArticle.toReal}</a></li>{/if}
+				<!-- 条の番号は世界のあいだで同じとは限らないので、相手の世界は法令全体の同じ番号の位置へ送る（ない条でも 404 にならない） -->
+				{#if data.real}<li><a href="/hourei/{data.law.id}#jo-{data.article.num}">{ja.lawArticle.toReal}</a></li>{/if}
 			</ul>
 		</aside>
 	</div>
 </main>
 
 <style>
+	.notice {
+		margin: 0.75rem 0 0;
+		padding: 0.75rem 1rem;
+		border-radius: var(--radius-m);
+		background: var(--color-if-bg);
+		overflow-wrap: anywhere;
+	}
+
 	main {
 		padding: 1rem;
 	}
