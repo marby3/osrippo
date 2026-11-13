@@ -11,9 +11,24 @@ import { currentRevision, type Db } from './law';
 /** 列の値が、JSON の配列のどれかに当たる（値の数が多くても、渡す値は1つ。D1 の1文の値は100個まで） */
 const inJson = (column: SQLiteColumn, values: string[]): SQL => sql`${column} IN (SELECT value FROM json_each(${JSON.stringify(values)}))`;
 
-/** ページの本文から、条へのリンクの表を作る（ページの load が lawRefs として返す）。リンクにするものがなければ undefined */
+/** 1ページで引く名前の数。これより多い分は引かない（その本文の条はリンクにならない） */
+const NAMES_MAX = 2_000;
+
+/**
+ * ページの本文から、条へのリンクの表を作る（ページの load が lawRefs として返す）。リンクにするものがなければ undefined。
+ * リンクは飾りなので、引けなかったときもページは出す（undefined を返す）
+ */
 export async function lawRefsFor(db: Db, texts: string[]): Promise<LawRefIndex | undefined> {
-	const names = lawRefNames(texts);
+	try {
+		return await findLawRefs(db, texts);
+	} catch (e) {
+		console.error('本文の条へのリンクを作れませんでした', e);
+		return undefined;
+	}
+}
+
+async function findLawRefs(db: Db, texts: string[]): Promise<LawRefIndex | undefined> {
+	const names = lawRefNames(texts).slice(0, NAMES_MAX);
 	if (!names.length) return undefined;
 
 	// 正式名と e-Gov の略称（読める法律）と、遊べる法律の題名（読める法律を取り込む前の環境でも引けるように）
@@ -28,21 +43,21 @@ export async function lawRefsFor(db: Db, texts: string[]): Promise<LawRefIndex |
 
 	const ids = [...new Set(targets.map((t) => t.lawId))];
 	const nums = [...new Set(targets.map((t) => t.num))];
-	// 遊べる法律は現在の版の条、読める法律は取り込み済みの条
+	// 遊べる法律は現在の版の条（法令の条・項・号を provisions_law_id でたどり、条の番号で絞る）、読める法律は取り込み済みの条
 	const from = alias(lawRevisions, 'from_revision');
 	const to = alias(lawRevisions, 'to_revision');
 	const currentSeq = sql`(SELECT max(c.seq) FROM law_revisions c WHERE c.law_id = ${provisions.lawId} AND c.branch = 'real' AND c.status = 'enforced')`;
 	const found = await db
 		.select({ lawId: provisions.lawId, num: provisionVersions.num })
-		.from(provisionVersions)
-		.innerJoin(provisions, eq(provisions.id, provisionVersions.provisionId))
+		.from(provisions)
+		.innerJoin(provisionVersions, eq(provisionVersions.provisionId, provisions.id))
 		.innerJoin(from, eq(from.id, provisionVersions.fromRevisionId))
 		.leftJoin(to, eq(to.id, provisionVersions.toRevisionId))
 		.where(
 			and(
-				inJson(provisionVersions.num, nums),
 				inJson(provisions.lawId, ids),
 				eq(provisions.kind, 'article'),
+				inJson(provisionVersions.num, nums),
 				eq(from.branch, 'real'),
 				lte(from.seq, currentSeq),
 				or(isNull(to.id), gt(to.seq, currentSeq))

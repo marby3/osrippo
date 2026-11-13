@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8c717d2a-fa63-4674-9536-cbd82690c47a",
+  "id": "49cada61-0861-4b24-947e-52a502a1c3aa",
   "prevId": "a1a25a20-b632-4734-b865-7c516416bd7b",
   "tables": {
     "account": {
@@ -5000,13 +5000,6 @@
           "name": "provision_versions_to",
           "columns": [
             "to_revision_id"
-          ],
-          "isUnique": false
-        },
-        "provision_versions_num": {
-          "name": "provision_versions_num",
-          "columns": [
-            "num"
           ],
           "isUnique": false
         },

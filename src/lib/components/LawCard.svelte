@@ -6,7 +6,7 @@
 	import { ja } from '../copy/ja';
 	import { articleLabel } from '../domain/law/parse';
 	import type { ArticleCard } from '../server/law-refs';
-	import { lawCard } from './law-card.svelte';
+	import { canPopover, lawCard } from './law-card.svelte';
 
 	let el = $state<HTMLElement>();
 	let card = $state<ArticleCard | null>(null);
@@ -26,7 +26,7 @@
 	$effect(() => {
 		const opened = lawCard.opened;
 		const href = lawCard.href;
-		if (!el || !href || !opened) return;
+		if (!el || !href || !opened || !canPopover()) return;
 		const cached = cache.get(href);
 		card = cached ?? null;
 		failed = false;
@@ -57,7 +57,7 @@
 	}
 
 	function close() {
-		if (el?.matches(':popover-open')) el.hidePopover();
+		if (canPopover() && el?.matches(':popover-open')) el.hidePopover();
 	}
 
 	/** 閉じたら、押したリンクに戻る（読み上げとキーボードの位置を失わない） */
@@ -118,6 +118,15 @@
 		line-height: var(--line-height-body);
 		text-align: left;
 		white-space: normal;
+	}
+
+	/* popover のないブラウザでは出さない（:popover-open を知らないブラウザは、下の規則ごと読み飛ばす） */
+	.card {
+		display: none;
+	}
+
+	.card:popover-open {
+		display: block;
 	}
 
 	.card:focus {

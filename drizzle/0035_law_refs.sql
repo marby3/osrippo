@@ -7,7 +7,6 @@ CREATE TABLE `readable_law_names` (
 );
 --> statement-breakpoint
 CREATE INDEX `readable_law_names_law` ON `readable_law_names` (`law_id`);--> statement-breakpoint
-CREATE INDEX `provision_versions_num` ON `provision_versions` (`num`);--> statement-breakpoint
 CREATE INDEX `provisions_parent` ON `provisions` (`parent_id`);--> statement-breakpoint
 INSERT INTO `readable_law_names` (`name`, `law_id`)
 SELECT `title`, `id` FROM `readable_laws`

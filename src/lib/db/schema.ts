@@ -98,8 +98,6 @@ export const provisionVersions = sqliteTable(
 		// 版 R の条文を引くとき（設計書 決定1）に、版で絞り込む
 		index('provision_versions_from').on(t.fromRevisionId),
 		index('provision_versions_to').on(t.toRevisionId),
-		// 本文の「特商法9条」（Issue #165）：条があるかを、条の番号で引く
-		index('provision_versions_num').on(t.num),
 		check('provision_versions_change', sql`${t.change} IN (${sql.raw(CHANGES.map((c) => `'${c}'`).join(', '))})`)
 	]
 );

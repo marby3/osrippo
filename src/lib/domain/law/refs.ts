@@ -21,15 +21,23 @@ export type LawNameHit = { name: string; lawId: string };
  */
 export type LawRefIndex = { names: Record<string, string | null>; articles: string[] };
 
-/** 名前の候補にする長さ。e-Gov の法令名はほとんどこれより短い。長い題名は略称か通称で書く */
-const NAME_MAX = 60;
+/**
+ * 名前の候補にする長さ。区切りの文字も「N条」も含まない法令名と略称のうち、いちばん長いもの（94字。2026-11-13 に全件を取り込んだ D1 で測った）。
+ * これより長い題名は、区切りか「第N条」を含むので、もともと当たらない
+ */
+const NAME_MAX = 94;
+/** 1つの本文で見る「N条」の数。これより後ろはリンクにしない（引く名前の数を抑える） */
+const PLACES_MAX = 20;
 
 const KANJI = '〇一二三四五六七八九十百千';
 const NUMBER = `[0-9０-９]+|[${KANJI}]+`;
-// 「第」は省いてよい。「条の2」「条の二の三」を受ける。「9条の二つ」の「二つ」は枝番号にしない
-const ARTICLE = new RegExp(`(第)?(${NUMBER})条((?:の(?:${NUMBER})(?!つ))*)`, 'g');
+// 「第」は省いてよい。「条の2」「条の二の三」「条の二第1項」を受ける。
+// 枝番号にしないもの：「9条の二つ」、すぐあとに漢字が続く漢数字（「9条の一部」「の三要件」。続く漢字が 第・及・又・並 なら枝番号のまま）。
+// 数字は途中で切らない（「の12つ」を「の1」にしない）
+const BRANCH_NUMBER = `[0-9０-９]+(?![0-9０-９つ])|[${KANJI}]+(?!つ|〇|(?![第及又並])[一-鿿々])`;
+const ARTICLE = new RegExp(`(第)?(${NUMBER})条((?:の(?:${BRANCH_NUMBER}))*)`, 'g');
 const BRANCH = new RegExp(`の(${NUMBER})`, 'g');
-/** 名前の並びを区切る文字：句読点・空白・括弧・引用符 */
+/** 名前の並びを区切る文字：句読点・空白・括弧・引用符。読点を含む略称（「訪販、通販、マルチ等法」など）は、このため当たらない */
 const BOUNDARY = /[\s、。，．,.!?！？「」『』（）()［］[\]【】〔〕｛｝{}〈〉《》<>＜＞"'“”‘’]/;
 
 /** 算用数字（全角も）と漢数字（十百千のある書き方と、一〇五 のような並べ方）を数にする。読めなければ null */
@@ -68,6 +76,7 @@ function candidates(text: string): Candidate[] {
 	const found: Candidate[] = [];
 	let previousEnd = 0;
 	for (const m of text.matchAll(ARTICLE)) {
+		if (found.length >= PLACES_MAX) break;
 		const start = m.index;
 		const end = start + m[0].length;
 		const head = toNumber(m[2]);
