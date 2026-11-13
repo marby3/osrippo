@@ -44,7 +44,7 @@ test('#191 基準2：結果の上に、比べた2つと改正法の名前を省�
 	const name = page.getByText(TITLE_20230601, { exact: true });
 	await expect(pair).toBeVisible();
 	await expect(name).toBeVisible();
-	// 途中で切れていない
+	// 横に切れていない（折り返して全部出ることは、上の exact な getByText と toBeVisible で見ている）
 	expect(await name.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 	// 結果（変わった条）より上
 	const first = (await page.getByRole('article').first().boundingBox())!;

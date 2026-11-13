@@ -1,6 +1,9 @@
 // 画面の文言はすべてここに置く
 import type { Session } from '../domain/session';
 
+/** 比べる画面の、改正前・改正後の版 */
+type ComparedVersion = { date: string; title: string; scheduled: boolean };
+
 /** "2023-06-01" → "2023年6月1日" */
 export const jaDate = (iso: string) => {
 	const [y, m, d] = iso.split('-').map(Number);
@@ -1606,9 +1609,15 @@ export const ja = {
 		submit: '見る',
 		option: (date: string, title: string, scheduled: boolean) =>
 			`${jaDate(date)}施行${scheduled ? '（施行予定）' : ''}　${title}`,
-		/** 結果の上の、何と何を比べたかの1行 */
-		pair: (before: { date: string; scheduled: boolean }, after: { date: string; scheduled: boolean }) =>
-			`改正前：${jaDate(before.date)}施行${before.scheduled ? '予定' : ''}の版 → 改正後：${jaDate(after.date)}施行${after.scheduled ? '予定' : ''}の版`,
+		/**
+		 * 結果の上の、何と何を比べたかの1行。同じ日に施行された版どうしは日付で見分けられないので、
+		 * 改正前の版にその改正法の名前を添える
+		 */
+		pair: (before: ComparedVersion, after: ComparedVersion) => {
+			const side = (v: ComparedVersion, named: boolean) =>
+				`${jaDate(v.date)}施行${v.scheduled ? '予定' : ''}${named && v.title ? `（${v.title}）` : ''}の版`;
+			return `改正前：${side(before, before.date === after.date)} → 改正後：${side(after, false)}`;
+		},
 		beforeSide: '改正前',
 		afterSide: '改正後',
 		/** PC の新旧対照表のいちばん上の行（PcCompare）。消すところは取り消し線、足すところは下線なので「傍線」とは言わない */

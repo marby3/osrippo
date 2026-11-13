@@ -42,7 +42,7 @@
 		</form>
 
 		<div class="compared">
-			<p class="amendment-title">{after.title}</p>
+			{#if after.title}<p class="amendment-title">{after.title}</p>{/if}
 			<p class="pair">{ja.compare.pair(before, after)}</p>
 		</div>
 

@@ -29,7 +29,7 @@ for (const lawId of LAWS) {
 	});
 }
 
-test('2時点の変更点：消費者契約法の削除と追加が記号つきで出る', async ({ page }) => {
+test('改正で変わったところ：消費者契約法の削除と追加が記号つきで出る', async ({ page }) => {
 	await page.goto('/hourei/412AC0000000061/hikaku');
 	// Issue #191 から、改正法を1つ選ぶと直前の版（2023-01-05）と比べる
 	await page.getByLabel('改正法').selectOption('412AC0000000061_20230601_504AC0000000059');

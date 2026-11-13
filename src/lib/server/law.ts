@@ -178,10 +178,6 @@ export async function lawPage(db: Db, lawId: string) {
 }
 
 /**
- * 比較ページに出すもの。mae／ato が省かれたら、現在の版とその1つ前を比べる（1つ前がなければ現在の版どうし）。
- * 法令がないか、その法令にない版が指定されたら（片方だけの指定も含む）undefined
- */
-/**
  * 改正で変わったところ（Issue #191）。改正法（＝その改正で施行された版）を1つ選び、直前の版と比べる。
  * kaisei がないときは、いま効力のある版。前の版がない一番古い版や、その法令にない版は undefined
  */
@@ -213,9 +209,13 @@ export async function comparePage(db: Db, lawId: string, kaisei?: string | null)
 	} else {
 		const current = await currentRevision(db, lawId);
 		if (!current) return undefined;
-		// いま効力のある版が一番古い版なら、その次の改正。版が1つしかなければ見せる改正がない
-		i = Math.max(revisions.findIndex((r) => r.id === current.id), 1);
-		if (i >= revisions.length) return { ...page, compared: undefined };
+		i = revisions.findIndex((r) => r.id === current.id);
+		if (i < 0) return undefined;
+		// いま効力のある版が一番古い版なら、その次の（施行予定の）改正。版が1つしかなければ見せる改正がない
+		if (i === 0) {
+			if (revisions.length < 2) return { ...page, compared: undefined };
+			i = 1;
+		}
 	}
 	const before = revisions[i - 1];
 	const after = revisions[i];
