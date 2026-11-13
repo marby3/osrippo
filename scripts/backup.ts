@@ -2,12 +2,12 @@
 //   pnpm backup --env staging --bucket <R2 のバケット> [--database DB] [--work-dir <一時フォルダ>]
 // D1 を書き出し（wrangler d1 export --compatibility sqlite3_cli_only）、全文検索の表を除いた SQL にして、R2 の d1/<環境>/<日本時間の日付>.sql に置く。
 // 資格情報（CLOUDFLARE_API_TOKEN・CLOUDFLARE_ACCOUNT_ID）は環境変数で渡す（引数にしない）。失敗したら終了コード1
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { runBackup } from '../src/lib/backup/batch';
+import { runBackup, versionAtLeast, WRANGLER_MIN } from '../src/lib/backup/batch';
 
 const { values } = parseArgs({
 	options: { env: { type: 'string' }, bucket: { type: 'string' }, database: { type: 'string', default: 'DB' }, 'work-dir': { type: 'string' } }
@@ -25,6 +25,19 @@ function wrangler(args: string[]): Promise<void> {
 		child.on('error', reject);
 		child.on('exit', (code, signal) => (code === 0 ? resolve() : reject(new Error(`wrangler ${args.slice(0, 3).join(' ')} が ${code ?? signal} で終わりました`))));
 	});
+}
+
+// 書き出しの --compatibility sqlite3_cli_only は wrangler 4.162.0 から。古ければ書き出す前に止める
+const wranglerVersion = (() => {
+	try {
+		return execFileSync('wrangler', ['--version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+	} catch {
+		return '';
+	}
+})();
+if (!versionAtLeast(wranglerVersion, WRANGLER_MIN)) {
+	console.error(`wrangler を ${WRANGLER_MIN} 以上に上げてください（docs/backup.md）。いまの版：${wranglerVersion || '読めませんでした'}`);
+	process.exit(1);
 }
 
 const workDir = mkdtempSync(join(values['work-dir'] ?? tmpdir(), 'osrippo-backup-'));

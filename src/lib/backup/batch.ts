@@ -32,8 +32,21 @@ export type BackupResult = { key: string; bytes: number; tables: BackupTable[]; 
 
 const NAME = /^[a-z0-9][a-z0-9-]{1,62}$/;
 
+/** 書き出しの --compatibility sqlite3_cli_only が使える wrangler の版 */
+export const WRANGLER_MIN = '4.162.0';
+
+/** 版（"4.162.0" や "wrangler 4.162.0" の中の x.y.z）が min 以上か。版が読めなければ false */
+export function versionAtLeast(version: string, min: string): boolean {
+	const parse = (s: string) => /(\d+)\.(\d+)\.(\d+)/.exec(s)?.slice(1).map(Number);
+	const v = parse(version);
+	const m = parse(min);
+	if (!v || !m) return false;
+	for (let i = 0; i < 3; i++) if (v[i] !== m[i]) return v[i] > m[i];
+	return true;
+}
+
 /** ファイルを少しずつ文字列で読む（大きな書き出しを一度に文字列にしない。UTF-8 の文字の途中で切らない） */
-function* readChunks(path: string, size = 4 * 1024 * 1024): Generator<string> {
+export function* readChunks(path: string, size = 4 * 1024 * 1024): Generator<string> {
 	const fd = openSync(path, 'r');
 	try {
 		const buf = Buffer.alloc(size);

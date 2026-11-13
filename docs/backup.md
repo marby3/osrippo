@@ -32,7 +32,14 @@ D1 のバックアップの手順です（Issue #202。決めたことは #190 �
 
 ### wrangler を上げる
 
-書き出しの `--compatibility sqlite3_cli_only` は wrangler 4.162.0 からです。このリポジトリの wrangler がそれより古いと、`Unknown arguments: compatibility` で止まります（`npx wrangler --version` で確かめる）。
+書き出しの `--compatibility sqlite3_cli_only` は wrangler 4.162.0 からです。`pnpm backup` は書き出しの前に wrangler の版を確かめ、それより古ければ「wrangler を 4.162.0 以上に上げてください」と出して終了コード1で止まります（`npx wrangler --version` で確かめる）。
+
+2026-11-14 の時点で、このリポジトリの wrangler は 4.156.0 です。4.162.0 は公開から日が浅く、pnpm は公開から日の浅い版を入れない決まりなので、まだ上げていません。その期間が過ぎてから、手作業で上げます（`pnpm add -D wrangler@^4.162.0`。pnpm-workspace.yaml に除外の設定が足されていないことを確かめる）。
+
+上げたあとで、次の2つを手作業で行います。
+
+1. 本物の書き出し（`--compatibility sqlite3_cli_only`）の形で、変換が通ることを確かめる。この形は `--remote` でしか使えないため、テストでは sqlite3 の `.dump` と同じ形を手元で作って確かめています。ステージングで「2. 一度、手で流す」を行い、「書き出しに知らない文があります」で止まらないことを見る
+2. ステージングで復元試験を1回行う（B の手順。結果は「復元試験の結果」に書く）
 
 ### R2 のバケットを作る
 
@@ -162,6 +169,7 @@ D1 は、書き込みの履歴から過去の時点に戻せます（全文検�
 
    ```sh
    pnpm restore:index --from restore.sql --output index.sql
+   # 一時フォルダ（/tmp）に SQLite のファイルを作って流し、終わったら消す。/tmp が小さいときは --work-dir <フォルダ>
    npx wrangler d1 execute DB --remote -c ~/restore.jsonc --file index.sql
    ```
 
@@ -187,7 +195,7 @@ D1 は、書き込みの履歴から過去の時点に戻せます（全文検�
 
 ## 復元試験の結果
 
-ステージングで1回、B の手順で戻して確かめ、ここに書きます（R2 のバケットができてから）。
+ステージングで1回、B の手順で戻して確かめ、ここに書きます。wrangler を 4.162.0 以上に上げ、R2 のバケットを作ってからの手作業です（「wrangler を上げる」）。
 
 **未実施**
 
@@ -207,7 +215,7 @@ D1 は、書き込みの履歴から過去の時点に戻せます（全文検�
 
 ## 困ったとき
 
-- **`Unknown arguments: compatibility`**：wrangler が 4.162.0 より古い（「wrangler を上げる」）
+- **「wrangler を 4.162.0 以上に上げてください」と出る**：wrangler が古い（「wrangler を上げる」）
 - **315MB を超えたと出る**：R2 に `wrangler r2 object put` で置ける上限を超えた。分けて置く形にする（その時点で相談する）
 - **書き出しに知らない文があると出る**：D1 の書き出しの形が変わった。出た文の頭を Issue に貼って相談する
 - **手順6で外部キーの失敗**：戻す先が新しい D1 でない（行が入っている）か、マイグレーションが合っていない。D1 を消して作り直し、3 からやり直す
