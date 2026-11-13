@@ -12,8 +12,10 @@ import { createIssue, type Actor } from '../server/issues';
 import { syncLaw } from '../server/law-sync';
 import { setStance } from '../server/posts';
 import { syncReadable } from '../server/readable-sync';
+import { indexTexts } from '../server/search';
 import { rebuildSearchIndex, writeIndexSql } from '../server/search-index';
-import { createSolution } from '../server/solutions';
+import { solutionSearchSources } from '../domain/search';
+import type { Db } from '../server/law';
 import { openMemoryDb } from './memory';
 import { seedStatements } from './seed';
 
@@ -104,6 +106,16 @@ function addUser(sqlite: DatabaseSync, registeredAt = T0 - 2 * DAY): Actor {
 	return { userId: id, registeredAt, ipHash: `ip-${id}` };
 }
 
+/**
+ * 解決策。createSolution は db.all の RETURNING を読むので、行を配列で返すメモリの DB では番号が取れない（law-backlinks.test.ts と同じ）。
+ * ここでは createSolution と同じく、行を入れたあとに indexTexts で索引を書く
+ */
+async function createSolution(db: Db, sqlite: DatabaseSync, actor: Actor, issueId: number, body: string, at: number) {
+	const id = Number(sqlite.prepare('INSERT INTO solutions (issue_id, user_id, body, created_at) VALUES (?, ?, ?, ?)').run(issueId, actor.userId, body, at).lastInsertRowid);
+	await indexTexts(db, 'solution', id, solutionSearchSources({ body }));
+	return id;
+}
+
 function addBill(sqlite: DatabaseSync, author: string) {
 	return Number(
 		sqlite
@@ -138,7 +150,7 @@ test('基準1：書き出しから全文検索の表を除いた SQL を日付�
 	const author = addUser(sqlite);
 	const created = await createIssue(db, author, { title: '解約の\n電話がつながらない', affected: "高齢者の'家族'", example: '具体例', topicId: 1 }, T0);
 	if (!created.ok) throw new Error('課題を作れない');
-	await createSolution(db, addUser(sqlite), created.id, '窓口を\r\n増やす', T0 + 1000);
+	await createSolution(db, sqlite, addUser(sqlite), created.id, '窓口を\r\n増やす', T0 + 1000);
 	const bill = addBill(sqlite, author.userId);
 	const session = sessionAt(Date.parse('2046-05-10T00:00:00+09:00'), null);
 	await setStance(db, author, { id: bill }, session, 'for', T0 + 2000);
@@ -148,7 +160,7 @@ test('基準1：書き出しから全文検索の表を除いた SQL を日付�
 	sqlite.exec("INSERT INTO readable_search (rowid, text) VALUES (7, '基本原則')");
 	sqlite.exec("UPDATE topics SET name = '消費者保護（改）' WHERE id = 1");
 	// 消した行のぶん、番号の続き（sqlite_sequence）が行の最大より大きい
-	sqlite.exec('DELETE FROM actions WHERE id = (SELECT max(id) FROM actions)');
+	sqlite.exec("UPDATE sqlite_sequence SET seq = 50 WHERE name = 'bills'");
 	likeD1(sqlite);
 	expect(all(sqlite, 'SELECT count(*) AS n FROM search_trigram')[0].n).toBeGreaterThan(0);
 
@@ -168,7 +180,7 @@ test('基準1：書き出しから全文検索の表を除いた SQL を日付�
 	// マイグレーションを当てた新しい DB に流すと、どの表も元どおり（rowid も、マイグレーションが入れた行の書き換えも）
 	const target = restore(result.sql);
 	for (const name of expected) expect(contents(target.sqlite, name), name).toEqual(contents(sqlite, name));
-	const sequence = (s: DatabaseSync) => contents(s, 'sqlite_sequence').filter((r) => !r.includes('d1_migrations'));
+	const sequence = (s: DatabaseSync) => all(s, "SELECT name, seq FROM sqlite_sequence WHERE name <> 'd1_migrations' ORDER BY name");
 	expect(sequence(target.sqlite)).toEqual(sequence(sqlite));
 	// トリガーも元どおり
 	const triggers = (s: DatabaseSync) => all(s, "SELECT name, sql FROM sqlite_schema WHERE type = 'trigger' ORDER BY name");
@@ -225,15 +237,15 @@ test('基準2：全文検索の索引を、戻したほかの表から作り直�
 	// 読める法律
 	const readable = await syncReadable(db, egov, async () => undefined);
 	expect(readable.failed).toEqual([]);
-	// 課題と解決策の投稿（非表示にした課題の行も索引に残る）
+	// 課題と解決策の投稿（自動で隠れた課題の行も索引に残る）
 	const a = addUser(sqlite);
 	const b = addUser(sqlite);
 	const first = await createIssue(db, a, { title: '定期購入の解約', affected: '通販で買う人', example: '一度だけのつもりが毎月届いた', topicId: 1 }, T0);
 	const second = await createIssue(db, b, { title: 'SNS の広告', affected: '若い人', example: '!!!', topicId: 1 }, T0 + 1000);
 	if (!first.ok || !second.ok) throw new Error('課題を作れない');
-	await createSolution(db, b, first.id, '解約の手続きを、申し込みと同じ画面でできるようにする', T0 + 2000);
-	await createSolution(db, a, first.id, '確認画面に回数を大きく出す', T0 + 3000);
-	sqlite.prepare("UPDATE issues SET status = 'hidden' WHERE id = ?").run(second.id);
+	await createSolution(db, sqlite, b, first.id, '解約の手続きを、申し込みと同じ画面でできるようにする', T0 + 2000);
+	await createSolution(db, sqlite, a, first.id, '確認画面に回数を大きく出す', T0 + 3000);
+	sqlite.prepare("UPDATE issues SET status = 'auto_hidden', status_actor = 'auto', status_reason = 'reports', status_changed_at = ? WHERE id = ?").run(T0 + 4000, second.id);
 
 	const before = searchIndex(sqlite);
 	expect(before.trigram.filter((r) => r.kind === 'provision').length).toBeGreaterThan(100);

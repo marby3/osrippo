@@ -19,6 +19,15 @@ export function searchTexts(source: string): { trigram: string; bigram: string }
 	return { trigram: normalized, bigram: bigrams(normalized).join(' ') };
 }
 
+/** 条・項・号の索引の元の文（設計書 docs/spec/38.md「行の作り方」）：条は見出し、項・号は本文 */
+export const provisionSearchSource = (v: { caption?: string | null; text?: string | null }) => v.caption ?? v.text ?? '';
+
+/** 課題の索引の元の文：題名・困っている人・具体例を別の行に */
+export const issueSearchSources = (i: { title: string; affected: string; example: string }) => [i.title, i.affected, i.example];
+
+/** 解決策の索引の元の文 */
+export const solutionSearchSources = (s: { body: string }) => [s.body];
+
 /**
  * 読める法律の索引（readable_search）の text：条の見出しと本文（項と号）を、trigram の側と同じ規則でそろえた文字列（設計書 docs/spec/162.md「表」）。
  * 同じ条から必ず同じ文字列になるので、消すときの 'delete' の命令に同じものを渡せる

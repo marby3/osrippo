@@ -1,6 +1,6 @@
 // e-Gov のデータ（今はテストデータ）から、法令と版の DB に入れる SQL を作る（設計書 docs/spec/8.md）
 import { BASELINE_DATE, buildHistory, parseHeadings, parseLaw, type EgovNode } from '../domain/law';
-import { searchTexts } from '../domain/search';
+import { provisionSearchSource, searchTexts } from '../domain/search';
 import { revisionStatus, type EgovRevision } from '../egov/revision';
 
 /** 対象3法：景品表示法、特定商取引法、消費者契約法（法令ID順） */
@@ -100,7 +100,7 @@ export function seedStatements(lawIds: string[], load: (name: string) => unknown
 		for (const p of history.provisions) provisions.rows.push([p.id, lawId, p.kind, p.parentId]);
 		for (const v of history.versions) {
 			const versionId = nextVersionId++;
-			const search = searchTexts(v.caption ?? v.text ?? '');
+			const search = searchTexts(provisionSearchSource(v));
 			if (search) {
 				trigram.rows.push(['provision', versionId, search.trigram]);
 				bigram.rows.push(['provision', versionId, search.bigram]);
