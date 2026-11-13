@@ -1,0 +1,10 @@
+[
+	{ "name": "home", "path": "/" },
+	{ "name": "kadai", "path": "/kadai" },
+	{ "name": "hourei-joubun", "path": "/hourei/412AC0000000061" },
+	{ "name": "hourei-hikaku", "path": "/hourei/351AC0000000057/hikaku" },
+	{ "name": "toukei", "path": "/toukei" },
+	{ "name": "kensaku", "path": "/kensaku?q=%E8%A7%A3%E7%B4%84" },
+	{ "name": "hourei-ichiran", "path": "/hourei", "weight": 0.5 },
+	{ "name": "hourei-ichiran-q", "path": "/hourei?q=%E6%B6%88%E8%B2%BB%E8%80%85", "weight": 0.5 }
+]

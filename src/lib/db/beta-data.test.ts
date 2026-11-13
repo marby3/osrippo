@@ -6,9 +6,7 @@ import { openMemoryDb } from './memory';
 import { seedStatements, TARGET_LAWS } from './seed';
 import { BETA_COUNT_SQL, BETA_DELETE_STATEMENTS, betaData } from './beta-data';
 import { sessionAt } from '../domain/session';
-import { parseQuery } from '../domain/search';
 import { tallyVotes } from '../server/votes';
-import { searchIssues } from '../server/search';
 
 const root = new URL('../../../', import.meta.url);
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`tests/fixtures/egov/${name}.json`, root), 'utf8'));
@@ -72,10 +70,11 @@ test('基準2：β の規模のデータを作り、件数を確かめられる�
 			expect(r.outcome).toBe('rejected');
 		}
 
-		// 課題は全文検索で見つかる（負荷試験の検索の言葉）
-		const words = parseQuery('解約');
-		if (!words.ok) throw new Error('検索の言葉');
-		expect((await searchIssues(db, words.words, 20)).total).toBeGreaterThan(0);
+		// 課題と解決策は全文検索で見つかる（負荷試験の検索の言葉。2文字は bigram の表を引く。src/lib/server/search.ts）
+		for (const kind of ['issue', 'solution']) {
+			const found = sqlite.prepare(`SELECT count(DISTINCT ref_id) AS n FROM search_bigram WHERE kind = ? AND search_bigram MATCH '"解約"'`).get(kind) as { n: number };
+			expect(found.n).toBeGreaterThan(0);
+		}
 
 		for (const sql of BETA_DELETE_STATEMENTS) sqlite.exec(sql);
 		const left = sqlite.prepare(BETA_COUNT_SQL).get() as Record<string, number>;

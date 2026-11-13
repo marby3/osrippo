@@ -7,12 +7,15 @@ import { revisionStatus, type EgovRevision } from '../egov/revision';
 export const TARGET_LAWS = ['337AC0000000134', '351AC0000000057', '412AC0000000061'];
 
 export type Value = string | number | null;
-export type Table = { name: string; columns: string[]; rows: Value[][] };
+/** 値の代わりに書く SQL の式（行の番号を副問い合わせで引くとき。負荷試験のデータ、src/lib/db/beta-data.ts） */
+export type Raw = { sql: string };
+export type Table = { name: string; columns: string[]; rows: (Value | Raw)[][] };
 
 const MAX_ROWS = 100;
 const MAX_BYTES = 100_000;
 
-const literal = (v: Value) => (v === null ? 'NULL' : typeof v === 'number' ? String(v) : `'${v.replaceAll("'", "''")}'`);
+export const literal = (v: Value | Raw) =>
+	v === null ? 'NULL' : typeof v === 'number' ? String(v) : typeof v === 'string' ? `'${v.replaceAll("'", "''")}'` : `(${v.sql})`;
 
 /** D1 が受け付ける形にする：トランザクション文なし、1文 100 行まで・100KB 未満 */
 export function inserts({ name, columns, rows }: Table): string[] {
