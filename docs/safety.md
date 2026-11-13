@@ -16,7 +16,7 @@ Issue #190 の決めたこと8のうち、コードでやるものを確かめ�
 
 | 操作 | 送信先 | Turnstile | レート制限 | テスト |
 | --- | --- | --- | --- | --- |
-| 登録（ログイン） | `/login?/google`・`?/line` | あり | なし（下の「残っていること」） | `kadai.spec.ts` |
+| 登録（ログイン） | `/login?/google`・`?/line` | あり | なし（下の「残っていること」）。β のあいだは、新規登録に使っていない招待コードが要る（1つのコードで1人。運営が `/kanri` で作る。Issue #199） | `kadai.spec.ts`、`shotai.spec.ts`、`src/lib/db/invites.test.ts` |
 | 課題 | `/kadai/kaku` | あり | `post-account`・`post-new`・`post-ip` | `kadai.spec.ts`、`kaiki.spec.ts` |
 | 解決策 | `/kadai/[id]/kaiketsu/kaku` | あり | `solution-account`・`solution-new`・`solution-ip` | `kaiketsu.spec.ts` |
 | 法案の下書きを作る | `/houan/kaku` | あり | `bill-draft-account`・`bill-draft-ip` | `houan.spec.ts` |
@@ -57,5 +57,5 @@ Issue #190 の決めたこと8のうち、コードでやるものを確かめ�
 
 ## 残っていること
 
-- **ログインのレート制限**：いまは国の確認と Turnstile だけです。β では招待コード（#190 の実装 Issue 3）で登録を絞ります。一般公開（v0.7）の前に、Cloudflare の WAF で回線ごとの上限をかけるかを決めます。
+- **ログインのレート制限**：いまは国の確認と Turnstile だけです。β では招待コード（#199）で新規登録を絞っています。一般公開（v0.7）の前に、Cloudflare の WAF で回線ごとの上限をかけるかを決めます。
 - **上限を確かめるテストがないもの**：出し直しと統合案を作るときの `bill-draft-*`。下書きを作るときの `bill-draft-*` は `houan.spec.ts` で確かめていて、同じ判定を使います。

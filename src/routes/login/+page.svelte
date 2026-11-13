@@ -7,6 +7,8 @@
 
 	let { data, form }: PageProps = $props();
 	let token = $state('');
+	/** 招待コードの欄の形が違ったとき（理由は欄の下に出す） */
+	const inviteError = $derived(form && 'invite' in form ? form.message : null);
 </script>
 
 <svelte:head>
@@ -16,12 +18,27 @@
 <main>
 	<h1>{ja.login.heading}</h1>
 	<p>{ja.login.lead}</p>
-	{#if data.failed}<p role="alert">{ja.login.failed}</p>{/if}
-	{#if form?.message}<p role="alert">{form.message}</p>{/if}
+	{#if data.failed}<p role="alert">{data.failed === 'invite' ? ja.login.inviteRefused : ja.login.failed}</p>{/if}
+	{#if form?.message && !inviteError}<p role="alert">{form.message}</p>{/if}
 	<p>{ja.login.newcomer}</p>
 	<!-- 並びは上から 説明文 → はじめての方への説明 → ボタン → 確認の枠（Issue #159）。見た目と読み上げの順をそろえる -->
 	<form method="post">
 		<input type="hidden" name="next" value={data.next} />
+		<!-- 招待コード（Issue #199）。すでにアカウントのある人は空のままでよい -->
+		<div class="invite">
+			<label for="invite">{ja.login.inviteLabel}</label>
+			<p id="invite-help" class="help">{ja.login.inviteHelp}</p>
+			<input
+				id="invite"
+				name="invite"
+				autocomplete="off"
+				autocapitalize="characters"
+				spellcheck="false"
+				aria-describedby={inviteError ? 'invite-help invite-error' : 'invite-help'}
+				aria-invalid={inviteError ? 'true' : undefined}
+			/>
+			{#if inviteError}<p id="invite-error" role="alert">{inviteError}</p>{/if}
+		</div>
 		<button formaction="?/google" disabled={!token}><img class="logo" src={googleLogo} alt="" aria-hidden="true" /><span>{ja.login.google}</span></button>
 		<button formaction="?/line" disabled={!token}><img class="logo" src={lineLogo} alt="" aria-hidden="true" /><span>{ja.login.line}</span></button>
 		<Turnstile siteKey={data.siteKey} size="flexible" bind:token />
@@ -42,6 +59,34 @@
 	form {
 		display: grid;
 		gap: 0.75rem;
+	}
+
+	.invite {
+		display: grid;
+		gap: 0.25rem;
+	}
+
+	.invite label {
+		font-weight: bold;
+	}
+
+	.help {
+		margin: 0;
+		font-size: var(--font-size-sub);
+		color: var(--color-text-sub);
+	}
+
+	.invite input {
+		min-height: var(--tap-min);
+		padding: 0.5rem 0.75rem;
+		border: 1px solid var(--color-input-border);
+		border-radius: var(--radius-m);
+		font: inherit;
+	}
+
+	.invite [role='alert'] {
+		margin: 0;
+		color: var(--color-caution);
 	}
 
 	button:disabled {
