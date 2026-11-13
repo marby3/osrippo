@@ -147,7 +147,8 @@ test('基準3：提出者と賛同者が答弁でき、役割だけが出て「�
 	await a.page.getByLabel('答弁の内容').fill(answer);
 	await posted(a.page, () => a.page.getByRole('button', { name: '送る' }).click());
 	await expect(card(a.page, text).getByText('答弁待ち')).toHaveCount(0);
-	await expect(card(a.page, text).getByText('答弁（提出者）')).toBeAttached();
+	// 役は見出しのタグで出す（Issue #169）。スマホでは閉じているので、隠れたものも探す
+	await expect(card(a.page, text).getByRole('heading', { name: '提出者の答弁', exact: true, includeHidden: true })).toBeAttached();
 
 	// 採決の締切まで、賛同者も答弁できる（複数の答弁）
 	await b.setNow(at(month, 22));
@@ -155,7 +156,7 @@ test('基準3：提出者と賛同者が答弁でき、役割だけが出て「�
 	const res = await answerRequest(b.page, bill, id, answer2);
 	expect(res.status(), await res.text()).toBe(200);
 	await b.page.goto(qa(bill));
-	await expect(card(b.page, text).getByText('答弁（賛同者）')).toBeAttached();
+	await expect(card(b.page, text).getByRole('heading', { name: '賛同者の答弁', exact: true, includeHidden: true })).toBeAttached();
 
 	// 自分の質疑には答弁できない。自分の質疑にはどちらのボタンも出ない
 	await b.setNow(at(month, 15));
@@ -328,7 +329,7 @@ test('基準7：答弁はスマホでは開くと出て、PC は最初から出�
 	const v = q.page;
 	await v.goto(qa(bill));
 	await hydrated(v);
-	const open = card(v, text).getByRole('button', { name: '答弁を読む（提出者）' });
+	const open = card(v, text).getByRole('button', { name: '提出者の答弁を読む' });
 	if (w === 'sp') {
 		await expect(card(v, text).getByText(answer)).toBeHidden();
 		await expect(open).toHaveAttribute('aria-expanded', 'false');

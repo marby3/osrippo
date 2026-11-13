@@ -369,9 +369,22 @@ export const ja = {
 		send: '送る',
 		back: '質疑の一覧に戻る',
 		roles: { author: '提出者', cosponsor: '共同提出者', supporter: '賛同者' },
-		answerHeading: (role: string) => `答弁（${role}）`,
-		supplementHeading: '補足',
-		readAnswer: (role: string) => `答弁を読む（${role}）`,
+		/**
+		 * 発言の役のタグ（Issue #169）。見出しは「提出者の答弁」「消費者保護委員会 委員長（2027年5月の会期）の質疑」のように本文の前に読む。
+		 * 太字にするのは役の名前だけ。有識者・議員は認証バッジが印なので、ここには入れない
+		 */
+		tags: {
+			asker: '質問者',
+			/** committee は委員会の表の名前（「消費者保護」） */
+			chair: (committee: string, role: 'chair' | 'director') => `${committee}委員会 ${role === 'chair' ? '委員長' : '理事'}`,
+			/** "2027-05" → "（2027年5月の会期）"（開発用の短い会期の番号は、そのまま） */
+			term: (key: string) => `（${/^\d{4}-\d{2}$/.test(key) ? `${jaMonth(key)}の会期` : key}）`,
+			separator: '・',
+			of: (kind: keyof typeof POST_KINDS) => `の${POST_KINDS[kind]}`,
+			/** タグも名前もない発言 */
+			plain: (kind: keyof typeof POST_KINDS) => POST_KINDS[kind]
+		},
+		readAnswer: (role: string) => `${role}の答弁を読む`,
 		readAnswers: (n: number) => `答弁を読む（${n}件）`,
 		tooNew: (at: number) => `登録から7日たつと、質疑や答弁を書いたり、評価したりできます。${jaDateTime(at)}からできます。`,
 		closed: 'いまは書けない時期です。',
