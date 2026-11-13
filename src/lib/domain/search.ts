@@ -19,6 +19,13 @@ export function searchTexts(source: string): { trigram: string; bigram: string }
 	return { trigram: normalized, bigram: bigrams(normalized).join(' ') };
 }
 
+/**
+ * 読める法律の索引（readable_search）の text：条の見出しと本文（項と号）を、trigram の側と同じ規則でそろえた文字列（設計書 docs/spec/162.md「表」）。
+ * 同じ条から必ず同じ文字列になるので、消すときの 'delete' の命令に同じものを渡せる
+ */
+export const readableSearchText = (caption: string, paragraphs: { text: string; items: { text: string }[] }[]) =>
+	normalizeText([caption, ...paragraphs.flatMap((p) => [p.text, ...p.items.map((i) => i.text)])].join(''));
+
 export const QUERY_MAX = 60;
 export const WORDS_MAX = 5;
 

@@ -9,11 +9,25 @@ const TIMEOUT = 30_000;
 /** URL を受けて JSON を返す。本物は fetchEgovJson、テストはテストデータ */
 export type FetchJson = (url: string) => Promise<unknown>;
 
+/** e-Gov が成功以外の状態で応えた */
+export class EgovStatusError extends Error {
+	constructor(
+		readonly status: number,
+		url: string
+	) {
+		super(`e-Gov の応答が ${status} でした：${url}`);
+	}
+}
+
 export const fetchEgovJson: FetchJson = async (url) => {
 	const response = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT), headers: { accept: 'application/json' } });
-	if (!response.ok) throw new Error(`e-Gov の応答が ${response.status} でした：${url}`);
+	if (!response.ok) throw new EgovStatusError(response.status, url);
 	return response.json();
 };
+
+/** やり直してよい失敗：429・5xx・タイムアウト（設計書 docs/spec/162.md 決めたこと3の8） */
+export const isRetryable = (e: unknown) =>
+	(e instanceof EgovStatusError && (e.status === 429 || e.status >= 500)) || (e instanceof Error && e.name === 'TimeoutError');
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 const isTextOrNull = (v: unknown) => v === null || v === undefined || typeof v === 'string';
@@ -54,15 +68,108 @@ export function checkRevision(row: ListedRevision): EgovRevision {
 	};
 }
 
-/** 版の本文を読み、条と見出しに分ける。別の版の本文、根が違う本文、条のない本文は断る（全部の条を閉じてしまわないように） */
-export async function readLawText(fetchJson: FetchJson, revisionId: string) {
+/** 版の本文を読み、条と見出しに分ける。別の版の本文、根が違う本文は断る。本則の条がなければ条は空 */
+export async function readLawBody(fetchJson: FetchJson, revisionId: string) {
 	const body = await fetchJson(`${API}/law_data/${encodeURIComponent(revisionId)}`);
 	const wrong = (what: string) => new Error(`${revisionId}：${what}`);
 	if (!isObject(body)) throw wrong('本文の形が違います');
 	if (!isObject(body.revision_info) || body.revision_info.law_revision_id !== revisionId) throw wrong('別の版の本文が返りました');
 	if (!isObject(body.law_full_text) || body.law_full_text.tag !== 'Law') throw wrong('本文の形が違います');
 	const text = body.law_full_text as EgovNode;
-	const articles = parseLaw(text);
-	if (!articles.length) throw wrong('本文に条がありません');
-	return { articles, headings: parseHeadings(text) };
+	return { articles: parseLaw(text), headings: parseHeadings(text) };
+}
+
+/** 版の本文を読み、条と見出しに分ける。readLawBody に加えて、条のない本文も断る（全部の条を閉じてしまわないように） */
+export async function readLawText(fetchJson: FetchJson, revisionId: string) {
+	const body = await readLawBody(fetchJson, revisionId);
+	if (!body.articles.length) throw new Error(`${revisionId}：本文に条がありません`);
+	return body;
+}
+
+/** 法令の一覧の1行（設計書 docs/spec/162.md 決めたこと2）。使う値だけ */
+export type ListedLaw = {
+	lawId: string;
+	lawNum: string;
+	lawType: 'Act' | 'Constitution';
+	promulgationDate: string;
+	revisionId: string;
+	title: string;
+	titleKana: string | null;
+	abbrevs: string[];
+	category: string | null;
+	updated: string;
+	/** 改正法の施行日。改正法がない（制定から改正なし）か、日付が null なら null */
+	lastAmended: string | null;
+	currentRevisionStatus: string;
+};
+
+const LIST_LIMIT = 500;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const isText = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+/** 文字列か null。e-Gov が欄を省いたとき（undefined）も null と同じに扱う */
+const isNullableText = (v: unknown): v is string | null | undefined => v === null || v === undefined || typeof v === 'string';
+
+/** 一覧の1行の形を確かめる。違えば理由を返す */
+function checkListedLaw(row: unknown, expected: ListedLaw['lawType']): ListedLaw | string {
+	if (!isObject(row) || !isObject(row.law_info) || !isObject(row.revision_info)) return '行の形が違います';
+	const law = row.law_info;
+	const rev = row.revision_info;
+	const id = isText(law.law_id) ? law.law_id : '（law_id なし）';
+	const wrong = (what: string) => `${id}：${what}`;
+	if (!isText(law.law_id)) return wrong('law_id の形が違います');
+	if (!isText(law.law_num)) return wrong('law_num の形が違います');
+	// 法律の効力を持つ政令や勅令は「Act,CabinetOrder」のようにカンマでつないで返る。読んだ種類を含んでいれば、その種類として扱う
+	if (typeof law.law_type !== 'string' || !law.law_type.split(',').includes(expected)) return wrong('law_type の形が違います');
+	if (typeof law.promulgation_date !== 'string' || !DATE.test(law.promulgation_date)) return wrong('promulgation_date の形が違います');
+	for (const key of ['law_revision_id', 'law_title', 'updated', 'current_revision_status']) {
+		if (!isText(rev[key])) return wrong(`${key} の形が違います`);
+	}
+	for (const key of ['law_title_kana', 'category', 'abbrev', 'amendment_law_id', 'amendment_enforcement_date']) {
+		if (!isNullableText(rev[key])) return wrong(`${key} の形が違います`);
+	}
+	const enforced = (rev.amendment_enforcement_date as string | null | undefined) ?? null;
+	if (enforced !== null && !DATE.test(enforced)) return wrong('amendment_enforcement_date の形が違います');
+	const abbrev = (rev.abbrev as string | null | undefined) ?? null;
+	return {
+		lawId: law.law_id,
+		lawNum: law.law_num,
+		lawType: expected,
+		promulgationDate: law.promulgation_date,
+		revisionId: rev.law_revision_id as string,
+		title: rev.law_title as string,
+		titleKana: (rev.law_title_kana as string | null | undefined) ?? null,
+		abbrevs: (abbrev ?? '')
+			.split(',')
+			.map((a) => a.trim())
+			.filter(Boolean),
+		category: (rev.category as string | null | undefined) ?? null,
+		updated: rev.updated as string,
+		lastAmended: rev.amendment_law_id ? enforced : null,
+		currentRevisionStatus: rev.current_revision_status as string
+	};
+}
+
+/**
+ * 法令の一覧を全部読む（設計書 docs/spec/162.md 決めたこと1・2）。法律は廃止されていないものだけ、憲法は全件。
+ * offset を count ずつ進め、total_count に届いたら終わる。1行でも形が違えば一覧全体を断る
+ */
+export async function readLawList(fetchJson: FetchJson, lawType: ListedLaw['lawType']): Promise<ListedLaw[]> {
+	const laws: ListedLaw[] = [];
+	const filter = lawType === 'Act' ? 'law_type=Act&repeal_status=None' : 'law_type=Constitution';
+	for (let offset = 0; ; ) {
+		const body = await fetchJson(`${API}/laws?${filter}&limit=${LIST_LIMIT}&offset=${offset}`);
+		const wrong = (what: string) => new Error(`${lawType} の一覧（offset ${offset}）：${what}`);
+		if (!isObject(body) || !Array.isArray(body.laws) || !Number.isInteger(body.total_count) || !Number.isInteger(body.count)) throw wrong('一覧の形が違います');
+		const total = body.total_count as number;
+		const count = body.count as number;
+		if (count !== body.laws.length) throw wrong('count と行の数が違います');
+		if (offset < total && count === 0) throw wrong('行がありません');
+		for (const row of body.laws) {
+			const law = checkListedLaw(row, lawType);
+			if (typeof law === 'string') throw wrong(law);
+			laws.push(law);
+		}
+		offset += count;
+		if (offset >= total) return laws;
+	}
 }

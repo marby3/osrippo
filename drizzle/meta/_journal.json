@@ -232,6 +232,13 @@
       "when": 1794484677409,
       "tag": "0032_stance_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1794571154091,
+      "tag": "0033_readable_laws",
+      "breakpoints": true
     }
   ]
 }

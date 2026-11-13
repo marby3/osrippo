@@ -8,6 +8,7 @@
 	import LawTitle from '#lib/components/LawTitle.svelte';
 	import LawSwitch from '#lib/components/LawSwitch.svelte';
 	import LawToc from '#lib/components/LawToc.svelte';
+	import ReadableLaw from './ReadableLaw.svelte';
 	import { changedLines, type DiffPart } from '#lib/domain/law/compare.ts';
 	import type { PageProps } from './$types';
 
@@ -90,6 +91,10 @@
 	<title>{ja.law.pageTitle(data.law.title)}</title>
 </svelte:head>
 
+<!-- 読める法律は最新の版だけのページ（Issue #162） -->
+{#if data.kind === 'readable'}
+<ReadableLaw {data} />
+{:else}
 <main class="frame">
 	<Crumbs current={data.law.title} />
 	<!-- 切り替えは、スマホは法令名の上、PC は法令名の行の右（SpLaw・PcLaw、Issue #124） -->
@@ -172,6 +177,7 @@
 		{/if}
 	</section>
 </main>
+{/if}
 
 <style>
 	.title-row {
