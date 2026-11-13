@@ -191,7 +191,8 @@ export async function searchLawArticles(db: Db, words: Word[]) {
 			.innerJoin(readableLaws, eq(readableLaws.id, readableArticles.lawId))
 			.where(
 				and(
-					sql`${readableArticles.id} IN (SELECT rowid FROM readable_search WHERE readable_search MATCH ${match})`,
+					// FTS5 は rowid の順に返すので、LIMIT を内側に置くと当たった条を全部は読まずに止まる。外の条件で落ちる行のぶん、余裕をとる
+					sql`${readableArticles.id} IN (SELECT rowid FROM readable_search WHERE readable_search MATCH ${match} ORDER BY rowid LIMIT ${(room + 1) * 4})`,
 					// 遊べる法律の条は、版のある表から上で引いた。読める法律の表に行が残っていても引かない
 					sql`${readableArticles.lawId} NOT IN (SELECT id FROM laws)`,
 					isNotNull(readableLaws.syncedUpdated),

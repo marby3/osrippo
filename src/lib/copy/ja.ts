@@ -108,7 +108,7 @@ export const ja = {
 		range: (from: number, to: number) => `${from}〜${to}件目`,
 		prevPage: '前の50件',
 		nextPage: '次の50件',
-		empty: 'この分野の法律はまだありません',
+		empty: '当てはまる法律はまだありません',
 		none: '見つかりませんでした',
 		noneByName: '法令名・読み・略称・番号では見つかりませんでした',
 		articlesHeading: '条文から',
