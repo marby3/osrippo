@@ -37,11 +37,11 @@ async function createInvites(op: Page, count: number): Promise<string[]> {
 	return codes;
 }
 
-/** ログインのフォームと同じ POST（提供元へは行かない。リダイレクトを追わない） */
+/** ログインのフォームと同じ POST（提供元へは行かない。リダイレクトを追わない）。β版のお約束には同意する（Issue #200。同意のないときは e2e/yakusoku.spec.ts） */
 async function loginPost(page: Page, invite?: string): Promise<APIResponse> {
 	await page.goto('/login');
 	return page.request.post('/login?/google', {
-		form: { next: '/', 'cf-turnstile-response': 'test-pass', ...(invite === undefined ? {} : { invite }) },
+		form: { next: '/', 'cf-turnstile-response': 'test-pass', agree: 'beta-1', ...(invite === undefined ? {} : { invite }) },
 		headers: { origin: ORIGIN, accept: 'text/html' },
 		maxRedirects: 0
 	});
