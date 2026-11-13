@@ -103,14 +103,13 @@ export type ListedLaw = {
 	currentRevisionStatus: string;
 };
 
-const LAW_TYPES = ['Act', 'Constitution'] as const;
 const LIST_LIMIT = 500;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const isText = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
 const isNullableText = (v: unknown): v is string | null => v === null || typeof v === 'string';
 
 /** 一覧の1行の形を確かめる。違えば理由を返す */
-function checkListedLaw(row: unknown): ListedLaw | string {
+function checkListedLaw(row: unknown, expected: ListedLaw['lawType']): ListedLaw | string {
 	if (!isObject(row) || !isObject(row.law_info) || !isObject(row.revision_info)) return '行の形が違います';
 	const law = row.law_info;
 	const rev = row.revision_info;
@@ -118,7 +117,8 @@ function checkListedLaw(row: unknown): ListedLaw | string {
 	const wrong = (what: string) => `${id}：${what}`;
 	if (!isText(law.law_id)) return wrong('law_id の形が違います');
 	if (!isText(law.law_num)) return wrong('law_num の形が違います');
-	if (!LAW_TYPES.includes(law.law_type as never)) return wrong('law_type の形が違います');
+	// 法律の効力を持つ政令や勅令は「Act,CabinetOrder」のようにカンマでつないで返る。読んだ種類を含んでいれば、その種類として扱う
+	if (typeof law.law_type !== 'string' || !law.law_type.split(',').includes(expected)) return wrong('law_type の形が違います');
 	if (typeof law.promulgation_date !== 'string' || !DATE.test(law.promulgation_date)) return wrong('promulgation_date の形が違います');
 	for (const key of ['law_revision_id', 'law_title', 'updated', 'current_revision_status']) {
 		if (!isText(rev[key])) return wrong(`${key} の形が違います`);
@@ -132,7 +132,7 @@ function checkListedLaw(row: unknown): ListedLaw | string {
 	return {
 		lawId: law.law_id,
 		lawNum: law.law_num,
-		lawType: law.law_type as ListedLaw['lawType'],
+		lawType: expected,
 		promulgationDate: law.promulgation_date,
 		revisionId: rev.law_revision_id as string,
 		title: rev.law_title as string,
@@ -164,7 +164,7 @@ export async function readLawList(fetchJson: FetchJson, lawType: ListedLaw['lawT
 		if (count !== body.laws.length) throw wrong('count と行の数が違います');
 		if (offset < total && count === 0) throw wrong('行がありません');
 		for (const row of body.laws) {
-			const law = checkListedLaw(row);
+			const law = checkListedLaw(row, lawType);
 			if (typeof law === 'string') throw wrong(law);
 			laws.push(law);
 		}
