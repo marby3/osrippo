@@ -22,8 +22,8 @@ const searchDelete = sqliteTable('readable_search', {
 const MAX_PARAMS = 100;
 const MAX_BYTES = 90_000;
 const STATEMENTS_PER_BATCH = 500;
-/** 1条の paragraphs がこれを超える法令は失敗にする（設計書 決めたこと3の5） */
-const ARTICLE_MAX_BYTES = 100_000;
+/** 1条の paragraphs がこれを超える法令は失敗にする（設計書 決めたこと3の5）。入れる文に見出しなども乗るので、1文の上限より余裕をとる */
+const ARTICLE_MAX_BYTES = 80_000;
 /** e-Gov への負荷（決めたこと3の8）：1件ずつ1秒あけ、やり直しは5秒あけて1回 */
 const PACE = 1_000;
 const RETRY_WAIT = 5_000;
@@ -188,8 +188,8 @@ export async function syncReadable(db: BatchDb, fetchJson: FetchJson, wait: Slee
 	for (const law of toRead) {
 		try {
 			const body = await readLawBody(egov, law.revisionId);
-			result.read.push(law.lawId);
 			await replaceArticles(db, law, body);
+			result.read.push(law.lawId);
 			if (!body.articles.length) result.empty.push(law.lawId);
 		} catch (e) {
 			console.error(`${law.lawId} の取り込みに失敗しました`, e);

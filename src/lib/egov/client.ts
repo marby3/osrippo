@@ -106,7 +106,8 @@ export type ListedLaw = {
 const LIST_LIMIT = 500;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const isText = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
-const isNullableText = (v: unknown): v is string | null => v === null || typeof v === 'string';
+/** 文字列か null。e-Gov が欄を省いたとき（undefined）も null と同じに扱う */
+const isNullableText = (v: unknown): v is string | null | undefined => v === null || v === undefined || typeof v === 'string';
 
 /** 一覧の1行の形を確かめる。違えば理由を返す */
 function checkListedLaw(row: unknown, expected: ListedLaw['lawType']): ListedLaw | string {
@@ -126,9 +127,9 @@ function checkListedLaw(row: unknown, expected: ListedLaw['lawType']): ListedLaw
 	for (const key of ['law_title_kana', 'category', 'abbrev', 'amendment_law_id', 'amendment_enforcement_date']) {
 		if (!isNullableText(rev[key])) return wrong(`${key} の形が違います`);
 	}
-	const enforced = rev.amendment_enforcement_date as string | null;
+	const enforced = (rev.amendment_enforcement_date as string | null | undefined) ?? null;
 	if (enforced !== null && !DATE.test(enforced)) return wrong('amendment_enforcement_date の形が違います');
-	const abbrev = rev.abbrev as string | null;
+	const abbrev = (rev.abbrev as string | null | undefined) ?? null;
 	return {
 		lawId: law.law_id,
 		lawNum: law.law_num,
@@ -136,12 +137,12 @@ function checkListedLaw(row: unknown, expected: ListedLaw['lawType']): ListedLaw
 		promulgationDate: law.promulgation_date,
 		revisionId: rev.law_revision_id as string,
 		title: rev.law_title as string,
-		titleKana: rev.law_title_kana as string | null,
+		titleKana: (rev.law_title_kana as string | null | undefined) ?? null,
 		abbrevs: (abbrev ?? '')
 			.split(',')
 			.map((a) => a.trim())
 			.filter(Boolean),
-		category: rev.category as string | null,
+		category: (rev.category as string | null | undefined) ?? null,
 		updated: rev.updated as string,
 		lastAmended: rev.amendment_law_id ? enforced : null,
 		currentRevisionStatus: rev.current_revision_status as string
