@@ -39,7 +39,8 @@ export const load: PageServerLoad = async (event) => {
 		name: user.name,
 		registeredAt: user.createdAt.getTime(),
 		unread,
-		committee: member ? committee : null,
+		// その会期の役（解任されていない）がある人も所属に数える
+		committee: member || (role !== null && !role.recalled) ? committee : null,
 		role: role ? { ...role, sessionKey: session.key } : null,
 		bills,
 		amendments,
@@ -48,7 +49,7 @@ export const load: PageServerLoad = async (event) => {
 			next: sessionAt(session.endsAt, minutes),
 			end,
 			staff: checks.staff,
-			steps: candidacySteps(checks, session, now),
+			steps: candidacySteps(checks, session, now, user.createdAt.getTime()),
 			closed: now >= end
 		}
 	};

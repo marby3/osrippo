@@ -11,7 +11,7 @@ import type { Db } from './law';
 import { resultsFor, reviewsFor } from './results';
 
 /**
- * その会期に委員会に所属しているか：その会期に、今月の参加者に数える行動（課題・解決策・法案・賛同・質疑・答弁・投票など）をしたこと。
+ * その会期に委員会に所属しているか（その会期の委員長・理事の役がある人も所属に数える。画面の読み込みで合わせる）：その会期に、今月の参加者に数える行動（課題・解決策・法案・賛同・質疑・答弁・投票など）をしたこと。
  * 委員会は1つなので、行動の表から求める（行動に委員会の列はない）
  */
 export async function isMember(db: Db, userId: string, session: Session): Promise<boolean> {

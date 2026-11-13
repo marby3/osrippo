@@ -6,7 +6,7 @@
 
 	let { data }: PageProps = $props();
 	const c = $derived(data.candidacy);
-	const stepText = (key: 'post' | 'consecutive' | 'period') => (key === 'period' ? ja.watashi.candidacy.steps.period(c.session) : ja.watashi.candidacy.steps[key]);
+	const stepText = (key: 'registered' | 'post' | 'consecutive' | 'period') => (key === 'period' ? ja.watashi.candidacy.steps.period(c.session) : ja.watashi.candidacy.steps[key]);
 	const canStand = $derived(!c.staff && c.steps.every((s) => s.done));
 </script>
 

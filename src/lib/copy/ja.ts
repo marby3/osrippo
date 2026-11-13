@@ -1734,6 +1734,7 @@ export const ja = {
 			done: '済み',
 			notYet: 'まだ',
 			steps: {
+				registered: '登録から7日たった',
 				post: 'この会期に、委員会の法案へ質疑か答弁を書いた',
 				consecutive: '委員長を2会期続けて務めていない',
 				period: (s: Session) => `立候補の期間になる（${sessionPoint(s, s.voteAt, false)}から）`

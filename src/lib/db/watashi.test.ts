@@ -95,9 +95,11 @@ test('基準4：立候補の条件ごとの済んだ・まだが、立候補の�
 		const block = await standBlock(w.db, id, COMMITTEE, SESSION, PREVIOUS);
 		expect(checks.staff, label).toBe(staff);
 		for (const now of times) {
-			const steps = candidacySteps(checks, SESSION, now);
+			// どの人も登録は時刻 0（7日たっている）
+			const steps = candidacySteps(checks, SESSION, now, 0);
 			const done = Object.fromEntries(steps.map((s) => [s.key, s.done]));
 			expect(done, `${label} ${now}`).toEqual({
+				registered: true,
 				post,
 				consecutive,
 				period: candidacyOpen(SESSION, now)
