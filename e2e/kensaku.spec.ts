@@ -78,8 +78,9 @@ test('基準2：条文はいまの版の条・項・号だけを、法令の順�
 	await page.goto(searchUrl('事業者', '&shurui=jobun'));
 	const laws = await page.locator('.law').allInnerTexts();
 	const order = ['不当景品類及び不当表示防止法', '特定商取引に関する法律', '消費者契約法'];
-	const seen = laws.map((l) => order.indexOf(l));
-	expect(seen.every((x) => x >= 0)).toBe(true);
+	// 遊べる法律の行だけを見る（読める法律の行はあとに来る。Issue #208）
+	const seen = laws.map((l) => order.indexOf(l)).filter((x) => x >= 0);
+	expect(seen.length).toBeGreaterThan(0);
 	expect([...seen].sort((a, b) => a - b)).toEqual(seen);
 
 	// 過去の版にだけある言葉は出ない
@@ -221,9 +222,11 @@ test('#208 基準1：法令の欄に、読める法律が法令名・読み・�
 	// 読み・法令番号（算用数字でも）
 	expect(await titles('けんぽう')).toEqual(['日本国憲法']);
 	expect(await titles('明治29年法律第89号')).toEqual(['民法']);
-	// 遊べる法律（題名で当たる）が先、読める法律（民法は法令番号の「法律」で当たる）があと。遊べる法律は二重に出さない
-	expect(await titles('法律')).toEqual(['特定商取引に関する法律', '民法']);
-	await expect(section(page, '法令').getByRole('heading')).toHaveText(/^法令\s*2件$/);
+	// 遊べる法律も略称で当たる
+	expect(await titles('景品表示法')).toEqual(['不当景品類及び不当表示防止法']);
+	// 遊べる法律が先、読める法律があと（どれも法令番号の「法律」で当たる）。遊べる法律は二重に出さない
+	expect(await titles('法律')).toEqual(['不当景品類及び不当表示防止法', '特定商取引に関する法律', '消費者契約法', '民法']);
+	await expect(section(page, '法令').getByRole('heading')).toHaveText(/^法令\s*4件$/);
 });
 
 test('#208 基準2：読める法律の条文は3文字以上の言葉で当たり、条だけのページへのリンクが出る。2文字の言葉では探さない', async ({ page }) => {

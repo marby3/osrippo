@@ -1167,7 +1167,7 @@ export const ja = {
 		},
 		sections: { laws: '法令', jobun: '条文', kadai: '課題', kaiketsu: '解決策' },
 		count: (n: number) => `${n}件`,
-		/** 件数を数えきらずに止めたとき（条文は並べる上限まで数える） */
+		/** 件数を数えきらずに止めたとき（条文は並べる上限か、読める法律の索引の窓まで数える） */
 		countOver: (n: number) => `${n}件以上`,
 		none: '見つかりませんでした',
 		more: (count: string) => `もっと見る（${count}）`,

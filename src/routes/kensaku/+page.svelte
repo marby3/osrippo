@@ -56,7 +56,7 @@
 		{/if}
 
 		{#if r.jobun}
-			{@const jobunCount = r.jobun.exact ? ja.search.count(r.jobun.total) : ja.search.countOver(r.jobun.cap)}
+			{@const jobunCount = r.jobun.exact ? ja.search.count(r.jobun.total) : ja.search.countOver(Math.min(r.jobun.total, r.jobun.cap))}
 			<section>
 				{@render heading(ja.search.sections.jobun, jobunCount)}
 				{#if r.jobun.capped}<p class="note">{ja.search.capped}</p>{/if}

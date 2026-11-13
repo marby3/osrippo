@@ -161,6 +161,16 @@ export async function listReadableLaws(db: Db, query: LawListQuery, words: Word[
 	};
 }
 
+/** 遊べる法律のうち、読める法律の表の法令名・読み・略称・法令番号で当たるもの（全体の検索。Issue #208。/hourei と同じ規則） */
+export async function searchPlayableLawNames(db: Db, words: Word[]) {
+	const rows = await db
+		.select({ id: laws.id })
+		.from(readableLaws)
+		.innerJoin(laws, eq(laws.id, readableLaws.id))
+		.where(and(...words.map(nameMatches)));
+	return rows.map((r) => r.id);
+}
+
 /**
  * 全体の検索（/kensaku。Issue #208）の法令の欄の、読める法律。遊べる法律は外す（全体の検索は laws の題名で別に引く）。
  * 五十音の順に offset から limit 件と、当たった本数。LIKE は索引で引けないので表を一回りする。数えるのと1ページを読むのを1回にする
@@ -185,15 +195,21 @@ const READABLE_MIN = 3;
 /** 読める法律の条文を探さない（言葉に短いものがある）か */
 export const readableTooShort = (words: Word[]) => words.some((w) => [...w.norm].length < READABLE_MIN);
 
+/** 読める法律の条文の索引で当たる rowid を、upTo の4倍まで（外の条件で落ちる行のぶんの余裕） */
+const windowSize = (upTo: number) => upTo * 4;
+function readableWindow(words: Word[], upTo: number) {
+	const match = words.map((w) => matchPhrase(w.norm)).join(' AND ');
+	return sql`SELECT rowid FROM readable_search WHERE readable_search MATCH ${match} ORDER BY rowid LIMIT ${windowSize(upTo)}`;
+}
+
 /**
  * 読める法律の条文で、言葉がすべて当たる条（readable_articles と readable_laws を結んだ行の条件）。
  * 遊べる法律の条（版のある表から引く）と、本文を入れ終えていない法律・条のない法律の条は外す。
  * FTS5 は rowid の順に返すので、LIMIT を内側に置くと当たった条を全部は読まずに止まる。外の条件で落ちる行のぶん、upTo の4倍まで読む
  */
 function readableArticleHits(words: Word[], upTo: number) {
-	const match = words.map((w) => matchPhrase(w.norm)).join(' AND ');
 	return and(
-		sql`${readableArticles.id} IN (SELECT rowid FROM readable_search WHERE readable_search MATCH ${match} ORDER BY rowid LIMIT ${upTo * 4})`,
+		sql`${readableArticles.id} IN (${readableWindow(words, upTo)})`,
 		notPlayable,
 		ready
 	);
@@ -225,7 +241,10 @@ export async function searchReadableArticles(db: Db, words: Word[], limit: numbe
 	}));
 }
 
-/** 読める法律の条文で当たる条の数。cap 件まで数えて止める */
+/**
+ * 読める法律の条文で当たる条の数。cap 件まで数えて止める。
+ * windowFull は、索引の窓（cap の4倍）を使い切ったこと。そのときは窓の外にも当たる条があるかもしれないので、数は正確でない
+ */
 export async function countReadableArticles(db: Db, words: Word[], cap: number) {
 	const hits = db
 		.select({ id: readableArticles.id })
@@ -234,8 +253,10 @@ export async function countReadableArticles(db: Db, words: Word[], cap: number) 
 		.where(readableArticleHits(words, cap))
 		.limit(cap)
 		.as('hits');
-	const [counted] = await db.select({ n: count() }).from(hits);
-	return counted?.n ?? 0;
+	const [counted] = await db
+		.select({ n: count(), scanned: sql<number>`(SELECT count(*) FROM (${readableWindow(words, cap)}))` })
+		.from(hits);
+	return { n: counted?.n ?? 0, windowFull: (counted?.scanned ?? 0) >= windowSize(cap) };
 }
 
 /**

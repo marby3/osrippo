@@ -28,11 +28,11 @@ export async function indexTexts(db: Db, kind: 'issue' | 'solution', refId: numb
 	}
 }
 
-/** 法令：題名にすべての言葉を含む法令（そろえた題名で比べる） */
-export async function searchLaws(db: Db, words: Word[]) {
+/** 法令：題名にすべての言葉を含む法令（そろえた題名で比べる）と、also の法令（読める法律の表の名前で当たったもの。Issue #208） */
+export async function searchLaws(db: Db, words: Word[], also: string[] = []) {
 	const rows = await db.select({ id: laws.id, title: laws.title }).from(laws);
 	return rows
-		.filter((l) => words.every((w) => normalizeText(l.title).includes(w.norm)))
+		.filter((l) => also.includes(l.id) || words.every((w) => normalizeText(l.title).includes(w.norm)))
 		.sort((a, b) => TARGET_LAWS.indexOf(a.id) - TARGET_LAWS.indexOf(b.id));
 }
 
