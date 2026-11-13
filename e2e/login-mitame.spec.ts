@@ -2,7 +2,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { stubTurnstile } from './helpers';
 
-const NEWCOMER = 'はじめての方も、このボタンから始められます。お使いのGoogleかLINEのアカウントでそのまま入れるので、新しく登録する手続きやパスワードはいりません。';
+const NEWCOMER = 'はじめての方は、招待コードを入れて、β版のお約束に同意してから、このボタンで登録してください。お使いのGoogleかLINEのアカウントで入るので、パスワードはいりません。';
 const hydrated = (page: Page) => page.locator('body[data-hydrated]').waitFor({ state: 'attached' });
 const google = (page: Page) => page.getByRole('button', { name: 'Googleでログイン', exact: true });
 const line = (page: Page) => page.getByRole('button', { name: 'LINEでログイン', exact: true });

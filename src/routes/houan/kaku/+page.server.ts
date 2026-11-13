@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { billWaitUntil } from '#lib/domain/limits.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
+import { requireAgreement } from '#lib/server/agreements.ts';
 import { submitBill } from '#lib/server/bill-actions.ts';
 import { FIRST_COMMITTEE, type BillFormValues } from '#lib/server/bill-form.ts';
 import { candidateSolutions, citableSolution, committeeLawList } from '#lib/server/bills.ts';
@@ -13,6 +14,8 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async (event) => {
 	const user = requireUser(event);
 	const db = drizzle(env.DB);
+	// 書いた文が消えないよう、書く画面を開く前にお約束に同意してもらう（Issue #200）
+	await requireAgreement(event, db, user.id);
 	const wait = billWaitUntil(user.createdAt.getTime(), nowOf(event));
 	if (wait !== null) return { view: 'wait' as const, until: wait };
 	// ?kaiketsu= はちょうど1つ。表示中の解決策でなければ、解決策から書き始めることを案内する

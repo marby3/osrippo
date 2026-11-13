@@ -4,15 +4,19 @@ import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '#lib/copy/ja.ts';
 import { validateIssue, type IssueField } from '#lib/domain/issues.ts';
+import { requireAgreement } from '#lib/server/agreements.ts';
 import { checkTurnstile, nowOf, refusalMessage, writeGuard } from '#lib/server/client.ts';
 import { createIssue, currentTopic } from '#lib/server/issues.ts';
 import { requireUser } from '#lib/server/require-user.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-	requireUser(event);
+	const user = requireUser(event);
+	const db = drizzle(env.DB);
+	// 書いた文が消えないよう、書く画面を開く前にお約束に同意してもらう（Issue #200）
+	await requireAgreement(event, db, user.id);
 	// スマホは段のボタンを画面の下に留める（Issue #121）
-	return { spBottomBar: true as const, topic: await currentTopic(drizzle(env.DB)), siteKey: env.TURNSTILE_SITE_KEY };
+	return { spBottomBar: true as const, topic: await currentTopic(db), siteKey: env.TURNSTILE_SITE_KEY };
 };
 
 const FIELDS: IssueField[] = ['title', 'affected', 'example', 'topic'];

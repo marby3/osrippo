@@ -8,6 +8,7 @@ import { articleBodyText } from '#lib/domain/bills.ts';
 import { articleLabel } from '#lib/domain/law/index.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { billWaitUntil } from '#lib/domain/limits.ts';
+import { requireAgreement } from '#lib/server/agreements.ts';
 import { amendableBill, amendmentPostAction } from '#lib/server/amendment-actions.ts';
 import { amendableArticles, amendmentOf } from '#lib/server/amendments.ts';
 import { nowOf } from '#lib/server/client.ts';
@@ -23,6 +24,8 @@ export const load: PageServerLoad = async (event) => {
 	const target = id === null ? undefined : await amendmentOf(db, id, bill.id);
 	if (koushin !== null && !target) error(404);
 	const user = requireUser(event);
+	// 書いた文が消えないよう、書く画面を開く前にお約束に同意してもらう（Issue #200）
+	await requireAgreement(event, db, user.id);
 	const now = nowOf(event);
 	const open = amendmentOpen(progressOf(bill, now).progress);
 	const waitUntil = billWaitUntil(user.createdAt.getTime(), now);

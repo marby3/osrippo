@@ -16,6 +16,8 @@ declare global {
 			display: import('#lib/domain/display.ts').Display;
 			/** この要求の登録で使い切った招待コード（user.create の before が入れ、after が読む。docs/spec/199.md 決めたこと3） */
 			invite?: string;
+			/** この要求の登録で同意を確かめたお約束の版（user.create の before が入れ、after が記録する。Issue #200） */
+			agreement?: string;
 		}
 		interface PageData {
 			/** IF世界の帯を出すページ。帯はメニューより上に出すので、ページの load が返し、全体の枠が出す（Issue #85） */

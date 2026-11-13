@@ -6,7 +6,9 @@ import { testUtils } from 'better-auth/plugins';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from '#lib/db/schema.ts';
+import { AGREEMENT_VERSION } from '#lib/domain/agreement.ts';
 import { safeNext } from '#lib/domain/auth.ts';
+import { recordAgreement } from '#lib/server/agreements.ts';
 import { authOptions } from '#lib/server/auth.ts';
 import type { PageServerLoad } from './$types';
 
@@ -24,6 +26,10 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	// 新規登録の経路（docs/spec/199.md 決めたこと6）。Better Auth の user.create の hook を通す。役職は付けない
 	const signup = url.searchParams.get('signup');
 	if (signup !== null && (signup !== '1' || role !== null)) error(400);
+	// β版のお約束（Issue #200）。新しく作る人は、既定でいまの版に同意済みにする（これまでのテストと pnpm simulate のため）。
+	// agreed=0 で同意のない人を作る。新規登録の経路は、本物と同じくログインの画面で入れた Cookie を見るので、指定できない
+	const agreed = url.searchParams.get('agreed');
+	if (agreed !== null && (!['0', '1'].includes(agreed) || signup !== null)) error(400);
 
 	// testUtils は本番の auth には入れず、ここでだけ作る
 	const options = authOptions(env);
@@ -40,7 +46,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 			userId = (await test.saveUser({ id: crypto.randomUUID(), email, name, emailVerified: false, createdAt, updatedAt: createdAt })).id;
 		} catch (e) {
 			const code = (e as { body?: { code?: unknown } } | null)?.body?.code;
-			if (code === 'invite_required') redirect(303, '/login?error=invite_required');
+			if (code === 'invite_required' || code === 'agreement_required') redirect(303, `/login?error=${code}`);
 			throw e;
 		}
 	} else if (!userId) {
@@ -49,6 +55,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 			.insert(schema.user)
 			.values({ id: crypto.randomUUID(), name, email, role, createdAt, updatedAt: createdAt })
 			.returning({ id: schema.user.id });
+		if (agreed !== '0') await recordAgreement(drizzle(env.DB), userId, AGREEMENT_VERSION, createdAt.getTime());
 	}
 	const login = await test.login({ userId });
 	for (const c of login.cookies) {
