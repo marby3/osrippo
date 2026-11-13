@@ -17,6 +17,8 @@ import { changeStatus, mergeIssue, mergePreview, reportedIssues, staffRows } fro
 import { changeSolutionStatus, reportedSolutions, solutionMeta } from '#lib/server/solutions.ts';
 import { canVerify, parseVerification, verificationLastDay } from '#lib/domain/verification.ts';
 import { activeVerificationList, changeVerification, grantVerification } from '#lib/server/verifications.ts';
+import { isInviteCode, normalizeInviteCode, parseInviteCount } from '#lib/domain/invites.ts';
+import { createInvites, inviteList, revokeInvite } from '#lib/server/invites.ts';
 import { parseElection } from '#lib/domain/election.ts';
 import { addElection, electionList, markCandidate, removeElection } from '#lib/server/elections.ts';
 import { changeCommentaryModeration, commentaryStaffAccess, reportedCommentaries } from '#lib/server/commentaries.ts';
@@ -111,7 +113,9 @@ export const load: PageServerLoad = async (event) => {
 			? (await activeVerificationList(db, now)).map(({ expiresAt, ...v }) => ({ ...v, lastDay: verificationLastDay(expiresAt) }))
 			: null,
 		// 選挙期間（Issue #151）。運営だけ
-		elections: canVerify(staff.role) ? (await electionList(db, now)).map((e) => ({ ...e, started: e.startsAt <= now })) : null
+		elections: canVerify(staff.role) ? (await electionList(db, now)).map((e) => ({ ...e, started: e.startsAt <= now })) : null,
+		// 招待コード（docs/spec/199.md 決めたこと5）。運営だけ。使った人は返さない
+		invites: canVerify(staff.role) ? await inviteList(db) : null
 	};
 };
 
@@ -180,6 +184,27 @@ const verifyChange = (action: 'renew' | 'revoke') => async (event: RequestEvent)
 	if (!userId || !(await changeVerification(db as BatchDb, action, userId, staff.userId, nowOf(event)))) return verifyFail(400, ja.verification.errors.inactive);
 	return { verification: true as const, done: true };
 };
+
+const inviteFail = (status: number, message: string) => fail(status, { message, invite: true as const });
+
+/** 招待コードを作る（docs/spec/199.md 決めたこと5）。運営だけ */
+async function inviteCreate(event: RequestEvent) {
+	const { db, staff } = await verifierOf(event);
+	if (!allowedCountry(clientOf(event).country)) return inviteFail(403, ja.guard.outsideJapan);
+	const count = parseInviteCount(String((await event.request.formData()).get('count') ?? ''));
+	if (count === null) return inviteFail(400, ja.invite.errors.count);
+	return { invite: true as const, created: await createInvites(db, staff.userId, count, nowOf(event)) };
+}
+
+/** 使っていない招待コードを取り消す */
+async function inviteRevoke(event: RequestEvent) {
+	const { db } = await verifierOf(event);
+	if (!allowedCountry(clientOf(event).country)) return inviteFail(403, ja.guard.outsideJapan);
+	const code = normalizeInviteCode(String((await event.request.formData()).get('code') ?? ''));
+	if (!isInviteCode(code)) return inviteFail(400, ja.invite.errors.invalid);
+	if (!(await revokeInvite(db, code, nowOf(event)))) return inviteFail(400, ja.invite.errors.gone);
+	return { invite: true as const, revoked: code };
+}
 
 const act = (action: 'hide' | 'restore' | 'merge') => async (event: RequestEvent) => {
 	const { db, staff } = await staffOf(event);
@@ -384,5 +409,7 @@ export const actions: Actions = {
 	hideToben: actOnToben('hide'),
 	restoreToben: actOnToben('restore'),
 	electionRemove,
-	electionCandidate
+	electionCandidate,
+	inviteCreate,
+	inviteRevoke
 };

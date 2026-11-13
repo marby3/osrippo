@@ -1799,3 +1799,23 @@ export const lawRefs = sqliteTable(
 		check('law_refs_kind', sql`${t.kind} IN (${inList(LAW_REF_KINDS)})`)
 	]
 );
+
+/**
+ * 招待コード（Issue #199。設計書 docs/spec/199.md）。β のあいだ、新規登録に使う。行そのものが記録になる。
+ * 公開の記録（/unei）には出さない（使った人が分かってしまうため）
+ */
+export const invites = sqliteTable('invites', {
+	/** 12文字（domain/invites.ts の決まり） */
+	code: text('code').primaryKey(),
+	/** 作った運営 */
+	createdBy: text('created_by')
+		.notNull()
+		.references(() => user.id),
+	createdAt: integer('created_at').notNull(),
+	/** 使って登録した人。1人は1つのコードだけ */
+	usedBy: text('used_by')
+		.unique()
+		.references(() => user.id),
+	usedAt: integer('used_at'),
+	revokedAt: integer('revoked_at')
+});

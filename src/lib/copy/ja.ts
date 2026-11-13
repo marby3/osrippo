@@ -25,6 +25,12 @@ export const jaDateTime = (ms: number) => {
 	return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日 ${d.getUTCHours()}時${String(d.getUTCMinutes()).padStart(2, '0')}分`;
 };
 
+/** ミリ秒 → 日本時間の「2026年11月4日」 */
+export const jaDateOf = (ms: number) => {
+	const d = new Date(ms + 9 * 60 * 60 * 1000);
+	return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
+};
+
 /** ミリ秒 → 日本時間の「2026年11月4日 9時05分」 */
 export const jaDateTimeFull = (ms: number) => {
 	const d = new Date(ms + 9 * 60 * 60 * 1000);
@@ -1024,7 +1030,12 @@ export const ja = {
 		newcomer: 'はじめての方も、このボタンから始められます。お使いのGoogleかLINEのアカウントでそのまま入れるので、新しく登録する手続きやパスワードはいりません。',
 		google: 'Googleでログイン',
 		line: 'LINEでログイン',
-		failed: 'ログインできませんでした。もう一度お試しください。'
+		failed: 'ログインできませんでした。もう一度お試しください。',
+		/** 招待コード（Issue #199、設計書 docs/spec/199.md） */
+		inviteLabel: '招待コード（はじめての方）',
+		inviteHelp: 'すでにアカウントのある方は、空のままで入れます。',
+		inviteInvalid: '招待コードの形が違います。12文字の英数字を確かめてください。',
+		inviteRefused: '招待コードが使えませんでした。コードを確かめてください。'
 	},
 	/** 書き込みの前の確かめ（設計書 docs/spec/25.md） */
 	guard: {
@@ -1607,6 +1618,26 @@ export const ja = {
 		logPrev: '新しい記録',
 		logNext: '前の記録',
 		badges: { legislator: '認証済み議員', expert: (field: string | null) => (field ? `有識者（${field}）` : '有識者') }
+	},
+	/** 運営の画面の招待コード（Issue #199、設計書 docs/spec/199.md 決めたこと5） */
+	invite: {
+		heading: '招待コード',
+		lead: 'β版のあいだは、招待コードを持っている人だけが新しく登録できます。1つのコードで登録できるのは1人だけです。',
+		count: '作る数（1〜20）',
+		create: '招待コードを作る',
+		created: (codes: string[]) => `作りました：${codes.join('、')}`,
+		listHeading: '作った招待コード',
+		empty: 'まだ招待コードはありません',
+		createdAt: (ms: number) => `作った日：${jaDateOf(ms)}`,
+		unused: '使っていない',
+		used: (ms: number) => `使った日：${jaDateOf(ms)}`,
+		revoked: (ms: number) => `取り消した日：${jaDateOf(ms)}`,
+		revoke: '取り消す',
+		errors: {
+			count: '作る数は1から20までの数で入れてください',
+			invalid: '招待コードの形が違います',
+			gone: 'すでに使われたか、取り消されています'
+		}
 	},
 	unei: {
 		pageTitle: '運営の記録｜オープンソース立法府',

@@ -267,6 +267,13 @@
       "when": 1794587547142,
       "tag": "0037_bill_points",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1794591085349,
+      "tag": "0038_invites",
+      "breakpoints": true
     }
   ]
 }

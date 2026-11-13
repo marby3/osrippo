@@ -12,6 +12,7 @@
 	} from '#lib/domain/reports.ts';
 	import { VERIFICATION_NAME_MAX } from '#lib/domain/verification.ts';
 	import { ELECTION_NAME_MAX } from '#lib/domain/election.ts';
+	import { INVITE_BATCH_MAX } from '#lib/domain/invites.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -32,7 +33,7 @@
 <main>
 	<h1>{ja.kanri.heading}</h1>
 	<!-- 断った文言は、その課題・解決策のところに出す（どれか分からないときだけ上に） -->
-	{#if form && 'message' in form && !('verification' in form) && !('election' in form) && !('commentaryId' in form && form.commentaryId) && !('tobenId' in form && form.tobenId) && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('amendmentId' in form && form.amendmentId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
+	{#if form && 'message' in form && !('verification' in form) && !('election' in form) && !('invite' in form) && !('commentaryId' in form && form.commentaryId) && !('tobenId' in form && form.tobenId) && !('issueId' in form && form.issueId) && !('solutionId' in form && form.solutionId) && !('postId' in form && form.postId) && !('amendmentId' in form && form.amendmentId) && !('reviewBill' in form && form.reviewBill && data.reviews.some((r) => r.billId === form.reviewBill))}
 		<p role="alert">{form.message}</p>
 	{/if}
 	{#if data.rows.length === 0}
@@ -510,6 +511,43 @@
 			{/if}
 		</section>
 	{/if}
+
+	<!-- 招待コード（Issue #199、設計書 docs/spec/199.md 決めたこと5）。運営にだけ出す。使った人は出さない -->
+	{#if data.invites}
+		<section class="verify" aria-labelledby="invite-heading">
+			<h2 id="invite-heading" class="section">{ja.invite.heading}</h2>
+			<p>{ja.invite.lead}</p>
+			{#if form && 'invite' in form && 'message' in form}<p role="alert">{form.message}</p>{/if}
+			<form method="post" action="?/inviteCreate" use:enhance>
+				<label for="invite-count">{ja.invite.count}</label>
+				<input id="invite-count" name="count" type="number" min="1" max={INVITE_BATCH_MAX} value="1" required />
+				<button>{ja.invite.create}</button>
+			</form>
+			{#if form && 'invite' in form && 'created' in form && form.created}<p role="status" class="created">{ja.invite.created(form.created)}</p>{/if}
+			<h3>{ja.invite.listHeading}</h3>
+			{#if data.invites.length === 0}
+				<p>{ja.invite.empty}</p>
+			{:else}
+				<ul class="verified">
+					{#each data.invites as v (v.code)}
+						<li>
+							<p><code>{v.code}</code></p>
+							<p class="account">
+								{ja.invite.createdAt(v.createdAt)} ・
+								{#if v.usedAt !== null}{ja.invite.used(v.usedAt)}{:else if v.revokedAt !== null}{ja.invite.revoked(v.revokedAt)}{:else}{ja.invite.unused}{/if}
+							</p>
+							{#if v.usedAt === null && v.revokedAt === null}
+								<form method="post" action="?/inviteRevoke" use:enhance>
+									<input type="hidden" name="code" value={v.code} />
+									<button>{ja.invite.revoke}</button>
+								</form>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+	{/if}
 </main>
 
 <style>
@@ -590,6 +628,12 @@
 	.verified li {
 		border-top: 1px solid var(--color-divider);
 		padding: 0.5rem 0;
+	}
+
+	code,
+	.created {
+		overflow-wrap: anywhere;
+		font-size: var(--font-size-heading);
 	}
 
 	.account {

@@ -14,6 +14,8 @@ declare global {
 			user: Auth['$Infer']['Session']['user'] | null;
 			/** 表示の設定（Cookie から。Issue #129） */
 			display: import('#lib/domain/display.ts').Display;
+			/** この要求の登録で使い切った招待コード（user.create の before が入れ、after が読む。docs/spec/199.md 決めたこと3） */
+			invite?: string;
 		}
 		interface PageData {
 			/** IF世界の帯を出すページ。帯はメニューより上に出すので、ページの load が返し、全体の枠が出す（Issue #85） */
