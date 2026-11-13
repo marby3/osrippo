@@ -40,6 +40,9 @@ const signIn =
 				return fail(400, { message: ja.login.inviteInvalid, invite: true as const });
 			}
 			cookies.set(INVITE_COOKIE, invite, { path: '/', httpOnly: true, secure: true, sameSite: 'lax', maxAge: 600 });
+		} else {
+			// 欄が空なら、前に入れたコードの Cookie を残さない（共用のブラウザで、ほかの人が入れたコードで登録しないように）
+			cookies.delete(INVITE_COOKIE, { path: '/' });
 		}
 		const next = safeNext(String(form.get('next') ?? ''), url.origin);
 		const { url: authorize } = await locals.auth().api.signInSocial({

@@ -3,6 +3,8 @@ import { expect, test } from 'vitest';
 import { useInvite } from '../server/invites';
 import { openMemoryDb } from './memory';
 
+// メモリの DB は文を1つずつ流すので、本当に同時には走らない。1人しか通らないことを保証しているのは、
+// useInvite の「使っていない行だけを変える」1文の UPDATE（RETURNING の行数で判定）
 test('基準3：同じコードで使用済みにする関数を2回呼ぶと、1回だけ通る', async () => {
 	const { sqlite, db } = openMemoryDb();
 	sqlite.exec("INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('op', '運営1', 'o@test.invalid', 0, 0)");
