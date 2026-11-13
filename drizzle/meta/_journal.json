@@ -260,6 +260,13 @@
       "when": 1794585450812,
       "tag": "0036_law_refs_backlinks",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1794587547142,
+      "tag": "0037_bill_points",
+      "breakpoints": true
     }
   ]
 }

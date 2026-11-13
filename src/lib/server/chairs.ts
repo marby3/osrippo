@@ -163,7 +163,7 @@ export async function settleElection(db: BatchDb, committeeId: number, session: 
 	] as never);
 }
 
-/** 委員長の最後の操作の時刻。委員長の役職で行ったものだけ（課題と解決策と投稿の操作と統合、結果の確認） */
+/** 委員長の最後の操作の時刻。委員長の役職で行ったものだけ（課題と解決策と投稿の操作と統合、論点を立てる・閉じる、結果の確認） */
 export async function lastChairAction(db: Db, userId: string, term: Session): Promise<number | null> {
 	const [[log], [postLog], [review]] = await Promise.all([
 		db
@@ -190,14 +190,15 @@ async function chairIdle(db: Db, chairId: string, term: Session, now: number) {
 
 /**
  * 委員長と理事の権限（決めたこと4）。締め出されている人には権限がない。
- * 理事は、委員長が解任された、締め出されている、7日何もしていない、のどれかのときだけ代行できる
+ * 理事は、委員長が解任された、締め出されている、7日何もしていない、のどれかのときだけ代行できる。
+ * committeeId を渡すと、その委員会の役職だけを見る（論点。Issue #168）
  */
-export async function chairPowerOf(db: Db, userId: string, now: number, minutes: number | null): Promise<'chair' | 'director' | null> {
+export async function chairPowerOf(db: Db, userId: string, now: number, minutes: number | null, committeeId?: number): Promise<'chair' | 'director' | null> {
 	const term = sessionAt(now, minutes);
 	const mine = await db
 		.select({ committeeId: chairTerms.committeeId, role: chairTerms.role, recalledAt: chairTerms.recalledAt })
 		.from(chairTerms)
-		.where(and(eq(chairTerms.userId, userId), eq(chairTerms.sessionKey, term.key)));
+		.where(and(eq(chairTerms.userId, userId), eq(chairTerms.sessionKey, term.key), committeeId === undefined ? undefined : eq(chairTerms.committeeId, committeeId)));
 	if (!mine.length || (await activeBan(db, userId, now)) !== null) return null;
 	if (mine.some((r) => r.role === 'chair' && r.recalledAt === null)) return 'chair';
 	for (const row of mine.filter((r) => r.role === 'director')) {

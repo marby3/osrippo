@@ -9,6 +9,7 @@
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
 	import { createReadTracker } from '#lib/components/read-tracker.ts';
 	import { ja } from '#lib/copy/ja.ts';
+	import { POINT_TITLE_MAX } from '#lib/domain/points.ts';
 	import type { Stance } from '#lib/domain/posts.ts';
 	import type { PageProps } from './$types';
 
@@ -53,6 +54,11 @@
 	const nextHref = $derived(`${base}?${data.onlyWaiting ? 'mati=1&' : data.withRelated ? 'kanren=1&' : ''}page=${data.page + 1}`);
 	/** 関連法案の質疑は読むだけ（Issue #69）。書くのと評価はその法案のページで行う */
 	const relatedOf = (billId: number) => (billId === data.bill.id ? null : (data.relatedShown.find((r) => r.id === billId) ?? { id: billId, title: '' }));
+	/** いまの場面（Issue #168）。採決の締切のあとは法案の段（可決・廃案など）を出す */
+	const sceneText = $derived(data.scene ? ja.post.points.scene(data.scene.week, ja.session.stages[data.scene.stage]) : ja.bill.progress[data.stage]);
+	const openPoints = $derived(data.points.filter((p) => !p.closed));
+	const closedPoints = $derived(data.points.filter((p) => p.closed));
+	const pointResult = $derived(form && 'pointMessage' in form ? { alert: true, text: form.pointMessage } : form && 'pointDone' in form ? { alert: false, text: form.pointDone } : null);
 </script>
 
 <svelte:head>
@@ -60,6 +66,59 @@
 </svelte:head>
 
 <div class="layout">
+	<!-- いまの場面と論点（Issue #168）。スマホは論点を立てる欄を場面の箱の中に、PC は右の列の下に出す（同じ欄を2つ描かず、PC では外側の箱を display: contents にして格子で動かす） -->
+	<div class="scene-area">
+		<section class="scene" aria-labelledby="scene-label">
+			<div class="scene-head">
+				<p class="scene-label" id="scene-label">{ja.post.points.sceneLabel}</p>
+				<h2>{ja.post.points.heading(sceneText, ja.post.points.count(openPoints.length))}</h2>
+			</div>
+			{#if openPoints.length}
+				<ol class="points">
+					{#each openPoints as point (point.no)}
+						<li>
+							<span class="no">{ja.post.points.no(point.no)}</span><span class="title">{point.title}</span>
+							{#if data.canPoint}
+								<form method="post" action="?/closePoint" use:enhance>
+									<input type="hidden" name="point" value={point.no} />
+									<button aria-label={ja.post.points.closeLabel(point.no)}>{ja.post.points.close}</button>
+								</form>
+							{/if}
+						</li>
+					{/each}
+				</ol>
+			{/if}
+			<div class="scene-foot">
+				<p class="scene-note">{ja.post.points.note}</p>
+				{#if closedPoints.length}
+					<details class="closed">
+						<summary>{ja.post.points.closedSummary(closedPoints.length)}</summary>
+						<ol>
+							{#each closedPoints as point (point.no)}
+								<li><span class="no">{ja.post.points.no(point.no)}</span><span class="title">{point.title}</span></li>
+							{/each}
+						</ol>
+					</details>
+				{/if}
+			</div>
+			{#if pointResult}<p role={pointResult.alert ? 'alert' : 'status'} class={pointResult.alert ? 'alert' : 'note'}>{pointResult.text}</p>{/if}
+		</section>
+		{#if data.canPoint}
+			<section class="point-form" aria-labelledby="point-form-heading">
+				<div class="point-form-head">
+					<h2 id="point-form-heading">{ja.post.points.formHeading}</h2>
+					<p class="note">{ja.post.points.formNote}</p>
+				</div>
+				<form method="post" action="?/openPoint" use:enhance>
+					<label for="point-title">{ja.post.points.field}</label>
+					<input id="point-title" name="title" autocomplete="off" aria-describedby="point-title-hint" value={form && 'pointTitle' in form ? form.pointTitle : ''} />
+					<p class="note" id="point-title-hint">{ja.post.points.fieldHint(POINT_TITLE_MAX)}</p>
+					<button>{ja.post.points.submit}</button>
+				</form>
+			</section>
+		{/if}
+	</div>
+
 	<!-- 議員は考えと評価を持たない（docs/spec/158.md の 3）。質疑は書ける -->
 	{#if data.stanceShown && data.legislator}
 		<LegislatorNote />
@@ -249,7 +308,7 @@
 	/* スマホの「質疑を書く」は、案（SpBillQA）のとおり画面の下に留める。一覧と同じ行に重ね、下端に置く */
 	.list {
 		grid-column: 1;
-		grid-row: 2;
+		grid-row: 3;
 		display: grid;
 		gap: 1rem;
 		/* 留めた「質疑を書く」の帯（ボタンと上下 0.5rem）の分と、その上の間 1rem */
@@ -257,7 +316,164 @@
 	}
 
 	.stance {
+		grid-row: 2;
+	}
+
+	/* いまの場面（SpBillQA）。スマホは外側の箱に色を付け、論点を立てる欄も同じ箱に入れる */
+	.scene-area {
 		grid-row: 1;
+		display: grid;
+		gap: 1rem;
+		padding: 1rem;
+		border-radius: var(--radius-l);
+		background: var(--color-surface);
+	}
+
+	.scene,
+	.scene-head {
+		display: grid;
+		gap: 0.75rem;
+	}
+
+	.scene-head,
+	.scene-foot {
+		display: grid;
+		gap: 0.25rem;
+	}
+
+	.scene p {
+		margin: 0;
+	}
+
+	.scene-label {
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+		font-weight: bold;
+	}
+
+	.scene h2 {
+		font-size: var(--font-size-heading);
+		overflow-wrap: anywhere;
+	}
+
+	.scene-note {
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+
+	.scene ol {
+		display: grid;
+		gap: 0.5rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.points li {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-height: var(--tap-min);
+		padding: 0.25rem 0.75rem;
+		border: 1px solid var(--color-text-sub);
+		border-radius: var(--radius-m);
+		background: var(--color-bg);
+	}
+
+	.no {
+		flex: none;
+		margin-right: 0.75rem;
+		font-weight: bold;
+	}
+
+	.title {
+		flex: 1;
+		overflow-wrap: anywhere;
+	}
+
+	.points button {
+		min-height: var(--tap-min);
+		padding: 0 0.75rem;
+		border: 1px solid var(--color-text-sub);
+		border-radius: var(--radius-pill);
+		background: var(--color-bg);
+		color: var(--color-text);
+		font: inherit;
+		font-size: var(--font-size-sub);
+	}
+
+	.closed {
+		margin-top: 0.25rem;
+		font-size: var(--font-size-sub);
+	}
+
+	.closed summary {
+		display: flex;
+		align-items: center;
+		min-height: var(--tap-min);
+		color: var(--color-link);
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	.closed li {
+		display: flex;
+		color: var(--color-text-sub);
+	}
+
+	.point-form {
+		display: grid;
+		gap: 0.5rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--color-divider);
+	}
+
+	.point-form-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		column-gap: 0.5rem;
+	}
+
+	.point-form-head .note {
+		margin: 0;
+	}
+
+	.point-form form {
+		display: grid;
+		gap: 0.5rem;
+		justify-items: start;
+	}
+
+	.point-form label {
+		font-size: var(--font-size-sub);
+	}
+
+	.point-form input {
+		box-sizing: border-box;
+		width: 100%;
+		min-height: var(--tap-min);
+		padding: 0 0.75rem;
+		border: 1px solid var(--color-input-border);
+		border-radius: var(--radius-m);
+		background: var(--color-bg);
+		color: var(--color-text);
+		font: inherit;
+	}
+
+	.point-form form .note {
+		margin: 0;
+	}
+
+	.point-form button {
+		min-height: var(--tap-min);
+		padding: 0 1rem;
+		border: 1px solid var(--color-base);
+		border-radius: var(--radius-m);
+		background: var(--color-bg);
+		color: var(--color-text);
+		font: inherit;
+		font-weight: bold;
 	}
 
 	/* 下のタブ（高さ 3.75rem、+layout.svelte の .tab-space と同じ）のすぐ上に、白い帯つきで留める（Issue #118） */
@@ -268,7 +484,7 @@
 		border-top: 1px solid var(--color-divider);
 		background: var(--color-bg);
 		grid-column: 1;
-		grid-row: 2;
+		grid-row: 3;
 		align-self: end;
 	}
 
@@ -376,32 +592,81 @@
 	@media (min-width: 64rem) {
 		.layout {
 			grid-template-columns: minmax(0, 1fr) 18.75rem;
-			grid-template-rows: auto 1fr;
+			grid-template-rows: auto auto auto 1fr;
 			column-gap: 3rem;
 			align-items: start;
 		}
 
 		.list {
 			grid-column: 1;
-			grid-row: 1 / span 2;
+			grid-row: 2 / span 3;
 			padding-bottom: 0;
 		}
 
 		.stance,
-		.write {
+		.write,
+		.point-form {
 			grid-column: 2;
 		}
 
 		.stance {
-			grid-row: 1;
+			grid-row: 2;
 		}
 
 		.write {
 			position: static;
 			padding: 0;
 			border-top: 0;
-			grid-row: 2;
+			grid-row: 3;
 			align-self: start;
+		}
+
+		/* PC（PcBillQA）：場面は横いっぱいの箱で、左に見出し、右に論点。論点を立てる欄は右の列の下の枠 */
+		.scene-area {
+			display: contents;
+		}
+
+		.scene {
+			grid-column: 1 / -1;
+			grid-row: 1;
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+			column-gap: 1.5rem;
+			align-items: start;
+			padding: 1rem 1.25rem;
+			border-radius: var(--radius-l);
+			background: var(--color-surface);
+		}
+
+		/* 左の列に見出しと注記と結果、右の列に論点。論点が高いときは、余りを最後の行に回す */
+		.scene {
+			grid-template-rows: auto auto 1fr;
+		}
+
+		.scene-head,
+		.scene-foot,
+		.scene > [role] {
+			grid-column: 1;
+		}
+
+		.scene .points {
+			grid-column: 2;
+			grid-row: 1 / span 3;
+		}
+
+		.point-form {
+			grid-row: 4;
+			padding: 1.25rem;
+			border: 1px solid var(--color-divider);
+			border-radius: var(--radius-l);
+		}
+
+		.point-form-head {
+			display: block;
+		}
+
+		.point-form-head h2,
+		.point-form-head .note {
+			display: inline;
 		}
 
 		.hint {

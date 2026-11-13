@@ -826,7 +826,8 @@ export const billModerationLogs = sqliteTable(
 			.notNull()
 			.references(() => bills.id),
 		postId: integer('post_id').references(() => posts.id),
-		action: text('action', { enum: ['auto_hide', 'hide', 'restore', 'merge'] }).notNull(),
+		/** point_open・point_close は論点を立てた・閉じた（Issue #168）。そのときは note に論点の見出しを入れ、post_id は NULL */
+		action: text('action', { enum: ['auto_hide', 'hide', 'restore', 'merge', 'point_open', 'point_close'] }).notNull(),
 		actor: text('actor', { enum: MODERATION_ACTORS }).notNull(),
 		actorUserId: text('actor_user_id'),
 		reason: text('reason', { enum: HIDE_LOG_REASONS }),
@@ -840,6 +841,25 @@ export const billModerationLogs = sqliteTable(
 		commentaryId: integer('commentary_id')
 	},
 	(t) => [index('bill_moderation_logs_actor_user').on(t.actorUserId, t.createdAt)]
+);
+
+/**
+ * 質疑の論点（Issue #168）。委員長・代行中の理事・運営・運営協力者が立てて閉じる。消さないので、法案の中の番号（論点1、論点2）は id の順で決まる。
+ * 質疑（posts）とは結びつけない。立てた・閉じたの記録は bill_moderation_logs に同じ batch で書く
+ */
+export const billPoints = sqliteTable(
+	'bill_points',
+	{
+		id: integer('id').primaryKey(),
+		billId: integer('bill_id')
+			.notNull()
+			.references(() => bills.id),
+		/** 見出し（POINT_TITLE_MAX 字まで。改行なし） */
+		title: text('title').notNull(),
+		createdAt: integer('created_at').notNull(),
+		closedAt: integer('closed_at')
+	},
+	(t) => [index('bill_points_bill').on(t.billId, t.id)]
 );
 
 /**
