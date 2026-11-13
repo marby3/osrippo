@@ -181,7 +181,11 @@ export async function lawPage(db: Db, lawId: string) {
  * 比較ページに出すもの。mae／ato が省かれたら、現在の版とその1つ前を比べる（1つ前がなければ現在の版どうし）。
  * 法令がないか、その法令にない版が指定されたら（片方だけの指定も含む）undefined
  */
-export async function comparePage(db: Db, lawId: string, mae?: string | null, ato?: string | null) {
+/**
+ * 改正で変わったところ（Issue #191）。改正法（＝その改正で施行された版）を1つ選び、直前の版と比べる。
+ * kaisei がないときは、いま効力のある版。前の版がない一番古い版や、その法令にない版は undefined
+ */
+export async function comparePage(db: Db, lawId: string, kaisei?: string | null) {
 	const [law] = await db.select().from(laws).where(eq(laws.id, lawId));
 	if (!law) return undefined;
 	const revisions = await db
@@ -190,37 +194,36 @@ export async function comparePage(db: Db, lawId: string, mae?: string | null, at
 		.where(and(eq(lawRevisions.lawId, lawId), eq(lawRevisions.branch, 'real')))
 		.orderBy(asc(lawRevisions.seq));
 
-	let before: (typeof revisions)[number] | undefined, after: (typeof revisions)[number] | undefined;
-	if (mae || ato) {
-		before = revisions.find((r) => r.id === mae);
-		after = revisions.find((r) => r.id === ato);
-	} else {
-		after = await currentRevision(db, lawId);
-		const i = revisions.findIndex((r) => r.id === after?.id);
-		before = revisions[Math.max(i - 1, 0)];
-	}
-	if (!before || !after) return undefined;
-	// 前の版に新しいほうが選ばれたら、古い順に入れ替える
-	if (before.seq > after.seq) [before, after] = [after, before];
-
-	const changes = compareArticles(
-		articlesAt(await provisionsAt(db, before.id)),
-		articlesAt(await provisionsAt(db, after.id))
-	);
-
-	const option = (r: (typeof revisions)[number]) => ({
+	const version = (r: (typeof revisions)[number]) => ({
 		id: r.id,
 		date: r.enforcementDate,
 		title: r.amendmentLawTitle ?? '',
 		scheduled: r.status === 'scheduled'
 	});
-	return {
+	const page = {
 		law: { id: law.id, title: law.title },
-		revisions: revisions.map(option).reverse(),
-		mae: before.id,
-		ato: after.id,
-		changes
+		// 前の版がない一番古い版は選べない。新しい順
+		amendments: revisions.slice(1).map(version).reverse()
 	};
+
+	let i: number;
+	if (kaisei) {
+		i = revisions.findIndex((r) => r.id === kaisei);
+		if (i < 1) return undefined;
+	} else {
+		const current = await currentRevision(db, lawId);
+		if (!current) return undefined;
+		// いま効力のある版が一番古い版なら、その次の改正。版が1つしかなければ見せる改正がない
+		i = Math.max(revisions.findIndex((r) => r.id === current.id), 1);
+		if (i >= revisions.length) return { ...page, compared: undefined };
+	}
+	const before = revisions[i - 1];
+	const after = revisions[i];
+	const changes = compareArticles(
+		articlesAt(await provisionsAt(db, before.id)),
+		articlesAt(await provisionsAt(db, after.id))
+	);
+	return { ...page, compared: { before: version(before), after: version(after), changes } };
 }
 
 /**

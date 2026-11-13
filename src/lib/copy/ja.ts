@@ -90,7 +90,7 @@ export const ja = {
 		enforced: '施行された改正',
 		scheduled: '施行予定',
 		beforeBaseline: '2017年4月より前の改正は準備中',
-		compareLink: '2つの版を比べる',
+		compareLink: '改正で変わったところ',
 		toc: '目次',
 		openToc: '目次から探す',
 		band: (titles: string[]) => titles.join('／'),
@@ -1599,13 +1599,16 @@ export const ja = {
 		dataLink: 'データを見る'
 	},
 	compare: {
-		pageTitle: (title: string) => `${title}の2つの版を比べる｜オープンソース立法府`,
-		heading: '2つの版を比べる',
-		before: '前の版',
-		after: '後の版',
-		submit: '比べる',
+		pageTitle: (title: string) => `${title}の改正で変わったところ｜オープンソース立法府`,
+		heading: '改正で変わったところ',
+		/** 選ぶ欄は改正法の1つだけ。直前の版と比べる（Issue #191） */
+		amendment: '改正法',
+		submit: '見る',
 		option: (date: string, title: string, scheduled: boolean) =>
 			`${jaDate(date)}施行${scheduled ? '（施行予定）' : ''}　${title}`,
+		/** 結果の上の、何と何を比べたかの1行 */
+		pair: (before: { date: string; scheduled: boolean }, after: { date: string; scheduled: boolean }) =>
+			`改正前：${jaDate(before.date)}施行${before.scheduled ? '予定' : ''}の版 → 改正後：${jaDate(after.date)}施行${after.scheduled ? '予定' : ''}の版`,
 		beforeSide: '改正前',
 		afterSide: '改正後',
 		/** PC の新旧対照表のいちばん上の行（PcCompare）。消すところは取り消し線、足すところは下線なので「傍線」とは言わない */
@@ -1613,6 +1616,8 @@ export const ja = {
 		added: '新しく入った条',
 		removed: 'なくなった条',
 		renumbered: (label: string) => `（改正前は${label}）`,
-		none: '変わった条はありません'
+		none: '変わった条はありません',
+		/** 版が1つしかない法律 */
+		noAmendments: '見られる改正はまだありません'
 	}
 };
