@@ -18,6 +18,7 @@
 		"test": "vitest run --passWithNoTests",
 		"test:e2e": "playwright test --pass-with-no-tests",
 		"test:phase": "playwright test -c playwright.phase.config.ts",
+		"test:load": "tsx scripts/load-test.ts",
 		"gen": "wrangler types",
 		"db:generate": "drizzle-kit generate",
 		"db:reset": "tsx scripts/db-reset.ts",
@@ -27,7 +28,8 @@
 		"mirror": "tsx scripts/mirror.ts",
 		"backup": "tsx scripts/backup.ts",
 		"restore:index": "tsx scripts/restore-index.ts",
-		"simulate": "tsx scripts/simulate.ts"
+		"simulate": "tsx scripts/simulate.ts",
+		"beta:data": "tsx scripts/beta-data.ts"
 	},
 	"imports": {
 		"#lib": "./src/lib/index.js",

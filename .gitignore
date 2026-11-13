@@ -26,3 +26,6 @@ vite.config.ts.timestamp-*
 # Playwright
 /test-results
 /playwright-report
+
+# 負荷試験の要約（Issue #201）
+/load/out
