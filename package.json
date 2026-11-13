@@ -22,7 +22,8 @@
 		"db:generate": "drizzle-kit generate",
 		"db:reset": "tsx scripts/db-reset.ts",
 		"sync:laws": "tsx scripts/sync-laws.ts",
-		"mirror": "tsx scripts/mirror.ts"
+		"mirror": "tsx scripts/mirror.ts",
+		"simulate": "tsx scripts/simulate.ts"
 	},
 	"imports": {
 		"#lib": "./src/lib/index.js",
