@@ -165,7 +165,18 @@ export const ja = {
 		wholeLaw: '法律全体を読む',
 		ifWholeLaw: 'IF世界の法律全体を読む',
 		toIf: 'IF世界のこの条を見る',
-		toReal: '現実のこの条を見る'
+		toReal: '現実のこの条を見る',
+		/** 条の「リンク元」（Issue #166）。法案の進みは bill.list.stages */
+		backlinks: {
+			heading: 'この条に触れている議論',
+			bills: 'この条を変える法案',
+			discussions: '課題・解決策・質疑',
+			empty: 'まだありません',
+			kinds: { issue: '課題', solution: '解決策', question: '質疑' },
+			meta: (parts: string[]) => parts.join(' ・ '),
+			/** "2027-08" → "2027年8月の会期"（開発用の短い会期の番号は、そのまま） */
+			session: (key: string) => (/^\d{4}-\d{2}$/.test(key) ? `${jaMonth(key)}の会期` : key)
+		}
 	},
 	/** 本文の「特商法9条」のリンクを押すと出る条のカード（Issue #165。画面の案 SpLawCard・PcLawCard） */
 	lawCard: {

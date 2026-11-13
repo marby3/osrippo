@@ -630,6 +630,9 @@ export const billChanges = sqliteTable(
 	(t) => [
 		primaryKey({ columns: [t.billId, t.rev, t.lawSeq, t.num] }),
 		foreignKey({ columns: [t.billId, t.rev, t.lawSeq], foreignColumns: [billLaws.billId, billLaws.rev, billLaws.seq] }),
+		// 条だけのページの「この条を変える法案」（Issue #166）：書きかえ・削除は条の内部ID、追加は条の番号で逆に引く
+		index('bill_changes_provision').on(t.provisionId),
+		index('bill_changes_num').on(t.num),
 		check('bill_changes_op', sql`${t.op} IN (${inList(CHANGE_OPS)})`),
 		check('bill_changes_provision', sql`(${t.op} = 'add') = (${t.provisionId} IS NULL)`),
 		check('bill_changes_body', sql`(${t.op} = 'delete') = (${t.body} IS NULL)`)
@@ -1750,4 +1753,29 @@ export const readableLawNames = sqliteTable(
 			.references(() => readableLaws.id)
 	},
 	(t) => [primaryKey({ columns: [t.name, t.lawId] }), index('readable_law_names_law').on(t.lawId)]
+);
+
+/** 本文が触れている条の持ち主の種類。post は質疑・答弁・補足 */
+export const LAW_REF_KINDS = ['issue', 'solution', 'post'] as const;
+
+/**
+ * 本文の中の条への参照（Issue #166。条の「リンク元」）。課題・解決策・質疑・答弁・補足を書いたときに、本文の「特商法9条」（domain/law/refs.ts で見つけ、あると確かめた条）を入れる。
+ * 本文はあとから変わらないので、書いたときだけ入れる。非表示・統合は読むときに元の表と結んで外す。
+ * law_id は遊べる法律か読める法律の法令ID（どちらの表か決まらないので外部キーは付けない）。前からある本文は scripts/backfill-law-refs.ts で入れる
+ */
+export const lawRefs = sqliteTable(
+	'law_refs',
+	{
+		kind: text('kind', { enum: LAW_REF_KINDS }).notNull(),
+		refId: integer('ref_id').notNull(),
+		lawId: text('law_id').notNull(),
+		/** 条の番号（e-Gov の形。9_2） */
+		num: text('num').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.kind, t.refId, t.lawId, t.num] }),
+		// 条だけのページで、種類ごとに新しい順に引く
+		index('law_refs_article').on(t.lawId, t.num, t.kind, t.refId),
+		check('law_refs_kind', sql`${t.kind} IN (${inList(LAW_REF_KINDS)})`)
+	]
 );

@@ -1,6 +1,6 @@
 <script lang="ts">
 	// 条だけのページ（Issue #164。案 SpLawArticle・PcLawArticle）。条の表示は法令のページと同じ部品（ふりがなと法令用語の説明）。
-	// この条に触れている議論（リンク元）は #166 で足す
+	// この条に触れている議論（リンク元。Issue #166）：この条を変える法案（遊べる法律だけ）と、課題・解決策・質疑。0件は「まだありません」
 	import ArticlePager from '#lib/components/ArticlePager.svelte';
 	import ArticleUrl from '#lib/components/ArticleUrl.svelte';
 	import Crumbs from '#lib/components/Crumbs.svelte';
@@ -56,6 +56,39 @@
 				<!-- 条の番号は世界のあいだで同じとは限らないので、法令全体の同じ番号の位置へ送る -->
 				{#if data.kind === 'playable'}<li><a href="/if/hourei/{data.law.id}#jo-{data.article.num}">{ja.lawArticle.toIf}</a></li>{/if}
 			</ul>
+			<section class="backlinks" aria-labelledby="backlinks-heading">
+				<h2 id="backlinks-heading">{ja.lawArticle.backlinks.heading}</h2>
+				{#if data.backlinks.bills}
+					<h3 id="backlinks-bills">{ja.lawArticle.backlinks.bills}</h3>
+					{#if data.backlinks.bills.length}
+						<ul aria-labelledby="backlinks-bills">
+							{#each data.backlinks.bills as bill (bill.id)}
+								<li>
+									<a href="/houan/{bill.id}">{bill.title}</a>
+									<p class="meta">
+										{ja.lawArticle.backlinks.meta([...(bill.stage ? [ja.bill.list.stages[bill.stage]] : []), ...(bill.session ? [ja.lawArticle.backlinks.session(bill.session)] : [])])}
+									</p>
+								</li>
+							{/each}
+						</ul>
+					{:else}
+						<p class="empty">{ja.lawArticle.backlinks.empty}</p>
+					{/if}
+				{/if}
+				<h3 id="backlinks-discussions">{ja.lawArticle.backlinks.discussions}</h3>
+				{#if data.backlinks.discussions.length}
+					<ul aria-labelledby="backlinks-discussions">
+						{#each data.backlinks.discussions as d (d.href)}
+							<li>
+								<p class="meta">{ja.lawArticle.backlinks.meta([ja.lawArticle.backlinks.kinds[d.kind], ...(d.context ? [d.context] : [])])}</p>
+								<a href={d.href}>{d.text}</a>
+							</li>
+						{/each}
+					</ul>
+				{:else}
+					<p class="empty">{ja.lawArticle.backlinks.empty}</p>
+				{/if}
+			</section>
 		</aside>
 	</div>
 </main>
@@ -125,6 +158,62 @@
 		display: inline-flex;
 		align-items: center;
 		min-height: var(--tap-min);
+	}
+
+	/* この条に触れている議論（SpLawArticle・PcLawArticle）：太い線で区切り、行は細い線で区切る */
+	.backlinks {
+		margin-top: 1.5rem;
+		padding-top: 1rem;
+		border-top: 2px solid var(--color-text);
+	}
+
+	.backlinks h2 {
+		margin: 0 0 0.75rem;
+		font-size: var(--font-size-heading);
+	}
+
+	.backlinks h3 {
+		margin: 1.25rem 0 0;
+		padding-bottom: 0.5rem;
+		border-bottom: 1px solid var(--color-divider);
+		color: var(--color-text-sub);
+		font-size: var(--font-size-body);
+	}
+
+	.backlinks h2 + h3 {
+		margin-top: 0;
+	}
+
+	.backlinks ul {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.backlinks li {
+		padding: 0.75rem 0;
+		border-bottom: 1px solid var(--color-divider);
+		overflow-wrap: anywhere;
+	}
+
+	.backlinks li a {
+		display: inline-block;
+		min-height: var(--tap-min);
+		color: var(--color-text);
+		font-weight: bold;
+		line-height: var(--line-height-body);
+	}
+
+	.backlinks .meta {
+		margin: 0;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
+	}
+
+	.backlinks .empty {
+		margin: 0.75rem 0 0;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
 	}
 
 	/* PC：URL とリンクは右の欄 */

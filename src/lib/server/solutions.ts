@@ -17,6 +17,7 @@ import type { Db } from './law';
 import { notify } from './notifications';
 import { reportsInDay, type Role } from './reports';
 import { indexTexts } from './search';
+import { articlesTouchedBy, saveLawRefs } from './law-refs';
 
 /** 解決策を書く。上限を確かめ、課題が一覧に出る状態のときだけ1文で入れる（設計書 決めたこと1・2） */
 export async function createSolution(db: Db, actor: Actor, issueId: number, body: string, now: number) {
@@ -35,6 +36,8 @@ export async function createSolution(db: Db, actor: Actor, issueId: number, body
 	);
 	if (refusal) return refuse(db, actor, refusal, now);
 
+	// 本文が触れている条（条のリンク元。Issue #166）。引くのは書く前、入れるのは書いたあと
+	const touched = await articlesTouchedBy(db, [body]);
 	// 画面を開いてから送るまでに統合・非表示になっても、元の課題に解決策が残って見えなくならないように
 	const rows = await db.all<{ id: number }>(sql`
 		INSERT INTO ${solutions} (issue_id, user_id, body, created_at)
@@ -50,6 +53,7 @@ export async function createSolution(db: Db, actor: Actor, issueId: number, body
 		.values({ kind: 'solution_post', userId: actor.userId, ipHash: actor.ipHash, targetId: rows[0].id, createdAt: now });
 	// 全文検索の行（設計書 docs/spec/38.md「行の作り方」）。上限を数える記録のあとに足す（課題と同じ順）
 	await indexTexts(db, 'solution', rows[0].id, [body]);
+	await saveLawRefs(db, 'solution', rows[0].id, touched);
 	return { ok: true as const, created: true as const, id: rows[0].id };
 }
 
