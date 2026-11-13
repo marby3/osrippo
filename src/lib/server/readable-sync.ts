@@ -1,6 +1,6 @@
 // 読める法律の取り込み（Issue #162、設計書 docs/spec/162.md 決めたこと3）。e-Gov の一覧の法律と憲法を、最新の版だけ入れる。
 // 自宅サーバーの入口（scripts/sync-readable.ts）と db:reset から読むので、cloudflare:workers、import.meta.env、#lib に頼らない
-import { eq, max } from 'drizzle-orm';
+import { eq, inArray, max } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { laws, readableArticles, readableLaws } from '../db/schema';
@@ -10,13 +10,8 @@ import { isRetryable, readLawBody, readLawList, type FetchJson, type ListedLaw }
 import type { BatchDb } from './law';
 
 // 全文検索の表は FTS5 で、スキーマでは管理しない（drizzle/0033_readable_laws.sql）。D1 の batch は値つきの db.run を受け付けないので、builder で書くためにここで形だけ宣言する。
-// 消すときは、表と同じ名前の列に 'delete' を入れる（contentless の FTS5 の命令）。入れるときはその列を書かない
+// contentless_delete = 1 なので、消すときは rowid の DELETE だけでよい
 const searchInsert = sqliteTable('readable_search', { rowid: integer('rowid').notNull(), text: text('text').notNull() });
-const searchDelete = sqliteTable('readable_search', {
-	command: text('readable_search').notNull(),
-	rowid: integer('rowid').notNull(),
-	text: text('text').notNull()
-});
 
 // D1 の上限（https://developers.cloudflare.com/d1/platform/limits/）：1文の値は100個、1文100KB、1回の batch に1000文。余裕をとって下回る値にする
 const MAX_PARAMS = 100;
@@ -76,16 +71,10 @@ const searchRowBytes = (r: SearchRow) => bytes(r.text) + 16;
 /** 条の行から、索引の text を作り直す（入れたときと同じ文字列） */
 const searchRowOf = (a: { id: number; caption: string; paragraphs: Paragraph[] }): SearchRow => ({ rowid: a.id, text: readableSearchText(a.caption, a.paragraphs) });
 
-/** その法令の索引と条を消す文（索引が先。'delete' には入れたときと同じ text を渡す） */
-async function deleteArticles(db: BatchDb, lawId: string): Promise<BatchItem<'sqlite'>[]> {
-	const old = await db
-		.select({ id: readableArticles.id, caption: readableArticles.caption, paragraphs: readableArticles.paragraphs })
-		.from(readableArticles)
-		.where(eq(readableArticles.lawId, lawId));
-	return [
-		...chunks(old.map(searchRowOf), 3, searchRowBytes).map((rows) => db.insert(searchDelete).values(rows.map((r) => ({ command: 'delete', ...r })))),
-		db.delete(readableArticles).where(eq(readableArticles.lawId, lawId))
-	];
+/** その法令の索引と条を消す文（索引が先。索引は rowid だけで消す。contentless_delete = 1） */
+function deleteArticles(db: BatchDb, lawId: string): BatchItem<'sqlite'>[] {
+	const ids = db.select({ id: readableArticles.id }).from(readableArticles).where(eq(readableArticles.lawId, lawId));
+	return [db.delete(searchInsert).where(inArray(searchInsert.rowid, ids)), db.delete(readableArticles).where(eq(readableArticles.lawId, lawId))];
 }
 
 /** 法令名などの欄（synced_updated・article_count・headings 以外） */
@@ -116,7 +105,7 @@ async function replaceArticles(db: BatchDb, law: ListedLaw, body: { articles: { 
 
 	await db.batch([
 		db.update(readableLaws).set({ syncedUpdated: null, articleCount: null }).where(eq(readableLaws.id, law.lawId)),
-		...(await deleteArticles(db, law.lawId))
+		...deleteArticles(db, law.lawId)
 	] as never);
 
 	// id は表の最大値 + 1 から順に振る（索引の rowid を入れる前に決める）
@@ -201,7 +190,7 @@ export async function syncReadable(db: BatchDb, fetchJson: FetchJson, wait: Slee
 	for (const id of stored.keys()) {
 		if (current.has(id)) continue;
 		try {
-			await db.batch([...(await deleteArticles(db, id)), db.delete(readableLaws).where(eq(readableLaws.id, id))] as never);
+			await db.batch([...deleteArticles(db, id), db.delete(readableLaws).where(eq(readableLaws.id, id))] as never);
 			result.removed.push(id);
 		} catch (e) {
 			console.error(`${id} を消せませんでした`, e);

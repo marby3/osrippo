@@ -30,5 +30,5 @@ CREATE TABLE `readable_laws` (
 --> statement-breakpoint
 -- 読める法律の全文検索（手で書いた。設計書 docs/spec/162.md「表」）。drizzle-kit は FTS5 の仮想表を扱わないので schema.ts には書かない。
 -- 本文の写しを持たない（content=''）。rowid は readable_articles.id、text は条の見出しと本文をそろえた文字列（domain/search.ts の readableSearchText）。
--- 消すときは 'delete' の命令に、入れたときと同じ text を渡す
-CREATE VIRTUAL TABLE `readable_search` USING fts5 (text, tokenize = 'trigram', content = '');
+-- contentless_delete = 1 なので、rowid だけで DELETE できる（入れたときの text を作り直して渡さなくてよい。D1 は text が合わない 'delete' を壊れた索引として断るため）
+CREATE VIRTUAL TABLE `readable_search` USING fts5 (text, tokenize = 'trigram', content = '', contentless_delete = 1);
