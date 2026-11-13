@@ -14,6 +14,7 @@ Issue #201（#190 の決めたこと6、#198 の「負荷試験」）。β の�
 | p95 が1秒以内 | `http_req_duration: p(95)<1000` |
 | CPU の制限で落ちた応答が0件 | `cpu_exceeded: count<1`（本文に「Error 1102」か「exceeded resource limits」を含む応答） |
 | 応答のなかったものが0件 | `no_response: count<1`（つながらない・時間切れ。向ける先が落ちていても合格にならないように足した） |
+| 200 でも 5xx でもない応答が0件 | `other_status: count<1`（404・403 など。画面がなかったり断られたりしても合格にならないように足した。リダイレクトは追いかけた先の応答で見る） |
 
 - 100人同時は、k6 の VU 100人が、それぞれ画面を1つ読んでは1〜5秒あける形。時間は5分
 - 読む画面は `load/pages.json` の7つ。毎回くじで選ぶ（法律の一覧は、`q` なしとありを半分ずつ）
@@ -38,7 +39,7 @@ Issue #201（#190 の決めたこと6、#198 の「負荷試験」）。β の�
 順番どおりに。
 
 1. Workers を有料プランに切り替える
-2. Cloudflare の API トークンを作る。権限は「Account Analytics Read」（試験のあとで、CPU の制限で落ちた件数と D1 の読んだ行数を GraphQL で見るため）。`wrangler d1 insights` を使うときも同じ権限が要る
+2. Cloudflare の API トークンを作る。権限は「Account Analytics Read」（試験のあとで、CPU の制限で落ちた件数と D1 の読んだ行数を GraphQL と SQL API で見るため）。`wrangler d1 insights` を使うときも同じ権限が要る
 3. ステージングにいまのコードをデプロイし、マイグレーションを当てる（`.review/config` の deploy=、`npx wrangler d1 migrations apply DB --env staging --remote`）
 4. 下の「β の規模のデータを入れる」
 5. 下の「流す」。5分の試験のあとで「CPU の制限で落ちた件数を確かめる」
@@ -54,16 +55,17 @@ Issue #201（#190 の決めたこと6、#198 の「負荷試験」）。β の�
 | 行 | 数 |
 | --- | --- |
 | 利用者 | 100人（id は `beta-u001`〜、名前は `beta-参加者001`〜、メールは `beta-u001@users.invalid`〜。前の会期の45日前に登録） |
-| 課題 | 50件（全文検索の索引の行も。10件は前の会期の前の週、40件は前の会期の始まりからいままで） |
-| 解決策 | 100件（課題ごとに2件。索引の行も） |
+| 課題 | 50件（全文検索の索引の行は、題名・困っている人・具体例で150行。10件は前の会期の前の週、40件は前の会期の始まりからいままで） |
+| 解決策 | 100件（課題ごとに2件。索引の行も100行） |
 | 「わかる」 | 課題に300件（1人3件）、解決策に100件（1人1件） |
-| 法案 | 10本。前の会期に5本、いまの会期に5本。どれも発議済みで、変える条が1つ、元にした解決策が1つ、賛同が8人 |
-| 立場と票 | 法案を出した人と賛同した人のほかで、1人が会期ごとに3本。前の会期は採決の週に票がある。いまの会期は、採決の週（22日〜）に入っていれば「いま」までの票、入る前なら票はない |
+| 法案 | 10本。前の会期に5本、いまの会期に5本。どれも発議済みで、変える条が1つ、元にした解決策が1つ、賛同が8人（合わせて80件） |
+| 立場と票 | 法案を出した人と賛同した人のほかで、1人が会期ごとに3本。立場は554件。票は、前の会期は採決の週に277件。いまの会期は、採決の週（22日〜）に入っていれば「いま」までに277件、入る前なら0件 |
 | 前の会期の結果 | 5本ぶん（統計のページは結果を作らないので、入れないと中身が出ない） |
 | 行動の記録（actions） | 上のそれぞれに1行（今月の参加者と投票資格に数える） |
 
 - 法案はどれも否決になる票にしている（可決すると会期の終わりの処理で IF世界の条文が変わり、消すだけでは戻せないため）
 - 番号は DB に振らせ、ほかの行からは題名・本文で引く（固定の番号はステージングの行とぶつかるため）
+- ステージングに本当の利用者がいない前提で使う（本番には流さない）。消す SQL は、β の課題・法案についた行を、だれが書いたものでも消す（ほかの人の票・立場・通知など）
 - 法案の「基にした版」は、いま施行されている現実の版にしている（ステージングに IF世界の版があっても、その版にはしない）。採決のくじの割り当て（vote_assignments）は作らない。どちらも読む画面の重さにはほぼ効かない
 
 手順（PowerShell と Linux で同じ）：
@@ -75,8 +77,8 @@ pnpm beta:data -- --check .wrangler/beta.sql --env staging --remote
 ```
 
 - 1行目で、入れる SQL（`beta.sql`）、消す SQL（`beta.delete.sql`）、作った行の数（`beta.expected.json`）ができる。時刻は流した時点の「いま」。会期をまたぐと前の会期といまの会期がずれるので、作ったらすぐに入れて、その会期のうちに試験を終える
-- 3行目は、D1 の β の行を数え、作った数と比べる（違えば終了コード1）。`--env staging --remote` を外すと手元の D1
-- 今月の参加者の数（session_participants）は、その会期で最初に読まれたときに固定される。データを入れる前にいまの会期の数が固定されていたら、β の利用者は入らない（発議要件の表示が変わるだけで、試験の画面には効かない）
+- 3行目は、D1 の β の行を数え、作った数と比べる（違えば終了コード1）。`--env staging --remote` を外すと手元の D1。入れた直後に流す（`sessionParticipants`・`notifications` は、入れたあとで画面が読まれると本体が作る行で、入れた直後は0）
+- 今月の参加者の数（session_participants）は、その会期で最初に読まれたときに固定される。データを入れる前にいまの会期の数が固定されていたら、β の利用者は入らない（発議要件の表示が変わるだけで、試験の画面には効かない）。データを作ったあとに固定された行は β の利用者を数えているので、消す SQL で消す（次に読まれたときに数え直す）
 
 ## β の規模のデータを消す
 
@@ -85,7 +87,7 @@ npx wrangler d1 execute DB --env staging --remote --file .wrangler/beta.delete.s
 pnpm beta:data -- --check .wrangler/beta.sql --env staging --remote
 ```
 
-2行目で全部の数が0になっていることを確かめる（作った数と違うので終了コード1になる）。消す SQL は、読んだときに本体が作る行（立場別の分布、確認、通知）も消す。IF世界の行ができていたら（可決にはしないので、ふつうはできない）、`bill_laws` を消すところで外部キーの違反で止まるので、手で確かめる。
+2行目で全部の数が0になっていることを確かめる（作った数と違うので終了コード1になる）。消す SQL は、読んだときに本体が作る行（立場別の分布、確認、通知、データを作ったあとに固定された今月の参加者の数）も消す。β の課題・法案についた行は、だれが書いたものでも消すので、ステージングに本当の利用者がいないときだけ流す。IF世界の行ができていたら（可決にはしないので、ふつうはできない）、`bill_laws` を消すところで外部キーの違反で止まるので、手で確かめる。
 
 ## 流す
 
@@ -139,16 +141,28 @@ query ($accountTag: string!, $start: Time!, $end: Time!) {
 
    始まりと終わりの時刻と、要約の `http_reqs{page:home}` の count（読んだ回数）を控える。画面のあいだは1分以上あける
 
-2. そのあいだに D1 が読んだ行数を集める（Cloudflare の SQL API。サンプリングの重みは自動でかかる）
+2. そのあいだに D1 が読んだ行数を集める。Cloudflare の SQL API（`https://api.cloudflare.com/client/v4/analytics/sql`）を curl で呼ぶ。サンプリングの重みは `SUM`・`COUNT` に自動でかかる。PowerShell でも引用符で困らないよう、本文はファイルにする
 
-   ```sh
-   npx cf sql query --scope-account <アカウントID> "SELECT SUM(rowsRead) AS rowsRead, SUM(rowsWritten) AS rowsWritten, COUNT(*) AS queries FROM events.d1Queries WHERE databaseId = 'ca1c0d81-d4ea-4b62-a31e-58048ac622c6' AND timestamp >= '<始まり>' AND timestamp < '<終わり>' AND error = ''"
+   `rows.json`（`<アカウントID>`・`<始まり>`・`<終わり>` を書き換える。時刻は手順1で出た UTC のまま）：
+
+   ```json
+   {
+   	"query": "SELECT SUM(rowsRead) AS rowsRead, SUM(rowsWritten) AS rowsWritten, COUNT(*) AS queries FROM events.d1Queries WHERE databaseId = 'ca1c0d81-d4ea-4b62-a31e-58048ac622c6' AND error = ''",
+   	"scope": { "accountTag": "<アカウントID>" },
+   	"time_range": { "start": "<始まり>", "end": "<終わり>" }
+   }
    ```
 
-   SQL API が使えないときは、GraphQL の `d1AnalyticsAdaptiveGroups`（`sum { rowsRead rowsWritten readQueries }`、`databaseId` で絞る）を分の単位で集める（時刻の絞り方の項目名は GraphQL の introspection で確かめる）
+   ```sh
+   curl https://api.cloudflare.com/client/v4/analytics/sql --header "Authorization: Bearer <API トークン>" --header "Content-Type: application/json" --data "@rows.json"
+   ```
+
+   - PowerShell では `curl` が別のコマンドを指すことがあるので `curl.exe` と書く
+   - 答えの `data[0]` に `rowsRead`・`rowsWritten`・`queries` が入る。項目名が違うと断られたら、`curl --get https://api.cloudflare.com/client/v4/analytics/sql/introspection --header "Authorization: Bearer <API トークン>" --data-urlencode "account_tag=<アカウントID>" --data-urlencode "dataset_name=events.d1Queries" --data-urlencode "include_columns=true"` で列の名前を確かめる
+   - SQL API が使えないときは、GraphQL（`https://api.cloudflare.com/client/v4/graphql`。上の CPU の確かめと同じ呼び方）の `d1AnalyticsAdaptiveGroups`（`sum { rowsRead rowsWritten readQueries }`、`databaseId` で絞る）を集める（時刻の絞り方の項目名は GraphQL の introspection で確かめる）
 
 3. 1回あたりの読んだ行数 = 読んだ行数 ÷ 読んだ回数。下の表に入れる
-4. どの問い合わせが重いかは `npx wrangler d1 insights osrippo-staging --sort-by=reads --time-period=1d --json` で見る（課題の一覧の既定の並びと、ホームの注目の課題は、デプロイのときにやることの一覧で「重ければ直す」としている）
+4. どの問い合わせが重いかは `npx wrangler d1 insights DB --env staging --sort-by reads --time-period 1d --limit 20 --json` で見る（wrangler はリポジトリの版。引数は wrangler 4.156.0 の `--help` で確かめた。`--time-period` は「いま」からさかのぼる長さ）。課題の一覧の既定の並びと、ホームの注目の課題は、デプロイのときにやることの一覧で「重ければ直す」としている
 
 - 統計は、立場別の分布の行を最初に読まれたときに1回作る（書く）。書いた行数も控える
 - ホームの今日の条文は Workers の中で1日覚えるので、isolate が変わったときだけ読む。行数は平均で見る
@@ -209,6 +223,6 @@ query ($accountTag: string!, $start: Time!, $end: Time!) {
 
 2026-11-14、手元の `pnpm preview:test`（1つのプロセス）に β の規模のデータを入れ、100人で1分流した。合否の判定と要約の JSON が出ることの確かめで、数字はステージングの見積もりには使わない。
 
-- 1,718回読み、5xx 0件、CPU の制限 0件、応答なし 0件。p95 は 2,996ms で不合格（終了コード1）
+- 1,718回読み、5xx 0件、CPU の制限 0件、応答なし 0件、200 でも 5xx でもない応答 0件。p95 は 2,996ms で不合格（終了コード1）
 - 3人で15秒・検索だけ（`--page kensaku`）は合格（終了コード0）。止めたサーバーに向けると「応答なし」で不合格。Docker がないと終了コード2
 - 消す SQL を流したあと、β の行は0になった（統計を読んで本体が作った立場別の分布の行も消えた）

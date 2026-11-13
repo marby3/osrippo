@@ -7,28 +7,34 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { BETA_COUNT_SQL, BETA_DELETE_STATEMENTS, betaData, type BetaCounts } from '../src/lib/db/beta-data';
+import { betaCountSql, betaData, betaDeleteStatements, type BetaCounts } from '../src/lib/db/beta-data';
 
 const root = join(import.meta.dirname, '..');
 // pnpm の「--」が残っていても読めるように
 const args = process.argv.slice(2).filter((a, i) => !(i === 0 && a === '--'));
-const { values } = parseArgs({
-	args,
-	options: {
-		out: { type: 'string' },
-		now: { type: 'string' },
-		check: { type: 'string' },
-		env: { type: 'string' },
-		remote: { type: 'boolean', default: false },
-		'persist-to': { type: 'string' }
-	}
-});
-
-const usage = () => {
+function usage(message?: string): never {
+	if (message) console.error(message);
 	console.error('使い方：pnpm beta:data -- --out <file.sql> [--now <日時>]');
 	console.error('　　　　pnpm beta:data -- --check <file.sql> [--env staging --remote]');
 	process.exit(2);
-};
+}
+let values: { out?: string; now?: string; check?: string; env?: string; remote: boolean; 'persist-to'?: string };
+try {
+	values = parseArgs({
+		args,
+		options: {
+			out: { type: 'string' },
+			now: { type: 'string' },
+			check: { type: 'string' },
+			env: { type: 'string' },
+			remote: { type: 'boolean', default: false },
+			'persist-to': { type: 'string' }
+		}
+	}).values;
+} catch (e) {
+	usage((e as Error).message);
+}
+type Expected = { now: number; counts: BetaCounts };
 const base = (file: string) => resolve(file).replace(/\.sql$/, '');
 
 if (values.out) {
@@ -36,16 +42,18 @@ if (values.out) {
 	if (!Number.isFinite(now)) usage();
 	const { statements, expected } = betaData(now);
 	const out = resolve(values.out);
+	/** 作った時刻と行の数。--check で使う（時刻は、入れたあとに固定された今月の参加者の数を見分けるため） */
+	const record: Expected = { now, counts: expected };
 	mkdirSync(dirname(out), { recursive: true });
 	writeFileSync(out, statements.join('\n') + '\n');
-	writeFileSync(`${base(values.out)}.delete.sql`, BETA_DELETE_STATEMENTS.join('\n') + '\n');
-	writeFileSync(`${base(values.out)}.expected.json`, JSON.stringify(expected, null, '\t') + '\n');
+	writeFileSync(`${base(values.out)}.delete.sql`, betaDeleteStatements(now).join('\n') + '\n');
+	writeFileSync(`${base(values.out)}.expected.json`, JSON.stringify(record, null, '\t') + '\n');
 	console.log(`いま：${new Date(now).toISOString()}`);
 	console.log(`入れる SQL：${out}（${statements.length}文）`);
 	console.log(`消す SQL：${base(values.out)}.delete.sql`);
 	console.log(`作る行の数：${JSON.stringify(expected)}`);
 } else if (values.check) {
-	const expected = JSON.parse(readFileSync(`${base(values.check)}.expected.json`, 'utf8')) as BetaCounts;
+	const { now, counts: expected } = JSON.parse(readFileSync(`${base(values.check)}.expected.json`, 'utf8')) as Expected;
 	const where = [
 		...(values.env ? ['--env', values.env] : []),
 		values.remote ? '--remote' : '--local',
@@ -53,7 +61,7 @@ if (values.out) {
 	];
 	const output = execFileSync(
 		process.execPath,
-		[join(root, 'node_modules/wrangler/bin/wrangler.js'), 'd1', 'execute', 'DB', ...where, '--json', '--command', BETA_COUNT_SQL.replace(/\s+/g, ' ')],
+		[join(root, 'node_modules/wrangler/bin/wrangler.js'), 'd1', 'execute', 'DB', ...where, '--json', '--command', betaCountSql(now).replace(/\s+/g, ' ')],
 		{ cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }
 	);
 	const actual = (JSON.parse(output) as { results: BetaCounts[] }[])[0].results[0];

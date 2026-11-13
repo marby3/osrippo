@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { openMemoryDb } from './memory';
 import { seedStatements, TARGET_LAWS } from './seed';
-import { BETA_COUNT_SQL, BETA_DELETE_STATEMENTS, betaData } from './beta-data';
+import { betaCountSql, betaData, betaDeleteStatements } from './beta-data';
 import { sessionAt } from '../domain/session';
 import { tallyVotes } from '../server/votes';
 
@@ -19,27 +19,41 @@ test('基準2：β の規模のデータを作り、件数を確かめられる�
 		for (const sql of seedStatements(TARGET_LAWS, fixture)) sqlite.exec(sql);
 		// もとからある利用者と課題（ID がぶつからず、消す SQL で消えない）
 		sqlite.exec("INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('real-1', '参加者000001', 'google-1@users.invalid', 0, 0)");
-		sqlite.exec("INSERT INTO issues (user_id, title, affected, example, created_at) VALUES ('real-1', 'もとからある課題', 'a', 'e', 0)");
+		const realIssue = Number(sqlite.prepare("INSERT INTO issues (user_id, title, affected, example, created_at) VALUES ('real-1', 'もとからある課題', 'a', 'e', 0)").run().lastInsertRowid);
+		// データを入れる前からある行：固定済みの今月の参加者の数、もとからある課題への通知と条への参照
+		sqlite.prepare("INSERT INTO session_participants (committee_id, session_key, active_count, fixed_at) VALUES (1, 'old', 3, ?)").run(now - 1000);
+		sqlite.prepare("INSERT INTO notifications (user_id, kind, target_id, ref_id, created_at) VALUES ('real-1', 'issue_hidden', ?, 0, 0)").run(realIssue);
+		sqlite.prepare("INSERT INTO law_refs (kind, ref_id, law_id, num) VALUES ('issue', ?, '412AC0000000061', '4')").run(realIssue);
 
 		const data = betaData(now);
 		for (const sql of data.statements) sqlite.exec(sql);
+		const count = () => sqlite.prepare(betaCountSql(now)).get() as Record<string, number>;
 
-		const counts = sqlite.prepare(BETA_COUNT_SQL).get() as Record<string, number>;
+		const counts = count();
 		expect(counts).toEqual(data.expected);
-		// β の規模（#190 決めたこと6）
-		expect(counts.users).toBe(100);
-		expect(counts.issues).toBe(50);
-		expect(counts.bills).toBe(10);
-		expect(counts.billChanges).toBe(10);
-		expect(counts.issueSearch).toBeGreaterThanOrEqual(50);
-		expect(counts.solutions).toBeGreaterThan(0);
-		expect(counts.issueSupports).toBeGreaterThan(0);
-		expect(counts.billSupports).toBeGreaterThan(0);
-		expect(counts.previousVotes).toBeGreaterThan(0);
-		expect(counts.billResults).toBe(5);
+		// β の規模（#190 決めたこと6）と docs/load-test.md の表の数
 		const current = sessionAt(now, null);
-		if (now >= current.voteAt) expect(counts.currentVotes).toBeGreaterThan(0);
-		else expect(counts.currentVotes).toBe(0);
+		const voting = now >= current.voteAt;
+		expect(counts).toEqual({
+			users: 100,
+			issues: 50,
+			issueSearch: 150,
+			solutions: 100,
+			solutionSearch: 100,
+			issueSupports: 300,
+			solutionReactions: 100,
+			bills: 10,
+			billChanges: 10,
+			billSupports: 80,
+			stances: 554,
+			previousVotes: 277,
+			currentVotes: voting ? 277 : 0,
+			billResults: 5,
+			// 課題50・解決策100・「わかる」300と100・起草と発議10ずつ・賛同80・票
+			actions: 50 + 100 + 300 + 100 + 10 + 10 + 80 + 277 + (voting ? 277 : 0),
+			sessionParticipants: 0,
+			notifications: 0
+		});
 
 		// 時刻は「いま」より後にならない
 		const latest = sqlite
@@ -76,12 +90,30 @@ test('基準2：β の規模のデータを作り、件数を確かめられる�
 			expect(found.n).toBeGreaterThan(0);
 		}
 
-		for (const sql of BETA_DELETE_STATEMENTS) sqlite.exec(sql);
-		const left = sqlite.prepare(BETA_COUNT_SQL).get() as Record<string, number>;
+		// 入れたあとで本体が作る行：いまの会期の今月の参加者の数（β の利用者を数えた）、β の法案の結果の通知（β の利用者とほかの人へ）、β の課題への条の参照
+		const betaBill = (sqlite.prepare("SELECT id FROM bills WHERE user_id LIKE 'beta-%' LIMIT 1").get() as { id: number }).id;
+		const betaIssue = (sqlite.prepare("SELECT id FROM issues WHERE user_id LIKE 'beta-%' LIMIT 1").get() as { id: number }).id;
+		sqlite.prepare('INSERT INTO session_participants (committee_id, session_key, active_count, fixed_at) VALUES (1, ?, 100, ?)').run(current.key, now + 1000);
+		sqlite.prepare("INSERT INTO notifications (user_id, kind, target_id, ref_id, created_at) VALUES ('real-1', 'bill_rejected', ?, 0, ?)").run(betaBill, now + 1000);
+		sqlite.prepare("INSERT INTO notifications (user_id, kind, target_id, ref_id, created_at) VALUES ('beta-u001', 'bill_rejected', ?, 0, ?)").run(betaBill, now + 1000);
+		sqlite.prepare("INSERT INTO law_refs (kind, ref_id, law_id, num) VALUES ('issue', ?, '412AC0000000061', '4')").run(betaIssue);
+		expect(count()).toMatchObject({ sessionParticipants: 1, notifications: 2 });
+
+		for (const sql of betaDeleteStatements(now)) sqlite.exec(sql);
+		const left = count();
 		expect(Object.values(left).every((n) => n === 0)).toBe(true);
-		expect(sqlite.prepare("SELECT count(*) AS n FROM user WHERE id = 'real-1'").get()).toEqual({ n: 1 });
-		expect(sqlite.prepare("SELECT count(*) AS n FROM issues WHERE user_id = 'real-1'").get()).toEqual({ n: 1 });
-		expect(sqlite.prepare('SELECT count(*) AS n FROM stance_log').get()).toEqual({ n: 0 });
-		expect(sqlite.prepare("SELECT count(*) AS n FROM search_trigram WHERE kind <> 'provision'").get()).toEqual({ n: 0 });
+		const n = (sql: string) => (sqlite.prepare(sql).get() as { n: number }).n;
+		// β の行が残っていない（数える SQL に入れていない表も）
+		expect(n("SELECT count(*) AS n FROM search_trigram WHERE kind <> 'provision'")).toBe(0);
+		expect(n("SELECT count(*) AS n FROM search_bigram WHERE kind <> 'provision'")).toBe(0);
+		expect(n('SELECT count(*) AS n FROM stance_log')).toBe(0);
+		expect(n('SELECT count(*) AS n FROM bill_laws')).toBe(0);
+		expect(n('SELECT count(*) AS n FROM bill_solutions')).toBe(0);
+		// もとからある行は残る
+		expect(n("SELECT count(*) AS n FROM user WHERE id = 'real-1'")).toBe(1);
+		expect(n("SELECT count(*) AS n FROM issues WHERE user_id = 'real-1'")).toBe(1);
+		expect(sqlite.prepare('SELECT session_key FROM session_participants').all()).toEqual([{ session_key: 'old' }]);
+		expect(sqlite.prepare('SELECT kind, target_id FROM notifications').all()).toEqual([{ kind: 'issue_hidden', target_id: realIssue }]);
+		expect(sqlite.prepare('SELECT ref_id FROM law_refs').all()).toEqual([{ ref_id: realIssue }]);
 	}
 }, 120_000);

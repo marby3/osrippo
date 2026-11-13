@@ -3,8 +3,10 @@
 // 行はすべて β の利用者（id が beta- で始まる）が書いたもの。番号は DB に振らせ、ほかの行からは題名・本文で副問い合わせして引く
 // （固定の番号を使うと、ステージングの行とぶつかったり、あとの番号が飛んだりするため）。
 // 会期は「いま」の会期と前の会期。法案はどれも否決になる票にする（可決すると IF世界の条文が変わり、消すだけでは戻せないため）。
-// 前の会期の結果の行（bill_results）も入れる（統計のページは結果を作らないので、ないと中身が出ない）
+// 前の会期の結果の行（bill_results）も入れる（統計のページは結果を作らないので、ないと中身が出ない）。
+// 消す SQL は、β の課題・法案についた行（ほかの人の通知・票・立場など）も消す。ステージングに本当の利用者がいない前提で使う（本番には流さない）
 import { proposalRequirement } from '../domain/bills';
+import { NOTIFICATION_KINDS, targetOf, type NoticeTarget } from '../domain/notifications';
 import { searchTexts } from '../domain/search';
 import { sessionAt, type Session } from '../domain/session';
 import { billOutcome, quorumRequirement, SETTLE_GRACE, type VoteChoice, type VoteCounts } from '../domain/votes';
@@ -106,7 +108,7 @@ const BILL_TARGETS = [
 
 const STANCES = ['for', 'undecided', 'against'] as const;
 
-/** 作った行の数。BETA_COUNT_SQL の列と同じ名前 */
+/** 作った行の数。betaCountSql の列と同じ名前。sessionParticipants と notifications は入れたあとに本体が作る行で、入れた直後は0 */
 export type BetaCounts = {
 	users: number;
 	issues: number;
@@ -123,6 +125,8 @@ export type BetaCounts = {
 	currentVotes: number;
 	billResults: number;
 	actions: number;
+	sessionParticipants: number;
+	notifications: number;
 };
 
 const pad = (n: number) => String(n).padStart(3, '0');
@@ -399,7 +403,9 @@ export function betaData(now: number): { statements: string[]; expected: BetaCou
 			previousVotes: expectedVotes.previous,
 			currentVotes: expectedVotes.current,
 			billResults: results.rows.length,
-			actions: actions.rows.length
+			actions: actions.rows.length,
+			sessionParticipants: 0,
+			notifications: 0
 		}
 	};
 }
@@ -409,8 +415,24 @@ const BETA_ISSUE_IDS = `SELECT id FROM issues WHERE user_id ${BETA}`;
 const BETA_SOLUTION_IDS = `SELECT id FROM solutions WHERE user_id ${BETA} OR issue_id IN (${BETA_ISSUE_IDS})`;
 const BETA_BILL_IDS = `SELECT id FROM bills WHERE user_id ${BETA}`;
 
-/** β の行の数を1行で返す SELECT（列は BetaCounts と同じ）。votes は、結果の行のある会期（前の会期）とそれ以外に分ける */
-export const BETA_COUNT_SQL = `SELECT
+/** 通知の対象（target_id）の種類ごとの kind の並び（SQL の IN の中身） */
+const kindsOf = (target: NoticeTarget) =>
+	NOTIFICATION_KINDS.filter((k) => targetOf(k) === target)
+		.map((k) => literal(k))
+		.join(', ');
+/** β の利用者への通知と、β の法案・課題・解決策を対象にした通知 */
+const BETA_NOTIFICATIONS = `user_id ${BETA}
+	OR (kind IN (${kindsOf('bill')}) AND target_id IN (${BETA_BILL_IDS}))
+	OR (kind IN (${kindsOf('issue')}) AND target_id IN (${BETA_ISSUE_IDS}))
+	OR (kind IN (${kindsOf('solution')}) AND target_id IN (${BETA_SOLUTION_IDS}))`;
+/** データを入れたあと（since 以後）に固定された今月の参加者の数（β の利用者を数えている）。消すと、次に読まれたときに数え直す */
+const fixedSince = (since: number) => `fixed_at >= ${Math.floor(since)}`;
+
+/**
+ * β の行の数を1行で返す SELECT（列は BetaCounts と同じ）。since はデータを作った時刻（betaData の now）。
+ * votes は、結果の行のある会期（前の会期）とそれ以外に分ける
+ */
+export const betaCountSql = (since: number) => `SELECT
 	(SELECT count(*) FROM user WHERE id ${BETA}) AS users,
 	(SELECT count(*) FROM issues WHERE user_id ${BETA}) AS issues,
 	(SELECT count(*) FROM search_trigram WHERE kind = 'issue' AND ref_id IN (${BETA_ISSUE_IDS})) AS issueSearch,
@@ -425,35 +447,40 @@ export const BETA_COUNT_SQL = `SELECT
 	(SELECT count(*) FROM votes v WHERE v.bill_id IN (${BETA_BILL_IDS}) AND EXISTS (SELECT 1 FROM bill_results r WHERE r.bill_id = v.bill_id AND r.session_key = v.session_key)) AS previousVotes,
 	(SELECT count(*) FROM votes v WHERE v.bill_id IN (${BETA_BILL_IDS}) AND NOT EXISTS (SELECT 1 FROM bill_results r WHERE r.bill_id = v.bill_id AND r.session_key = v.session_key)) AS currentVotes,
 	(SELECT count(*) FROM bill_results WHERE bill_id IN (${BETA_BILL_IDS})) AS billResults,
-	(SELECT count(*) FROM actions WHERE user_id ${BETA}) AS actions`;
+	(SELECT count(*) FROM actions WHERE user_id ${BETA}) AS actions,
+	(SELECT count(*) FROM session_participants WHERE ${fixedSince(since)}) AS sessionParticipants,
+	(SELECT count(*) FROM notifications WHERE ${BETA_NOTIFICATIONS}) AS notifications`;
 
 /**
- * β の行を消す SQL（外部キーを満たす順）。読んだときに本体が作る行（立場別の分布、確認、通知）も消す。
+ * β の行を消す SQL（外部キーを満たす順）。since はデータを作った時刻。読んだときに本体が作る行（立場別の分布、確認、通知、今月の参加者の数）も消す。
+ * β の課題・法案についた行は、だれが書いたものでも消す（ステージングに本当の利用者がいない前提）。
  * 法案は可決にしないので IF世界の行はできない。もしできていたら、bill_laws を消すところで外部キーの違反で止まる（手で確かめる）
  */
-export const BETA_DELETE_STATEMENTS = [
-	`DELETE FROM search_trigram WHERE kind = 'issue' AND ref_id IN (${BETA_ISSUE_IDS})`,
-	`DELETE FROM search_bigram WHERE kind = 'issue' AND ref_id IN (${BETA_ISSUE_IDS})`,
-	`DELETE FROM search_trigram WHERE kind = 'solution' AND ref_id IN (${BETA_SOLUTION_IDS})`,
-	`DELETE FROM search_bigram WHERE kind = 'solution' AND ref_id IN (${BETA_SOLUTION_IDS})`,
-	`DELETE FROM law_refs WHERE (kind = 'issue' AND ref_id IN (${BETA_ISSUE_IDS})) OR (kind = 'solution' AND ref_id IN (${BETA_SOLUTION_IDS}))`,
-	`DELETE FROM notifications WHERE user_id ${BETA}`,
-	`DELETE FROM stance_stats WHERE bill_id IN (${BETA_BILL_IDS})`,
-	`DELETE FROM vote_reviews WHERE bill_id IN (${BETA_BILL_IDS})`,
-	`DELETE FROM bill_results WHERE bill_id IN (${BETA_BILL_IDS})`,
-	`DELETE FROM votes WHERE bill_id IN (${BETA_BILL_IDS}) OR user_id ${BETA}`,
-	`DELETE FROM vote_assignments WHERE bill_id IN (${BETA_BILL_IDS}) OR user_id ${BETA}`,
-	`DELETE FROM stances WHERE bill_id IN (${BETA_BILL_IDS}) OR user_id ${BETA}`,
-	`DELETE FROM stance_log WHERE bill_id IN (${BETA_BILL_IDS}) OR user_id ${BETA}`,
-	`DELETE FROM bill_supports WHERE bill_id IN (${BETA_BILL_IDS}) OR user_id ${BETA}`,
-	`DELETE FROM bill_solutions WHERE bill_id IN (${BETA_BILL_IDS})`,
-	`DELETE FROM bill_changes WHERE bill_id IN (${BETA_BILL_IDS})`,
-	`DELETE FROM bill_laws WHERE bill_id IN (${BETA_BILL_IDS})`,
-	`DELETE FROM bills WHERE user_id ${BETA}`,
-	`DELETE FROM solution_reactions WHERE solution_id IN (${BETA_SOLUTION_IDS}) OR user_id ${BETA}`,
-	`DELETE FROM solutions WHERE user_id ${BETA} OR issue_id IN (${BETA_ISSUE_IDS})`,
-	`DELETE FROM issue_supports WHERE issue_id IN (${BETA_ISSUE_IDS}) OR user_id ${BETA}`,
-	`DELETE FROM issues WHERE user_id ${BETA}`,
-	`DELETE FROM actions WHERE user_id ${BETA}`,
-	`DELETE FROM user WHERE id ${BETA}`
-].map((s) => `${s};`);
+export const betaDeleteStatements = (since: number) =>
+	[
+		`DELETE FROM search_trigram WHERE kind = 'issue' AND ref_id IN (${BETA_ISSUE_IDS})`,
+		`DELETE FROM search_bigram WHERE kind = 'issue' AND ref_id IN (${BETA_ISSUE_IDS})`,
+		`DELETE FROM search_trigram WHERE kind = 'solution' AND ref_id IN (${BETA_SOLUTION_IDS})`,
+		`DELETE FROM search_bigram WHERE kind = 'solution' AND ref_id IN (${BETA_SOLUTION_IDS})`,
+		`DELETE FROM law_refs WHERE (kind = 'issue' AND ref_id IN (${BETA_ISSUE_IDS})) OR (kind = 'solution' AND ref_id IN (${BETA_SOLUTION_IDS}))`,
+		`DELETE FROM notifications WHERE ${BETA_NOTIFICATIONS}`,
+		`DELETE FROM session_participants WHERE ${fixedSince(since)}`,
+		`DELETE FROM stance_stats WHERE bill_id IN (${BETA_BILL_IDS})`,
+		`DELETE FROM vote_reviews WHERE bill_id IN (${BETA_BILL_IDS})`,
+		`DELETE FROM bill_results WHERE bill_id IN (${BETA_BILL_IDS})`,
+		`DELETE FROM votes WHERE bill_id IN (${BETA_BILL_IDS}) OR user_id ${BETA}`,
+		`DELETE FROM vote_assignments WHERE bill_id IN (${BETA_BILL_IDS}) OR user_id ${BETA}`,
+		`DELETE FROM stances WHERE bill_id IN (${BETA_BILL_IDS}) OR user_id ${BETA}`,
+		`DELETE FROM stance_log WHERE bill_id IN (${BETA_BILL_IDS}) OR user_id ${BETA}`,
+		`DELETE FROM bill_supports WHERE bill_id IN (${BETA_BILL_IDS}) OR user_id ${BETA}`,
+		`DELETE FROM bill_solutions WHERE bill_id IN (${BETA_BILL_IDS})`,
+		`DELETE FROM bill_changes WHERE bill_id IN (${BETA_BILL_IDS})`,
+		`DELETE FROM bill_laws WHERE bill_id IN (${BETA_BILL_IDS})`,
+		`DELETE FROM bills WHERE user_id ${BETA}`,
+		`DELETE FROM solution_reactions WHERE solution_id IN (${BETA_SOLUTION_IDS}) OR user_id ${BETA}`,
+		`DELETE FROM solutions WHERE user_id ${BETA} OR issue_id IN (${BETA_ISSUE_IDS})`,
+		`DELETE FROM issue_supports WHERE issue_id IN (${BETA_ISSUE_IDS}) OR user_id ${BETA}`,
+		`DELETE FROM issues WHERE user_id ${BETA}`,
+		`DELETE FROM actions WHERE user_id ${BETA}`,
+		`DELETE FROM user WHERE id ${BETA}`
+	].map((s) => `${s};`);

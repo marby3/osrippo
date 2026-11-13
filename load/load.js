@@ -6,7 +6,8 @@
 //   PAGE         1つの画面だけを読む（画面ごとの D1 の読んだ行数を測るとき）。名前は pages.json
 //   SUMMARY_FILE 要約の JSON を書く先
 // 合否は thresholds で決める（k6 は満たさないと終了コード 99）：5xx 0件、p95 1秒以内、CPU の制限で落ちた応答 0件。
-// 応答のなかったもの（つながらない）も 0件を条件にする（向ける先が落ちていても合格にならないように）
+// 応答のなかったもの（つながらない）と、200 でも 5xx でもない応答（404・403 など）も 0件を条件にする
+// （向ける先が落ちていたり、画面がなかったり断られたりしても合格にならないように）
 import http from 'k6/http';
 import { sleep } from 'k6';
 import { Counter } from 'k6/metrics';
@@ -29,14 +30,15 @@ const server5xx = new Counter('server_5xx');
 const cpuExceeded = new Counter('cpu_exceeded');
 /** 応答がなかったもの（つながらない、時間切れ） */
 const noResponse = new Counter('no_response');
-/** 200 でも 5xx でもない応答（合否には入れない。数だけ要約に出す） */
+/** 200 でも 5xx でもない応答（404・403 やリダイレクトの先が 200 でないもの） */
 const otherStatus = new Counter('other_status');
 
 const thresholds = {
 	server_5xx: ['count<1'],
 	http_req_duration: ['p(95)<1000'],
 	cpu_exceeded: ['count<1'],
-	no_response: ['count<1']
+	no_response: ['count<1'],
+	other_status: ['count<1']
 };
 // 画面ごとの値を要約に出すため（いつも満たす条件で、合否には効かない）
 for (const p of PAGES) {
@@ -79,14 +81,14 @@ const count = (data, name) => data.metrics[name]?.values.count ?? 0;
 export function handleSummary(data) {
 	const lines = [];
 	let passed = true;
-	for (const name of ['server_5xx', 'http_req_duration', 'cpu_exceeded', 'no_response']) {
+	for (const name of ['server_5xx', 'http_req_duration', 'cpu_exceeded', 'no_response', 'other_status']) {
 		const m = data.metrics[name];
 		const ok = Object.values(m?.thresholds ?? {}).every((t) => t.ok);
 		passed &&= ok;
 		const value = name === 'http_req_duration' ? `p95 ${ms(m?.values['p(95)'])}` : `${count(data, name)}件`;
 		lines.push(`${ok ? '合格' : '不合格'}  ${name}: ${value}（${Object.keys(m?.thresholds ?? { 'count<1': 0 }).join(', ')}）`);
 	}
-	lines.push(`読んだ回数 ${count(data, 'http_reqs')}、200 でも 5xx でもない応答 ${count(data, 'other_status')}件`);
+	lines.push(`読んだ回数 ${count(data, 'http_reqs')}`);
 	lines.push('画面ごと：');
 	for (const p of PAGES) {
 		const d = data.metrics[`http_req_duration{page:${p.name}}`]?.values ?? {};
