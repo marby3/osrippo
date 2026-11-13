@@ -12,6 +12,7 @@ import {
 	type SolutionReportReason
 } from '../domain/reports';
 import type { Reaction } from '../domain/solutions';
+import { solutionSearchSources } from '../domain/search';
 import { PRESS_KINDS, refuse, type Actor } from './issues';
 import type { Db } from './law';
 import { notify } from './notifications';
@@ -52,7 +53,7 @@ export async function createSolution(db: Db, actor: Actor, issueId: number, body
 		.insert(actions)
 		.values({ kind: 'solution_post', userId: actor.userId, ipHash: actor.ipHash, targetId: rows[0].id, createdAt: now });
 	// 全文検索の行（設計書 docs/spec/38.md「行の作り方」）。上限を数える記録のあとに足す（課題と同じ順）
-	await indexTexts(db, 'solution', rows[0].id, [body]);
+	await indexTexts(db, 'solution', rows[0].id, solutionSearchSources({ body }));
 	await saveLawRefs(db, 'solution', rows[0].id, touched);
 	return { ok: true as const, created: true as const, id: rows[0].id };
 }

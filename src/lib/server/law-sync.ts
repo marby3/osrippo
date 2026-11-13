@@ -5,7 +5,7 @@ import type { BatchItem } from 'drizzle-orm/batch';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { laws, lawRevisions, provisions, provisionVersions } from '../db/schema';
 import { extendHistory } from '../domain/law';
-import { searchTexts } from '../domain/search';
+import { provisionSearchSource, searchTexts } from '../domain/search';
 import { checkRevision, readLawText, readRevisionList, type FetchJson } from '../egov/client';
 import { revisionStatus, type EgovRevision } from '../egov/revision';
 import { pinnedRevision } from './if-world';
@@ -105,7 +105,7 @@ export async function syncLaw(db: BatchDb, lawId: string, fetchJson: FetchJson):
 	const firstVersionId = (versionMax ?? 0) + 1;
 	const versions = history.versions.map((v, i) => ({ id: firstVersionId + i, ...v }));
 	const searchRows = versions.flatMap((v) => {
-		const texts = searchTexts(v.caption ?? v.text ?? '');
+		const texts = searchTexts(provisionSearchSource(v));
 		return texts ? [{ id: v.id, ...texts }] : [];
 	});
 	const closedBy = new Map<string, number[]>();

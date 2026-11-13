@@ -14,7 +14,7 @@ import {
 import type { Db } from './law';
 import { indexTexts, issueMatchSql } from './search';
 import { articlesTouchedBy, issueTexts, saveLawRefs } from './law-refs';
-import type { Word } from '../domain/search';
+import { issueSearchSources, type Word } from '../domain/search';
 import { billCounts, hasBills } from './issue-bills';
 import { bridgeParts } from './bridge';
 import { roundRatio } from '../domain/bridge';
@@ -196,7 +196,7 @@ export async function createIssue(db: Db, actor: Actor, value: IssueInput, now: 
 		.returning({ id: issues.id });
 	await db.insert(actions).values({ kind: 'issue_post', userId: actor.userId, ipHash: actor.ipHash, targetId: row.id, createdAt: now });
 	// 全文検索の行（題名・困っている人・具体例を別の行に。設計書 docs/spec/38.md「行の作り方」）
-	await indexTexts(db, 'issue', row.id, [value.title, value.affected, value.example]);
+	await indexTexts(db, 'issue', row.id, issueSearchSources(value));
 	await saveLawRefs(db, 'issue', row.id, touched);
 	return { ok: true as const, id: row.id };
 }
