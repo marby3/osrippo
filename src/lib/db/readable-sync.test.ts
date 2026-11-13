@@ -130,3 +130,13 @@ test('基準2：2回目は本文を読まない。updated が変わった法律�
 	expect(indexed.length).toBeGreaterThan(0);
 	expect(indexed).toHaveLength(joined.length);
 }, 60_000);
+
+test('不具合：法律の効力を持つ政令（law_type が「Act,CabinetOrder」）が一覧にあっても、一覧を断らずに取り込む', async () => {
+	const { sqlite, db } = setup();
+	const egov = fakeEgov((list, lawType) =>
+		lawType === 'Act' ? { ...list, laws: list.laws.map((l) => (l.law_info.law_id === MINPO ? { ...l, law_info: { ...l.law_info, law_type: 'Act,CabinetOrder' } } : l)) } : list
+	);
+	const result = await syncReadable(db, egov.fetchJson, async () => {});
+	expect(result.listError).toBeNull();
+	expect(all(sqlite, 'SELECT law_type FROM readable_laws WHERE id = ?', MINPO)).toEqual([{ law_type: 'Act' }]);
+});
