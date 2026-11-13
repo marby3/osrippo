@@ -19,6 +19,8 @@ PowerShellとLinuxで同じ `pnpm` スクリプトを使う。
 | `pnpm test` | ルールとDBのテスト（Vitest） |
 | `pnpm test:e2e` | 画面のテスト（Playwright、幅390pxと1280px） |
 | `pnpm test:phase` | フェーズの締めのテスト（`e2e/phase*.spec.ts`。フェーズの途中は落ちたままでよい） |
+| `pnpm test:load -- --base <URL>` | 負荷試験（Docker の k6。手順は [docs/load-test.md](docs/load-test.md)） |
+| `pnpm beta:data -- --out <file.sql>` | 負荷試験のための β の規模のデータの SQL |
 
 テストの流し方（`ai-dev-workflow` の手順より優先する）：
 
