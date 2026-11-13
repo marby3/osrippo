@@ -1,13 +1,13 @@
 // 会期のリプレイ（Issue #170。決めたことは Issue #198 の「#170」の節）。会期の終わりの処理では作らず、読むときに組む（結果も反映も書かない）。
 // 個人の票、立場別の区分、「考えが変わった」の数は返さない
-import { and, eq, inArray, sql } from 'drizzle-orm';
-import { amendments, issues } from '../db/schema';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { amendments, billResults, issues } from '../db/schema';
 import { articlePlace } from '../domain/bills';
 import type { DiffPart } from '../domain/law/compare';
 import { excerptDiff } from '../domain/law/excerpt';
 import { LISTED } from '../domain/reports';
 import type { Session } from '../domain/session';
-import { billById, billChangeViews } from './bills';
+import { billById, billChangeViews, changeViewShared } from './bills';
 import { ifPlacesOf, type IfPlace } from './if-world';
 import type { Db } from './law';
 import { changedRanking, sessionResults } from './toukei';
@@ -57,19 +57,36 @@ async function amendedCount(db: Db, session: Session) {
 	return rows.length;
 }
 
-/** 可決して IF世界に入った法案の、変わった条（変わったところの前後だけ）。確認中・無効・要調整の法案は入らない */
-async function ifChanges(db: Db, rows: Awaited<ReturnType<typeof sessionResults>>): Promise<ReplayIfBill[]> {
+/** IF世界の節に条を出す法案の数。超えた分は数だけ出し、それぞれの結果のページに任せる */
+export const REPLAY_IF_BILLS = 10;
+
+/**
+ * 可決して IF世界に入った法案の、変わった条（変わったところの前後だけ）。確認中・無効・要調整の法案は入らない。
+ * 読むのは番号の小さい REPLAY_IF_BILLS 本だけ。比べの予算はページ全体で1つにし、基にした条は法令・版ごとに1回だけ読む
+ */
+async function ifChanges(db: Db, session: Session): Promise<{ bills: ReplayIfBill[]; more: number }> {
+	// 結合のない select では列に表名が付かないので、サブクエリの中は表名を書いて相関させる
+	const applied = await db
+		.select({ billId: billResults.billId, rev: billResults.rev })
+		.from(billResults)
+		.where(
+			and(
+				eq(billResults.sessionKey, session.key),
+				eq(billResults.outcome, 'passed'),
+				sql`NOT EXISTS (SELECT 1 FROM vote_reviews v WHERE v.session_key = bill_results.session_key AND v.bill_id = bill_results.bill_id AND v.status IN ('open', 'voided'))`,
+				sql`(EXISTS (SELECT 1 FROM if_revisions i WHERE i.bill_id = bill_results.bill_id AND i.bill_rev = bill_results.rev) OR EXISTS (SELECT 1 FROM if_laws l WHERE l.bill_id = bill_results.bill_id AND l.bill_rev = bill_results.rev))`
+			)
+		)
+		.orderBy(asc(billResults.billId));
+	const shared = changeViewShared();
 	const out: ReplayIfBill[] = [];
-	for (const r of rows) {
-		if (r.outcome !== 'passed' || r.review === 'open' || r.review === 'voided') continue;
-		const places = await ifPlacesOf(db, r.billId, r.rev);
-		if (!places.length) continue;
-		const bill = await billById(db, r.billId);
+	for (const r of applied.slice(0, REPLAY_IF_BILLS)) {
+		const [places, bill] = await Promise.all([ifPlacesOf(db, r.billId, r.rev), billById(db, r.billId)]);
 		// 可決して反映した版は変わらないが、違えば別の版の条文を出さない
-		if (!bill || bill.rev !== r.rev) continue;
+		if (!places.length || !bill || bill.rev !== r.rev) continue;
 		// 法令が1本なら billChangeViews は法令名を付けないので、ここで付ける
 		const single = bill.laws.length === 1 ? places[0].title : null;
-		const changes: ReplayChange[] = (await billChangeViews(db, bill))
+		const changes: ReplayChange[] = (await billChangeViews(db, bill, shared))
 			.filter((c) => c.op !== 'supplementary')
 			.map((c) => {
 				const parts = c.after ?? c.before;
@@ -77,7 +94,7 @@ async function ifChanges(db: Db, rows: Awaited<ReturnType<typeof sessionResults>
 			});
 		out.push({ billId: r.billId, changes, places });
 	}
-	return out;
+	return { bills: out, more: Math.max(0, applied.length - REPLAY_IF_BILLS) };
 }
 
 export async function replayOf(db: Db, session: Session) {
@@ -86,7 +103,7 @@ export async function replayOf(db: Db, session: Session) {
 		sourceIssues(db, session),
 		amendedCount(db, session),
 		changedRanking(db, session, new Set(rows.map((r) => r.billId))),
-		ifChanges(db, rows)
+		ifChanges(db, session)
 	]);
 	const votes: ReplayVote[] = rows.map((r) =>
 		r.review === 'open'
@@ -106,6 +123,7 @@ export async function replayOf(db: Db, session: Session) {
 		amended,
 		points,
 		votes,
-		ifBills
+		ifBills: ifBills.bills,
+		ifMore: ifBills.more
 	};
 }

@@ -319,23 +319,37 @@ export async function billView(db: Db, bill: NonNullable<Bill>, now: number) {
 	};
 }
 
-/** 変更点のタブに出すもの：条ごとの「いま」と「変更後」。附則は最後に出す */
-export async function billChangeViews(db: Db, bill: NonNullable<Bill>): Promise<ChangeView[]> {
+type BaseArticles = Map<number, Awaited<ReturnType<typeof baseArticlesOf>>[number]>;
+/** 1つのページで何本もの法案の変更点を出すとき（会期のリプレイ、Issue #170）に共有するもの：比べの予算と、基にした条（法令・版ごとに1回だけ読む） */
+export type ChangeViewShared = { budget: { left: number }; bases: Map<string, Promise<BaseArticles>> };
+export const changeViewShared = (): ChangeViewShared => ({ budget: { left: DIFF_PAGE_BUDGET }, bases: new Map() });
+
+/** 変更点のタブに出すもの：条ごとの「いま」と「変更後」。附則は最後に出す。shared を渡すと、予算と基にした条をほかの法案と共有する */
+export async function billChangeViews(db: Db, bill: NonNullable<Bill>, shared: ChangeViewShared = changeViewShared()): Promise<ChangeView[]> {
 	const changes: ChangeView[] = [];
-	let budget = DIFF_PAGE_BUDGET;
+	const { budget } = shared;
+	const baseOf = (l: (typeof bill.laws)[number]) => {
+		const key = `${l.lawId}|${l.baseRevisionId}|${l.baseIfSeq}`;
+		let found = shared.bases.get(key);
+		if (!found) {
+			found = baseArticlesOf(db, l).then((rows) => new Map(rows.map((a) => [a.id, a])));
+			shared.bases.set(key, found);
+		}
+		return found;
+	};
 	// 法令が2本以上なら法令名を付ける（docs/spec/53.md 決めたこと11）
 	const titles = bill.laws.length > 1 ? await lawTitlesOf(db, bill) : null;
 	for (const l of bill.laws) {
 		const lawTitle = titles && (l.lawId ? (titles.get(l.lawId) ?? '') : (l.newTitle ?? ''));
-		const base = l.baseRevisionId && l.changes.length ? new Map((await baseArticlesOf(db, l)).map((a) => [a.id, a])) : new Map();
+		const base: BaseArticles = l.baseRevisionId && l.changes.length ? await baseOf(l) : new Map();
 		for (const c of l.changes) {
 			const location = articlePlace(lawTitle, articleLabel(c.num));
 			const old = c.provisionId === null ? undefined : base.get(c.provisionId);
 			const before = old ? textOf(old.caption, old.paragraphs) : null;
 			const after = c.paragraphs ? textOf(c.caption, c.paragraphs) : null;
 			if (before !== null && after !== null) {
-				const { parts, cost } = changeDiff(before, after, Math.min(DIFF_MAX_EDIT, budget));
-				budget -= cost;
+				const { parts, cost } = changeDiff(before, after, Math.min(DIFF_MAX_EDIT, budget.left));
+				budget.left -= cost;
 				changes.push({ location, op: c.op, before: parts, after: parts });
 			} else {
 				changes.push({

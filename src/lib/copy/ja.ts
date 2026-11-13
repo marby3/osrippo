@@ -1697,18 +1697,21 @@ export const ja = {
 		issueMeta: (supports: number, solutions: number) => `わかる ${supports} ・ 解決策 ${solutions}`,
 		noIssues: 'この会期の法案のもとになった課題はありません',
 		billsSummary: (bills: number, amended: number) =>
-			amended ? `${bills}本が発議され、${amended}本に修正案が取り込まれました。` : `${bills}本が発議されました。`,
+			amended ? `${bills}本が採決され、${amended}本に修正案が取り込まれました。` : `${bills}本が採決されました。`,
 		noBills: 'この会期に採決した法案はありません',
 		pointsNote: '「考えが変わった」が10人以上から付いた質疑と答弁',
 		pointKinds: { question: '質疑', answer: '答弁' },
 		noPoints: 'この会期には、ありません',
+		/** PC の採決の表の見出しの行（PcReplay） */
 		columns: { bill: '法案', outcome: '結果', counted: '数えた票', reference: '参考の票' },
 		counted: '数えた票',
 		reference: '参考の票',
 		line: (c: { yes: number; no: number; abstain: number }) => `賛成 ${c.yes} ・ 反対 ${c.no} ・ 棄権 ${c.abstain}`,
 		stanceNote: '立場別の分布は、それぞれの法案の結果のページにあります。',
 		band: { short: '架空の法令です', long: '架空の法令です。現実の法律ではありません。' },
-		noChanges: 'この会期に IF世界の法律になった法案はありません'
+		noChanges: 'この会期に IF世界の法律になった法案はありません',
+		/** 条を出す法案の数を超えた分 */
+		moreChanges: (n: number) => `ほか${n}本は、それぞれの結果のページで見られます。`
 	},
 	compare: {
 		pageTitle: (title: string) => `${title}の改正で変わったところ｜オープンソース立法府`,

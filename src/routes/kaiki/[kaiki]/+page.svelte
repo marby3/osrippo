@@ -76,6 +76,10 @@
 	<section id="kaiki-votes" aria-labelledby="kaiki-votes-heading">
 		<h2 id="kaiki-votes-heading">{t.headings.votes}</h2>
 		{#if data.votes.length}
+			<!-- PC は表の形にし、見出しの行を出す。各行の「数えた票」「参考の票」は読み上げにだけ残す（PcReplay） -->
+			<div class="vote-head" aria-hidden="true">
+				<span>{t.columns.bill}</span><span>{t.columns.outcome}</span><span>{t.columns.counted}</span><span>{t.columns.reference}</span>
+			</div>
 			<ul class="plain votes">
 				{#each data.votes as vote (vote.billId)}
 					<li>
@@ -113,6 +117,7 @@
 			{:else}
 				<p class="empty">{t.noChanges}</p>
 			{/each}
+			{#if data.ifMore}<p class="note">{t.moreChanges(data.ifMore)}</p>{/if}
 		</div>
 	</section>
 </main>
@@ -201,6 +206,10 @@
 	.kind {
 		color: var(--color-text);
 		font-weight: bold;
+	}
+
+	.vote-head {
+		display: none;
 	}
 
 	.votes li {
@@ -300,6 +309,7 @@
 		}
 
 		/* PC は1行に、法案・結果・数えた票・参考の票（PcReplay の表） */
+		.vote-head,
 		.votes li {
 			display: grid;
 			grid-template-columns: minmax(0, 2fr) 4rem minmax(0, 1.5fr) minmax(0, 1.5fr);
@@ -312,8 +322,25 @@
 			border-radius: 0;
 		}
 
+		.vote-head {
+			padding-bottom: 0.5rem;
+			border-bottom: 2px solid var(--color-text);
+			color: var(--color-text-sub);
+			font-size: var(--font-size-sub);
+		}
+
 		.votes .title {
 			font-weight: normal;
+		}
+
+		/* 見出しの行があるので、各行の見出しは読み上げにだけ残す（.visually-hidden と同じ形） */
+		.count .label {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip-path: inset(50%);
+			white-space: nowrap;
 		}
 
 		.word {
