@@ -11,6 +11,9 @@ import { answerAction, evaluationAction, postableBill, progressOf, readAction, r
 import { hiddenPostsFor, mergedPostsFor, reportedPostIds, staffOnBill } from '#lib/server/post-moderation.ts';
 import { listQuestions, questionTotal, stanceOf, waitingQuestions } from '#lib/server/posts.ts';
 import { lawRefsFor } from '#lib/server/law-refs.ts';
+import { pointWindowOpen, sceneOf } from '#lib/domain/points.ts';
+import { closePointAction, openPointAction } from '#lib/server/point-actions.ts';
+import { pointsOf, pointStaffOf } from '#lib/server/points.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -39,8 +42,16 @@ export const load: PageServerLoad = async (event) => {
 	const waiting = await waitingQuestions(db, bill.id, session.key);
 	const waitUntil = user ? billWaitUntil(user.createdAt.getTime(), now) : null;
 	// 運営として見られるか（権限があり、関わっていない）。関連法案のカードには通報もリンクも出さないので、今の法案だけを見る（docs/spec/80.md の決定H）
-	const staffHere = userId !== null && (await staffOnBill(db, bill.id, userId, now, sessionsAt(now).minutes));
+	const { session: current, minutes } = sessionsAt(now);
+	const staffHere = userId !== null && (await staffOnBill(db, bill.id, userId, now, minutes));
+	// いまの場面と論点（Issue #168）。論点を立てる欄は、その委員会の委員長・代行中の理事・運営・運営協力者で、関わっていない人にだけ、時期の中で出す
+	const points = await pointsOf(db, bill.id);
+	const canPoint = userId !== null && pointWindowOpen(progress) && (await pointStaffOf(db, bill, userId, now, minutes)) !== null;
 	return {
+		scene: sceneOf(progress, session, current),
+		// 行の番号は渡さない（閉じるときは法案の中の番号で送る）
+		points: points.map(({ no, title, closed }) => ({ no, title, closed })),
+		canPoint,
 		questions: rows,
 		// 質疑・答弁・補足の本文の「特商法9条」を条へのリンクにする（Issue #165）
 		lawRefs: await lawRefsFor(
@@ -83,5 +94,7 @@ export const actions: Actions = {
 	stance: stanceAction,
 	evaluate: evaluationAction,
 	read: readAction,
-	reportPost: reportPostAction
+	reportPost: reportPostAction,
+	openPoint: openPointAction,
+	closePoint: closePointAction
 };

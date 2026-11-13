@@ -100,9 +100,10 @@ export function refusalMessage(refusal: Refusal): string {
  * 提出者・共同提出者としての同意や後始末で、議員もできる（議員になる前の約束を果たせるように）。
  * legislator は議員だけの書き込み（「拾った」ステータス。Issue #150）で、議員でなければ断る。
  * expert は有識者だけの書き込み（専門家の解説。Issue #152）で、有識者でなければ断り、立候補した選挙の期間中も断る。
- * 選挙期間中の議員は、legislator と speak（質疑・答弁・補足）を断る（Issue #151）。read（「読んだ」の記録）はだれでも通す
+ * 選挙期間中の議員は、legislator と speak（質疑・答弁・補足）を断る（Issue #151）。read（「読んだ」の記録）はだれでも通す。
+ * staff は委員長・理事・運営の操作（質疑の論点。Issue #168）で、役職は呼ぶ側が確かめる。国と締め出しだけを見る
  */
-export type WriteUse = 'participate' | 'speak' | 'read' | 'report' | 'settle' | 'legislator' | 'expert';
+export type WriteUse = 'participate' | 'speak' | 'read' | 'report' | 'settle' | 'legislator' | 'expert' | 'staff';
 
 /**
  * 書き込みの前の確かめ：国 → 締め出し（設計書 決めたこと12）→ 議員（docs/spec/158.md）。

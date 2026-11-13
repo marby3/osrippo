@@ -289,7 +289,7 @@ export async function hiddenPostsFor(db: Db, billId: number, userId: string | nu
 	}));
 }
 
-/** 公開の記録：投稿と修正案の対応。新しい順に50件ごと。本文、書いた人、対応した人の ID、番号は返さない */
+/** 公開の記録：投稿と修正案の対応と、論点を立てた・閉じた。新しい順に50件ごと。本文、書いた人、対応した人の ID、番号は返さない */
 export async function billModerationLogPage(db: Db, page: number) {
 	const rows = await db
 		.select({
@@ -314,8 +314,15 @@ export async function billModerationLogPage(db: Db, page: number) {
 	return {
 		rows: rows.slice(0, PAGE_SIZE).map(({ amendmentId, commentaryId, kind, ...r }) => ({
 			...r,
-			// 専門家の解説への対応（Issue #152）
-			kind: commentaryId !== null ? ('commentary' as const) : amendmentId !== null || kind === null ? ('amendment' as const) : kind
+			// 専門家の解説への対応（Issue #152）、論点を立てた・閉じた（Issue #168。note は論点の見出し）
+			kind:
+				r.action === 'point_open' || r.action === 'point_close'
+					? ('point' as const)
+					: commentaryId !== null
+						? ('commentary' as const)
+						: amendmentId !== null || kind === null
+							? ('amendment' as const)
+							: kind
 		})),
 		hasNext: rows.length > PAGE_SIZE
 	};
