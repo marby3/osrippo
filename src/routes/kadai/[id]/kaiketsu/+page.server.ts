@@ -9,6 +9,7 @@ import { staffRoleOf } from '#lib/server/chairs.ts';
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import { reactAction, reportSolutionAction } from '#lib/server/solution-actions.ts';
 import { listHiddenSolutions, listSolutions, reportedSolutionIds } from '#lib/server/solutions.ts';
+import { lawRefsFor } from '#lib/server/law-refs.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals, request, url }) => {
@@ -35,6 +36,8 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 	const rows = await listSolutions(db, id, userId, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE);
 	if (page > 1 && rows.length === 0) error(404);
 	const solutions = rows.slice(0, PAGE_SIZE);
+	// 本人・運営に見せる非表示の解決策は、1ページ目の最後に出す（設計書 docs/spec/36.md 決めたこと4）
+	const hiddenSolutions = page === 1 ? await listHiddenSolutions(db, id, userId, staff) : [];
 	return {
 		view: 'full' as const,
 		issue: { id, title: issue.title },
@@ -49,8 +52,9 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 			userId,
 			solutions.map((s) => s.id)
 		),
-		// 本人・運営に見せる非表示の解決策は、1ページ目の最後に出す（設計書 docs/spec/36.md 決めたこと4）
-		hiddenSolutions: page === 1 ? await listHiddenSolutions(db, id, userId, staff) : []
+		hiddenSolutions,
+		// 本文の「特商法9条」を条へのリンクにする（Issue #165）
+		lawRefs: await lawRefsFor(db, [...solutions, ...hiddenSolutions].map((s) => s.body))
 	};
 };
 

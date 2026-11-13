@@ -10,6 +10,7 @@ import { nowOf, sessionsAt } from '#lib/server/client.ts';
 import { answerAction, evaluationAction, postableBill, progressOf, readAction, reportPostAction, stanceAction, supplementAction } from '#lib/server/post-actions.ts';
 import { hiddenPostsFor, mergedPostsFor, reportedPostIds, staffOnBill } from '#lib/server/post-moderation.ts';
 import { listQuestions, questionTotal, stanceOf, waitingQuestions } from '#lib/server/posts.ts';
+import { lawRefsFor } from '#lib/server/law-refs.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -41,6 +42,11 @@ export const load: PageServerLoad = async (event) => {
 	const staffHere = userId !== null && (await staffOnBill(db, bill.id, userId, now, sessionsAt(now).minutes));
 	return {
 		questions: rows,
+		// 質疑・答弁・補足の本文の「特商法9条」を条へのリンクにする（Issue #165）
+		lawRefs: await lawRefsFor(
+			db,
+			rows.flatMap((q) => [q.body, ...q.answers.map((a) => a.body), ...q.supplements.map((s) => s.body)])
+		),
 		// 前の会期の質疑は読むだけ（要調整を直した法案。docs/spec/72.md の C）
 		sessionKey: session.key,
 		waitingCount: waiting,

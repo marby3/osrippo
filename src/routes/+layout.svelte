@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import IfBand from '#lib/components/IfBand.svelte';
+	import LawCard from '#lib/components/LawCard.svelte';
 	import SiteHeader from '#lib/components/SiteHeader.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import { hidesTabsOnSp } from '#lib/menu.ts';
@@ -29,6 +30,8 @@
 {@render children()}
 
 <footer>{ja.unofficial}</footer>
+<!-- 本文の「特商法9条」のリンクを押すと出る条のカード（Issue #165）。本文を出すページだけで使う -->
+{#if page.data.lawRefs}<LawCard />{/if}
 <!-- スマホ：下に固定したタブ（タブを隠す画面では、下に留めたボタンの帯）の高さの分を空け、最後の行が隠れないようにする -->
 {#if !hidesTabsOnSp(page.route.id)}
 	<div class="tab-space" class:bar={page.data.spBottomBar} aria-hidden="true"></div>

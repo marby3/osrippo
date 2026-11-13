@@ -20,6 +20,8 @@ declare global {
 			ifBand?: true;
 			/** スマホで画面の下に留める帯があるページ（タブの上の「＋課題を書く」#120、タブを隠した書く画面の段のボタン #121）。全体の枠がその分を空ける */
 			spBottomBar?: true;
+			/** 本文の「特商法9条」を条へのリンクにする表（Issue #165）。課題・解決策・質疑などの本文を出すページの load が返し、LawRefText が使う */
+			lawRefs?: import('#lib/domain/law/refs.ts').LawRefIndex;
 		}
 		// interface PageState {}
 		// interface Platform {}

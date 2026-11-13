@@ -15,6 +15,7 @@ import { hasHiddenSolutions, listSolutions, reportedSolutionIds, solutionCount }
 import type { Db } from '#lib/server/law.ts';
 import { hirottaAction, hirottaOf, myHirotta } from '#lib/server/hirotta.ts';
 import { tobenFor } from '#lib/server/toben.ts';
+import { lawRefsFor } from '#lib/server/law-refs.ts';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
 /** 課題のページに出す解決策の数（設計書 docs/spec/34.md 決めたこと3） */
@@ -42,6 +43,7 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 	if (hidden && !mine && !staff) {
 		return { view: 'hidden' as const, id, status: issue.status, statusReason: issue.statusReason };
 	}
+	const solutions = await solutionsFor(db, id, userId, staff);
 	return {
 		view: 'full' as const,
 		issue: rest,
@@ -53,7 +55,9 @@ export const load: PageServerLoad = async ({ params, locals, request, url }) => 
 		sources: await mergedSources(db, id),
 		// この課題から生まれた法案の数（Issue #125）
 		billCount: await issueBillCount(db, id),
-		...(await solutionsFor(db, id, userId, staff)),
+		...solutions,
+		// 本文の「特商法9条」を条へのリンクにする（Issue #165）
+		lawRefs: await lawRefsFor(db, [issue.affected, issue.example, ...solutions.solutions.map((s) => s.body)]),
 		// 似た課題から「わかる」で来た人だけに、解決策を書く案内を出す（URL を共有された人には出さない）
 		fromSimilar: url.searchParams.get('from') === 'nita' && userId !== null && !hidden && issue.supported,
 		// 議員の反応（Issue #150）。だれでも見られる。議員には自分が付けているかも渡す

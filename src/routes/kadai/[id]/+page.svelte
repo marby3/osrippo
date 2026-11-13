@@ -9,6 +9,7 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import SolutionCard from '#lib/components/SolutionCard.svelte';
+	import LawRefText from '#lib/components/LawRefText.svelte';
 	import { ja, jaDate } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -98,9 +99,9 @@
 				{#if issue.topicName}<p class="topic">{ja.issue.topicMark(issue.topicName)}</p>{/if}
 
 				<h2>{ja.issue.affected}</h2>
-				<p>{issue.affected}</p>
+				<p><LawRefText text={issue.affected} /></p>
 				<h2>{ja.issue.example}</h2>
-				<p class="example">{issue.example}</p>
+				<p class="example"><LawRefText text={issue.example} /></p>
 			</div>
 
 			{#if !data.hidden && data.legislator}

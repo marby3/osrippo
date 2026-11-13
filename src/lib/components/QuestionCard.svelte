@@ -9,6 +9,7 @@
 	import type { IssueError } from '../domain/issues';
 	import type { Verified } from '../domain/verification';
 	import PersonName from './PersonName.svelte';
+	import LawRefText from './LawRefText.svelte';
 	import EvaluationButtons from './EvaluationButtons.svelte';
 	import PostReport from './PostReport.svelte';
 	import { readWhenSeen, type ReadTracker } from './read-tracker';
@@ -134,7 +135,7 @@
 <article id="shitsugi-{question.id}">
 	{#if relatedBill}<p class="from"><a href="/houan/{relatedBill.id}/shitsugi#shitsugi-{question.id}">{ja.post.fromBill(relatedBill.title)}</a></p>{/if}
 	{@render byline(question.author)}
-	<p class="body" use:readWhenSeen={trackIf(question.id, !hasAnswers && !question.mine)}>{question.body}</p>
+	<p class="body" use:readWhenSeen={trackIf(question.id, !hasAnswers && !question.mine)}><LawRefText text={question.body} /></p>
 	{#if question.mergedCount > 0}<p class="merged">{ja.post.mergedCount(question.mergedCount)}</p>{/if}
 	{@render moderation(question.id, question.mine, ja.post.reportOpen.question)}
 
@@ -150,7 +151,7 @@
 				<section class="answer" use:readWhenSeen={trackIf(answer.id, !answer.mine)}>
 					<h3>{ja.post.answerHeading(ja.post.roles[answer.role])}</h3>
 					{@render byline(answer.author)}
-					<p class="body">{answer.body}</p>
+					<p class="body"><LawRefText text={answer.body} /></p>
 					{#if evaluationShown && question.answers.length > 1 && !answer.mine}
 						<EvaluationButtons postId={answer.id} pressed={answer.pressed} {loggedIn} {back} message={messageFor(answer.id)} />
 					{/if}
@@ -180,7 +181,7 @@
 		<section class="supplement">
 			<h3>{ja.post.supplementHeading}</h3>
 			{@render byline(supplement.author)}
-			<p class="body">{supplement.body}</p>
+			<p class="body"><LawRefText text={supplement.body} /></p>
 			{@render moderation(supplement.id, supplement.mine, ja.post.reportOpen.supplement)}
 		</section>
 	{/each}

@@ -3,7 +3,7 @@
 import { eq, inArray, max } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { laws, readableArticles, readableLaws } from '../db/schema';
+import { laws, readableArticles, readableLawNames, readableLaws } from '../db/schema';
 import type { Heading, Paragraph } from '../domain/law';
 import { readableSearchText } from '../domain/search';
 import { isRetryable, readLawBody, readLawList, type FetchJson, type ListedLaw } from '../egov/client';
@@ -49,6 +49,21 @@ function chunks<T>(rows: T[], perRow: number, size: (row: T) => number): T[][] {
 
 const groups = <T>(rows: T[], size: number) => Array.from({ length: Math.ceil(rows.length / size) }, (_, i) => rows.slice(i * size, (i + 1) * size));
 
+/** 文の組を、組を割らずに size 文までの batch に詰める（1つの法令の文は同じ batch に入れる。前だけ通って名前が消えたまま残らないように） */
+function packs<T>(sets: T[][], size: number): T[][] {
+	const result: T[][] = [];
+	let batch: T[] = [];
+	for (const set of sets) {
+		if (batch.length && batch.length + set.length > size) {
+			result.push(batch);
+			batch = [];
+		}
+		batch.push(...set);
+	}
+	if (batch.length) result.push(batch);
+	return result;
+}
+
 /** 1件ずつ間をあけて読み、429・5xx・タイムアウトは1回だけやり直す */
 function paced(fetchJson: FetchJson, wait: Sleep): FetchJson {
 	let first = true;
@@ -75,6 +90,16 @@ const searchRowOf = (a: { id: number; caption: string; paragraphs: Paragraph[] }
 function deleteArticles(db: BatchDb, lawId: string): BatchItem<'sqlite'>[] {
 	const ids = db.select({ id: readableArticles.id }).from(readableArticles).where(eq(readableArticles.lawId, lawId));
 	return [db.delete(searchInsert).where(inArray(searchInsert.rowid, ids)), db.delete(readableArticles).where(eq(readableArticles.lawId, lawId))];
+}
+
+/** その法令の名前の行（正式名と略称）を書き直す文。本文の「特商法9条」を名前で引くため（Issue #165） */
+function writeNames(db: BatchDb, law: ListedLaw): BatchItem<'sqlite'>[] {
+	// 空の略称は入れない（マイグレーション 0035 と同じ）
+	const names = [...new Set([law.title, ...law.abbrevs])].filter((n) => n !== '');
+	return [
+		db.delete(readableLawNames).where(eq(readableLawNames.lawId, law.lawId)),
+		...chunks(names, 2, (n) => bytes(n) + 64).map((part) => db.insert(readableLawNames).values(part.map((name) => ({ name, lawId: law.lawId }))))
+	];
 }
 
 /** 法令名などの欄（synced_updated・article_count・headings 以外） */
@@ -160,18 +185,20 @@ export async function syncReadable(db: BatchDb, fetchJson: FetchJson, wait: Slee
 	// 2. 保存している行と比べる
 	const playable = new Set((await db.select({ id: laws.id }).from(laws)).map((l) => l.id));
 	const stored = new Map((await db.select().from(readableLaws)).map((r) => [r.id, r]));
-	const toWrite: BatchItem<'sqlite'>[] = [];
+	/** 法令ごとの文の組 */
+	const toWrite: BatchItem<'sqlite'>[][] = [];
 	const toRead: ListedLaw[] = [];
 	for (const law of current.values()) {
 		const row = stored.get(law.lawId);
 		const isPlayable = playable.has(law.lawId);
 		// 3. 欄を書く。遊べる法律は本文を読まないので、欄がそろった時点で済み
 		const fields = { ...fieldsOf(law), ...(isPlayable ? { syncedUpdated: law.updated } : {}) };
-		if (!row) toWrite.push(db.insert(readableLaws).values({ id: law.lawId, ...fields }));
-		else if (!sameFields(row, law) || (isPlayable && row.syncedUpdated !== law.updated)) toWrite.push(db.update(readableLaws).set(fields).where(eq(readableLaws.id, law.lawId)));
+		// 名前の行は法令の行のあと（外部キー）。欄が変わったときだけ書き直す
+		if (!row) toWrite.push([db.insert(readableLaws).values({ id: law.lawId, ...fields }), ...writeNames(db, law)]);
+		else if (!sameFields(row, law) || (isPlayable && row.syncedUpdated !== law.updated)) toWrite.push([db.update(readableLaws).set(fields).where(eq(readableLaws.id, law.lawId)), ...writeNames(db, law)]);
 		if (!isPlayable && (!row || row.syncedUpdated !== law.updated || row.articleCount === null)) toRead.push(law);
 	}
-	for (const batch of groups(toWrite, STATEMENTS_PER_BATCH)) await db.batch(batch as never);
+	for (const batch of packs(toWrite, STATEMENTS_PER_BATCH)) await db.batch(batch as never);
 
 	// 4・5. 読み直す法令ごとに本文を読み、入れ替える。1つの失敗でほかを止めない
 	for (const law of toRead) {
@@ -186,11 +213,11 @@ export async function syncReadable(db: BatchDb, fetchJson: FetchJson, wait: Slee
 		}
 	}
 
-	// 6. 一覧にない法令を消す（索引 → 条 → 法令の行）
+	// 6. 一覧にない法令を消す（索引 → 条 → 名前 → 法令の行）
 	for (const id of stored.keys()) {
 		if (current.has(id)) continue;
 		try {
-			await db.batch([...deleteArticles(db, id), db.delete(readableLaws).where(eq(readableLaws.id, id))] as never);
+			await db.batch([...deleteArticles(db, id), db.delete(readableLawNames).where(eq(readableLawNames.lawId, id)), db.delete(readableLaws).where(eq(readableLaws.id, id))] as never);
 			result.removed.push(id);
 		} catch (e) {
 			console.error(`${id} を消せませんでした`, e);
