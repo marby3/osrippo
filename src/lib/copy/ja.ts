@@ -148,6 +148,25 @@ export const ja = {
 		readableMeta: (lawNum: string, lastAmended: string | null, promulgated: string) =>
 			`${lawNum} ・ ${lastAmended ? `最後の改正 ${jaDate(lastAmended)}施行` : `制定から改正なし（${jaDate(promulgated)}公布）`}`
 	},
+	/** 条だけのページ（Issue #164。画面の案 SpLawArticle・PcLawArticle） */
+	lawArticle: {
+		pageTitle: (lawTitle: string, label: string) => `${lawTitle} ${label}｜オープンソース立法府`,
+		ifPageTitle: (lawTitle: string, label: string) => `${lawTitle} ${label}（IF世界）｜オープンソース立法府`,
+		meta: (parts: string[]) => parts.join(' ・ '),
+		real: '現実の法律',
+		asOf: (date: string) => `${jaDate(date)}施行の版`,
+		pager: '前後の条',
+		prev: '前の条',
+		next: '次の条',
+		url: 'この条の URL',
+		copy: 'コピー',
+		copied: 'コピーしました',
+		copyFailed: 'コピーできませんでした。URL を選んだので、そのままコピーしてください。',
+		wholeLaw: '法律全体を読む',
+		ifWholeLaw: 'IF世界の法律全体を読む',
+		toIf: 'IF世界のこの条を見る',
+		toReal: '現実のこの条を見る'
+	},
 	/** 会期（Issue #44。画面の案 SpHome・PcHome） */
 	session: {
 		name: (s: Session) => (s.month === null ? `${jaTime(s.startsAt)}からの会期` : `${s.month}月の会期`),
