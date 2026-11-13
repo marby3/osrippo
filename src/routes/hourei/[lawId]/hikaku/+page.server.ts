@@ -8,8 +8,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	const page = await comparePage(
 		drizzle(env.DB),
 		params.lawId,
-		url.searchParams.get('mae'),
-		url.searchParams.get('ato')
+		url.searchParams.get('kaisei')
 	);
 	if (!page) error(404);
 	return page;

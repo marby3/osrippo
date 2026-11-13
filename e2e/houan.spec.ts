@@ -1,6 +1,7 @@
 // Issue #46 法案を書く画面と法案のページ（改正・廃止）。表とルールは docs/spec/45.md
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { billPath, billRequest, issueWithSolutions as solutions, newUser, solutionStaffRequest, staffRequest, stubTurnstile, type BillForm as Form } from './helpers';
+import { readFileSync } from 'node:fs';
 
 const contexts: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -294,8 +295,13 @@ test('基準6：提出者だけが直せる。先に保存された画面と、�
 	await hydrated(other);
 	const base = other.locator('input[name="base"]');
 	const current = await base.inputValue();
-	const older = (await other.request.get(`/hourei/${LAW}/hikaku`).then((r) => r.text())).match(new RegExp(`value="(${LAW}_\\d{8}_\\w+)"`, 'g'))!
-		.map((m) => m.slice(7, -1))
+	// 古い版はテスト用データの改正履歴から取る（新しい順）。比べる画面の作りに頼らない（Issue #191）
+	const older = (
+		JSON.parse(readFileSync(new URL(`../tests/fixtures/egov/law_revisions_${LAW}.json`, import.meta.url), 'utf8')).revisions as {
+			law_revision_id: string;
+		}[]
+	)
+		.map((r) => r.law_revision_id)
 		.find((id) => id < current.split('@')[0])!;
 	expect(older).toBeTruthy();
 	// 印は「分岐した版@IF世界の版」（docs/spec/72.md 決めたこと4）

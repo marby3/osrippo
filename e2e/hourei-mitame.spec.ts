@@ -4,7 +4,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 const LAW = '351AC0000000057';
 const REAL = `/hourei/${LAW}`;
 const IF = `/if/hourei/${LAW}`;
-const COMPARE = `/hourei/${LAW}/hikaku?mae=${LAW}_20170602_428AC0000000060&ato=${LAW}_20171201_428AC0000000060`;
+const COMPARE = `/hourei/${LAW}/hikaku?kaisei=${LAW}_20171201_428AC0000000060`;
 const sp = (name: string) => name === 'sp';
 type Box = { x: number; y: number; width: number; height: number };
 const box = async (target: Locator): Promise<Box> => (await target.boundingBox())!;
@@ -127,10 +127,10 @@ test('基準5：PC の比較は、変わった条ごとに注記の行と見出�
 	const n = await box(note);
 	const ha = await box(after.getByRole('heading', { name: '改正後' }));
 	const hb = await box(before.getByRole('heading', { name: '改正前' }));
-	// いちばん上の行に注記、次の行に見出し（改正後が左、改正前が右）
+	// いちばん上の行に注記、次の行に見出し（改正前が左、改正後が右。Issue #191 で時間の順にした）
 	expect(n.y).toBeGreaterThanOrEqual(t.y);
 	expect(n.y + n.height).toBeLessThanOrEqual(ha.y);
 	expect(Math.abs(ha.y - hb.y)).toBeLessThanOrEqual(1);
-	expect(ha.x).toBeLessThan(hb.x);
-	expect(n.x).toBeLessThan(ha.x + 32);
+	expect(hb.x).toBeLessThan(ha.x);
+	expect(n.x).toBeLessThan(hb.x + 32);
 });
