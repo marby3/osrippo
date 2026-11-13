@@ -66,7 +66,7 @@
 								<li>
 									<a href="/houan/{bill.id}">{bill.title}</a>
 									<p class="meta">
-										{ja.lawArticle.backlinks.meta([ja.bill.list.stages[bill.stage], ...(bill.session ? [ja.lawArticle.backlinks.session(bill.session)] : [])])}
+										{ja.lawArticle.backlinks.meta([...(bill.stage ? [ja.bill.list.stages[bill.stage]] : []), ...(bill.session ? [ja.lawArticle.backlinks.session(bill.session)] : [])])}
 									</p>
 								</li>
 							{/each}

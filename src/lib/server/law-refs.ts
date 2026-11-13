@@ -6,14 +6,14 @@ import { and, asc, eq, gt, isNotNull, isNull, lte, or, sql, type SQL } from 'dri
 import { alias, type SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { issues, LAW_REF_KINDS, lawRefs, laws, lawRevisions, posts, provisions, provisionVersions, readableArticles, readableLawNames, readableLaws, solutions } from '../db/schema';
 import { articleBodyText, articleLabel, compareNum, type Paragraph } from '../domain/law';
-import { lawNameTable, lawRefNames, lawRefTargets, type LawRefIndex } from '../domain/law/refs';
+import { lawNameTable, lawRefNames, lawRefTargets, type LawNameHit, type LawRefIndex } from '../domain/law/refs';
 import { currentRevision, type Db } from './law';
 
 /** 列の値が、JSON の配列のどれかに当たる（値の数が多くても、渡す値は1つ。D1 の1文の値は100個まで） */
 const inJson = (column: SQLiteColumn, values: string[]): SQL => sql`${column} IN (SELECT value FROM json_each(${JSON.stringify(values)}))`;
 
-/** 1ページで引く名前の数。これより多い分は引かない（その本文の条はリンクにならない） */
-const NAMES_MAX = 2_000;
+/** 1回の問い合わせで引く名前の数。これより多いときは分けて引く（名前を落とさない。1つの本文の候補は20か所×94字までなので、ふつうは1回で済む） */
+const NAMES_PER_QUERY = 2_000;
 
 /**
  * ページの本文から、条へのリンクの表を作る（ページの load が lawRefs として返す）。リンクにするものがなければ undefined。
@@ -33,17 +33,23 @@ type LookedUp = { table: Record<string, string | null>; names: string[]; targets
 
 const keyOf = (t: { lawId: string; num: string }) => `${t.lawId}/${t.num}`;
 
-/** 本文の名前と条を、まとめて引く（名前で1回、条で1回）。リンクにするものがなければ undefined */
+/** 本文の名前と条を、まとめて引く（名前は NAMES_PER_QUERY 個ごとに1回、条で1回）。リンクにするものがなければ undefined */
 async function lookUp(db: Db, texts: string[]): Promise<LookedUp | undefined> {
-	const names = lawRefNames(texts).slice(0, NAMES_MAX);
+	const names = lawRefNames(texts);
 	if (!names.length) return undefined;
 
 	// 正式名と e-Gov の略称（読める法律）と、遊べる法律の題名（読める法律を取り込む前の環境でも引けるように）
-	const hits = await db
-		.select({ name: readableLawNames.name, lawId: readableLawNames.lawId })
-		.from(readableLawNames)
-		.where(inJson(readableLawNames.name, names))
-		.union(db.select({ name: laws.title, lawId: laws.id }).from(laws).where(inJson(laws.title, names)));
+	const hits: LawNameHit[] = [];
+	for (let i = 0; i < names.length; i += NAMES_PER_QUERY) {
+		const chunk = names.slice(i, i + NAMES_PER_QUERY);
+		hits.push(
+			...(await db
+				.select({ name: readableLawNames.name, lawId: readableLawNames.lawId })
+				.from(readableLawNames)
+				.where(inJson(readableLawNames.name, chunk))
+				.union(db.select({ name: laws.title, lawId: laws.id }).from(laws).where(inJson(laws.title, chunk))))
+		);
+	}
 	const table = lawNameTable(hits);
 	const targets = lawRefTargets(texts, table);
 	if (!targets.length) return undefined;
@@ -118,8 +124,20 @@ export async function articlesTouchedBy(db: Db, texts: string[]): Promise<Articl
 /** D1 の1文の値は100個まで。law_refs は4列 */
 const REF_ROWS_PER_INSERT = 25;
 
-/** 本文が触れている条を law_refs へ入れる。すでにある行は足さない。足した行の数を返す */
-export async function saveLawRefs(db: Db, kind: LawRefKind, refId: number, refs: ArticleRef[]): Promise<number> {
+/**
+ * 書いたあとに、本文が触れている条を law_refs へ入れる。本文はもう書いてあるので、失敗してもログに出すだけにする（書いた人に失敗を返さない。リンク元が欠けるだけ）。
+ * 前からある本文の行は backfillLawRefs で入れ直せる
+ */
+export async function saveLawRefs(db: Db, kind: LawRefKind, refId: number, refs: ArticleRef[]): Promise<void> {
+	try {
+		await insertLawRefs(db, kind, refId, refs);
+	} catch (e) {
+		console.error('本文が触れている条を入れられませんでした', e);
+	}
+}
+
+/** law_refs へ入れる。すでにある行は足さない。足した行の数を返す。失敗はそのまま投げる（一度きりの処理は、失敗を終了コードで知らせる） */
+async function insertLawRefs(db: Db, kind: LawRefKind, refId: number, refs: ArticleRef[]): Promise<number> {
 	let added = 0;
 	for (let i = 0; i < refs.length; i += REF_ROWS_PER_INSERT) {
 		const rows = refs.slice(i, i + REF_ROWS_PER_INSERT).map((r) => ({ kind, refId, lawId: r.lawId, num: r.num }));
@@ -128,7 +146,7 @@ export async function saveLawRefs(db: Db, kind: LawRefKind, refId: number, refs:
 	return added;
 }
 
-/** 一度きりの処理で1回に読む行の数（名前の候補が NAMES_MAX を超えないように小さく） */
+/** 一度きりの処理で1回に読む行の数。この行の本文の名前と条を、まとめて引く（名前が多いときは lookUp が分けて引く） */
 const BACKFILL_PAGE = 50;
 
 /**
@@ -175,7 +193,7 @@ export async function backfillLawRefs(db: Db) {
 				db,
 				rows.map((r) => r.texts)
 			);
-			for (const [i, row] of rows.entries()) read.added += await saveLawRefs(db, source.kind, row.id, touched[i]);
+			for (const [i, row] of rows.entries()) read.added += await insertLawRefs(db, source.kind, row.id, touched[i]);
 			read[source.kind] += rows.length;
 			after = rows[rows.length - 1].id;
 		}

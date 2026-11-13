@@ -7,7 +7,7 @@ import { aliasOfLaw, lawIdOfAlias } from '#lib/domain/law/aliases.ts';
 import { articleAround } from '#lib/domain/law/display.ts';
 import { lawPage, readableLawPage, todayInTokyo } from '#lib/server/law.ts';
 import { nowOf, sessionsAt } from '#lib/server/client.ts';
-import { articleBacklinks } from '#lib/server/law-backlinks.ts';
+import { articleBacklinksOrEmpty } from '#lib/server/law-backlinks.ts';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -20,7 +20,8 @@ export const load: PageServerLoad = async (event) => {
 
 	const db = drizzle(env.DB);
 	const now = nowOf(event);
-	const backlinks = (playable: boolean) => articleBacklinks(db, { lawId: params.lawId, num: params.num, playable }, now, sessionsAt(now).minutes);
+	// リンク元は飾りなので、引けなかったときは空にして条を出す
+	const backlinks = (playable: boolean) => articleBacklinksOrEmpty(db, { lawId: params.lawId, num: params.num, playable }, now, sessionsAt(now).minutes);
 	// 遊べる法律が先。なければ読める法律（法令のページと同じ）
 	const page = await lawPage(db, params.lawId);
 	if (page) {

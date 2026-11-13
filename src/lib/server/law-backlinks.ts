@@ -17,7 +17,14 @@ import type { Db } from './law';
 /** それぞれの種類で出す数 */
 export const BACKLINKS_LIMIT = 10;
 
-export type BacklinkBill = { id: number; title: string; stage: BillStage; /** 付託先の会期のキー。発議していない（撤回した下書き）は null */ session: string | null };
+export type BacklinkBill = {
+	id: number;
+	title: string;
+	/** 進み。会期が終わって結果の行がまだない法案は null（「集計中」と出さない。結果を確定させるのは法案の一覧と法案のページ） */
+	stage: BillStage | null;
+	/** 付託先の会期のキー。発議していない（撤回した下書き）は null */
+	session: string | null;
+};
 export type Discussion = {
 	kind: 'issue' | 'solution' | 'question';
 	/** 課題は題名、解決策と質疑は本文のはじめ */
@@ -28,6 +35,19 @@ export type Discussion = {
 };
 /** bills は遊べる法律だけ（読める法律を変える法案はない）。読める法律は null */
 export type Backlinks = { bills: BacklinkBill[] | null; discussions: Discussion[] };
+
+/** 空の結果（引けなかったときに出す） */
+export const emptyBacklinks = (playable: boolean): Backlinks => ({ bills: playable ? [] : null, discussions: [] });
+
+/** 引けなかったときは空の結果にして、条のページは出す（リンク元は飾り） */
+export async function articleBacklinksOrEmpty(db: Db, article: { lawId: string; num: string; playable: boolean }, now: number, minutes: number | null): Promise<Backlinks> {
+	try {
+		return await articleBacklinks(db, article, now, minutes);
+	} catch (e) {
+		console.error('条のリンク元を引けませんでした', e);
+		return emptyBacklinks(article.playable);
+	}
+}
 
 export async function articleBacklinks(db: Db, article: { lawId: string; num: string; playable: boolean }, now: number, minutes: number | null): Promise<Backlinks> {
 	const [billRows, discussions] = await Promise.all([article.playable ? billsChanging(db, article.lawId, article.num, now, minutes) : null, discussionsOn(db, article.lawId, article.num)]);
@@ -69,7 +89,8 @@ async function billsChanging(db: Db, lawId: string, num: string, now: number, mi
 		const outcome = results.find((x) => x.billId === r.id && x.sessionKey === session)?.outcome ?? null;
 		const review = reviews.find((x) => x.billId === r.id && x.sessionKey === session)?.status ?? null;
 		const adjustment = adjustments.find((x) => x.billId === r.id && x.sessionKey === session && x.resolvedAt === null) ?? null;
-		return { id: r.id, title: r.title, stage: billStage(p, outcome, adjustment, now, review), session };
+		const stage = billStage(p, outcome, adjustment, now, review);
+		return { id: r.id, title: r.title, stage: stage === 'counting' ? null : stage, session };
 	});
 }
 

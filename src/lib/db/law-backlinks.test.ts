@@ -47,9 +47,9 @@ const baseRevision = () => one<{ id: string }>("SELECT id FROM law_revisions WHE
 
 let nextBill = 1;
 /** 法案。changes は版ごとの変える条（op と条の番号） */
-function bill(o: { status: 'draft' | 'proposed' | 'withdrawn'; rev: number; title: string; changes: Record<number, { op: 'amend' | 'add' | 'delete'; num: string }[]>; createdAt: number }) {
+function bill(o: { status: 'draft' | 'proposed' | 'withdrawn'; rev: number; title: string; changes: Record<number, { op: 'amend' | 'add' | 'delete'; num: string }[]>; createdAt: number; proposedAt?: number }) {
 	const id = nextBill++;
-	const proposedAt = o.status === 'draft' ? null : NOW - 10 * 86_400_000;
+	const proposedAt = o.status === 'draft' ? null : (o.proposedAt ?? NOW - 10 * 86_400_000);
 	run(
 		"INSERT INTO bills (id, user_id, committee_id, kind, status, rev, next_rev, title, affected, side_effects, created_at, updated_at, proposed_at) VALUES (?, 'u2', 1, 'amend', ?, ?, ?, ?, 'a', 's', ?, ?, ?)",
 		id,
@@ -169,6 +169,21 @@ test('条のリンク元：その条を変える法案（下書きを除く。�
 	// 条を足す法案は、足す条の番号で出る
 	const added = await articleBacklinks(db, { lawId: LAW, num: '9_4', playable: true }, NOW, null);
 	expect(added.bills?.map((b) => b.id)).toEqual([add]);
+
+	// 会期の終わった法案：結果の行があれば結果を出し、まだなければ進みを出さない（「集計中」と出さない）
+	const april = Date.parse('2046-04-03T09:00:00+09:00');
+	const settled = bill({ status: 'proposed', rev: 1, title: '可決した法案', changes: { 1: [{ op: 'amend', num: '12' }] }, createdAt: tick(), proposedAt: april });
+	const unsettled = bill({ status: 'proposed', rev: 1, title: '結果がまだの法案', changes: { 1: [{ op: 'amend', num: '12' }] }, createdAt: tick(), proposedAt: april });
+	run(
+		"INSERT INTO bill_results (session_key, bill_id, outcome, yes, no, abstain, ref_yes, ref_no, ref_abstain, participants, quorum, rev, settled_at) VALUES ('2046-04', ?, 'passed', 3, 1, 0, 0, 0, 0, 4, 1, 1, ?)",
+		settled,
+		NOW
+	);
+	const twelve = await articleBacklinks(db, { lawId: LAW, num: '12', playable: true }, NOW, null);
+	expect(twelve.bills).toEqual([
+		{ id: unsettled, title: '結果がまだの法案', stage: null, session: '2046-04' },
+		{ id: settled, title: '可決した法案', stage: 'passed', session: '2046-04' }
+	]);
 
 	// 0件：法案も議論もない条。読める法律には法案の欄がない（null）
 	expect(await articleBacklinks(db, { lawId: LAW, num: '11', playable: true }, NOW, null)).toEqual({ bills: [], discussions: [] });
