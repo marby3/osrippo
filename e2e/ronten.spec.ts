@@ -323,7 +323,7 @@ test('基準4：立てた・閉じたが /unei の記録に出る。出すのは
 	});
 	const opened = log.locator('tr', { hasText: '論点を立てた' }).filter({ hasText: opPoint });
 	await expect(opened).toHaveCount(1);
-	await expect(opened).toContainText('論点');
+	await expect(opened.locator('td[data-label="何か"]')).toHaveText('論点');
 	await expect(opened).toContainText('運営');
 	await expect(opened.getByRole('link')).toHaveAttribute('href', qa(bill));
 	await expect(log.locator('tr', { hasText: '論点を立てた' }).filter({ hasText: modPoint })).toContainText('運営協力者');

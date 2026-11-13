@@ -32,19 +32,18 @@ export async function pointsOf(db: Db, billId: number) {
  * 記録の行を、いま書いた論点の行から作る（insert … select。D1 の batch に db.run を入れない）。
  * 見出しを note に入れ、対応した人の ID は actor_user_id に入れる（公開しない。理事の代行の判定 lastChairAction が読む）
  */
-const logFrom = (db: Db, action: 'point_open' | 'point_close', staff: Staff, where: SQL) =>
+const logFrom = (db: Db, action: 'point_open' | 'point_close', staff: Staff, now: number, where: SQL) =>
 	db
 		.insert(billModerationLogs)
-		.select(
-			sql`SELECT NULL, bill_id, NULL, ${action}, ${staff.role}, ${staff.userId}, NULL, title, ${action === 'point_open' ? sql`created_at` : sql`closed_at`}, NULL, NULL, NULL FROM bill_points WHERE ${where}`
-		);
+		.select(sql`SELECT NULL, bill_id, NULL, ${action}, ${staff.role}, ${staff.userId}, NULL, title, ${now}, NULL, NULL, NULL FROM bill_points WHERE ${where}`);
 
 /** 論点を立てる。記録は同じ batch で書く */
 export async function openPoint(db: BatchDb, billId: number, title: string, staff: Staff, now: number) {
 	await db.batch([
 		db.insert(billPoints).values({ billId, title, createdAt: now }),
 		// batch は1つのトランザクションなので、その法案のいちばん新しい行がいま入れた行
-		logFrom(db, 'point_open', staff, sql`id = (SELECT max(id) FROM bill_points WHERE bill_id = ${billId})`)
+		// 立てるたびに新しい行なので、同じ時刻に2回立てても、論点と記録が1つずつ入る
+		logFrom(db, 'point_open', staff, now, sql`id = (SELECT max(id) FROM bill_points WHERE bill_id = ${billId})`)
 	] as never);
 }
 
@@ -53,14 +52,15 @@ export async function closePoint(db: BatchDb, billId: number, no: number, staff:
 	const point = (await pointsOf(db, billId)).find((p) => p.no === no);
 	if (!point) return 'missing';
 	if (point.closed) return 'closed';
-	const [closed] = (await db.batch([
+	// 記録を先に、まだ開いているときだけ書く。batch は1つのトランザクションで順に流れるので、同じ論点を同時に（同じ時刻にも）2回閉じても、
+	// 2回目は記録の文も UPDATE も当たらない（閉じた時刻で記録を引くと、同じ時刻の2回目にも当たってしまう）
+	const [, closed] = (await db.batch([
+		logFrom(db, 'point_close', staff, now, sql`id = ${point.id} AND closed_at IS NULL`),
 		db
 			.update(billPoints)
 			.set({ closedAt: now })
 			.where(sql`${billPoints.id} = ${point.id} AND ${billPoints.closedAt} IS NULL`)
-			.returning({ id: billPoints.id }),
-		// 閉じた時刻が今回のものでなければ（ほかの人が先に閉じていたら）行は入らない
-		logFrom(db, 'point_close', staff, sql`id = ${point.id} AND closed_at = ${now}`)
+			.returning({ id: billPoints.id })
 	] as never)) as unknown as unknown[][];
 	return closed.length ? 'ok' : 'closed';
 }
