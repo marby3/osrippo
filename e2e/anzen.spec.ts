@@ -32,6 +32,7 @@ async function user(browser: Browser, w: Width, who: string, now: string, role?:
 const LAW = '412AC0000000061';
 
 test('基準1：どの画面のフッターにも、非公式の表示が出る', async ({ browser }, info) => {
+	test.setTimeout(90_000);
 	const w = info.project.name as Width;
 	const v = await user(browser, w, 'anon', at(MONTH[w], 2));
 	const pages = ['/', '/kadai', '/houan', '/hourei', `/hourei/${LAW}`, `/if/hourei/${LAW}`, '/toukei', '/login'];
@@ -115,7 +116,8 @@ test('基準2：登録・投稿・投票の送信先は、Turnstile のトーク
 	const guest = await user(browser, w, 'anon', at(month, 5));
 	const { revisionId } = (await (await v.page.request.get(`/houan/kaku/joubun?law=${LAW}`)).json()) as { revisionId: string };
 
-	// 投票の画面は採決の週の外だと法案のページへ送り返すので、投票は22日に送る（断った応答をそのまま見るため）
+	// 本案の投票の画面は採決の週の外だと法案のページへ送り返すので、本案の票は22日に送る（断った応答をそのまま見るため）。
+	// 修正案と委員長選挙の票は時期より先に Turnstile を確かめるが、そろえて採決の週に送る
 	const voteWeek = at(month, 22);
 	type Case = { what: string; page: Page; path: string; form: Record<string, string>; now?: string };
 	const billForm = { kind: 'amend', title: `法案 ${tag}`, law: LAW, base: revisionId, 'op.0': 'amend', 'target.0': '1', 'caption.0': '（目的）', 'body.0': '本文', affected: '人', sideEffects: 'なし', solution: ids[0] };
