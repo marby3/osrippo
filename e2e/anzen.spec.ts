@@ -38,11 +38,13 @@ test('基準1：どの画面のフッターにも、非公式の表示が出る'
 	for (const path of pages) {
 		const res = await v.page.goto(path);
 		expect(res?.status(), path).toBe(200);
+		await expect(v.page.getByRole('contentinfo'), path).toBeVisible();
 		await expect(v.page.getByRole('contentinfo'), path).toContainText('国会・政府とは無関係の非公式サービスです');
 	}
 	// 見つからないときのページにも
 	const missing = await v.page.goto('/kadai/999999999');
 	expect(missing?.status()).toBe(404);
+	await expect(v.page.getByRole('contentinfo')).toBeVisible();
 	await expect(v.page.getByRole('contentinfo')).toContainText('国会・政府とは無関係の非公式サービスです');
 });
 
@@ -73,15 +75,18 @@ async function announce(p: Page, issueId: number, title: string, month: string) 
 	return new URL(p.url()).pathname;
 }
 
-/** トークンが通らない送信（画面のフォームと同じ POST）。now を渡すと、その時刻に送る */
-const send = (page: Page, path: string, form: Record<string, string>, now?: string) =>
+/**
+ * 画面のフォームと同じ POST を、Turnstile のトークンなし（token を省く）か、通らないトークンで送る。now を渡すと、その時刻に送る。
+ * フォームのトークンの受け渡しは、それぞれの画面のテストが確かめる。ここは送信先が断ることだけを、全部の送信先でまとめて確かめる
+ */
+const send = (page: Page, path: string, form: Record<string, string>, token: string | null, now?: string) =>
 	page.request.post(path, {
-		form: { ...form, 'cf-turnstile-response': 'test-fail' },
+		form: token === null ? form : { ...form, 'cf-turnstile-response': token },
 		headers: { origin: ORIGIN, accept: 'text/html', ...(now ? { 'x-test-now': now } : {}) },
 		maxRedirects: 0
 	});
 
-test('基準2：登録・投稿・投票の送信先は、Turnstile が通らない送信を断る', async ({ browser }, info) => {
+test('基準2：登録・投稿・投票の送信先は、Turnstile のトークンがない送信と通らない送信を断る', async ({ browser }, info) => {
 	test.setTimeout(180_000);
 	const w = info.project.name as Width;
 	const month = MONTH[w];
@@ -105,39 +110,43 @@ test('基準2：登録・投稿・投票の送信先は、Turnstile が通らな
 	const toben = await announce(p.page, issueId, `安全策の回 ${tag}`, month);
 
 	const v = await user(browser, w, 'v', at(month, 5));
+	// V の下書き（保存の送信先を確かめる）
+	const draft = await createAmendBill(v.page, `安全策の下書き ${tag}`, ids[0]);
 	const guest = await user(browser, w, 'anon', at(month, 5));
 	const { revisionId } = (await (await v.page.request.get(`/houan/kaku/joubun?law=${LAW}`)).json()) as { revisionId: string };
 
 	// 投票の画面は採決の週の外だと法案のページへ送り返すので、投票は22日に送る（断った応答をそのまま見るため）
 	const voteWeek = at(month, 22);
-	const cases: [string, Page, string, Record<string, string>, string?][] = [
+	type Case = { what: string; page: Page; path: string; form: Record<string, string>; now?: string };
+	const billForm = { kind: 'amend', title: `法案 ${tag}`, law: LAW, base: revisionId, 'op.0': 'amend', 'target.0': '1', 'caption.0': '（目的）', 'body.0': '本文', affected: '人', sideEffects: 'なし', solution: ids[0] };
+	const cases: Case[] = [
 		// 登録（ログイン）
-		['ログイン（Google）', guest.page, '/login?/google', { next: '/' }],
-		['ログイン（LINE）', guest.page, '/login?/line', { next: '/' }],
+		{ what: 'ログイン（Google）', page: guest.page, path: '/login?/google', form: { next: '/' } },
+		{ what: 'ログイン（LINE）', page: guest.page, path: '/login?/line', form: { next: '/' } },
 		// 投稿
-		['課題', v.page, '/kadai/kaku', { title: `課題 ${tag}`, affected: '困っている人', example: '具体例', topic: 'none' }],
-		['解決策', v.page, `/kadai/${issueId}/kaiketsu/kaku`, { body: `解決策 ${tag}` }],
-		[
-			'法案の下書き',
-			v.page,
-			'/houan/kaku',
-			{ kind: 'amend', title: `法案 ${tag}`, law: LAW, base: revisionId, 'op.0': 'amend', 'target.0': '1', 'caption.0': '（目的）', 'body.0': '本文', affected: '人', sideEffects: 'なし', solution: ids[0] }
-		],
-		['質疑', v.page, `${bill}/shitsugi/kaku`, { body: `質疑 ${tag}` }],
-		['答弁', a.page, `${bill}/shitsugi?/answer`, { question: '1', body: `答弁 ${tag}` }],
-		['補足', v.page, `${bill}/shitsugi?/supplement`, { question: '1', body: `補足 ${tag}` }],
-		['修正案', v.page, `${bill}/shusei/kaku`, { article: '0:1', body: '本文', rev: '1' }],
-		['専門家の解説', e.page, `${bill}?/commentary`, { body: `解説 ${tag}` }],
-		['答弁イベントの質問', v.page, `${toben}?/ask`, { body: `質問 ${tag}` }],
-		['委員長選挙の立候補', v.page, '/iinkai?/stand', {}],
+		{ what: '課題', page: v.page, path: '/kadai/kaku', form: { title: `課題 ${tag}`, affected: '困っている人', example: '具体例', topic: 'none' } },
+		{ what: '解決策', page: v.page, path: `/kadai/${issueId}/kaiketsu/kaku`, form: { body: `解決策 ${tag}` } },
+		{ what: '法案の下書きを作る', page: v.page, path: '/houan/kaku', form: billForm },
+		{ what: '法案の下書きを保存する', page: v.page, path: `${draft}/kaku`, form: { ...billForm, rev: '1' } },
+		{ what: '質疑', page: v.page, path: `${bill}/shitsugi/kaku`, form: { body: `質疑 ${tag}` } },
+		{ what: '答弁', page: a.page, path: `${bill}/shitsugi?/answer`, form: { question: '1', body: `答弁 ${tag}` } },
+		{ what: '補足', page: v.page, path: `${bill}/shitsugi?/supplement`, form: { question: '1', body: `補足 ${tag}` } },
+		{ what: '修正案', page: v.page, path: `${bill}/shusei/kaku`, form: { article: '0:1', body: '本文', rev: '1' } },
+		{ what: '専門家の解説', page: e.page, path: `${bill}?/commentary`, form: { body: `解説 ${tag}` } },
+		{ what: '答弁イベントの質問', page: v.page, path: `${toben}?/ask`, form: { body: `質問 ${tag}` } },
+		{ what: '委員長選挙の立候補', page: v.page, path: '/iinkai?/stand', form: {} },
+		{ what: '解任動議の署名', page: v.page, path: '/iinkai?/recall', form: {} },
 		// 投票
-		['本案の票', v.page, `/saiketsu/${billId}?/vote`, { choice: 'yes' }, voteWeek],
-		['修正案の票', v.page, `${bill}/shusei?/vote`, { amendment: '1', choice: 'yes' }, voteWeek],
-		['委員長選挙の票', v.page, '/iinkai?/vote', { candidate: '1' }, voteWeek]
+		{ what: '本案の票', page: v.page, path: `/saiketsu/${billId}?/vote`, form: { choice: 'yes' }, now: voteWeek },
+		{ what: '修正案の票', page: v.page, path: `${bill}/shusei?/vote`, form: { amendment: '1', choice: 'yes' }, now: voteWeek },
+		{ what: '委員長選挙の票', page: v.page, path: '/iinkai?/vote', form: { candidate: '1' }, now: voteWeek }
 	];
-	for (const [what, page, path, form, now] of cases) {
-		const res = await send(page, path, form, now);
-		expect(res.status(), what).toBe(400);
-		expect(await res.text(), what).toContain('確認できませんでした');
+	for (const c of cases) {
+		for (const token of [null, 'test-fail']) {
+			const label = `${c.what}（${token === null ? 'トークンなし' : '通らないトークン'}）`;
+			const res = await send(c.page, c.path, c.form, token, c.now);
+			expect(res.status(), label).toBe(400);
+			expect(await res.text(), label).toContain('確認できませんでした');
+		}
 	}
 });
