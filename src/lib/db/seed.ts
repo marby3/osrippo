@@ -6,8 +6,8 @@ import { revisionStatus, type EgovRevision } from '../egov/revision';
 /** 対象3法：景品表示法、特定商取引法、消費者契約法（法令ID順） */
 export const TARGET_LAWS = ['337AC0000000134', '351AC0000000057', '412AC0000000061'];
 
-type Value = string | number | null;
-type Table = { name: string; columns: string[]; rows: Value[][] };
+export type Value = string | number | null;
+export type Table = { name: string; columns: string[]; rows: Value[][] };
 
 const MAX_ROWS = 100;
 const MAX_BYTES = 100_000;
@@ -15,7 +15,7 @@ const MAX_BYTES = 100_000;
 const literal = (v: Value) => (v === null ? 'NULL' : typeof v === 'number' ? String(v) : `'${v.replaceAll("'", "''")}'`);
 
 /** D1 が受け付ける形にする：トランザクション文なし、1文 100 行まで・100KB 未満 */
-function inserts({ name, columns, rows }: Table): string[] {
+export function inserts({ name, columns, rows }: Table): string[] {
 	const head = `INSERT INTO ${name} (${columns.join(', ')}) VALUES\n`;
 	const bytes = (s: string) => new TextEncoder().encode(s).length;
 	const statements: string[] = [];

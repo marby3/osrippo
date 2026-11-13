@@ -2,7 +2,7 @@
 import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, primaryKey, real, sqliteTable, text, unique, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { CHANGES } from '../domain/law/history';
-import type { Heading } from '../domain/law/parse';
+import type { Heading, Paragraph } from '../domain/law/parse';
 import { REACTIONS } from '../domain/solutions';
 import { BILL_KINDS, CHANGE_OPS } from '../domain/bills';
 import { POST_KINDS, STANCES, type PostRole } from '../domain/posts';
@@ -1675,4 +1675,54 @@ export const stanceStats = sqliteTable(
 		createdAt: integer('created_at').notNull()
 	},
 	(t) => [primaryKey({ columns: [t.sessionKey, t.billId] }), check('stance_stats_data', sql`json_valid(${t.data})`)]
+);
+
+/**
+ * 読める法律（Issue #162、設計書 docs/spec/162.md「表」）。e-Gov の一覧の法律と憲法で、最新の版だけを持つ。
+ * 遊べる法律（laws）の行も入れるが、その条と見出しは laws 側の表から読むので、headings と条は入れない。
+ * synced_updated は本文を入れ終えたときの一覧の updated。NULL なら途中で、ページは出さない
+ */
+export const readableLaws = sqliteTable(
+	'readable_laws',
+	{
+		/** e-Gov の law_id */
+		id: text('id').primaryKey(),
+		title: text('title').notNull(),
+		titleKana: text('title_kana'),
+		lawNum: text('law_num').notNull(),
+		lawType: text('law_type', { enum: ['Act', 'Constitution'] }).notNull(),
+		category: text('category'),
+		/** 略称の配列 */
+		abbrevs: text('abbrevs', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+		promulgationDate: text('promulgation_date').notNull(),
+		/** 最後の改正法の施行日。制定から改正がなければ NULL */
+		lastAmended: text('last_amended'),
+		/** e-Gov の law_revision_id（最新の施行済みの版） */
+		revisionId: text('revision_id').notNull(),
+		/** 一覧の updated */
+		updated: text('updated').notNull(),
+		headings: text('headings', { mode: 'json' }).$type<Heading[]>(),
+		articleCount: integer('article_count'),
+		syncedUpdated: text('synced_updated')
+	},
+	(t) => [check('readable_laws_law_type', sql`${t.lawType} IN ('Act', 'Constitution')`)]
+);
+
+/** 読める法律の本則の条。id は全文検索（readable_search）の rowid で、取り込みのときに表の最大値 + 1 から振る */
+export const readableArticles = sqliteTable(
+	'readable_articles',
+	{
+		id: integer('id').primaryKey(),
+		lawId: text('law_id')
+			.notNull()
+			.references(() => readableLaws.id),
+		/** 本則の中の順（0から） */
+		seq: integer('seq').notNull(),
+		/** e-Gov の形の条の番号（"6_2"） */
+		num: text('num').notNull(),
+		label: text('label').notNull(),
+		caption: text('caption').notNull(),
+		paragraphs: text('paragraphs', { mode: 'json' }).$type<Paragraph[]>().notNull()
+	},
+	(t) => [unique().on(t.lawId, t.num)]
 );

@@ -1,9 +1,10 @@
-// ローカル D1 を作り直す：消す → マイグレーション → 対象3法の取り込み（設計書 docs/spec/8.md）
+// ローカル D1 を作り直す：消す → マイグレーション → 対象3法の取り込み（設計書 docs/spec/8.md）→ 読める法律の取り込み（docs/spec/162.md 決めたこと6）
 // シェルの機能に頼らず Node だけで動かす（PowerShell と Linux で同じ）
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { seedStatements, TARGET_LAWS } from '../src/lib/db/seed';
+import { readableSeedStatements } from '../src/lib/db/seed-readable';
 
 const root = join(import.meta.dirname, '..');
 const wrangler = (...args: string[]) =>
@@ -25,5 +26,6 @@ wrangler('d1', 'migrations', 'apply', 'DB', '--local');
 const fixture = (name: string) => JSON.parse(readFileSync(join(root, 'tests/fixtures/egov', `${name}.json`), 'utf8'));
 const seed = join(root, '.wrangler/seed.sql');
 mkdirSync(join(root, '.wrangler'), { recursive: true });
-writeFileSync(seed, seedStatements(TARGET_LAWS, fixture).join('\n'));
+// 読める法律もテストデータの一覧から入れる（e-Gov は呼ばない）
+writeFileSync(seed, [...seedStatements(TARGET_LAWS, fixture), ...(await readableSeedStatements(TARGET_LAWS, fixture))].join('\n'));
 wrangler('d1', 'execute', 'DB', '--local', '--file', seed);

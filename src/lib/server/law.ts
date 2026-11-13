@@ -1,5 +1,5 @@
 // 法令と版の DB を読む（設計書 docs/spec/8.md の決定1〜3）
-import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, max, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, max, or } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { alias } from 'drizzle-orm/sqlite-core';
@@ -13,7 +13,7 @@ import {
 	tokyoDate,
 	type Change
 } from '../domain/law';
-import { committeeLaws, laws, lawRevisions, provisions, provisionVersions } from '../db/schema';
+import { committeeLaws, laws, lawRevisions, provisions, provisionVersions, readableArticles, readableLaws } from '../db/schema';
 
 // D1（本番）と node:sqlite（テスト）の両方の Drizzle を受ける
 export type Db = BaseSQLiteDatabase<'async', any>;
@@ -174,6 +174,40 @@ export async function lawPage(db: Db, lawId: string) {
 		toc: tableOfContents(current.headings ?? []),
 		enforced: listed.filter((r) => r.status === 'enforced').map(entry),
 		scheduled: listed.filter((r) => r.status === 'scheduled').map(entry)
+	};
+}
+
+/**
+ * 読める法律のページに出すもの（Issue #162、設計書 docs/spec/162.md 決めたこと4）。最新の版だけで、改正の記録はない。
+ * 本文を入れ終えて（synced_updated がある）、条が1つ以上ある法令だけ。ほかは undefined
+ */
+export async function readableLawPage(db: Db, lawId: string) {
+	const [law] = await db
+		.select()
+		.from(readableLaws)
+		.where(and(eq(readableLaws.id, lawId), isNotNull(readableLaws.syncedUpdated), gte(readableLaws.articleCount, 1)));
+	if (!law) return undefined;
+	const rows = await db
+		.select({ num: readableArticles.num, label: readableArticles.label, caption: readableArticles.caption, paragraphs: readableArticles.paragraphs })
+		.from(readableArticles)
+		.where(eq(readableArticles.lawId, lawId))
+		.orderBy(asc(readableArticles.seq));
+	// 見出しの帯は、遊べる法律のページと同じく、前の条と変わるところにだけ出す
+	const paths = headingPaths(law.headings ?? []);
+	let previous = '';
+	const articles = rows.map((a) => {
+		const path = paths.get(a.num) ?? [];
+		const key = path.join('\n');
+		const band = key && key !== previous ? path : null;
+		if (key) previous = key;
+		return { ...a, band };
+	});
+	return {
+		law: { id: law.id, title: law.title, titleKana: law.titleKana, lawNum: law.lawNum },
+		lastAmended: law.lastAmended,
+		promulgationDate: law.promulgationDate,
+		articles,
+		toc: tableOfContents(law.headings ?? [])
 	};
 }
 

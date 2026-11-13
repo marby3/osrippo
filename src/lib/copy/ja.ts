@@ -105,7 +105,12 @@ export const ja = {
 		then: (label: string) => `（当時は${label}）`,
 		recordBeforeBaseline: '2017年4月より前',
 		recordPreparing: '条文ごとの記録は準備中',
-		recordFailed: '変わった記録を読み込めませんでした。もう一度押してください。'
+		recordFailed: '変わった記録を読み込めませんでした。もう一度押してください。',
+		// 読める法律のページ（Issue #162 決めたこと4）。版の履歴がないので、改正の記録と比較は出さない
+		readable: '読める法律（最新の版だけ）',
+		/** 法令番号と最後の改正。改正がなければ「制定から改正なし」と公布日 */
+		readableMeta: (lawNum: string, lastAmended: string | null, promulgated: string) =>
+			`${lawNum} ・ ${lastAmended ? `最後の改正 ${jaDate(lastAmended)}施行` : `制定から改正なし（${jaDate(promulgated)}公布）`}`
 	},
 	/** 会期（Issue #44。画面の案 SpHome・PcHome） */
 	session: {
