@@ -32,6 +32,7 @@
 
 		<section aria-labelledby="toukei-results">
 			<h2 id="toukei-results">{t.resultsHeading(t.session(data.session))}</h2>
+			<p class="replay"><a href="/kaiki/{data.session}">{t.replayLink}</a></p>
 			{#if data.results?.length}
 				<div class="scroll">
 					<table>
@@ -180,7 +181,8 @@
 		overflow-wrap: anywhere;
 	}
 
-	li a {
+	li a,
+	.replay a {
 		color: var(--color-link);
 	}
 

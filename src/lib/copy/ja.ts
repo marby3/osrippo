@@ -1682,7 +1682,33 @@ export const ja = {
 		changedNote: '10人以上が「考えが変わった」を付けた質疑と答弁を、多い順に出しています。',
 		changedKinds: { question: '質疑', answer: '答弁' },
 		changedNone: 'まだありません',
-		dataLink: 'データを見る'
+		dataLink: 'データを見る',
+		/** 会期のリプレイへ（Issue #170） */
+		replayLink: 'この会期のリプレイを読む'
+	},
+	/** 会期のリプレイ（Issue #170、SpReplay・PcReplay）。人数の区分と「考えが変わった」の数は出さない */
+	replay: {
+		pageTitle: (session: string) => `${session}のリプレイ｜オープンソース立法府`,
+		crumb: '会期のリプレイ',
+		jump: 'この会期の節',
+		headings: { issues: '1. 課題', bills: '2. 法案', points: '3. 質疑の要点', votes: '4. 採決', ifWorld: '5. IF世界で変わった条文' },
+		/** PC の上の、節へ移るボタン */
+		jumps: { issues: '1. 課題', bills: '2. 法案', points: '3. 質疑の要点', votes: '4. 採決', ifWorld: '5. IF世界' },
+		issueMeta: (supports: number, solutions: number) => `わかる ${supports} ・ 解決策 ${solutions}`,
+		noIssues: 'この会期の法案のもとになった課題はありません',
+		billsSummary: (bills: number, amended: number) =>
+			amended ? `${bills}本が発議され、${amended}本に修正案が取り込まれました。` : `${bills}本が発議されました。`,
+		noBills: 'この会期に採決した法案はありません',
+		pointsNote: '「考えが変わった」が10人以上から付いた質疑と答弁',
+		pointKinds: { question: '質疑', answer: '答弁' },
+		noPoints: 'この会期には、ありません',
+		columns: { bill: '法案', outcome: '結果', counted: '数えた票', reference: '参考の票' },
+		counted: '数えた票',
+		reference: '参考の票',
+		line: (c: { yes: number; no: number; abstain: number }) => `賛成 ${c.yes} ・ 反対 ${c.no} ・ 棄権 ${c.abstain}`,
+		stanceNote: '立場別の分布は、それぞれの法案の結果のページにあります。',
+		band: { short: '架空の法令です', long: '架空の法令です。現実の法律ではありません。' },
+		noChanges: 'この会期に IF世界の法律になった法案はありません'
 	},
 	compare: {
 		pageTitle: (title: string) => `${title}の改正で変わったところ｜オープンソース立法府`,
