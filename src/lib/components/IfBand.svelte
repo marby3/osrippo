@@ -1,12 +1,15 @@
 <script lang="ts">
 	// IF世界の帯（Tokens の紫の斜線）。スマホは短く、PC は長く書く（SpResult・PcResult）。#72 の法令のページも使う
 	import { ja } from '../copy/ja';
+
+	/** 文言を変えるとき（会期のリプレイの節の帯。Issue #170） */
+	let { short = ja.ifBand.short, long = ja.ifBand.long }: { short?: string; long?: string } = $props();
 </script>
 
 <div class="band" data-if-band>
 	<span class="label">{ja.ifBand.label}</span>
-	<span class="short">{ja.ifBand.short}</span>
-	<span class="long">{ja.ifBand.long}</span>
+	<span class="short">{short}</span>
+	<span class="long">{long}</span>
 </div>
 
 <style>

@@ -33,6 +33,10 @@ export async function sessionResults(db: Db, session: Session) {
 			yes: billResults.yes,
 			no: billResults.no,
 			abstain: billResults.abstain,
+			refYes: billResults.refYes,
+			refNo: billResults.refNo,
+			refAbstain: billResults.refAbstain,
+			rev: billResults.rev,
 			review: voteReviews.status
 		})
 		.from(billResults)
@@ -62,16 +66,20 @@ export async function bridgeRanking(db: Db, session: Session, rows: Awaited<Retu
 
 export type ChangedItem = { postId: number; kind: 'question' | 'answer'; excerpt: string; billId: number; billTitle: string; questionId: number };
 
-/** 「考えが変わった」が多く付いた質疑と答弁（G・H）。数は並びに使うだけで返さない。見えている投稿だけで並べてから、10件の本文を読む */
-export async function changedRanking(db: Db, session: Session): Promise<ChangedItem[]> {
+/**
+ * 「考えが変わった」が多く付いた質疑と答弁（G・H）。数は並びに使うだけで返さない。見えている投稿だけで並べてから、10件の本文を読む。
+ * billIds を渡すと、その法案の投稿だけ（会期のリプレイ、Issue #170）
+ */
+export async function changedRanking(db: Db, session: Session, billIds?: ReadonlySet<number>): Promise<ChangedItem[]> {
 	const scores = await sessionPostScores(db, session.key);
 	const ids = [...scores].filter(([, s]) => s.changed >= STATS_MIN).map(([id]) => id);
 	if (ids.length === 0) return [];
 	const inIds = (list: number[]) => sql`${posts.id} IN (SELECT value FROM json_each(${JSON.stringify(list)}))`;
 	const shown = await db
-		.select({ id: posts.id, kind: posts.kind, parentId: posts.parentId })
+		.select({ id: posts.id, kind: posts.kind, parentId: posts.parentId, billId: posts.billId })
 		.from(posts)
-		.where(and(inIds(ids), inArray(posts.status, POST_SHOWN), inArray(posts.kind, ['question', 'answer'])));
+		.where(and(inIds(ids), inArray(posts.status, POST_SHOWN), inArray(posts.kind, ['question', 'answer'])))
+		.then((rows) => (billIds ? rows.filter((p) => billIds.has(p.billId)) : rows));
 	// 答弁は親の質疑も見えているものだけ（見えない質疑へのリンクにしない）
 	const parents = shown.filter((p) => p.kind === 'answer' && p.parentId !== null).map((p) => p.parentId as number);
 	const shownParents = new Set(parents.length ? (await db.select({ id: posts.id }).from(posts).where(and(inIds(parents), inArray(posts.status, POST_SHOWN)))).map((r) => r.id) : []);

@@ -17,10 +17,12 @@ export const PC_ONLY_TABS: readonly Tab[] = ['toukei'];
 
 const under = (pathname: string, base: string) => pathname === base || pathname.startsWith(`${base}/`);
 
-/** ページが属するタブ。IF世界の法令は「法律」。検索・通知・わたしの記録などはどれにも属さない */
+/** ページが属するタブ。IF世界の法令は「法律」、会期のリプレイは「データ」。検索・通知・わたしの記録などはどれにも属さない */
 export function tabOf(pathname: string): Tab | null {
 	if (pathname === '/') return 'home';
 	if (under(pathname, '/if/hourei')) return 'hourei';
+	// 会期のリプレイは「データ」の下（PcReplay のパンくず。Issue #170）
+	if (under(pathname, '/kaiki')) return 'toukei';
 	return TABS.find((t) => t.key !== 'home' && under(pathname, t.href))?.key ?? null;
 }
 
