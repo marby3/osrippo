@@ -110,7 +110,7 @@ test('信頼の境界：形の違う一覧のパラメータは 404。形の違�
 		await expect(readable(page)).toHaveCount(0);
 	};
 	await reason('あ'.repeat(61), '60字まで、言葉は5つまでで入力してください');
-	await reason('‮民法', '使えない文字が入っています');
+	await reason('\u202e民法', '使えない文字が入っています');
 	await reason('%_', '2文字以上で入力してください');
 
 	// LIKE の記号と FTS の構文は、ただの文字として扱う
