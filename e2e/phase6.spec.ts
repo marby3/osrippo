@@ -20,7 +20,7 @@ test.use({ actionTimeout: 15_000 });
 /**
  * 幅ごとに別の月を使う（phase4 は 2035年、phase5 は 2036年）。シミュレーションは前の月（2037-03・2037-07）から bot を動かし
  * （前の月に何かした人の票が数えた票になる）、この月の会期を1つ通す。結果は次の月の1日に確定する。
- * ほかのテストは 2037-03〜05 と 2037-07〜09 を使わない
+ * ほかの締めのテストは 2037-03〜05 と 2037-07〜09 を使わない（ふつうのテストは test:phase と同時に流さないので重なってよい）
  */
 const MONTH = { sp: { now: '2037-04', next: '2037-05' }, pc: { now: '2037-08', next: '2037-09' } } as const;
 const at = (month: string, day: number) => `${month}-${String(day).padStart(2, '0')}T09:00:00+09:00`;
@@ -29,13 +29,14 @@ const sessionName = (month: string) => `${Number(month.slice(0, 4))}年${Number(
 /**
  * pnpm simulate の約束（シミュレーションの実装の Issue はこれに合わせる）。
  * 引数：--origin（テスト用ログインのある preview）、--month（会期の月 YYYY-MM）、--label（題名などに入れる目印）、--participants（bot の数）。
- * 標準出力の最後の1行に、この形の JSON を1つだけ書く（Issue #190 受入基準1・2）
+ * 標準出力の最後の1行に、この形の JSON を1つだけ書く（Issue #190 受入基準1・2）。5xx が1件でも返ったら、終了コード1で終わる。
+ * 「短い会期」は x-test-now で時刻を進めて、ひと月の会期を数分で通すこと（SESSION_MINUTES は pnpm dev のときだけなので使わない）
  */
 type Simulated = {
 	/** 作った bot の参加者の数 */
 	participants: number;
 	/** 立場ごとの bot の数。キーは for（賛成寄り）・undecided（未定）・against（反対寄り） */
-	stances: Record<string, number>;
+	stances: Record<'for' | 'undecided' | 'against', number>;
 	/** 筋書きの各段で、本物の送信先が受け付けた数（受入基準1） */
 	steps: {
 		issues: number;
@@ -61,10 +62,11 @@ type Simulated = {
 	/** 可決させる法案A と、否決させる法案B */
 	passed: { id: string; title: string };
 	rejected: { id: string; title: string };
-	/** 法案A が変える法令（法令ID）と条、変えたあとの本文にだけある言葉 */
+	/** 法案A が変える法令の法令ID */
 	law: string;
-	/** 法令のページの条の名前（article の aria の名前。例「第1条」。法案の画面の「第1条（目的）」ではない） */
+	/** 法案A が変える条。法令のページの条の名前（article の aria の名前。例「第1条」。法案の画面の「第1条（目的）」ではない） */
 	article: string;
+	/** 変えたあとの本文にだけある言葉 */
 	amended: string;
 };
 
@@ -72,9 +74,12 @@ type Simulated = {
 async function simulate(w: Width): Promise<Simulated> {
 	const { stdout } = await run('pnpm', ['--silent', 'simulate', '--origin', ORIGIN, '--month', MONTH[w].now, '--label', `${w}-${Date.now() % 1e8}`, '--participants', '60'], {
 		maxBuffer: 64 * 1024 * 1024,
-		timeout: 25 * 60_000
+		timeout: 25 * 60_000,
+		// Windows では pnpm が pnpm.cmd なので、シェルを通す（PowerShell と Linux で同じスクリプトを使う）
+		shell: process.platform === 'win32'
 	});
-	const last = stdout.trim().split('\n').at(-1) ?? '';
+	const last = stdout.trim().split('\n').at(-1)?.trim() ?? '';
+	expect(last.startsWith('{'), `pnpm simulate の最後の行が JSON ではない：${last}`).toBe(true);
 	return JSON.parse(last) as Simulated;
 }
 
@@ -93,7 +98,7 @@ const band = (page: Page) => page.locator('[data-if-band]');
 const robots = (page: Page) => page.locator('meta[name="robots"]');
 const region = (page: Page, name: string | RegExp) => page.getByRole('region', { name });
 
-test('bot の参加者60人で会期を1つ通すと、法案が可決・否決され、IF世界の条文と統計に出る', async ({ browser }, info) => {
+test('bot の参加者60人で会期を1つ通すと、法案が可決・否決され、IF世界の条文と、統計ページから開く結果に出る', async ({ browser }, info) => {
 	test.setTimeout(30 * 60_000);
 	const w = info.project.name as Width;
 	const { now, next } = MONTH[w];
@@ -149,8 +154,8 @@ test('bot の参加者60人で会期を1つ通すと、法案が可決・否決�
 	const res = await v.goto(`/toukei?kaiki=${now}`);
 	expect(res?.status()).toBe(200);
 	await hydrated(v);
-	const results = region(v, /法案の結果/);
-	await expect(v.getByRole('heading', { level: 2, name: `${sessionName(now)}の法案の結果` })).toBeVisible();
+	const results = region(v, `${sessionName(now)}の法案の結果`);
+	await expect(results).toBeVisible();
 	const rowA = results.getByRole('row').filter({ hasText: sim.passed.title });
 	await expect(rowA).toContainText('可決');
 	await expect(results.getByRole('row').filter({ hasText: sim.rejected.title })).toContainText('否決');
