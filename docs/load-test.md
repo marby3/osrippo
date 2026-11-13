@@ -40,7 +40,7 @@ Issue #201（#190 の決めたこと6、#198 の「負荷試験」）。β の�
 
 1. Workers を有料プランに切り替える
 2. Cloudflare の API トークンを作る。権限は「Account Analytics Read」（試験のあとで、CPU の制限で落ちた件数と D1 の読んだ行数を GraphQL と SQL API で見るため）。`wrangler d1 insights` を使うときも同じ権限が要る
-3. ステージングにいまのコードをデプロイし、マイグレーションを当てる（`.review/config` の deploy=、`npx wrangler d1 migrations apply DB --env staging --remote`）
+3. ステージングにいまのコードをデプロイし、マイグレーションを当てる（`.review/config` の deploy=、`npx wrangler d1 migrations apply DB --env staging --remote`）。β のデータは法令が取り込み済みの DB に入れるので、`SELECT count(*) FROM laws` と `SELECT count(*) FROM readable_laws` が0でないことを確かめる（0なら、対象3法の取り込みと `pnpm sync:readable` を先に流す。本番の公開の手順 #203 と同じ）
 4. 下の「β の規模のデータを入れる」
 5. 下の「流す」。5分の試験のあとで「CPU の制限で落ちた件数を確かめる」
 6. 下の「画面ごとの読んだ行数を測る」で表を埋め、「月の使用量の見積もり」を計算する
@@ -209,7 +209,7 @@ query ($accountTag: string!, $start: Time!, $end: Time!) {
 - 1回の平均の読んだ行数 R = Σ（画面の割合 × 画面の1回の読んだ行数）
 - 月の読んだ行数 = 人数 × 300 × R
 - 月のリクエスト = 人数 × 300（静的なファイルは数えない）
-- 月の CPU 時間 = 月のリクエスト × 1回の CPU 時間（GraphQL の cpuTimeP50）
+- 月の CPU 時間（ms）= 月のリクエスト × 1回の CPU 時間（GraphQL の cpuTimeP50。単位はマイクロ秒なので、1000 で割ってミリ秒にする）
 
 有料プランに含まれる量（2026-11 時点の公開価格）：D1 の読んだ行は月250億行、書いた行は月5,000万行。Workers のリクエストは月1,000万、CPU 時間は月3,000万ミリ秒。
 

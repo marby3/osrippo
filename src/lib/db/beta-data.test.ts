@@ -97,7 +97,7 @@ test('基準2：β の規模のデータを作り、件数を確かめられる�
 		sqlite.prepare("INSERT INTO notifications (user_id, kind, target_id, ref_id, created_at) VALUES ('real-1', 'bill_rejected', ?, 0, ?)").run(betaBill, now + 1000);
 		sqlite.prepare("INSERT INTO notifications (user_id, kind, target_id, ref_id, created_at) VALUES ('beta-u001', 'bill_rejected', ?, 0, ?)").run(betaBill, now + 1000);
 		sqlite.prepare("INSERT INTO law_refs (kind, ref_id, law_id, num) VALUES ('issue', ?, '412AC0000000061', '4')").run(betaIssue);
-		expect(count()).toMatchObject({ sessionParticipants: 1, notifications: 2 });
+		expect(count()).toMatchObject({ sessionParticipants: 100, notifications: 2 });
 
 		for (const sql of betaDeleteStatements(now)) sqlite.exec(sql);
 		const left = count();

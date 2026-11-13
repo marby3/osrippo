@@ -448,7 +448,7 @@ export const betaCountSql = (since: number) => `SELECT
 	(SELECT count(*) FROM votes v WHERE v.bill_id IN (${BETA_BILL_IDS}) AND NOT EXISTS (SELECT 1 FROM bill_results r WHERE r.bill_id = v.bill_id AND r.session_key = v.session_key)) AS currentVotes,
 	(SELECT count(*) FROM bill_results WHERE bill_id IN (${BETA_BILL_IDS})) AS billResults,
 	(SELECT count(*) FROM actions WHERE user_id ${BETA}) AS actions,
-	(SELECT count(*) FROM session_participants WHERE ${fixedSince(since)}) AS sessionParticipants,
+	(SELECT coalesce(sum(active_count), 0) FROM session_participants WHERE ${fixedSince(since)}) AS sessionParticipants,
 	(SELECT count(*) FROM notifications WHERE ${BETA_NOTIFICATIONS}) AS notifications`;
 
 /**
