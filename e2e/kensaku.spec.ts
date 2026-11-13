@@ -197,12 +197,16 @@ test('基準7：トップページと法令のページから探せる。新し�
 });
 
 test('信頼の境界：shurui と page の形が違えば 404', async ({ request }) => {
-	for (const extra of ['&shurui=hourei', '&shurui=', '&shurui=KADAI', '&shurui=kadai&page=1', '&shurui=kadai&page=abc', '&shurui=kadai&page=99']) {
+	// 法令の欄も種類だけで見られる（Issue #208）ので、shurui=hourei は形の違う例にしない
+	for (const extra of ['&shurui=houritsu', '&shurui=', '&shurui=KADAI', '&shurui=kadai&page=1', '&shurui=kadai&page=abc', '&shurui=kadai&page=99']) {
 		expect((await request.get(searchUrl('事業者', extra))).status(), extra).toBe(404);
 	}
 	// 条文は並べた1000件（20ページ）まで
 	expect((await request.get(searchUrl('事業者', '&shurui=jobun&page=21'))).status()).toBe(404);
 	expect((await request.get(searchUrl('事業者', '&shurui=jobun&page=2'))).status()).toBe(200);
+	// 法令の欄は、当たった法律の本数まで
+	expect((await request.get(searchUrl('民法', '&shurui=hourei'))).status()).toBe(200);
+	expect((await request.get(searchUrl('民法', '&shurui=hourei&page=2'))).status()).toBe(404);
 });
 
 // Issue #208 全体の検索に読める法律を足す。読める法律は db:reset でテストデータの一覧から入る（民法・日本国憲法と、遊べる3法）

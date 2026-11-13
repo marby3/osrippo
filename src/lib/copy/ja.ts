@@ -1167,8 +1167,10 @@ export const ja = {
 		},
 		sections: { laws: '法令', jobun: '条文', kadai: '課題', kaiketsu: '解決策' },
 		count: (n: number) => `${n}件`,
+		/** 件数を数えきらずに止めたとき（条文は並べる上限まで数える） */
+		countOver: (n: number) => `${n}件以上`,
 		none: '見つかりませんでした',
-		more: (n: number) => `もっと見る（${n}件）`,
+		more: (count: string) => `もっと見る（${count}）`,
 		capped: '1000件を超えました。言葉を足してしぼりこんでください',
 		supports: (n: number) => `わかる ${n}`,
 		back: '探した結果のすべてへ',
