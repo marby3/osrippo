@@ -17,8 +17,8 @@
 	<span class="snippet">{#each parts as part, i (i)}{#if part.mark}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}</span>
 {/snippet}
 
-{#snippet heading(name: string, total: number)}
-	<h2>{name} <span>{ja.search.count(total)}</span></h2>
+{#snippet heading(name: string, count: string)}
+	<h2>{name} <span>{count}</span></h2>
 {/snippet}
 
 <svelte:head>
@@ -43,18 +43,24 @@
 
 		{#if r.laws}
 			<section>
-				{@render heading(ja.search.sections.laws, r.laws.length)}
-				{#if r.laws.length === 0}<p class="none">{ja.search.none}</p>{/if}
+				{@render heading(ja.search.sections.laws, ja.search.count(r.laws.total))}
+				{#if r.laws.total === 0}<p class="none">{ja.search.none}</p>{/if}
 				<ul>
-					{#each r.laws as law (law.id)}<li><a href="/hourei/{law.id}">{law.title}</a></li>{/each}
+					<!-- 本文を入れ終えていない法律と、条のない法律はリンクにしない -->
+					{#each r.laws.rows as law (law.id)}<li>{#if law.href}<a href={law.href}>{law.title}</a>{:else}<span>{law.title}</span>{/if}</li>{/each}
 				</ul>
+				{#if !data.shurui && r.laws.total > r.laws.rows.length}
+					<p><a href={href({ shurui: 'hourei' })}>{ja.search.more(ja.search.count(r.laws.total))}</a></p>
+				{/if}
 			</section>
 		{/if}
 
 		{#if r.jobun}
+			{@const jobunCount = r.jobun.exact ? ja.search.count(r.jobun.total) : ja.search.countOver(Math.min(r.jobun.total, r.jobun.cap))}
 			<section>
-				{@render heading(ja.search.sections.jobun, r.jobun.total)}
+				{@render heading(ja.search.sections.jobun, jobunCount)}
 				{#if r.jobun.capped}<p class="note">{ja.search.capped}</p>{/if}
+				{#if r.jobun.readableShort}<p class="note">{ja.laws.articlesShort}</p>{/if}
 				{#if r.jobun.total === 0}<p class="none">{ja.search.none}</p>{/if}
 				<ul>
 					{#each r.jobun.rows as row, i (i)}
@@ -65,14 +71,14 @@
 					{/each}
 				</ul>
 				{#if !data.shurui && r.jobun.total > r.jobun.rows.length}
-					<p><a href={href({ shurui: 'jobun' })}>{ja.search.more(r.jobun.total)}</a></p>
+					<p><a href={href({ shurui: 'jobun' })}>{ja.search.more(jobunCount)}</a></p>
 				{/if}
 			</section>
 		{/if}
 
 		{#if r.kadai}
 			<section>
-				{@render heading(ja.search.sections.kadai, r.kadai.total)}
+				{@render heading(ja.search.sections.kadai, ja.search.count(r.kadai.total))}
 				{#if r.kadai.total === 0}<p class="none">{ja.search.none}</p>{/if}
 				<ul>
 					{#each r.kadai.rows as row (row.id)}
@@ -84,14 +90,14 @@
 					{/each}
 				</ul>
 				{#if !data.shurui && r.kadai.total > r.kadai.rows.length}
-					<p><a href={href({ shurui: 'kadai' })}>{ja.search.more(r.kadai.total)}</a></p>
+					<p><a href={href({ shurui: 'kadai' })}>{ja.search.more(ja.search.count(r.kadai.total))}</a></p>
 				{/if}
 			</section>
 		{/if}
 
 		{#if r.kaiketsu}
 			<section>
-				{@render heading(ja.search.sections.kaiketsu, r.kaiketsu.total)}
+				{@render heading(ja.search.sections.kaiketsu, ja.search.count(r.kaiketsu.total))}
 				{#if r.kaiketsu.total === 0}<p class="none">{ja.search.none}</p>{/if}
 				<ul>
 					{#each r.kaiketsu.rows as row (row.id)}
@@ -102,7 +108,7 @@
 					{/each}
 				</ul>
 				{#if !data.shurui && r.kaiketsu.total > r.kaiketsu.rows.length}
-					<p><a href={href({ shurui: 'kaiketsu' })}>{ja.search.more(r.kaiketsu.total)}</a></p>
+					<p><a href={href({ shurui: 'kaiketsu' })}>{ja.search.more(ja.search.count(r.kaiketsu.total))}</a></p>
 				{/if}
 			</section>
 		{/if}

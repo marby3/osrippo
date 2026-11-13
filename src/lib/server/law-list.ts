@@ -116,6 +116,12 @@ function nameMatches(w: Word): SQL {
 		OR ${readableLaws.lawNum} LIKE ${contains(lawNumWord(w.norm))} ESCAPE '\\')`;
 }
 
+/** 本文を入れ終えて、条のある読める法律か（ページへのリンクにする。条文の検索にも出す） */
+const ready = sql<number>`${readableLaws.syncedUpdated} IS NOT NULL AND ${readableLaws.articleCount} >= 1`;
+
+/** 遊べる法律でない（遊べる法律の名前と条は laws の側の表から引く。読める法律の表に行が残っていても引かない） */
+const notPlayable = sql`${readableLaws.id} NOT IN (SELECT id FROM ${laws})`;
+
 /** 変わった日：最後の改正日、なければ公布日（索引 readable_laws_changed と同じ式） */
 const changedOn = sql`coalesce(${readableLaws.lastAmended}, ${readableLaws.promulgationDate})`;
 
@@ -139,7 +145,7 @@ export async function listReadableLaws(db: Db, query: LawListQuery, words: Word[
 			lawNum: readableLaws.lawNum,
 			lastAmended: readableLaws.lastAmended,
 			playable: sql<number>`${laws.id} IS NOT NULL`,
-			ready: sql<number>`${readableLaws.syncedUpdated} IS NOT NULL AND ${readableLaws.articleCount} >= 1`
+			ready: ready
 		})
 		.from(readableLaws)
 		.leftJoin(laws, eq(laws.id, readableLaws.id))
@@ -155,10 +161,103 @@ export async function listReadableLaws(db: Db, query: LawListQuery, words: Word[
 	};
 }
 
+/** 遊べる法律のうち、読める法律の表の法令名・読み・略称・法令番号で当たるもの（全体の検索。Issue #208。/hourei と同じ規則） */
+export async function searchPlayableLawNames(db: Db, words: Word[]) {
+	const rows = await db
+		.select({ id: laws.id })
+		.from(readableLaws)
+		.innerJoin(laws, eq(laws.id, readableLaws.id))
+		.where(and(...words.map(nameMatches)));
+	return rows.map((r) => r.id);
+}
+
+/**
+ * 全体の検索（/kensaku。Issue #208）の法令の欄の、読める法律。遊べる法律は外す（全体の検索は laws の題名で別に引く）。
+ * 五十音の順に offset から limit 件と、当たった本数。LIKE は索引で引けないので表を一回りする。数えるのと1ページを読むのを1回にする
+ */
+export async function searchReadableLawNames(db: Db, words: Word[], limit: number, offset: number) {
+	const rows = await db
+		.select({ id: readableLaws.id, title: readableLaws.title, ready, total: sql<number>`count(*) OVER ()` })
+		.from(readableLaws)
+		.where(and(notPlayable, ...words.map(nameMatches)))
+		.orderBy(asc(readableLaws.titleKana), asc(readableLaws.id))
+		// 遊べる法律でページが埋まっても、本数を知るために1行は読む
+		.limit(Math.max(limit, 1))
+		.offset(offset);
+	return { total: rows[0]?.total ?? 0, rows: rows.slice(0, limit).map((r) => ({ id: r.id, title: r.title, linked: Boolean(r.ready) })) };
+}
+
 /** 条文から探したときに出す条の数 */
 export const ARTICLE_HITS = 50;
 /** 読める法律の条文を探せる言葉の長さ（trigram の索引だけなので3文字から。ユーザーの決定4） */
 const READABLE_MIN = 3;
+
+/** 読める法律の条文を探さない（言葉に短いものがある）か */
+export const readableTooShort = (words: Word[]) => words.some((w) => [...w.norm].length < READABLE_MIN);
+
+/** 読める法律の条文の索引で当たる rowid を、upTo の4倍まで（外の条件で落ちる行のぶんの余裕） */
+const windowSize = (upTo: number) => upTo * 4;
+function readableWindow(words: Word[], upTo: number) {
+	const match = words.map((w) => matchPhrase(w.norm)).join(' AND ');
+	return sql`SELECT rowid FROM readable_search WHERE readable_search MATCH ${match} ORDER BY rowid LIMIT ${windowSize(upTo)}`;
+}
+
+/**
+ * 読める法律の条文で、言葉がすべて当たる条（readable_articles と readable_laws を結んだ行の条件）。
+ * 遊べる法律の条（版のある表から引く）と、本文を入れ終えていない法律・条のない法律の条は外す。
+ * FTS5 は rowid の順に返すので、LIMIT を内側に置くと当たった条を全部は読まずに止まる。外の条件で落ちる行のぶん、upTo の4倍まで読む
+ */
+function readableArticleHits(words: Word[], upTo: number) {
+	return and(
+		sql`${readableArticles.id} IN (${readableWindow(words, upTo)})`,
+		notPlayable,
+		ready
+	);
+}
+
+/** 読める法律の条文で当たる条を、rowid の順に offset から limit 件。upTo は当たる条の何件目までを見るか（数えたときとそろえる） */
+export async function searchReadableArticles(db: Db, words: Word[], limit: number, offset = 0, upTo = offset + limit) {
+	const found = await db
+		.select({
+			lawId: readableArticles.lawId,
+			lawTitle: readableLaws.title,
+			num: readableArticles.num,
+			label: readableArticles.label,
+			caption: readableArticles.caption,
+			paragraphs: readableArticles.paragraphs
+		})
+		.from(readableArticles)
+		.innerJoin(readableLaws, eq(readableLaws.id, readableArticles.lawId))
+		.where(readableArticleHits(words, upTo))
+		.orderBy(asc(readableArticles.id))
+		.limit(limit)
+		.offset(offset);
+	return found.map((a) => ({
+		lawId: a.lawId,
+		lawTitle: a.lawTitle,
+		num: a.num,
+		label: a.label,
+		text: [a.caption, articleBodyText(a.paragraphs)].filter(Boolean).join('　')
+	}));
+}
+
+/**
+ * 読める法律の条文で当たる条の数。cap 件まで数えて止める。
+ * windowFull は、索引の窓（cap の4倍）を使い切ったこと。そのときは窓の外にも当たる条があるかもしれないので、数は正確でない
+ */
+export async function countReadableArticles(db: Db, words: Word[], cap: number) {
+	const hits = db
+		.select({ id: readableArticles.id })
+		.from(readableArticles)
+		.innerJoin(readableLaws, eq(readableLaws.id, readableArticles.lawId))
+		.where(readableArticleHits(words, cap))
+		.limit(cap)
+		.as('hits');
+	const [counted] = await db
+		.select({ n: count(), scanned: sql<number>`(SELECT count(*) FROM (${readableWindow(words, cap)}))` })
+		.from(hits);
+	return { n: counted?.n ?? 0, windowFull: (counted?.scanned ?? 0) >= windowSize(cap) };
+}
 
 /**
  * 条文から探す：遊べる法律はいまの全文検索（2文字は bigram）、読める法律は readable_search（3文字以上の言葉だけ）。
@@ -174,42 +273,12 @@ export async function searchLawArticles(db: Db, words: Word[]) {
 		text: r.text
 	}));
 	let more = playable.total > rows.length;
-	const readableShort = words.some((w) => [...w.norm].length < READABLE_MIN);
+	const readableShort = readableTooShort(words);
 	const room = ARTICLE_HITS - rows.length;
 	if (!readableShort) {
-		const match = words.map((w) => matchPhrase(w.norm)).join(' AND ');
-		const found = await db
-			.select({
-				lawId: readableArticles.lawId,
-				lawTitle: readableLaws.title,
-				num: readableArticles.num,
-				label: readableArticles.label,
-				caption: readableArticles.caption,
-				paragraphs: readableArticles.paragraphs
-			})
-			.from(readableArticles)
-			.innerJoin(readableLaws, eq(readableLaws.id, readableArticles.lawId))
-			.where(
-				and(
-					// FTS5 は rowid の順に返すので、LIMIT を内側に置くと当たった条を全部は読まずに止まる。外の条件で落ちる行のぶん、余裕をとる
-					sql`${readableArticles.id} IN (SELECT rowid FROM readable_search WHERE readable_search MATCH ${match} ORDER BY rowid LIMIT ${(room + 1) * 4})`,
-					// 遊べる法律の条は、版のある表から上で引いた。読める法律の表に行が残っていても引かない
-					sql`${readableArticles.lawId} NOT IN (SELECT id FROM laws)`,
-					isNotNull(readableLaws.syncedUpdated),
-					gte(readableLaws.articleCount, 1)
-				)
-			)
-			.orderBy(asc(readableArticles.id))
-			.limit(room + 1);
+		const found = await searchReadableArticles(db, words, room + 1);
 		if (found.length > room) more = true;
-		for (const a of found.slice(0, room))
-			rows.push({
-				lawId: a.lawId,
-				lawTitle: a.lawTitle,
-				label: a.label,
-				href: `/hourei/${a.lawId}#jo-${a.num}`,
-				text: [a.caption, articleBodyText(a.paragraphs)].filter(Boolean).join('　')
-			});
+		for (const a of found.slice(0, room)) rows.push({ lawId: a.lawId, lawTitle: a.lawTitle, label: a.label, href: `/hourei/${a.lawId}#jo-${a.num}`, text: a.text });
 	}
 	return { rows, more, readableShort };
 }

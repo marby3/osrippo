@@ -78,8 +78,9 @@ test('基準2：条文はいまの版の条・項・号だけを、法令の順�
 	await page.goto(searchUrl('事業者', '&shurui=jobun'));
 	const laws = await page.locator('.law').allInnerTexts();
 	const order = ['不当景品類及び不当表示防止法', '特定商取引に関する法律', '消費者契約法'];
-	const seen = laws.map((l) => order.indexOf(l));
-	expect(seen.every((x) => x >= 0)).toBe(true);
+	// 遊べる法律の行だけを見る（読める法律の行はあとに来る。Issue #208）
+	const seen = laws.map((l) => order.indexOf(l)).filter((x) => x >= 0);
+	expect(seen.length).toBeGreaterThan(0);
 	expect([...seen].sort((a, b) => a - b)).toEqual(seen);
 
 	// 過去の版にだけある言葉は出ない
@@ -197,10 +198,48 @@ test('基準7：トップページと法令のページから探せる。新し�
 });
 
 test('信頼の境界：shurui と page の形が違えば 404', async ({ request }) => {
-	for (const extra of ['&shurui=hourei', '&shurui=', '&shurui=KADAI', '&shurui=kadai&page=1', '&shurui=kadai&page=abc', '&shurui=kadai&page=99']) {
+	// 法令の欄も種類だけで見られる（Issue #208）ので、shurui=hourei は形の違う例にしない
+	for (const extra of ['&shurui=houritsu', '&shurui=', '&shurui=KADAI', '&shurui=kadai&page=1', '&shurui=kadai&page=abc', '&shurui=kadai&page=99']) {
 		expect((await request.get(searchUrl('事業者', extra))).status(), extra).toBe(404);
 	}
 	// 条文は並べた1000件（20ページ）まで
 	expect((await request.get(searchUrl('事業者', '&shurui=jobun&page=21'))).status()).toBe(404);
 	expect((await request.get(searchUrl('事業者', '&shurui=jobun&page=2'))).status()).toBe(200);
+	// 法令の欄は、当たった法律の本数まで
+	expect((await request.get(searchUrl('民法', '&shurui=hourei'))).status()).toBe(200);
+	expect((await request.get(searchUrl('民法', '&shurui=hourei&page=2'))).status()).toBe(404);
+});
+
+// Issue #208 全体の検索に読める法律を足す。読める法律は db:reset でテストデータの一覧から入る（民法・日本国憲法と、遊べる3法）
+test('#208 基準1：法令の欄に、読める法律が法令名・読み・略称・法令番号で出る。遊べる法律は先に出る', async ({ page }) => {
+	const titles = async (q: string) => {
+		await page.goto(searchUrl(q));
+		return section(page, '法令').getByRole('listitem').allInnerTexts();
+	};
+	// 法令名
+	await page.goto(searchUrl('民法'));
+	await expect(section(page, '法令').getByRole('link', { name: '民法', exact: true })).toHaveAttribute('href', '/hourei/129AC0000000089');
+	// 読み・法令番号（算用数字でも）
+	expect(await titles('けんぽう')).toEqual(['日本国憲法']);
+	expect(await titles('明治29年法律第89号')).toEqual(['民法']);
+	// 遊べる法律も略称で当たる
+	expect(await titles('景品表示法')).toEqual(['不当景品類及び不当表示防止法']);
+	// 遊べる法律が先、読める法律があと（どれも法令番号の「法律」で当たる）。遊べる法律は二重に出さない
+	expect(await titles('法律')).toEqual(['不当景品類及び不当表示防止法', '特定商取引に関する法律', '消費者契約法', '民法']);
+	await expect(section(page, '法令').getByRole('heading')).toHaveText(/^法令\s*4件$/);
+});
+
+test('#208 基準2：読める法律の条文は3文字以上の言葉で当たり、条だけのページへのリンクが出る。2文字の言葉では探さない', async ({ page }) => {
+	await page.goto(searchUrl('公共の福祉'));
+	const jobun = section(page, '条文');
+	await expect(jobun.getByRole('link', { name: /^民法 第1条$/ })).toHaveAttribute('href', '/hourei/129AC0000000089/1');
+	await expect(jobun.getByRole('link', { name: /^日本国憲法 第\d+条$/ }).first()).toHaveAttribute('href', /^\/hourei\/321CONSTITUTION\/\d+$/);
+	await expect(jobun.locator('mark').first()).toHaveText('公共の福祉');
+
+	// 2文字の言葉：読める法律の条文は探さず、遊べる法律の条文はいまのまま当たる
+	await page.goto(searchUrl('私権'));
+	await expect(section(page, '条文').locator('a[href^="/hourei/129AC0000000089"]')).toHaveCount(0);
+	await expect(section(page, '条文')).toContainText('ほかの法律の条文は3文字以上で探せます');
+	await page.goto(searchUrl('契約'));
+	await expect(section(page, '条文').getByRole('link').first()).toHaveAttribute('href', /^\/hourei\/(337AC0000000134|351AC0000000057|412AC0000000061)#jo-/);
 });
