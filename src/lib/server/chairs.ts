@@ -2,7 +2,7 @@
 // Cron の入口からも読むので、cloudflare:workers と import.meta.env に頼らない
 import { and, asc, count, eq, gte, inArray, isNull, lt, max, ne, or, sql } from 'drizzle-orm';
 import { billModerationLogs, bills, chairCandidates, CHAIR_ROLES, chairElections, chairTerms, chairVotes, committees, moderationLogs, posts, recallSignatures, user, voteReviews, type STAFF_ROLES } from '../db/schema';
-import { ACTING_AFTER, CHAIR_ACCOUNTS_PER_IP, candidacyOpen, consecutiveLimit, electionOpen, electionResult, recallRequirement } from '../domain/chairs';
+import { ACTING_AFTER, CHAIR_ACCOUNTS_PER_IP, candidacyOpen, consecutiveLimit, electionOpen, electionResult, recallRequirement, type CandidacyChecks } from '../domain/chairs';
 import { POST_CANDIDACY, POST_CANDIDACY_ACTORS } from '../domain/reports';
 import { sessionAt, type Session } from '../domain/session';
 import { drawAssignments, SETTLE_GRACE } from '../domain/votes';
@@ -19,24 +19,34 @@ const isStaff = async (db: Db, userId: string) => (await roleOf(db, userId)) !==
 export type StandBlock = 'staff' | 'consecutive' | 'noPost';
 
 /**
- * 立候補できない理由。その会期に、その委員会の法案に質疑か答弁を書いた人だけ。
+ * 立候補の条件の判定（わたしの記録と立候補の確かめが同じものを使う。Issue #171）。
+ * 質疑か答弁は、その会期に、その委員会の法案に書いたものだけ。
  * 自動の非表示と、委員長か理事の非表示は数え、運営か運営協力者の非表示は数えない（docs/spec/80.md の決定J）
  */
-export async function standBlock(db: Db, userId: string, committeeId: number, session: Session, previous: Session): Promise<StandBlock | null> {
-	if (await isStaff(db, userId)) return 'staff';
-	const chaired = await db
-		.select({ key: chairTerms.sessionKey })
-		.from(chairTerms)
-		.where(and(eq(chairTerms.committeeId, committeeId), eq(chairTerms.userId, userId), eq(chairTerms.role, 'chair'), inArray(chairTerms.sessionKey, [session.key, previous.key])));
+export async function candidacyChecks(db: Db, userId: string, committeeId: number, session: Session, previous: Session): Promise<CandidacyChecks> {
+	const [staff, chaired, written] = await Promise.all([
+		isStaff(db, userId),
+		db
+			.select({ key: chairTerms.sessionKey })
+			.from(chairTerms)
+			.where(and(eq(chairTerms.committeeId, committeeId), eq(chairTerms.userId, userId), eq(chairTerms.role, 'chair'), inArray(chairTerms.sessionKey, [session.key, previous.key]))),
+		db
+			.select({ id: posts.id })
+			.from(posts)
+			.innerJoin(bills, eq(bills.id, posts.billId))
+			.where(and(eq(posts.userId, userId), eq(posts.sessionKey, session.key), inArray(posts.kind, ['question', 'answer']), or(inArray(posts.status, POST_CANDIDACY), and(eq(posts.status, 'hidden'), inArray(posts.statusActor, POST_CANDIDACY_ACTORS))), eq(bills.committeeId, committeeId)))
+			.limit(1)
+	]);
 	const was = (s: Session) => chaired.some((r) => r.key === s.key);
-	if (consecutiveLimit(was(session), was(previous))) return 'consecutive';
-	const written = await db
-		.select({ id: posts.id })
-		.from(posts)
-		.innerJoin(bills, eq(bills.id, posts.billId))
-		.where(and(eq(posts.userId, userId), eq(posts.sessionKey, session.key), inArray(posts.kind, ['question', 'answer']), or(inArray(posts.status, POST_CANDIDACY), and(eq(posts.status, 'hidden'), inArray(posts.statusActor, POST_CANDIDACY_ACTORS))), eq(bills.committeeId, committeeId)))
-		.limit(1);
-	return written.length ? null : 'noPost';
+	return { staff, posted: written.length > 0, chairedTwice: consecutiveLimit(was(session), was(previous)) };
+}
+
+/** 立候補できない理由。運営 → 連続 → 質疑か答弁の順に見る */
+export async function standBlock(db: Db, userId: string, committeeId: number, session: Session, previous: Session): Promise<StandBlock | null> {
+	const checks = await candidacyChecks(db, userId, committeeId, session, previous);
+	if (checks.staff) return 'staff';
+	if (checks.chairedTwice) return 'consecutive';
+	return checks.posted ? null : 'noPost';
 }
 
 /** 立候補する。同じ操作は何もしない */
