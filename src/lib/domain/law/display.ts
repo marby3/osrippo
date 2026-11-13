@@ -82,3 +82,16 @@ export function tableOfContents(tree: HeadingTree[]): { title: string; first: st
 		children: tableOfContents(h.children)
 	}));
 }
+
+/** 条の番号の形（e-Gov の Num：`9`、`3_2`）。URL の条の番号は、この形のものだけを受ける（Issue #164） */
+export function isArticleNum(value: string): boolean {
+	return /^\d+(?:_\d+)*$/.test(value);
+}
+
+/** 条だけのページ（Issue #164）：並んだ条から、その条と前後の条を選ぶ。ない条なら undefined */
+export function articleAround<T extends { num: string; label: string; caption: string }>(articles: T[], num: string) {
+	const i = articles.findIndex((a) => a.num === num);
+	if (i < 0) return undefined;
+	const near = (a: T | undefined) => (a ? { num: a.num, label: a.label, caption: a.caption } : null);
+	return { article: articles[i], prev: near(articles[i - 1]), next: near(articles[i + 1]) };
+}

@@ -6,9 +6,12 @@
 
 	let {
 		current,
+		parent,
 		keepOnSp = false
 	}: {
 		current: string;
+		/** タブとそのページの間に挟む1段（条だけのページの「法律 ／ 法令名 ／ 第9条」。案 SpLawArticle は、スマホでも全部を出す） */
+		parent?: { href: string; label: string };
 		/** スマホでも後ろ（そのページの名前）だけを出す（案 SpVote の「割り当て 2 / 3」、SpResult の「10月会期」） */
 		keepOnSp?: boolean;
 	} = $props();
@@ -17,8 +20,8 @@
 </script>
 
 {#if tab}
-	<nav class:keep={keepOnSp} aria-label={ja.menu.crumbs}>
-		<span class="trail"><a href={tab.href}>{ja.menu.tabs[tab.key]}</a> {ja.menu.crumbSeparator}{' '}</span><span>{current}</span>
+	<nav class:keep={keepOnSp} class:deep={parent} aria-label={ja.menu.crumbs}>
+		<span class="trail"><a href={tab.href}>{ja.menu.tabs[tab.key]}</a> {ja.menu.crumbSeparator}{' '}</span>{#if parent}<span><a href={parent.href}>{parent.label}</a> {ja.menu.crumbSeparator}{' '}</span>{/if}<span>{current}</span>
 	</nav>
 {/if}
 
@@ -30,7 +33,8 @@
 		font-size: var(--font-size-sub);
 	}
 
-	nav.keep {
+	nav.keep,
+	nav.deep {
 		display: block;
 	}
 

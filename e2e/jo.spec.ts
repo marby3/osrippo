@@ -1,4 +1,5 @@
 // Issue #164：法律の別名 URL（略称）と、条だけのページ（受入基準は Issue #198 の「#164」の節）
+// 条文の本文は法令用語の説明（役務 など）が間に入るので、説明の付かない言葉の続きで確かめる
 import { expect, test } from '@playwright/test';
 
 const TOKUSHOHO = '351AC0000000057';
@@ -33,7 +34,7 @@ test('基準2：条だけのページに、その条の本文と、前の条・�
 	await page.goto(ARTICLE);
 	await expect(page.getByRole('heading', { level: 1, name: /第9条/ })).toBeVisible();
 	await expect(page.getByText('（訪問販売における契約の申込みの撤回等）')).toBeVisible();
-	await expect(page.getByRole('main')).toContainText('販売業者若しくは役務提供事業者が営業所等以外の場所において');
+	await expect(page.getByRole('main')).toContainText('（以下この条から第九条の三までにおいて「申込者等」という。）');
 	await expect(page.getByRole('link', { name: /前の条.*第8条の2/ })).toHaveAttribute('href', `/hourei/${TOKUSHOHO}/8_2`);
 	await expect(page.getByRole('link', { name: /次の条.*第9条の2/ })).toHaveAttribute('href', `/hourei/${TOKUSHOHO}/9_2`);
 	await expect(page.getByRole('link', { name: '法律全体を読む' })).toHaveAttribute('href', `/hourei/${TOKUSHOHO}#jo-9`);
@@ -67,7 +68,7 @@ test('基準3：IF世界の条だけのページに、紫の斜線の帯、「�
 	await expect(page.getByText('架空の法令', { exact: true })).toBeVisible();
 	await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
 	await expect(page.getByRole('heading', { level: 1, name: /第9条/ })).toBeVisible();
-	await expect(page.getByRole('main')).toContainText('販売業者若しくは役務提供事業者が営業所等以外の場所において');
+	await expect(page.getByRole('main')).toContainText('（以下この条から第九条の三までにおいて「申込者等」という。）');
 	await expect(page.getByRole('link', { name: /次の条.*第9条の2/ })).toHaveAttribute('href', `/if/hourei/${TOKUSHOHO}/9_2`);
 	expect((await request.get(`/if/hourei/${TOKUSHOHO}/9999`)).status()).toBe(404);
 });
