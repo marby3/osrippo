@@ -12,6 +12,7 @@ import { POST_SHOWN_SQL } from './post-status';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
 import { verifiedAuthors } from './verifications';
+import { articlesTouchedBy, saveLawRefs } from './law-refs';
 
 const POST_ACTION = { question: 'question_post', answer: 'answer_post', supplement: 'supplement_post' } as const;
 const POST_ACTIONS = Object.values(POST_ACTION);
@@ -58,6 +59,8 @@ export async function createPost(
 	const refusal = checkBillPost(post.kind, { accountDay: accountDay.n, accountBurst: accountBurst.n, ipDay: ipDay.n });
 	if (refusal) return refuse(db, actor, refusal, now);
 	const stance = stanceNow(post.sessionKey, post.billId, actor.userId, writerRole);
+	// 本文が触れている条（条のリンク元。Issue #166）。引くのは書く前、入れるのは書いたあと
+	const touched = await articlesTouchedBy(db, [post.body]);
 	const [row] =
 		post.parentId === null
 			? await db
@@ -71,6 +74,7 @@ export async function createPost(
 					.returning({ id: posts.id });
 	if (!row) return { ok: true as const, id: null };
 	await db.insert(actions).values({ kind: POST_ACTION[post.kind], userId: actor.userId, ipHash: actor.ipHash, targetId: post.billId, createdAt: now });
+	await saveLawRefs(db, 'post', row.id, touched);
 	return { ok: true as const, id: row.id };
 }
 

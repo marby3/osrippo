@@ -8,9 +8,8 @@ import { openMemoryDb } from './memory';
 import { seedStatements } from './seed';
 import type { Db } from '../server/law';
 import { createIssue, type Actor } from '../server/issues';
-import { createSolution } from '../server/solutions';
 import { createPost } from '../server/posts';
-import { backfillLawRefs } from '../server/law-refs';
+import { articlesTouchedBy, backfillLawRefs, saveLawRefs } from '../server/law-refs';
 import { articleBacklinks } from '../server/law-backlinks';
 import { sessionAt } from '../domain/session';
 
@@ -84,10 +83,15 @@ async function newIssue(a: Actor, title: string, example: string, at: number) {
 	if (!r.ok) throw new Error('課題を書けませんでした');
 	return r.id;
 }
+/**
+ * 解決策。createSolution は db.all の RETURNING を読むので、行を配列で返すメモリの DB では番号が取れない。
+ * ここでは createSolution と同じ手順（書く前に条を引き、書いたあとに入れる）で書く。画面からの書き込みは e2e/jo-rinkumoto.spec.ts
+ */
 async function newSolution(a: Actor, issueId: number, body: string, at: number) {
-	const r = await createSolution(db, a, issueId, body, at);
-	if (!r.ok || !r.created) throw new Error('解決策を書けませんでした');
-	return r.id;
+	const touched = await articlesTouchedBy(db, [body]);
+	const id = Number(run('INSERT INTO solutions (issue_id, user_id, body, created_at) VALUES (?, ?, ?, ?)', issueId, a.userId, body, at).lastInsertRowid);
+	await saveLawRefs(db, 'solution', id, touched);
+	return id;
 }
 async function newPost(a: Actor, billId: number, kind: 'question' | 'answer', parentId: number | null, body: string, at: number) {
 	const r = await createPost(db, a, { billId, sessionKey: session.key, kind, parentId, role: kind === 'answer' ? 'author' : null, body }, at, kind === 'answer' ? 'author' : null);
@@ -125,7 +129,7 @@ test('条のリンク元：その条を変える法案（下書きを除く。�
 	expect(refs('solution', solution)).toEqual([{ law_id: LAW, num: '9' }]);
 	const hiddenSolution = await newSolution(actor, issue, '特商法9条を変える（非表示になる）', tick());
 	// 非表示の課題の解決策は、解決策が表示でも出さない
-	const underHidden = await newSolution(other, hiddenIssue, '特商法9条の解決策（課題が非表示）', tick());
+	await newSolution(other, hiddenIssue, '特商法9条の解決策（課題が非表示）', tick());
 
 	const question = await newPost(other, amend, 'question', null, '定期購入の解約は、特商法9条のクーリング・オフとは別に考えるのですか', tick());
 	expect(refs('post', question)).toEqual([{ law_id: LAW, num: '9' }]);
@@ -139,17 +143,17 @@ test('条のリンク元：その条を変える法案（下書きを除く。�
 	const hiddenQuestion = await newPost(other, amend, 'question', null, '非表示になる質疑。特商法9条', tick());
 	const mergedQuestion = await newPost(actor, amend, 'question', null, '統合される質疑。特商法9条', tick());
 
-	run("UPDATE issues SET status = 'hidden', status_actor = 'operator' WHERE id = ?", hiddenIssue);
-	run("UPDATE issues SET status = 'merged', status_actor = 'operator', merged_into = ? WHERE id = ?", issue, mergedIssue);
-	run("UPDATE solutions SET status = 'auto_hidden', status_actor = 'auto' WHERE id = ?", hiddenSolution);
-	run("UPDATE posts SET status = 'hidden', status_actor = 'operator' WHERE id = ?", hiddenQuestion);
-	run("UPDATE posts SET status = 'merged', status_actor = 'operator', merged_into = ? WHERE id = ?", question, mergedQuestion);
+	run("UPDATE issues SET status = 'hidden', status_actor = 'operator', status_changed_at = 1 WHERE id = ?", hiddenIssue);
+	run("UPDATE issues SET status = 'merged', status_actor = 'operator', status_changed_at = 1, merged_into = ? WHERE id = ?", issue, mergedIssue);
+	run("UPDATE solutions SET status = 'auto_hidden', status_actor = 'auto', status_changed_at = 1 WHERE id = ?", hiddenSolution);
+	run("UPDATE posts SET status = 'hidden', status_actor = 'operator', status_changed_at = 1 WHERE id = ?", hiddenQuestion);
+	run("UPDATE posts SET status = 'merged', status_actor = 'operator', status_changed_at = 1, merged_into = ? WHERE id = ?", question, mergedQuestion);
 
 	const nine = await articleBacklinks(db, { lawId: LAW, num: '9', playable: true }, NOW, null);
 	expect(nine.bills?.map((b) => b.title)).toEqual(['撤回した法案', '撤回の期間を14日にする法案']);
 	expect(nine.bills?.find((b) => b.id === withdrawn)?.stage).toBe('withdrawn');
-	expect(nine.bills?.find((b) => b.id === amend)?.stage).toBe('deliberation');
-	// 新しい順。答弁の触れた質疑は、答弁を書いた時刻で並ぶ
+	expect(nine.bills?.find((b) => b.id === amend)).toMatchObject({ stage: 'deliberation', session: '2046-05' });
+	// 新しい順。答弁の触れた質疑は、答弁を書いた時刻で並ぶ。非表示・統合した課題と質疑、非表示の解決策、非表示の課題の解決策は出ない
 	expect(nine.discussions).toEqual([
 		{ kind: 'question', text: '条に触れない質疑', context: '撤回の期間を14日にする法案', href: `/houan/${amend}/shitsugi#shitsugi-${quiet}` },
 		{
@@ -161,7 +165,6 @@ test('条のリンク元：その条を変える法案（下書きを除く。�
 		{ kind: 'solution', text: '特商法第9条の期間を延ばす', context: '訪問販売で断りきれずに契約してしまう', href: `/kadai/${issue}/kaiketsu#kaiketsu-${solution}` },
 		{ kind: 'issue', text: '訪問販売で断りきれずに契約してしまう', context: null, href: `/kadai/${issue}` }
 	]);
-	expect(JSON.stringify(nine)).not.toContain(String(underHidden) + '"');
 
 	// 条を足す法案は、足す条の番号で出る
 	const added = await articleBacklinks(db, { lawId: LAW, num: '9_4', playable: true }, NOW, null);

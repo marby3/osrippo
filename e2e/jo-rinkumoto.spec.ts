@@ -86,8 +86,10 @@ test('基準1・2：条だけのページに、その条を変える法案（下
 	await expect(section(q.page).getByText(draftTitle)).toHaveCount(0);
 
 	const talks = talkList(q.page);
-	await expect(talks.getByRole('link', { name: issueTitle })).toHaveAttribute('href', `/kadai/${issueId}`);
-	await expect(talks.getByRole('listitem').filter({ hasText: issueTitle }).first()).toContainText('課題');
+	// 解決策の行にも課題の題名が出るので、題名がリンクの行で確かめる
+	const issueLink = talks.getByRole('link', { name: issueTitle, exact: true });
+	await expect(issueLink).toHaveAttribute('href', `/kadai/${issueId}`);
+	await expect(talks.getByRole('listitem').filter({ has: q.page.getByRole('link', { name: issueTitle, exact: true }) })).toContainText('課題');
 	const solutionItem = talks.getByRole('listitem').filter({ hasText: solutionBody });
 	await expect(solutionItem.getByRole('link')).toHaveAttribute('href', `/kadai/${issueId}/kaiketsu#kaiketsu-${solutionId}`);
 	await expect(solutionItem).toContainText('解決策');

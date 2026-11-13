@@ -23,6 +23,7 @@
 		"db:reset": "tsx scripts/db-reset.ts",
 		"sync:laws": "tsx scripts/sync-laws.ts",
 		"sync:readable": "tsx scripts/sync-readable.ts",
+		"backfill:law-refs": "tsx scripts/backfill-law-refs.ts",
 		"mirror": "tsx scripts/mirror.ts",
 		"simulate": "tsx scripts/simulate.ts"
 	},
