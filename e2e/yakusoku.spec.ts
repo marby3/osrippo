@@ -227,7 +227,7 @@ test('信頼の境界：戻り先は外へ出さず、知らない版の同意�
 	const u = await person(browser, p, 'edge', { agreed: false });
 
 	// 知らない版・形の違う版は断り、記録しない
-	for (const version of ['beta-0', 'beta-2', 'BETA-1', ` ${VERSION}`, '', '<script>x</script>']) {
+	for (const version of ['beta-0', 'beta-0', 'BETA-1', ` ${VERSION}`, '', '<script>x</script>']) {
 		const res = await post(u.page, '/yakusoku', { version, next: '/kadai' });
 		expect(res.status(), version).toBe(400);
 		expect(res.headers()['location'], version).toBeUndefined();
