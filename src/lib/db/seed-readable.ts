@@ -42,6 +42,7 @@ export async function readableSeedStatements(lawIds: string[], load: (name: stri
 		return { name, columns, rows: rows.map((r) => columns.map((c) => r[c])) };
 	};
 	const laws = table('readable_laws', 'SELECT * FROM readable_laws ORDER BY id');
+	const names = table('readable_law_names', 'SELECT * FROM readable_law_names ORDER BY law_id, name');
 	const articles = table('readable_articles', 'SELECT * FROM readable_articles ORDER BY id');
 	// 索引は本文の写しを持たないので、条の行から作り直す（取り込みと同じ関数）
 	const search: Table = {
@@ -52,5 +53,5 @@ export async function readableSeedStatements(lawIds: string[], load: (name: stri
 			readableSearchText(a.caption, JSON.parse(a.paragraphs))
 		])
 	};
-	return [laws, articles, search].filter((t) => t.rows.length).flatMap(inserts);
+	return [laws, names, articles, search].filter((t) => t.rows.length).flatMap(inserts);
 }

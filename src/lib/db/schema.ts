@@ -62,6 +62,8 @@ export const provisions = sqliteTable(
 	(t) => [
 		foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }),
 		index('provisions_law_id').on(t.lawId),
+		// 条のカード（Issue #165）：1つの条の項を、法令の全部の行を読まずに引く
+		index('provisions_parent').on(t.parentId),
 		check('provisions_kind', sql`${t.kind} IN ('article', 'paragraph', 'item')`)
 	]
 );
@@ -96,6 +98,8 @@ export const provisionVersions = sqliteTable(
 		// 版 R の条文を引くとき（設計書 決定1）に、版で絞り込む
 		index('provision_versions_from').on(t.fromRevisionId),
 		index('provision_versions_to').on(t.toRevisionId),
+		// 本文の「特商法9条」（Issue #165）：条があるかを、条の番号で引く
+		index('provision_versions_num').on(t.num),
 		check('provision_versions_change', sql`${t.change} IN (${sql.raw(CHANGES.map((c) => `'${c}'`).join(', '))})`)
 	]
 );
@@ -1733,4 +1737,19 @@ export const readableArticles = sqliteTable(
 		paragraphs: text('paragraphs', { mode: 'json' }).$type<Paragraph[]>().notNull()
 	},
 	(t) => [unique().on(t.lawId, t.num)]
+);
+
+/**
+ * 読める法律の名前（正式名と e-Gov の略称）。本文の「特商法9条」を条へのリンクにするとき（Issue #165）に、名前で法律を引く。
+ * 略称は readable_laws.abbrevs（JSON の配列）にあるが、配列の中は索引で引けないので、ここに1行ずつ持つ。取り込み（readable-sync）が readable_laws と一緒に書く
+ */
+export const readableLawNames = sqliteTable(
+	'readable_law_names',
+	{
+		name: text('name').notNull(),
+		lawId: text('law_id')
+			.notNull()
+			.references(() => readableLaws.id)
+	},
+	(t) => [primaryKey({ columns: [t.name, t.lawId] }), index('readable_law_names_law').on(t.lawId)]
 );

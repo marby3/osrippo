@@ -167,6 +167,18 @@ export const ja = {
 		toIf: 'IF世界のこの条を見る',
 		toReal: '現実のこの条を見る'
 	},
+	/** 本文の「特商法9条」のリンクを押すと出る条のカード（Issue #165。画面の案 SpLawCard・PcLawCard） */
+	lawCard: {
+		real: '現実の法律',
+		readable: '読める法律（最新の版だけ）',
+		asOf: (iso: string) => `${jaMonth(iso)}時点`,
+		firstOnly: (total: number) => `第1項だけ（全${total}項）`,
+		meta: (parts: string[]) => parts.join(' ・ '),
+		open: 'この条を開く',
+		close: '閉じる',
+		loading: '条文を読み込んでいます',
+		failed: '条文を読み込めませんでした。「この条を開く」から読めます。'
+	},
 	/** 会期（Issue #44。画面の案 SpHome・PcHome） */
 	session: {
 		name: (s: Session) => (s.month === null ? `${jaTime(s.startsAt)}からの会期` : `${s.month}月の会期`),

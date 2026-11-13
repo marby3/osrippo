@@ -5,6 +5,7 @@
 	import { ja } from '#lib/copy/ja.ts';
 	import { SOLUTION_REPORT_REASONS } from '#lib/domain/reports.ts';
 	import { REACTIONS } from '#lib/domain/solutions.ts';
+	import LawRefText from './LawRefText.svelte';
 
 	type Solution = {
 		id: number;
@@ -61,7 +62,7 @@
 <article id="kaiketsu-{solution.id}">
 	{#if notice}<p class="notice">{notice}</p>{/if}
 	<div class="text">
-		<p id="kaiketsu-body-{solution.id}" class="body">{solution.body}</p>
+		<p id="kaiketsu-body-{solution.id}" class="body"><LawRefText text={solution.body} /></p>
 		<!-- 法案は解決策から書き始める（Issue #46）。非表示のものには出さない -->
 		{#if !readonly && !legislator}<p class="to-bill"><a href="/houan/kaku?kaiketsu={solution.id}">{ja.solution.toBill}</a></p>{/if}
 	</div>
