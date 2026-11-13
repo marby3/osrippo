@@ -14,6 +14,17 @@ export const candidacyEnd = (session: Session) => session.voteAt + Math.floor((s
 export const candidacyOpen = (session: Session, now: number) => session.voteAt <= now && now < candidacyEnd(session);
 export const electionOpen = (session: Session, now: number) => session.voteAt <= now && now < session.endsAt;
 
+/** 立候補の条件の判定（わたしの記録。Issue #171）。運営か、この会期にこの委員会の法案へ質疑か答弁を書いたか、委員長を2会期続けているか */
+export type CandidacyChecks = { staff: boolean; posted: boolean; chairedTwice: boolean };
+export type CandidacyStep = { key: 'post' | 'consecutive' | 'period'; done: boolean };
+
+/** 「委員長に立候補できるまで」の条件ごとの済んだ・まだ。全部済んだときだけ立候補できる（運営は別に出す） */
+export const candidacySteps = (checks: CandidacyChecks, session: Session, now: number): CandidacyStep[] => [
+	{ key: 'post', done: checks.posted },
+	{ key: 'consecutive', done: !checks.chairedTwice },
+	{ key: 'period', done: candidacyOpen(session, now) }
+];
+
 /** 連続は2会期まで：いまの会期と前の会期の両方で委員長（解任された任期も数える）なら立候補できない */
 export const consecutiveLimit = (chairNow: boolean, chairBefore: boolean) => chairNow && chairBefore;
 

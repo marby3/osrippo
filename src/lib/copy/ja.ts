@@ -47,6 +47,9 @@ const jaTime = (ms: number) => {
 const sessionPoint = (s: Session, ms: number, withDay: boolean) =>
 	s.month === null ? jaTime(ms) : withDay ? jaDay(ms) : jaDay(ms).replace(/（.）$/, '');
 
+/** "2027-05" → "2027年5月の会期"（開発用の短い会期の番号は、そのまま） */
+const sessionOfKey = (key: string) => (/^\d{4}-\d{2}$/.test(key) ? `${jaMonth(key)}の会期` : key);
+
 /** 投稿の種類の名前 */
 const POST_KINDS = { question: '質疑', answer: '答弁', supplement: '補足' };
 
@@ -1684,11 +1687,62 @@ export const ja = {
 			invalid: 'どちらかを選んでください'
 		}
 	},
+	/** わたしの記録（/watashi）。キャラクターシート（Issue #171。SpRecord・PcRecord）。得票・順位・票・立場は出さない */
 	watashi: {
 		pageTitle: 'わたしの記録｜オープンソース立法府',
 		heading: 'わたしの記録',
-		name: '表示名',
-		logout: 'ログアウト'
+		logout: 'ログアウト',
+		onlyYou: '自分だけに見えます',
+		membership: '所属',
+		committee: (name: string) => `${name}委員会`,
+		notMember: 'まだ所属していません',
+		memberHelp: 'この会期に課題や解決策、法案、賛同、質疑、答弁、投票などをすると、委員会に所属します。',
+		role: 'いまの役',
+		roles: { chair: '委員長', director: '理事' },
+		/** "理事（2027年5月の会期）"。解任された委員長は後ろに「解任されました」 */
+		roleIn: (role: string, key: string, recalled: boolean) => `${role}（${sessionOfKey(key)}）${recalled ? ' ・ 解任されました' : ''}`,
+		noRole: 'なし',
+		registered: '登録',
+		/** ミリ秒 → 日本時間の「2027年3月」 */
+		registeredMonth: (ms: number) => {
+			const d = new Date(ms + 9 * 60 * 60 * 1000);
+			return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月`;
+		},
+		bills: {
+			heading: '起草した法案',
+			empty: '起草した法案はまだありません',
+			bill: '法案',
+			role: '役',
+			now: 'いま',
+			roles: { author: '提出者', cosponsor: '共同提出者' },
+			/** "可決（2027年5月の会期）"。会期が終わっていない法案は段階だけ */
+			stage: (stage: string, key: string | null) => (key ? `${stage}（${sessionOfKey(key)}）` : stage),
+			/** スマホで役と段階のあいだに入れる区切り */
+			separator: ' ・ ',
+			more: (n: number) => `新しい${n}件を出しています。`
+		},
+		amendments: {
+			heading: '採用された修正案',
+			empty: '採用された修正案はまだありません',
+			/** "消費者契約法 第2条 ・ 取り込まれました" */
+			meta: (lawTitle: string, location: string, status: string) => `${lawTitle ? `${lawTitle} ${location}` : location} ・ ${status}`
+		},
+		candidacy: {
+			heading: '委員長に立候補できるまで',
+			/** 次の会期（2027年6月）の委員長選挙 ・ 立候補は5月22日から5月25日 12時00分まで */
+			lead: (next: Session, s: Session, end: number) => `次の会期（${next.month === null ? jaTime(next.startsAt) : jaMonth(next.key)}）の委員長選挙 ・ 立候補は${sessionPoint(s, s.voteAt, false)}から${jaDateTime(end)}まで`,
+			done: '済み',
+			notYet: 'まだ',
+			steps: {
+				post: 'この会期に、委員会の法案へ質疑か答弁を書いた',
+				consecutive: '委員長を2会期続けて務めていない',
+				period: (s: Session) => `立候補の期間になる（${sessionPoint(s, s.voteAt, false)}から）`
+			},
+			closed: 'この会期の立候補は締め切りました。',
+			staff: '運営と運営協力者は、委員長に立候補できません。',
+			link: '委員会のページで立候補する'
+		},
+		note: '賛否の傾向や自分の票は、ここには出しません。'
 	},
 	/** 統計ページ（/toukei、Issue #154、設計書 docs/spec/154.md）。人数と「考えが変わった」の数は出さない */
 	toukei: {
