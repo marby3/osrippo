@@ -1705,7 +1705,15 @@ export const readableLaws = sqliteTable(
 		articleCount: integer('article_count'),
 		syncedUpdated: text('synced_updated')
 	},
-	(t) => [check('readable_laws_law_type', sql`${t.lawType} IN ('Act', 'Constitution')`)]
+	(t) => [
+		check('readable_laws_law_type', sql`${t.lawType} IN ('Act', 'Constitution')`),
+		// 法律の一覧（Issue #163）：分野・五十音・変わった日の順に、読む行を LIMIT までにする。
+		// 変わった日は最後の改正日、なければ公布日（domain/law-list.ts の並び）
+		index('readable_laws_kana').on(t.titleKana),
+		index('readable_laws_category_kana').on(t.category, t.titleKana),
+		index('readable_laws_changed').on(sql`coalesce(${t.lastAmended}, ${t.promulgationDate})`),
+		index('readable_laws_category_changed').on(t.category, sql`coalesce(${t.lastAmended}, ${t.promulgationDate})`)
+	]
 );
 
 /** 読める法律の本則の条。id は全文検索（readable_search）の rowid で、取り込みのときに表の最大値 + 1 から振る */

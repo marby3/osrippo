@@ -73,11 +73,47 @@ export const ja = {
 			ifLaw: (title: string) => `${title}（IF世界）`
 		}
 	},
-	/** 法律の一覧（/hourei、Issue #85 決めたこと A） */
+	/** 法律の一覧と検索（/hourei、Issue #163。SpLaws・PcLaws） */
 	laws: {
 		pageTitle: '法律｜オープンソース立法府',
 		heading: '法律',
-		lead: 'ゲームで扱っている法律です。現実の法律と、IF世界の法律を読めます。'
+		searchLabel: '法律を探す',
+		searchPlaceholder: '法令名・読み・略称・番号',
+		searchHint: '条文の言葉は3文字以上で探せます',
+		playableHeading: 'いま遊べる法律',
+		playableOf: (committees: string[]) => `${committees.map((c) => `${c}委員会`).join('・')}の対象`,
+		categoryHeading: '分野から探す',
+		categoryHeadingPc: '分野',
+		categoryAll: 'すべて',
+		categoryCount: (n: number) => `${n.toLocaleString('ja-JP')}本`,
+		moreCategories: (n: number) => `ほかの分野（全${n}分野）`,
+		sortLabel: '並び順',
+		sorts: { kana: '五十音', kaisei: '最近の改正', nagai: '長く変わっていない' },
+		kanaIndex: '五十音の索引',
+		readableHeading: '読める法律',
+		readableMeta: (category: string | null, total: number | null) =>
+			[category ?? 'すべての分野', total === null ? null : `${total.toLocaleString('ja-JP')}本`, '最新の版だけ', '遊べる法律も含む']
+				.filter((s) => s !== null)
+				.join(' ・ '),
+		columns: { title: '法令名', lawNum: '法令番号', amended: '最後の改正' },
+		/** 法令名（略称） */
+		titleWithAbbrev: (title: string, abbrev: string | null) => (abbrev ? `${title}（${abbrev}）` : title),
+		amendedMonth: (iso: string) => jaMonth(iso),
+		/** スマホの行は「2022年6月改正」（PC は「最後の改正」の列なので付けない） */
+		amendedSuffix: '改正',
+		sep: ' ・ ',
+		unamended: '制定から変わっていない',
+		unchangedYears: (years: number) => `${years}年変わっていない`,
+		tags: { playable: '遊べる', ifChanged: 'IF世界で変更あり', deliberating: '審議中の法案あり' },
+		range: (from: number, to: number) => `${from}〜${to}件目`,
+		prevPage: '前の50件',
+		nextPage: '次の50件',
+		empty: 'この分野の法律はまだありません',
+		none: '見つかりませんでした',
+		noneByName: '法令名・読み・略称・番号では見つかりませんでした',
+		articlesHeading: '条文から',
+		articlesMore: 'ほかにも当てはまる条があります。言葉を足してしぼりこんでください',
+		articlesShort: '2文字の言葉では、遊べる法律の条文だけを探しました。ほかの法律の条文は3文字以上で探せます'
 	},
 	law: {
 		pageTitle: (title: string) => `${title}｜オープンソース立法府`,

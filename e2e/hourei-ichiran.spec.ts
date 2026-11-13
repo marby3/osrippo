@@ -30,7 +30,7 @@ test('基準3：分野で絞り込み、五十音／最近の改正／長く変�
 	const sortBy = async (label: string) => {
 		await page.goto('/hourei');
 		await hydrated(page);
-		if (info.project.name === 'sp') await page.getByLabel('並び順').selectOption({ label });
+		if (info.project.name === 'sp') await page.getByRole('combobox', { name: '並び順' }).selectOption({ label });
 		else await page.getByRole('navigation', { name: '並び順' }).getByRole('link', { name: label, exact: true }).click();
 		await expect(page).toHaveURL(/[?&]narabi=/);
 	};
@@ -116,7 +116,15 @@ test('信頼の境界：形の違う一覧のパラメータは 404。形の違�
 	// LIKE の記号と FTS の構文は、ただの文字として扱う
 	await page.goto(`/hourei?q=${encodeURIComponent('民法%')}`);
 	expect(await listedTitles(page)).toEqual([MINPO]);
+	// 引用符は除いて探す。読める法律の条文（3文字以上）と、遊べる法律の条文（2文字から）が「条文から」に出る
+	await page.goto(`/hourei?q=${encodeURIComponent('"公共の福祉"')}`);
+	const articles = page.getByRole('region', { name: '条文から' });
+	await expect(articles.getByRole('link', { name: /民法 第1条/ })).toHaveAttribute('href', '/hourei/129AC0000000089#jo-1');
+	await page.goto(`/hourei?q=${encodeURIComponent('契約')}`);
+	await expect(articles.getByRole('link').first()).toHaveAttribute('href', /^\/hourei\/(337AC0000000134|351AC0000000057|412AC0000000061)#jo-/);
+	await expect(articles).toContainText('ほかの法律の条文は3文字以上で探せます');
 	const res = await page.goto(`/hourei?q=${encodeURIComponent('"公共の福祉" OR NEAR(')}`);
 	expect(res?.status()).toBe(200);
-	await expect(page.getByText('見つかりませんでした')).toBeVisible();
+	await expect(readable(page)).toHaveCount(0);
+	await expect(page.getByRole('region', { name: '条文から' })).toContainText('見つかりませんでした');
 });
