@@ -7,6 +7,19 @@ import { syncReadable } from '../server/readable-sync';
 import { openMemoryDb } from './memory';
 import { inserts, seedStatements, type Table, type Value } from './seed';
 
+type List = { total_count: number; count: number; laws: unknown[] };
+
+/**
+ * 法律の一覧のテストデータに、画面のテストの D1 だけに入れる行（laws_list_act_seed）を足す。
+ * 遊べる3法をそろえて読める法律の表に入れるため（法律の一覧の「遊べる法律も含む」と略称の検索。Issue #163）。
+ * laws_list_act は取り込みの DB のテストが件数まで使うので、そちらには足さない
+ */
+const withSeedRows = (list: List, extra: List): List => ({
+	total_count: list.total_count + extra.total_count,
+	count: list.count + extra.count,
+	laws: [...list.laws, ...extra.laws]
+});
+
 /** load(name) は tests/fixtures/egov/<name>.json の中身を返す。lawIds は遊べる法律（seedStatements と同じもの） */
 export async function readableSeedStatements(lawIds: string[], load: (name: string) => unknown): Promise<string[]> {
 	const { sqlite, db } = openMemoryDb();
@@ -14,6 +27,7 @@ export async function readableSeedStatements(lawIds: string[], load: (name: stri
 	const fetchJson: FetchJson = async (url) => {
 		const u = new URL(url);
 		const lawType = u.searchParams.get('law_type');
+		if (u.pathname.endsWith('/laws') && lawType === 'Act') return withSeedRows(load('laws_list_act') as List, load('laws_list_act_seed') as List);
 		if (u.pathname.endsWith('/laws') && lawType) return load(`laws_list_${lawType.toLowerCase()}`);
 		const data = /\/law_data\/([^/]+)$/.exec(u.pathname);
 		if (data) return load(`law_data_${decodeURIComponent(data[1])}`);

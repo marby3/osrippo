@@ -45,12 +45,12 @@ test('基準1：PC はどのページにも上のメニュー（ロゴ・5つの
 		await expect(banner.getByRole('link', { name: 'わたしの記録', exact: true })).toHaveAttribute('href', '/watashi');
 		await expect(banner.getByRole('link', { name: 'わたしの記録', exact: true })).toHaveText('わたしの記録');
 	}
-	// 「法律」のタブは対象の3法の一覧へ（決めたこと A）
+	// 「法律」のタブは法律の一覧へ（決めたこと A）。対象の3法は「いま遊べる法律」の欄に出る（Issue #163）
 	await menu(page).getByRole('link', { name: '法律', exact: true }).click();
 	await expect(page).toHaveURL(/\/hourei$/);
-	const laws = page.getByRole('main').getByRole('link');
-	await expect(laws).toHaveCount(3);
-	for (const id of ['337AC0000000134', '351AC0000000057', LAW]) await expect(page.getByRole('main').locator(`a[href="/hourei/${id}"]`)).toHaveCount(1);
+	const playable = page.getByRole('region', { name: /いま遊べる法律/ });
+	await expect(playable.getByRole('link')).toHaveCount(3);
+	for (const id of ['337AC0000000134', '351AC0000000057', LAW]) await expect(playable.locator(`a[href="/hourei/${id}"]`)).toHaveCount(1);
 });
 
 test('基準2：スマホは上の帯（ロゴ・見出し・ベル・人のアイコン）と、下に固定した5つのタブを出す', async ({ browser }, info) => {
