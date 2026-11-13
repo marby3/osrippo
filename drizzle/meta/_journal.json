@@ -274,6 +274,13 @@
       "when": 1794591085349,
       "tag": "0038_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1794594070964,
+      "tag": "0039_agreements",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import { ja } from '../copy/ja';
 import { hashIp } from '../domain/ip';
 import type { Refusal } from '../domain/limits';
 import { sessionAt, sessionMinutes } from '../domain/session';
+import { requireAgreement } from './agreements';
 import { activeBan, type Actor } from './issues';
 import type { Db } from './law';
 import { verifyTurnstile } from './turnstile';
@@ -106,8 +107,9 @@ export function refusalMessage(refusal: Refusal): string {
 export type WriteUse = 'participate' | 'speak' | 'read' | 'report' | 'settle' | 'legislator' | 'expert' | 'staff';
 
 /**
- * 書き込みの前の確かめ：国 → 締め出し（設計書 決めたこと12）→ 議員（docs/spec/158.md）。
- * 通れば書き込む人（IP はハッシュ）を、通らなければ画面に出す失敗を返す
+ * 書き込みの前の確かめ：国 → β版のお約束への同意（Issue #200）→ 締め出し（設計書 決めたこと12）→ 議員（docs/spec/158.md）。
+ * 通れば書き込む人（IP はハッシュ）を、通らなければ画面に出す失敗を返す。
+ * いまの版のお約束に同意していなければ、失敗を返さず、お約束のページへ 303 で送る（同意すると送った画面に戻る）
  */
 export async function writeGuard(
 	event: Pick<RequestEvent, 'url' | 'request'>,
@@ -118,6 +120,7 @@ export async function writeGuard(
 ): Promise<{ ok: true; actor: Actor; ip: string } | { ok: false; failure: ActionFailure<{ message: string }> }> {
 	const { country, ip } = clientOf(event);
 	if (!allowedCountry(country) || !ip) return { ok: false, failure: fail(403, { message: ja.guard.outsideJapan }) };
+	await requireAgreement(event, db, user.id);
 	const until = await activeBan(db, user.id, now);
 	if (until !== null) return { ok: false, failure: fail(429, { message: ja.guard.banned(until) }) };
 	if (use === 'participate' && (await legislatorAt(db, user.id, now))) return { ok: false, failure: fail(403, { message: ja.guard.legislator }) };

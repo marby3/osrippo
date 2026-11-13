@@ -9,6 +9,11 @@
 	let token = $state('');
 	/** 招待コードの欄の形が違ったとき（理由は欄の下に出す） */
 	const inviteError = $derived(form && 'invite' in form ? form.message : null);
+	/** はじめての方がお約束に同意していなかったとき（理由は同意の欄の下に出す。Issue #200） */
+	const agreeError = $derived(form && 'agree' in form ? form.message : null);
+	const failedMessage = $derived(
+		data.failed === 'invite' ? ja.login.inviteRefused : data.failed === 'agreement' ? ja.login.agreeRefused : data.failed ? ja.login.failed : null
+	);
 </script>
 
 <svelte:head>
@@ -18,8 +23,8 @@
 <main>
 	<h1>{ja.login.heading}</h1>
 	<p>{ja.login.lead}</p>
-	{#if data.failed}<p role="alert">{data.failed === 'invite' ? ja.login.inviteRefused : ja.login.failed}</p>{/if}
-	{#if form?.message && !inviteError}<p role="alert">{form.message}</p>{/if}
+	{#if failedMessage}<p role="alert">{failedMessage}</p>{/if}
+	{#if form?.message && !inviteError && !agreeError}<p role="alert">{form.message}</p>{/if}
 	<p>{ja.login.newcomer}</p>
 	<!-- 並びは上から 説明文 → はじめての方への説明 → ボタン → 確認の枠（Issue #159）。見た目と読み上げの順をそろえる -->
 	<form method="post">
@@ -38,6 +43,21 @@
 				aria-invalid={inviteError ? 'true' : undefined}
 			/>
 			{#if inviteError}<p id="invite-error" role="alert">{inviteError}</p>{/if}
+		</div>
+		<!-- β版のお約束への同意（Issue #200）。招待コードの欄の下。新規登録のときだけ要る -->
+		<div class="agree">
+			<label class="check">
+				<input
+					type="checkbox"
+					name="agree"
+					value={data.agreementVersion}
+					aria-describedby={agreeError ? 'agree-help agree-error' : 'agree-help'}
+					aria-invalid={agreeError ? 'true' : undefined}
+				/>
+				<span>{ja.login.agreeLabel}</span>
+			</label>
+			<p id="agree-help" class="help"><a href="/yakusoku">{ja.login.agreeHelpLink}</a>{ja.login.agreeHelpAfter}</p>
+			{#if agreeError}<p id="agree-error" role="alert">{agreeError}</p>{/if}
 		</div>
 		<button formaction="?/google" disabled={!token}><img class="logo" src={googleLogo} alt="" aria-hidden="true" /><span>{ja.login.google}</span></button>
 		<button formaction="?/line" disabled={!token}><img class="logo" src={lineLogo} alt="" aria-hidden="true" /><span>{ja.login.line}</span></button>
@@ -84,9 +104,31 @@
 		font: inherit;
 	}
 
-	.invite [role='alert'] {
+	.invite [role='alert'],
+	.agree [role='alert'] {
 		margin: 0;
 		color: var(--color-caution);
+	}
+
+	.agree {
+		display: grid;
+		gap: 0.25rem;
+	}
+
+	/* チェックの欄は、文字ごと押せる大きさにする */
+	.check {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-height: var(--tap-min);
+		font-weight: bold;
+	}
+
+	.check input {
+		width: 1.25em;
+		height: 1.25em;
+		flex: none;
+		margin: 0;
 	}
 
 	button:disabled {

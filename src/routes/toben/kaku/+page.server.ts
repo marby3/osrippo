@@ -4,6 +4,7 @@ import { env } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { ja } from '#lib/copy/ja.ts';
 import { parseToben } from '#lib/domain/toben.ts';
+import { requireAgreement } from '#lib/server/agreements.ts';
 import { nowOf, writeGuard } from '#lib/server/client.ts';
 import { createToben, overlapsElection, tobenTargetExists } from '#lib/server/toben.ts';
 import { legislatorAt } from '#lib/server/verifications.ts';
@@ -11,7 +12,10 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
 	const user = event.locals.user;
-	if (!user || !(await legislatorAt(drizzle(env.DB), user.id, nowOf(event)))) error(404);
+	const db = drizzle(env.DB);
+	if (!user || !(await legislatorAt(db, user.id, nowOf(event)))) error(404);
+	// 書いた文が消えないよう、書く画面を開く前にお約束に同意してもらう（Issue #200）
+	await requireAgreement(event, db, user.id);
 	return {};
 };
 

@@ -1819,3 +1819,17 @@ export const invites = sqliteTable('invites', {
 	usedAt: integer('used_at'),
 	revokedAt: integer('revoked_at')
 });
+
+// β版のお約束への同意（Issue #200。受入基準と決めたことは Issue #198）。版ごとに1行。行そのものが記録になる
+export const agreements = sqliteTable(
+	'agreements',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		/** お約束の版（domain/agreement.ts の AGREEMENT_VERSION） */
+		version: text('version').notNull(),
+		agreedAt: integer('agreed_at').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.version] })]
+);

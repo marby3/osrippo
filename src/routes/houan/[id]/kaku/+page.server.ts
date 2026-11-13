@@ -5,6 +5,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { billProgress, referralSession, type BillChange } from '#lib/domain/bills.ts';
 import { articleBodyText, articleLabel } from '#lib/domain/law/index.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
+import { requireAgreement } from '#lib/server/agreements.ts';
 import { submitBill } from '#lib/server/bill-actions.ts';
 import { FIRST_COMMITTEE, type BillFormValues } from '#lib/server/bill-form.ts';
 import { billById, billSupportState, citedCandidates, committeeLawList, draftArticles, lawTitlesOf } from '#lib/server/bills.ts';
@@ -33,8 +34,10 @@ async function editable(event: RequestEvent) {
 }
 
 export const load: PageServerLoad = async (event) => {
-	const { bill, adjusting, adjustment } = await editable(event);
+	const { bill, adjusting, adjustment, user } = await editable(event);
 	const db = drizzle(env.DB);
+	// 書いた文が消えないよう、書く画面を開く前にお約束に同意してもらう（Issue #200）
+	await requireAgreement(event, db, user.id);
 	const titles = await lawTitlesOf(db, bill);
 	const multiple = bill.laws.length > 1;
 	// 法令ごとに、条文は IF世界の最新を出し、それを基にした版として送る（docs/spec/72.md 決めたこと4、docs/spec/53.md 決めたこと5）

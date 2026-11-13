@@ -29,7 +29,11 @@
 
 {@render children()}
 
-<footer>{ja.unofficial}</footer>
+<footer>
+	<p>{ja.unofficial}</p>
+	<!-- β版のお約束（Issue #200） -->
+	<p><a href="/yakusoku">{ja.yakusoku.footerLink}</a></p>
+</footer>
 <!-- 本文の「特商法9条」のリンクを押すと出る条のカード（Issue #165）。本文を出すページだけで使う -->
 {#if page.data.lawRefs}<LawCard />{/if}
 <!-- スマホ：下に固定したタブ（タブを隠す画面では、下に留めたボタンの帯）の高さの分を空け、最後の行が隠れないようにする -->
@@ -41,10 +45,16 @@
 
 <style>
 	footer {
+		display: grid;
+		gap: 0.25rem;
 		padding: 1.5rem 1rem;
 		color: var(--color-text-sub);
 		font-size: var(--font-size-sub);
 		text-align: center;
+	}
+
+	footer p {
+		margin: 0;
 	}
 
 	/* 下のタブの高さ（SiteHeader.svelte の nav a の 3.5rem と上の線 3px・区切り 1px）。片方を変えたらもう片方も */

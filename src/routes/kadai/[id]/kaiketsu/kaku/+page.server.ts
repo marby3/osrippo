@@ -6,6 +6,7 @@ import { ja } from '#lib/copy/ja.ts';
 import { parseIssueId } from '#lib/domain/issues.ts';
 import { LISTED } from '#lib/domain/reports.ts';
 import { validateSolution } from '#lib/domain/solutions.ts';
+import { requireAgreement } from '#lib/server/agreements.ts';
 import { checkTurnstile, nowOf, refusalMessage, writeGuard } from '#lib/server/client.ts';
 import { getIssue, issueMeta } from '#lib/server/issues.ts';
 import { requireUser } from '#lib/server/require-user.ts';
@@ -22,7 +23,9 @@ export const load: PageServerLoad = async (event) => {
 		if (issue.status === 'merged' && issue.mergedInto !== null) redirect(308, `/kadai/${issue.mergedInto}/kaiketsu/kaku`);
 		if (!LISTED.includes(issue.status)) error(404);
 	}
-	requireUser(event);
+	const user = requireUser(event);
+	// 書いた文が消えないよう、書く画面を開く前にお約束に同意してもらう（Issue #200）
+	await requireAgreement(event, drizzle(env.DB), user.id);
 	return { issue: { id, title: issue.title }, siteKey: env.TURNSTILE_SITE_KEY };
 };
 

@@ -2,14 +2,17 @@
 import { env } from 'cloudflare:workers';
 import { billWaitUntil } from '#lib/domain/limits.ts';
 import { postWindowOpen } from '#lib/domain/posts.ts';
+import { requireAgreement } from '#lib/server/agreements.ts';
 import { nowOf } from '#lib/server/client.ts';
 import { postableBill, progressOf, questionAction } from '#lib/server/post-actions.ts';
 import { requireUser } from '#lib/server/require-user.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-	const { bill } = await postableBill(event);
+	const { db, bill } = await postableBill(event);
 	const user = requireUser(event);
+	// 書いた文が消えないよう、書く画面を開く前にお約束に同意してもらう（Issue #200）
+	await requireAgreement(event, db, user.id);
 	const now = nowOf(event);
 	return {
 		open: postWindowOpen('question', progressOf(bill, now).progress),
