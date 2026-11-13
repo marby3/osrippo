@@ -4,6 +4,7 @@
 	import Crumbs from '#lib/components/Crumbs.svelte';
 	import DiffText from '#lib/components/DiffText.svelte';
 	import IfBand from '#lib/components/IfBand.svelte';
+	import PostHeading from '#lib/components/PostHeading.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -63,7 +64,10 @@
 			<ul class="plain points">
 				{#each data.points as point (point.postId)}
 					<li>
-						<p class="who"><span class="kind">{t.pointKinds[point.kind]}</span> ・ {point.billTitle}</p>
+						<!-- 役のタグがあれば「提出者の答弁」（Issue #169、SpReplay）。なければ種類だけ -->
+						<p class="who">
+							{#if point.tags.length}<PostHeading kind={point.kind} author={null} tags={point.tags} />{:else}<span class="kind">{t.pointKinds[point.kind]}</span>{/if} ・ {point.billTitle}
+						</p>
 						<a href="/houan/{point.billId}/shitsugi#shitsugi-{point.questionId}">{point.excerpt}</a>
 					</li>
 				{/each}

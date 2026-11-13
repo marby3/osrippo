@@ -12,6 +12,8 @@ import { POST_SHOWN_SQL } from './post-status';
 import { refuse, type Actor } from './issues';
 import type { Db } from './law';
 import { verifiedAuthors } from './verifications';
+import { chairTagsOf } from './post-tags';
+import { postTags } from '../domain/post-tags';
 import { articlesTouchedBy, saveLawRefs } from './law-refs';
 
 const POST_ACTION = { question: 'question_post', answer: 'answer_post', supplement: 'supplement_post' } as const;
@@ -126,6 +128,9 @@ export async function listQuestions(db: Db, billId: number, userId: string | nul
 	const pressedRows = userId !== null && shown.length ? await pressedOnBill(db, userId, billId) : [];
 	const verified = await verifiedAuthors(db, [...shown.map((q) => q.userId), ...children.map((c) => c.userId)], now);
 	const author = (id: string) => verified.get(id) ?? null;
+	// 役のタグ（Issue #169）。書いた人の番号は渡さず、タグだけを渡す
+	const chairs = await chairTagsOf(db, [...shown.map((q) => q.id), ...children.map((c) => c.id)]);
+	const chair = (id: number) => chairs.get(id) ?? null;
 	const pressedOf = (id: number) =>
 		Object.fromEntries(EVALUATION_KINDS.map((kind) => [kind, pressedRows.some((r) => r.postId === id && r.kind === kind)])) as Record<EvaluationKind, boolean>;
 	return {
@@ -137,9 +142,24 @@ export async function listQuestions(db: Db, billId: number, userId: string | nul
 			mergedCount: q.mergedCount,
 			mine: q.userId === userId,
 			author: author(q.userId),
+			tags: postTags('question', { chair: chair(q.id) }),
 			pressed: pressedOf(q.id),
-			answers: of(q.id, 'answer').map((a) => ({ id: a.id, role: a.role as PostRole, body: a.body, mine: a.userId === userId, author: author(a.userId), pressed: pressedOf(a.id) })),
-			supplements: of(q.id, 'supplement').map((s) => ({ id: s.id, body: s.body, mine: s.userId === userId, author: author(s.userId) }))
+			answers: of(q.id, 'answer').map((a) => ({
+				id: a.id,
+				role: a.role as PostRole,
+				body: a.body,
+				mine: a.userId === userId,
+				author: author(a.userId),
+				tags: postTags('answer', { role: a.role as PostRole, chair: chair(a.id) }),
+				pressed: pressedOf(a.id)
+			})),
+			supplements: of(q.id, 'supplement').map((s) => ({
+				id: s.id,
+				body: s.body,
+				mine: s.userId === userId,
+				author: author(s.userId),
+				tags: postTags('supplement', { asker: s.userId === q.userId, chair: chair(s.id) })
+			}))
 		})),
 		hasNext: rows.length > QUESTION_PAGE_SIZE
 	};

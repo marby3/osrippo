@@ -2,6 +2,7 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { billResults, bills, posts, voteReviews } from '../db/schema';
 import { POST_SHOWN } from '../domain/reports';
+import type { PostRole } from '../domain/posts';
 import type { Session } from '../domain/session';
 import { STATS_MIN } from '../domain/stance-stats';
 import { billBridge, excerpt, rankBridges, rankChanged, sessionFromKey } from '../domain/toukei';
@@ -64,7 +65,8 @@ export async function bridgeRanking(db: Db, session: Session, rows: Awaited<Retu
 	return rankBridges(scored);
 }
 
-export type ChangedItem = { postId: number; kind: 'question' | 'answer'; excerpt: string; billId: number; billTitle: string; questionId: number };
+/** role は答弁のその法案での役（会期のリプレイのタグ。Issue #169） */
+export type ChangedItem = { postId: number; kind: 'question' | 'answer'; role: PostRole | null; excerpt: string; billId: number; billTitle: string; questionId: number };
 
 /**
  * 「考えが変わった」が多く付いた質疑と答弁（G・H）。数は並びに使うだけで返さない。見えている投稿だけで並べてから、10件の本文を読む。
@@ -87,7 +89,7 @@ export async function changedRanking(db: Db, session: Session, billIds?: Readonl
 	const ranked = rankChanged(eligible.map((p) => ({ postId: p.id, changed: scores.get(p.id)?.changed ?? 0 })));
 	if (ranked.length === 0) return [];
 	const details = await db
-		.select({ id: posts.id, kind: posts.kind, body: posts.body, parentId: posts.parentId, billId: posts.billId, billTitle: bills.title })
+		.select({ id: posts.id, kind: posts.kind, role: posts.role, body: posts.body, parentId: posts.parentId, billId: posts.billId, billTitle: bills.title })
 		.from(posts)
 		.innerJoin(bills, eq(bills.id, posts.billId))
 		.where(inIds(ranked));
@@ -99,6 +101,7 @@ export async function changedRanking(db: Db, session: Session, billIds?: Readonl
 			{
 				postId: p.id,
 				kind: p.kind as 'question' | 'answer',
+				role: p.role,
 				excerpt: excerpt(p.body),
 				billId: p.billId,
 				billTitle: p.billTitle,

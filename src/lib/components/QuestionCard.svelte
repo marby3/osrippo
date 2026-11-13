@@ -8,7 +8,8 @@
 	import type { EvaluationKind } from '../domain/evaluations';
 	import type { IssueError } from '../domain/issues';
 	import type { Verified } from '../domain/verification';
-	import PersonName from './PersonName.svelte';
+	import type { PostTag } from '../domain/post-tags';
+	import PostHeading from './PostHeading.svelte';
 	import LawRefText from './LawRefText.svelte';
 	import EvaluationButtons from './EvaluationButtons.svelte';
 	import PostReport from './PostReport.svelte';
@@ -24,9 +25,11 @@
 		mine: boolean;
 		/** 書いた人に有効な認証があるときだけ（docs/spec/157.md の 5）。ない人は名前を出さない */
 		author: Verified | null;
+		/** 役のタグ（Issue #169） */
+		tags: PostTag[];
 		pressed: Pressed;
-		answers: { id: number; role: PostRole; body: string; mine: boolean; author: Verified | null; pressed: Pressed }[];
-		supplements: { id: number; body: string; mine: boolean; author: Verified | null }[];
+		answers: { id: number; role: PostRole; body: string; mine: boolean; author: Verified | null; tags: PostTag[]; pressed: Pressed }[];
+		supplements: { id: number; body: string; mine: boolean; author: Verified | null; tags: PostTag[] }[];
 	};
 	type Failure = { question: number | null; body: string; error?: IssueError; message?: string };
 
@@ -128,13 +131,10 @@
 	{/if}
 {/snippet}
 
-{#snippet byline(author: Verified | null)}
-	{#if author}<p class="byline"><PersonName person={{ name: author.name, verified: author }} /></p>{/if}
-{/snippet}
-
 <article id="shitsugi-{question.id}">
 	{#if relatedBill}<p class="from"><a href="/houan/{relatedBill.id}/shitsugi#shitsugi-{question.id}">{ja.post.fromBill(relatedBill.title)}</a></p>{/if}
-	{@render byline(question.author)}
+	<!-- 書いた人の名前（認証のある人だけ）と役のタグ。どちらもなければ出さない -->
+	{#if question.author || question.tags.length}<p class="who"><PostHeading kind="question" author={question.author} tags={question.tags} /></p>{/if}
 	<p class="body" use:readWhenSeen={trackIf(question.id, !hasAnswers && !question.mine)}><LawRefText text={question.body} /></p>
 	{#if question.mergedCount > 0}<p class="merged">{ja.post.mergedCount(question.mergedCount)}</p>{/if}
 	{@render moderation(question.id, question.mine, ja.post.reportOpen.question)}
@@ -149,8 +149,7 @@
 		<div class="answers" class:open={answersOpen}>
 			{#each question.answers as answer (answer.id)}
 				<section class="answer" use:readWhenSeen={trackIf(answer.id, !answer.mine)}>
-					<h3>{ja.post.answerHeading(ja.post.roles[answer.role])}</h3>
-					{@render byline(answer.author)}
+					<h3><PostHeading kind="answer" author={answer.author} tags={answer.tags} /></h3>
 					<p class="body"><LawRefText text={answer.body} /></p>
 					{#if evaluationShown && question.answers.length > 1 && !answer.mine}
 						<EvaluationButtons postId={answer.id} pressed={answer.pressed} {loggedIn} {back} message={messageFor(answer.id)} />
@@ -179,8 +178,7 @@
 
 	{#each question.supplements as supplement (supplement.id)}
 		<section class="supplement">
-			<h3>{ja.post.supplementHeading}</h3>
-			{@render byline(supplement.author)}
+			<h3><PostHeading kind="supplement" author={supplement.author} tags={supplement.tags} /></h3>
 			<p class="body"><LawRefText text={supplement.body} /></p>
 			{@render moderation(supplement.id, supplement.mine, ja.post.reportOpen.supplement)}
 		</section>
@@ -253,9 +251,10 @@
 		overflow-wrap: anywhere;
 	}
 
-	.byline {
+	.who {
 		margin: 0;
-		font-weight: bold;
+		color: var(--color-text-sub);
+		font-size: var(--font-size-sub);
 	}
 
 	.body {
@@ -264,10 +263,12 @@
 		overflow-wrap: anywhere;
 	}
 
+	/* 案のとおり、太字は役の名前だけ（PostHeading） */
 	h3 {
 		margin: 0;
 		color: var(--color-text-sub);
 		font-size: var(--font-size-sub);
+		font-weight: normal;
 	}
 
 	.waiting {

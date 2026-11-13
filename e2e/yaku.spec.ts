@@ -210,8 +210,9 @@ test('基準2：委員長と理事が書いた質疑・答弁・補足に、委�
 	// 委員長になる前（5月の会期）に書いた質疑にはタグを付けない
 	await v.goto(qa(first));
 	await expect(card(v, before)).toBeVisible();
-	await expect(card(v, before)).not.toContainText('委員長');
-	await expect(card(v, `理事になる前の質疑 ${s.label}`)).not.toContainText('理事（');
+	// （本文に「委員長」があるので、タグにだけある委員会の名前で確かめる）
+	await expect(card(v, before)).not.toContainText('委員会');
+	await expect(card(v, `理事になる前の質疑 ${s.label}`)).not.toContainText('委員会');
 });
 
 test('基準3：質疑を書いた人が同じ質疑に補足を書くと、その補足に「質問者」のタグが出る', async ({ browser }, info) => {

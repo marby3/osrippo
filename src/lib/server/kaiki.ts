@@ -5,11 +5,13 @@ import { amendments, billResults, issues } from '../db/schema';
 import { articlePlace } from '../domain/bills';
 import type { DiffPart } from '../domain/law/compare';
 import { excerptDiff } from '../domain/law/excerpt';
+import { postTags } from '../domain/post-tags';
 import { LISTED } from '../domain/reports';
 import type { Session } from '../domain/session';
 import { billById, billChangeViews, changeViewShared } from './bills';
 import { ifPlacesOf, type IfPlace } from './if-world';
 import type { Db } from './law';
+import { chairTagsOf } from './post-tags';
 import { changedRanking, sessionResults } from './toukei';
 
 type Counts = { yes: number; no: number; abstain: number };
@@ -105,6 +107,9 @@ export async function replayOf(db: Db, session: Session) {
 		changedRanking(db, session, new Set(rows.map((r) => r.billId))),
 		ifChanges(db, session)
 	]);
+	// 質疑の要点の役のタグ（Issue #169）。質疑の画面と同じタグを付ける
+	const chairs = await chairTagsOf(db, points.map((p) => p.postId));
+	const taggedPoints = points.map(({ role, ...p }) => ({ ...p, tags: postTags(p.kind, { role, chair: chairs.get(p.postId) ?? null }) }));
 	const votes: ReplayVote[] = rows.map((r) =>
 		r.review === 'open'
 			? { billId: r.billId, title: r.title, state: 'reviewing' }
@@ -121,7 +126,7 @@ export async function replayOf(db: Db, session: Session) {
 		issues: issueRows,
 		bills: rows.map((r) => ({ id: r.billId, title: r.title })),
 		amended,
-		points,
+		points: taggedPoints,
 		votes,
 		ifBills: ifBills.bills,
 		ifMore: ifBills.more
