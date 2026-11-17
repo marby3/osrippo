@@ -166,6 +166,7 @@ test('基準6：図の文字は画像にせず、文言は ja.ts に置く。図
 				text: (el as HTMLElement).innerText.trim()
 			}))
 		);
+		expect(facts.length, `${path}：図がある`).toBeGreaterThan(0);
 		for (const f of facts) {
 			expect(f.name.trim().length, `${path}：読み上げ用の説明`).toBeGreaterThan(0);
 			expect(f.images, `${path}：画像の文字`).toBe(0);
@@ -231,6 +232,7 @@ test('基準8：図は画面の横からはみ出さず、図の中の文字は�
 			probe.remove();
 			const width = document.documentElement.clientWidth;
 			const problems: string[] = [];
+			if (!document.querySelector('main figure[data-figure]')) problems.push('図がない');
 			if (document.documentElement.scrollWidth > width) problems.push(`横に ${document.documentElement.scrollWidth - width}px はみ出す`);
 			for (const fig of document.querySelectorAll('main figure[data-figure]')) {
 				const f = fig.getBoundingClientRect();
