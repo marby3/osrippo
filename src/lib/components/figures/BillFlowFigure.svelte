@@ -17,7 +17,7 @@
 	<NodeRow nodes={t.nodes} stack={false} />
 	<div class="down"><Arrow down /></div>
 	<p class="heading">{t.session}</p>
-	<SessionBand {days} current={[0, 1, 2]} heading={false} />
+	<SessionBand {days} heading={false} />
 	<div class="down">
 		<Arrow down />
 		<span>{t.passed}</span>

@@ -1,6 +1,6 @@
 <script lang="ts">
 	// 法案の書き方「変える条の書き方」の例に、各行が何にあたるかを書き込む（Issue #225）。
-	// 例の文そのものが中身なので、ほかの図と違い読み上げる（figure と figcaption）。行の文字は元の例のまま（写して使える）
+	// 例の文そのものが中身なので、ほかの図と違い読み上げる（figure と figcaption）。行の文字は元の例のまま。札と行頭の説明は選べないようにして、例の行だけを写せるようにする
 	import { ja } from '#lib/copy/ja.ts';
 	import { ITEM_LINE, PARAGRAPH_LINE } from '#lib/domain/bills.ts';
 	import Arrow from './Arrow.svelte';
@@ -96,6 +96,7 @@
 		font-size: var(--font-size-sub);
 		font-weight: bold;
 		white-space: nowrap;
+		user-select: none;
 	}
 
 	.line {
@@ -122,6 +123,7 @@
 		color: var(--color-base);
 		font-size: var(--font-size-sub);
 		font-weight: bold;
+		user-select: none;
 	}
 
 	figcaption :global(svg) {

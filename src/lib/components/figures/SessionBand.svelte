@@ -1,6 +1,6 @@
 <script lang="ts">
 	// 1か月の会期の帯（Issue #225）。区切りはホームの会期の帯と同じ 2:1:1。
-	// current の区切りは、色のほかに太字・実線・「この段」で示す（ほかは点線）
+	// current を渡すと、その区切りを色のほかに太字・塗り・「この段」で示し、ほかは点線にする。渡さなければ、どれも同じ実線
 	import { ja } from '#lib/copy/ja.ts';
 	import FigureIcon from './FigureIcon.svelte';
 
@@ -13,7 +13,7 @@
 </script>
 
 {#if heading}<p class="heading"><FigureIcon name="calendar" />{t.heading}</p>{/if}
-<div class="band">
+<div class="band" class:marked={current.length > 0}>
 	{#if span}<span class="here" style:grid-column={span}>{t.here}</span>{/if}
 	{#each segments as s, i (s.title)}
 		<div class="segment" data-segment data-current={current.includes(i) ? '' : undefined} style:grid-column={i + 1}>
@@ -56,7 +56,7 @@
 		align-items: center;
 		min-width: 0;
 		padding: 0.5rem 0.125rem;
-		border: 2px dashed var(--color-input-border);
+		border: 2px solid var(--color-base);
 		border-radius: var(--radius-m);
 		background: var(--color-bg);
 		color: var(--color-text);
@@ -65,9 +65,12 @@
 		overflow-wrap: anywhere;
 	}
 
+	.marked .segment:not([data-current]) {
+		border-style: dashed;
+		border-color: var(--color-input-border);
+	}
+
 	.segment[data-current] {
-		border-style: solid;
-		border-color: var(--color-base);
 		background: var(--color-base);
 		color: var(--color-bg);
 		font-weight: bold;

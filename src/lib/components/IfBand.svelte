@@ -20,7 +20,7 @@
 		justify-content: center;
 		min-height: 2.75rem;
 		padding: 0.5rem 1rem;
-		background-image: repeating-linear-gradient(135deg, var(--color-if) 0 12px, var(--color-if-dark) 12px 24px);
+		background-image: var(--pattern-if);
 		color: var(--color-bg);
 		font-size: var(--font-size-sub);
 		font-weight: bold;

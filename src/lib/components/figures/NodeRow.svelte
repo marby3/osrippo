@@ -2,10 +2,10 @@
 	// 図の並び（Issue #225）。アイコン・名前・ひとこと。arrows で矢印をはさみ、numbered で手順の番号を付ける。
 	// stack のときは、置いた場所が狭い（30rem 未満）と縦に並べ、アイコンを左・文を右にする（言葉の途中で折り返さないように）
 	import Arrow from './Arrow.svelte';
-	import FigureIcon from './FigureIcon.svelte';
+	import FigureIcon, { type IconName } from './FigureIcon.svelte';
 
-	type Node = { icon: string; title: string; caption?: string };
-	let { nodes, arrows = true, numbered = false, stack = true }: { nodes: Node[]; arrows?: boolean; numbered?: boolean; stack?: boolean } = $props();
+	type Node = { icon: IconName; title: string; caption?: string };
+	let { nodes, arrows = true, numbered = false, stack = true }: { nodes: readonly Node[]; arrows?: boolean; numbered?: boolean; stack?: boolean } = $props();
 </script>
 
 <div class="box" class:stack>
@@ -90,7 +90,6 @@
 	.title {
 		font-size: var(--font-size-body);
 		font-weight: bold;
-		line-height: 1.4;
 	}
 
 	.caption {

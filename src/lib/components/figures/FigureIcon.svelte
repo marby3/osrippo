@@ -4,7 +4,7 @@
 
 <script lang="ts">
 	// 説明の図のアイコン（Issue #225）。線は文字の色（currentColor）で描き、色は置いた場所の CSS 変数から決まる
-	let { name }: { name: IconName | string } = $props();
+	let { name }: { name: IconName } = $props();
 </script>
 
 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">

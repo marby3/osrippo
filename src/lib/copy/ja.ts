@@ -301,7 +301,7 @@ export const ja = {
 				{ icon: 'issue', title: '課題', caption: '困りごとを書く' },
 				{ icon: 'support', title: 'わかる', caption: '同じ困りごとなら押す' },
 				{ icon: 'solution', title: '解決策', caption: 'よくする案を書く' }
-			]
+			] as const
 		},
 		/** 遊び方 2 / 3 の会期の帯。法案の書き方の流れの図でも使う */
 		session: {
@@ -334,7 +334,7 @@ export const ja = {
 				{ icon: 'issue', title: '課題' },
 				{ icon: 'solution', title: '解決策' },
 				{ icon: 'draft', title: '下書き' }
-			],
+			] as const,
 			session: '会期（1か月）',
 			passed: '可決すると',
 			ifLaw: 'IF世界の法律',
@@ -349,7 +349,7 @@ export const ja = {
 				{ kind: 'amend', title: '改正', caption: '条を書きかえる・追加・削除する', heading: '第5条', lines: [{ del: '期間は十日' }, { ins: '期間は二十日' }] },
 				{ kind: 'repeal', title: '廃止', caption: '法令をまるごと廃止する', heading: '○○法', lines: [{ del: '第1条' }, { del: '第2条' }] },
 				{ kind: 'enact', title: '制定', caption: '新しい法律を作る', heading: '△△法', lines: [{ ins: '第1条（目的）' }, { ins: '第2条' }] }
-			] as { kind: string; title: string; caption: string; heading: string; lines: ({ del: string } | { ins: string })[] }[]
+			] as { kind: 'amend' | 'repeal' | 'enact'; title: string; caption: string; heading: string; lines: ({ del: string } | { ins: string })[] }[]
 		},
 		/** 法案の書き方「変える条の書き方」の例。左の札は、その行が何にあたるか */
 		article: {
@@ -367,7 +367,7 @@ export const ja = {
 				{ icon: 'invite', title: '招待コードを入れる' },
 				{ icon: 'check', title: 'お約束にチェックを入れる' },
 				{ icon: 'login', title: 'GoogleかLINEのボタンで登録' }
-			]
+			] as const
 		},
 		/** β版のお約束の要点 */
 		yakusoku: {
@@ -376,7 +376,7 @@ export const ja = {
 				{ icon: 'game', title: '非公式のゲーム', caption: '国会・政府とは無関係' },
 				{ icon: 'open', title: 'CC BY 4.0', caption: '投稿は公開されます' },
 				{ icon: 'person', title: '1人1アカウント', caption: '招待コードは譲らない' }
-			]
+			] as const
 		}
 	},
 	/** ホームの「注目の課題」（Issue #130。SpHome・PcHome） */
@@ -923,7 +923,7 @@ export const ja = {
 				`採決します（毎月${vote}日から月末まで）。`,
 				'可決すると、IF世界の法律になります。'
 			],
-			flowNote: '会期は1か月です。月ごとに、この流れを繰り返します。',
+			flowNote: '課題・解決策・法案の下書きは、いつでも書けます。会期は1か月です。月ごとに、発議から採決までの流れを繰り返します。',
 			start: (days: number, solutions: number) => [
 				'課題のページで、解決策の「この解決策から法案を書く」を押すと書き始められます。',
 				`法案を書けるのは、登録から${days}日たってからです。`,

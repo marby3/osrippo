@@ -17,7 +17,7 @@
 		align-items: center;
 		padding: 0.625rem 0.5rem;
 		border-radius: var(--radius-m);
-		background-image: repeating-linear-gradient(135deg, var(--color-if) 0 12px, var(--color-if-dark) 12px 24px);
+		background-image: var(--pattern-if);
 		color: var(--color-bg);
 		font-weight: bold;
 		text-align: center;

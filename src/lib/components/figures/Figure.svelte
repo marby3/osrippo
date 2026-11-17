@@ -19,7 +19,7 @@
 		background: var(--color-surface);
 		color: var(--color-text);
 		font-size: var(--font-size-sub);
-		line-height: 1.5;
+		line-height: var(--line-height-body);
 	}
 
 	/* 図の中の SVG は、塗らずに線で描く（色は文字の色から） */
