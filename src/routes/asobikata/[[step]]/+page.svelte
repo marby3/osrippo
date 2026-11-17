@@ -1,6 +1,9 @@
 <script lang="ts">
 	// はじめての方へ：遊び方（Issue #131）。案がないので、課題を書く画面（#121）の「ステップ n / 3」と段の棒の形にそろえる。
 	// 「前へ」「次へ」はふつうのリンク（スクリプトなしでも動く）
+	import IfWorldFigure from '#lib/components/figures/IfWorldFigure.svelte';
+	import IssueFigure from '#lib/components/figures/IssueFigure.svelte';
+	import SessionFigure from '#lib/components/figures/SessionFigure.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -25,6 +28,8 @@
 
 	<h1>{step.title}</h1>
 	<p class="when">{step.when}</p>
+	<!-- 段ごとの図（Issue #225）。見出しと文のあいだ -->
+	{#if data.step === 1}<IssueFigure />{:else if data.step === 2}<SessionFigure days={data} />{:else}<IfWorldFigure />{/if}
 	{#each step.body as line}<p>{line}</p>{/each}
 
 	<ul class="links">

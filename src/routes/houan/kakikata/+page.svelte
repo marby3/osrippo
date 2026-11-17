@@ -1,6 +1,9 @@
 <script lang="ts">
 	// 法案の書き方（Issue #59）。キャンバスに案がないので、法案のページと法令ページの文字の組み方に合わせて組む
 	import Crumbs from '#lib/components/Crumbs.svelte';
+	import ArticleExampleFigure from '#lib/components/figures/ArticleExampleFigure.svelte';
+	import BillFlowFigure from '#lib/components/figures/BillFlowFigure.svelte';
+	import BillKindsFigure from '#lib/components/figures/BillKindsFigure.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -39,16 +42,16 @@
 	{#each sections as s (s.id)}
 		<section id={s.id} aria-labelledby="{s.id}-heading">
 			<h2 id="{s.id}-heading">{s.title}</h2>
+			<!-- 節の図（Issue #225）。見出しのすぐ下 -->
+			{#if s.id === 'nagare'}<BillFlowFigure days={data} />{:else if s.id === 'shurui'}<BillKindsFigure />{/if}
 			{#if s.ordered}
 				<ol class="steps">{#each s.items as item (item)}<li>{item}</li>{/each}</ol>
 			{:else}
 				<ul>{#each s.items as item (item)}<li>{item}</li>{/each}</ul>
 			{/if}
 			{#if s.example}
-				<figure>
-					<figcaption>{t.articlesExampleLabel}</figcaption>
-					<pre>{t.articlesExample}</pre>
-				</figure>
+				<!-- 書き方の例に、各行が何にあたるかを書き込む（Issue #225） -->
+				<ArticleExampleFigure example={t.articlesExample} />
 				<p>{t.articlesAdd}</p>
 			{/if}
 			{#if s.note}<p class="note">{s.note}</p>{/if}
@@ -112,27 +115,6 @@
 
 	section {
 		scroll-margin-top: 1rem;
-	}
-
-	figure {
-		margin: 0.75rem 0;
-	}
-
-	figcaption {
-		color: var(--color-text-sub);
-		font-size: var(--font-size-sub);
-	}
-
-	pre {
-		margin: 0.25rem 0 0;
-		padding: 0.75rem 1rem;
-		border: 1px solid var(--color-input-border);
-		border-radius: var(--radius-m);
-		background: var(--color-surface);
-		font: inherit;
-		line-height: var(--line-height-law);
-		white-space: pre-wrap;
-		overflow-wrap: anywhere;
 	}
 
 	.start {

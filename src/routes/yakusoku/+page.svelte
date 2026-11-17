@@ -1,5 +1,6 @@
 <script lang="ts">
 	// β版のお約束（Issue #200）。案がないので、遊び方のページ（#131）の幅と見出しにそろえる
+	import YakusokuFigure from '#lib/components/figures/YakusokuFigure.svelte';
 	import { ja } from '#lib/copy/ja.ts';
 	import type { PageProps } from './$types';
 
@@ -14,6 +15,8 @@
 <main class="frame">
 	<h1>{t.heading}</h1>
 	<p class="lead">{t.lead}</p>
+	<!-- 要点の図（Issue #225）。お約束の文の上 -->
+	<YakusokuFigure />
 	<ol class="items">
 		{#each t.items as item (item)}<li>{item}</li>{/each}
 	</ol>
