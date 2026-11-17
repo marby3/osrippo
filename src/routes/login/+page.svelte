@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Turnstile from '#lib/components/Turnstile.svelte';
+	import SignupFigure from '#lib/components/figures/SignupFigure.svelte';
 	import googleLogo from '#lib/assets/google.svg';
 	import lineLogo from '#lib/assets/line.svg';
 	import { ja } from '#lib/copy/ja.ts';
@@ -26,6 +27,8 @@
 	{#if failedMessage}<p role="alert">{failedMessage}</p>{/if}
 	{#if form?.message && !inviteError && !agreeError}<p role="alert">{form.message}</p>{/if}
 	<p>{ja.login.newcomer}</p>
+	<!-- 登録の3つの手順の図（Issue #225）。説明とフォームのあいだ -->
+	<SignupFigure />
 	<!-- 並びは上から 説明文 → はじめての方への説明 → ボタン → 確認の枠（Issue #159）。見た目と読み上げの順をそろえる -->
 	<form method="post">
 		<input type="hidden" name="next" value={data.next} />

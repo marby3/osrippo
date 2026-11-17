@@ -69,7 +69,8 @@ test('基準2：3つの画面を「前へ」「次へ」で行き来でき、最
 test('基準3：「いちばん大事な流れ」を3つにまとめ、日付は法案の書き方のページと同じ値', async ({ page }) => {
 	// 法案の書き方の流れから、発議の締切・質疑・採決の日を読む
 	await page.goto('/houan/kakikata');
-	const flow = await page.locator('#nagare').innerText();
+	// 節の箇条書き（図の中の日付は e2e/zukai.spec.ts の基準9で確かめる）
+	const flow = await page.locator('#nagare ol.steps').innerText();
 	const [, until] = /毎月(\d+)日まで/.exec(flow)!;
 	const [, deliberation] = /毎月(\d+)日から）。\s*$/m.exec(flow.split('\n').find((l) => l.includes('質疑'))!)!;
 	const [, vote] = /毎月(\d+)日から月末/.exec(flow)!;

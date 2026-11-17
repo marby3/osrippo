@@ -35,9 +35,10 @@ export type BodyError = 'required' | 'tooLong' | 'control' | 'paragraphOrder' | 
 export type BodyResult = { ok: true; paragraphs: Paragraph[] } | { ok: false; line: number; error: BodyError };
 
 const KANJI_DIGITS: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
-const ITEM_LINE = /^([一二三四五六七八九十百]+(?:の[一二三四五六七八九十百]+)*)　([\s\S]*)$/;
+/** 号の行：漢数字（枝番は「の」）＋全角空白。説明の図（Issue #225）も使う */
+export const ITEM_LINE = /^([一二三四五六七八九十百]+(?:の[一二三四五六七八九十百]+)*)　([\s\S]*)$/;
 /** 項の行：半角の算用数字＋全角空白（全角の数字は項の行にしない） */
-const PARAGRAPH_LINE = /^([0-9]+)　([\s\S]*)$/;
+export const PARAGRAPH_LINE = /^([0-9]+)　([\s\S]*)$/;
 
 /** 「十二」→ 12（display.ts の itemLabel の逆） */
 function kanjiNumber(s: string): number {

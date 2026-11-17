@@ -289,6 +289,96 @@ export const ja = {
 			}
 		]
 	},
+	/**
+	 * 説明の画面の図（Issue #225）。図にしか書いていないことは作らない（本文で同じことがわかる）。
+	 * label は読み上げ用の説明。日付は会期の決まりの値から渡す
+	 */
+	figures: {
+		/** 遊び方 1 / 3 */
+		issue: {
+			label: '図：課題を書くと、同じことでこまっている人が「わかる」を押し、よくする案が解決策としてつながります。',
+			nodes: [
+				{ icon: 'issue', title: '課題', caption: '困りごとを書く' },
+				{ icon: 'support', title: 'わかる', caption: '同じ困りごとなら押す' },
+				{ icon: 'solution', title: '解決策', caption: 'よくする案を書く' }
+			] as const
+		},
+		/** 遊び方 2 / 3 の会期の帯。法案の書き方の流れの図でも使う */
+		session: {
+			label: (d: { proposeUntil: number; deliberation: number; discussUntil: number; vote: number }) =>
+				`図：1か月の会期。発議は毎月1日〜${d.proposeUntil}日、質疑は${d.deliberation}日〜${d.discussUntil}日、採決は${d.vote}日〜月末。この段は、発議と質疑です。`,
+			heading: '1か月の会期（毎月くり返す）',
+			segments: (d: { proposeUntil: number; deliberation: number; discussUntil: number; vote: number }) => [
+				{ title: '発議', days: `1〜${d.proposeUntil}日` },
+				{ title: '質疑', days: `${d.deliberation}〜${d.discussUntil}日` },
+				{ title: '採決', days: `${d.vote}日〜月末` }
+			],
+			here: 'この段'
+		},
+		/** 遊び方 3 / 3 */
+		ifWorld: {
+			label: '図：可決した法案は、IF世界の法律を変えます。IF世界は架空の世界で、現実の法律は変わりません。',
+			passed: '可決した法案',
+			ifLaw: 'IF世界の法律',
+			fictional: '架空',
+			changes: '変わる',
+			realLaw: '現実の法律',
+			unchanged: '変わらない'
+		},
+		/** 法案の書き方「法案ができるまで」 */
+		billFlow: {
+			label: (d: { proposeUntil: number; deliberation: number; discussUntil: number; vote: number }) =>
+				`図：法案ができるまで。課題、解決策、法案の下書きはいつでも書けます。会期では、発議は毎月1日〜${d.proposeUntil}日、質疑は${d.deliberation}日〜${d.discussUntil}日、採決は${d.vote}日〜月末。可決すると、IF世界の法律になります。`,
+			anytime: 'いつでも',
+			nodes: [
+				{ icon: 'issue', title: '課題' },
+				{ icon: 'solution', title: '解決策' },
+				{ icon: 'draft', title: '下書き' }
+			] as const,
+			session: '会期（1か月）',
+			passed: '可決すると',
+			ifLaw: 'IF世界の法律',
+			fictional: '架空'
+		},
+		/** 法案の書き方「法案の種類」。変わるところは、削除は取り消し線と「−」、追加は下線と「＋」 */
+		kinds: {
+			label: '図：法案の種類。改正は条の文を書きかえ・追加・削除します。廃止は法令をまるごと廃止します。制定は新しい法律を作り、第1条に目的を書きます。',
+			del: '−',
+			ins: '＋',
+			items: [
+				{ kind: 'amend', title: '改正', caption: '条を書きかえる・追加・削除する', heading: '第5条', lines: [{ del: '期間は十日' }, { ins: '期間は二十日' }] },
+				{ kind: 'repeal', title: '廃止', caption: '法令をまるごと廃止する', heading: '○○法', lines: [{ del: '第1条' }, { del: '第2条' }] },
+				{ kind: 'enact', title: '制定', caption: '新しい法律を作る', heading: '△△法', lines: [{ ins: '第1条（目的）' }, { ins: '第2条' }] }
+			] as { kind: 'amend' | 'repeal' | 'enact'; title: string; caption: string; heading: string; lines: ({ del: string } | { ins: string })[] }[]
+		},
+		/** 法案の書き方「変える条の書き方」の例。左の札は、その行が何にあたるか */
+		article: {
+			caption: '書き方の例（左は、その行が何にあたるか）',
+			paragraph: (n: number) => `第${n}項`,
+			item: (n: number) => `第${n}号`,
+			/** 行頭の書き方の説明（最初の号と、2項目の項にだけ付ける） */
+			itemNote: '「一」と全角の空白',
+			paragraphNote: '半角の「2」と全角の空白'
+		},
+		/** ログインのはじめての方への説明 */
+		signup: {
+			label: '図：はじめての方の登録は3つの手順です。1、招待コードを入れる。2、β版のお約束を読んで、チェックを入れる。3、GoogleかLINEのボタンで登録する。',
+			steps: [
+				{ icon: 'invite', title: '招待コードを入れる' },
+				{ icon: 'check', title: 'お約束にチェックを入れる' },
+				{ icon: 'login', title: 'GoogleかLINEのボタンで登録' }
+			] as const
+		},
+		/** β版のお約束の要点 */
+		yakusoku: {
+			label: '図：お約束の要点。国会・政府とは関係のない非公式のゲームです。投稿は CC BY 4.0 で公開されます。1人1アカウントです。',
+			points: [
+				{ icon: 'game', title: '非公式のゲーム', caption: '国会・政府とは無関係' },
+				{ icon: 'open', title: 'CC BY 4.0', caption: '投稿は公開されます' },
+				{ icon: 'person', title: '1人1アカウント', caption: '招待コードは譲らない' }
+			] as const
+		}
+	},
 	/** ホームの「注目の課題」（Issue #130。SpHome・PcHome） */
 	featured: {
 		heading: '注目の課題',
@@ -833,7 +923,7 @@ export const ja = {
 				`採決します（毎月${vote}日から月末まで）。`,
 				'可決すると、IF世界の法律になります。'
 			],
-			flowNote: '会期は1か月です。月ごとに、この流れを繰り返します。',
+			flowNote: '課題・解決策・法案の下書きは、いつでも書けます。会期は1か月です。月ごとに、発議から採決までの流れを繰り返します。',
 			start: (days: number, solutions: number) => [
 				'課題のページで、解決策の「この解決策から法案を書く」を押すと書き始められます。',
 				`法案を書けるのは、登録から${days}日たってからです。`,
@@ -850,7 +940,6 @@ export const ja = {
 				'1行目は第1項です。2項からは行頭に半角の「2」と全角の空白を、号は「一」と全角の空白を付けます（全角の「２」は前の項の続きになります）。'
 			],
 			articlesExample: '事業者は、契約を結ぶ前に、次の事項を示さなければならない。\n一　契約の期間\n二　解約の方法\n2　前項の事項は、分かりやすく示さなければならない。',
-			articlesExampleLabel: '書き方の例',
 			articlesAdd: '新しく追加する条は、前の条の枝番で「第3条の2」のように番号を決めます。',
 			laws: (laws: number, changes: number) => [
 				`1本の法案で、法令を${laws}本まで扱えます。`,
